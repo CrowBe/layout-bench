@@ -1,16 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./ui/App";
-import { store, actions, logActivity } from "./model/store";
-import { seedLoft } from "./model/seed";
+import { store, actions, initializeProjects } from "./model/store";
 import { bootstrapWebMCP } from "./mcp/bootstrap";
 import "./styles.css";
 
-// First paint: the audited demo loft (0 issues) so the app opens with something beautiful.
-if (store.getState().model.walls.length === 0) {
-  actions.loadModel(seedLoft());
-  logActivity("system", "seed", "Sunset Loft demo loaded — draw over it, or ask your agent to recreate your own plan.");
-}
+initializeProjects();
 
 bootstrapWebMCP();
 

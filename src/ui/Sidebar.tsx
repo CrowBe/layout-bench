@@ -5,7 +5,6 @@ import { useAppStore, actions, logActivity } from "../model/store";
 import { checkModel } from "../model/issues";
 import { CATALOG } from "../model/catalog";
 import { TOOLS } from "../mcp/tools";
-import { seedLoft } from "../model/seed";
 import { ToolRunner } from "./ToolRunner";
 import { SupplierPanel } from "./SupplierPanel";
 import { thumbnailFor } from "../three/thumbnails";
@@ -85,14 +84,6 @@ export function Sidebar() {
               <div><strong>{model.items.length}</strong> items</div>
               <div><strong>{model.rooms.reduce((a, r) => a + r.w * r.h, 0).toFixed(1)}</strong> m²</div>
             </div>
-            <button
-              onClick={() => {
-                actions.loadModel(seedLoft());
-                logActivity("human", "load_seed", "Sunset Loft demo loaded.");
-              }}
-            >
-              Load Sunset Loft demo
-            </button>
             <button
               className="danger"
               onClick={() => {

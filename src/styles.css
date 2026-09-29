@@ -19,6 +19,22 @@ html, body, #root { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); }
 
 .app { display: flex; flex-direction: column; height: 100%; }
+.project-page { min-height: 100%; overflow: auto; padding: 5vh 20px; background: var(--bg); }
+.project-shell { max-width: 840px; margin: 0 auto; display: grid; gap: 20px; }
+.project-heading { display: flex; align-items: baseline; gap: 12px; }
+.project-heading strong { font-size: 20px; }
+.project-heading span:last-child { color: var(--ink-soft); }
+.project-shell h1 { margin: 0; font-size: 36px; }
+.project-shell > .hint { margin: 0; }
+.project-list { display: grid; gap: 10px; }
+.project-card, .project-create, .project-error { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); min-width: 0; }
+.project-card { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
+.project-card strong, .project-card small { display: block; }
+.project-card small { margin-top: 5px; color: var(--ink-soft); }
+.project-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+.project-create { display: grid; gap: 12px; }
+.project-error { border-color: var(--danger); color: var(--danger); }
+.save-banner { padding: 8px 14px; background: #fbeaea; color: #8c2f2f; font-size: 12px; }
 
 /* ---- header ---- */
 .header {

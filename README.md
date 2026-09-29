@@ -13,6 +13,17 @@ raises the result into a 3D model you can walk through. Built for the
 
 Everything runs client side. No backend, no accounts, plans stay on your machine.
 
+## Browser-local projects
+
+The app opens with a project chooser. **Sunset Loft** remains available as the demo;
+create a blank project for a separate plan or duplicate the demo as a starting point.
+Project changes save in this browser's local storage, including geometry, notes,
+custom item kinds, and an uploaded underlay. Use **Projects** to switch, export a
+project as JSON, import a backup under a new name, or delete a user-created project
+after confirmation. Browser storage does not sync between devices and may be cleared
+with site data. If storage is full or saved data uses an unreadable version, the app
+shows an error and offers a backup download without overwriting that data.
+
 ---
 
 ## The two-minute film

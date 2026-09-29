@@ -1,6 +1,6 @@
 /** App shell — header (view/camera/tools status), editor or 3D scene, sidebar, activity feed. */
 
-import { useAppStore, actions, logActivity } from "../model/store";
+import { useAppStore, actions, logActivity, projects } from "../model/store";
 import { Editor } from "../editor/Editor";
 import { Scene3D } from "../three/Scene3D";
 import { Sidebar } from "./Sidebar";
@@ -8,6 +8,7 @@ import { ActivityFeed } from "./ActivityFeed";
 import { ApprovalBar } from "./ApprovalBar";
 import { SupplierBridge } from "./SupplierBridge";
 import { bus, EVENTS } from "../three/exportBus";
+import { ProjectChooser } from "./ProjectChooser";
 
 export function App() {
   const view = useAppStore((s) => s.editor.view);
@@ -15,6 +16,12 @@ export function App() {
   const drawMode = useAppStore((s) => s.editor.drawMode);
   const webmcpStatus = useAppStore((s) => s.webmcpStatus);
   const planName = useAppStore((s) => s.model.name);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const chooserOpen = useAppStore((s) => s.chooserOpen);
+  const saveError = useAppStore((s) => s.saveError);
+  const pendingApprovals = useAppStore((s) => s.approvals.length);
+
+  if (chooserOpen || !activeProjectId) return <ProjectChooser />;
 
   return (
     <div className="app">
@@ -23,6 +30,7 @@ export function App() {
           <span className="brand-mark">▲</span>
           <span className="brand-name">Alza</span>
           <span className="brand-plan">{planName}</span>
+          <button onClick={() => projects.showChooser()} disabled={pendingApprovals > 0} title={pendingApprovals ? "Resolve the pending agent request before switching projects" : undefined}>Projects</button>
         </div>
 
         <div className="header-group">
@@ -68,9 +76,10 @@ export function App() {
           </span>
         </div>
       </header>
+      {saveError && <div className="save-banner" role="alert">{saveError} <button onClick={() => projects.showChooser()}>Export backup</button></div>}
 
       <main className="main">
-        <div className="canvas-area">{view === "2d" ? <Editor /> : <Scene3D key={JSON.stringify([view])} />}</div>
+        <div className="canvas-area">{view === "2d" ? <Editor key={activeProjectId} /> : <Scene3D key={activeProjectId} />}</div>
         <Sidebar />
       </main>
 
