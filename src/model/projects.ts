@@ -52,8 +52,9 @@ export function parseProject(value: unknown): ProjectDocument {
       !(model.underlay === null || (object(model.underlay) && typeof model.underlay.dataUrl === "string" && ["opacity", "x", "y", "w", "h"].every((k) => finite((model.underlay as Record<string, unknown>)[k]))))) {
     throw new Error("Project document contains invalid model data.");
   }
-  // v1 documents written before opening anchors stored only t. Migrate those
-  // positions to a measured distance from end A while retaining t for renderers.
+  // v1 documents written before opening anchors stored only t. Derive an end A
+  // distance from that legacy fraction while retaining t for renderers; this
+  // preserves position but does not establish surveyed provenance.
   const project = value as unknown as ProjectDocument;
   const walls = new Map(project.model.walls.map((wall) => [wall.id, wall]));
   for (const opening of project.model.openings) {
