@@ -7,13 +7,38 @@ import {
   satRectWall,
   pointSegDist,
   clamp,
+  quantize,
+  formatMm,
 } from "../src/model/geometry";
 
+describe("precision policy", () => {
+  it("stores surveyed millimetres exactly, with no float residue", () => {
+    expect(quantize(2.11)).toBe(2.11);
+    expect(quantize(3.02)).toBe(3.02);
+    expect(quantize(1.7550000000000001)).toBe(1.755);
+    expect(quantize(1.0600000000000003)).toBe(1.06);
+  });
+  it("keeps half millimetres, rounds anything finer to 0.1 mm", () => {
+    expect(quantize(0.1775)).toBe(0.1775);
+    expect(quantize(0.80004)).toBe(0.8);
+    expect(quantize(0.23256)).toBe(0.2326);
+  });
+  it("displays whole millimetres where exact and never hides stored detail", () => {
+    expect(formatMm(2.11)).toBe("2110");
+    expect(formatMm(0.1775)).toBe("177.5");
+    expect(formatMm(1.0549999999999997)).toBe("1055");
+  });
+});
+
 describe("snap", () => {
-  it("snaps to 5 cm grid", () => {
-    expect(snap(1.23)).toBeCloseTo(1.25);
-    expect(snap(1.22)).toBeCloseTo(1.2);
-    expect(snap(-0.97)).toBeCloseTo(-0.95);
+  it("snaps to 5 cm grid by default", () => {
+    expect(snap(1.23)).toBe(1.25);
+    expect(snap(1.22)).toBe(1.2);
+    expect(snap(-0.97)).toBe(-0.95);
+  });
+  it("snaps to a chosen step, or only to stored precision when off", () => {
+    expect(snap(1.2345, 0.01)).toBe(1.23);
+    expect(snap(1.23456, 0)).toBe(1.2346);
   });
 });
 

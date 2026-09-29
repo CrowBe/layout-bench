@@ -173,6 +173,22 @@ function jointExtensions(wall: Wall, walls: Wall[]): [number, number] {
   return [extA, extB];
 }
 
+/**
+ * Name every still-unnamed mesh under `root`. Meshes are named `<entity id>` or
+ * `<entity id>:<part>`, so the OBJ export (and anything else reading the scene) can be
+ * traced back to the model entity it was built from.
+ */
+export function nameMeshes(root: THREE.Object3D, name: string): void {
+  root.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh && !o.name) o.name = name;
+  });
+}
+
+const named = <T extends THREE.Object3D>(o: T, name: string): T => {
+  o.name = name;
+  return o;
+};
+
 function box(
   w: number,
   h: number,
@@ -264,6 +280,8 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
     addSeg(x0, x1, o.sill + o.height, wall.height);
     // sill below windows
     if (o.sill > 0.005) addSeg(x0, x1, 0, o.sill);
+    nameMeshes(g, wall.id); // everything so far is wall; what follows belongs to the opening
+    const openingStart = g.children.length;
     // glass pane for windows
     if (o.kind === "window") {
       const glass = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 - 0.04, o.height - 0.04, 0.02), glassMaterial);
@@ -281,7 +299,8 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
         [fT, fh, x0 - total / 2 + fT / 2, cy],
         [fT, fh, x1 - total / 2 - fT / 2, cy],
       ] as const) {
-        g.add(box(bw, bh, wall.thickness + 0.02, frameMaterial, px, py, 0, 0, false));
+        // the frame spans exactly the clear opening: jamb to jamb, sill to head
+        g.add(named(box(bw, bh, wall.thickness + 0.02, frameMaterial, px, py, 0, 0, false), `${o.id}:frame`));
       }
       // stone sill, proud of both faces
       g.add(box(fw + 0.14, 0.045, wall.thickness + 0.16, sillMaterial, cx, o.sill - 0.022, 0, 0, false));
@@ -325,9 +344,10 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
         [fT, o.height, x1 - total / 2 - fT / 2, o.height / 2],
         [x1 - x0, fT, (x0 + x1) / 2 - total / 2, o.height + fT / 2],
       ] as const) {
-        g.add(box(bw, bh, wall.thickness + 0.02, frameMaterial, px, py, 0, 0, false));
+        g.add(named(box(bw, bh, wall.thickness + 0.02, frameMaterial, px, py, 0, 0, false), `${o.id}:frame`));
       }
     }
+    for (const part of g.children.slice(openingStart)) nameMeshes(part, `${o.id}:part`);
     cursor = x1;
   }
   addSeg(cursor, total, 0, wall.height);
@@ -337,6 +357,7 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
   cap.position.set(0, wall.height + 0.015, 0);
   cap.castShadow = true;
   g.add(cap);
+  nameMeshes(g, wall.id);
 
   // place group: center of extended wall, rotated
   g.position.set(ox + (dirX * total) / 2, 0, oy + (dirY * total) / 2);
@@ -359,6 +380,7 @@ function buildFloor(room: Room): THREE.Mesh {
   }
   const geo = new THREE.BoxGeometry(room.w, 0.04, room.h);
   const m = new THREE.Mesh(geo, mat);
+  m.name = room.id;
   m.position.set(room.x + room.w / 2, 0.02, room.y + room.h / 2);
   m.receiveShadow = true;
   return m;

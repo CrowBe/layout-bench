@@ -1,13 +1,13 @@
 /**
  * Editor — precise 2D SVG plan editor.
  * Chained wall drawing, rooms, openings with door arcs, furniture, blueprint underlay,
- * metric dimensions, 5 cm snap, pan & zoom. Everything mutates the same store the agent uses.
+ * millimetre dimensions, configurable pointer snap, pan & zoom. Everything mutates the same store the agent uses.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppStore, actions, logActivity } from "../model/store";
 import type { Opening, Wall } from "../model/types";
-import { snap, segLen, segPoint } from "../model/geometry";
+import { formatMm, snap as snapTo, segLen, segPoint } from "../model/geometry";
 import { openingSpan } from "../model/issues";
 import { catalogByKind } from "../model/catalog";
 
@@ -34,6 +34,8 @@ export function Editor() {
   const [roomStart, setRoomStart] = useState<{ x: number; y: number } | null>(null);
   const [panning, setPanning] = useState<{ px: number; py: number; vx: number; vy: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  /** Pointer snap is a drawing aid only; the step is the human's choice and 0 turns it off. */
+  const snap = (v: number) => snapTo(v, editor.snapStep);
 
   // auto-fit the plan on first mount
   useEffect(() => {
@@ -84,8 +86,12 @@ export function Editor() {
         setRoomStart(null);
       }
       if (e.key === "Delete" || e.key === "Backspace") {
-        const { selectedWallId, selectedItemId, selectedRoomId } = editor;
-        if (selectedWallId) {
+        const { selectedWallId, selectedItemId, selectedRoomId, selectedOpeningId } = editor;
+        if (selectedOpeningId) {
+          const r = actions.removeOpening(selectedOpeningId);
+          logActivity("human", "remove_opening", r.summary, r.ok);
+          actions.clearSelection();
+        } else if (selectedWallId) {
           const r = actions.removeWall(selectedWallId);
           logActivity("human", "remove_wall", r.summary, r.ok);
           actions.selectWall(null);
@@ -177,9 +183,7 @@ export function Editor() {
       return;
     }
     // select mode: background click clears selection / starts pan
-    actions.selectWall(null);
-    actions.selectItem(null);
-    actions.selectRoom(null);
+    actions.clearSelection();
     setPanning({ px: e.clientX, py: e.clientY, vx: view.x, vy: view.y });
   };
 
@@ -187,7 +191,7 @@ export function Editor() {
     if (panning) setPanning(null);
     if (dragItem) {
       const it = model.items.find((i) => i.id === dragItem.id);
-      if (it) logActivity("human", "move_item", `Moved ${catalogByKind(it.kind)?.label ?? it.kind} to (${it.x.toFixed(2)}, ${it.y.toFixed(2)}).`);
+      if (it) logActivity("human", "move_item", `Moved ${catalogByKind(it.kind)?.label ?? it.kind} to (${formatMm(it.x)}, ${formatMm(it.y)}) mm.`);
       setDragItem(null);
     }
     if (dragRoom) setDragRoom(null);
@@ -221,6 +225,12 @@ export function Editor() {
     setDragItem({ id, dx: p.x - it.x, dy: p.y - it.y });
   };
 
+  const onOpeningDown = (id: string, e: React.PointerEvent) => {
+    if (editor.drawMode !== "select") return;
+    e.stopPropagation();
+    actions.selectOpening(id);
+  };
+
   const onRoomDown = (id: string, e: React.PointerEvent) => {
     if (editor.drawMode !== "select") return; // let place mode receive the click
     e.stopPropagation();
@@ -242,11 +252,12 @@ export function Editor() {
     const p1 = segPoint({ x: wall.ax, y: wall.ay }, { x: wall.bx, y: wall.by }, t1);
     const c = segPoint({ x: wall.ax, y: wall.ay }, { x: wall.bx, y: wall.by }, o.t);
     const angle = (Math.atan2(wall.by - wall.ay, wall.bx - wall.ax) * 180) / Math.PI;
+    const selected = editor.selectedOpeningId === o.id;
     if (o.kind === "door") {
       const r = o.width;
       return (
-        <g key={o.id} transform={`rotate(${angle} ${c.x * S} ${c.y * S})`}>
-          <line x1={p0.x * S} y1={p0.y * S} x2={p1.x * S} y2={p1.y * S} stroke="#f7f4ee" strokeWidth={Math.max(2, wall.thickness * S)} />
+        <g key={o.id} data-id={o.id} onPointerDown={(e) => onOpeningDown(o.id, e)} style={{ cursor: "pointer" }} transform={`rotate(${angle} ${c.x * S} ${c.y * S})`}>
+          <line x1={p0.x * S} y1={p0.y * S} x2={p1.x * S} y2={p1.y * S} stroke={selected ? "#f3d2bb" : "#f7f4ee"} strokeWidth={Math.max(2, wall.thickness * S)} />
           <path
             d={`M ${p0.x * S} ${p0.y * S} A ${r * S} ${r * S} 0 0 1 ${p0.x * S + r * S} ${p0.y * S - r * S}`}
             fill="none"
@@ -258,9 +269,9 @@ export function Editor() {
       );
     }
     return (
-      <g key={o.id} transform={`rotate(${angle} ${c.x * S} ${c.y * S})`}>
-        <line x1={p0.x * S} y1={p0.y * S} x2={p1.x * S} y2={p1.y * S} stroke="#f7f4ee" strokeWidth={Math.max(2, wall.thickness * S)} />
-        <line x1={p0.x * S} y1={p0.y * S} x2={p1.x * S} y2={p1.y * S} stroke="#4f86b0" strokeWidth={2.4} />
+      <g key={o.id} data-id={o.id} onPointerDown={(e) => onOpeningDown(o.id, e)} style={{ cursor: "pointer" }} transform={`rotate(${angle} ${c.x * S} ${c.y * S})`}>
+        <line x1={p0.x * S} y1={p0.y * S} x2={p1.x * S} y2={p1.y * S} stroke={selected ? "#f3d2bb" : "#f7f4ee"} strokeWidth={Math.max(2, wall.thickness * S)} />
+        <line x1={p0.x * S} y1={p0.y * S} x2={p1.x * S} y2={p1.y * S} stroke={selected ? "#e07b39" : "#4f86b0"} strokeWidth={2.4} />
         <line x1={p0.x * S} y1={p0.y * S - 0.06 * S} x2={p1.x * S} y2={p1.y * S - 0.06 * S} stroke="#4f86b0" strokeWidth={1} />
         <line x1={p0.x * S} y1={p0.y * S + 0.06 * S} x2={p1.x * S} y2={p1.y * S + 0.06 * S} stroke="#4f86b0" strokeWidth={1} />
       </g>
@@ -311,7 +322,7 @@ export function Editor() {
 
       {/* rooms */}
       {model.rooms.map((r) => (
-        <g key={r.id} onPointerDown={(e) => onRoomDown(r.id, e)} style={{ cursor: "move" }}>
+        <g key={r.id} data-id={r.id} onPointerDown={(e) => onRoomDown(r.id, e)} style={{ cursor: "move" }}>
           <rect
             x={r.x * S}
             y={r.y * S}
@@ -335,7 +346,7 @@ export function Editor() {
         const nx = (-(w.by - w.ay) / len) * 0.22;
         const ny = ((w.bx - w.ax) / len) * 0.22;
         return (
-          <g key={w.id} onClick={(e) => onWallClick(w, e)} style={{ cursor: "pointer" }}>
+          <g key={w.id} data-id={w.id} onClick={(e) => onWallClick(w, e)} style={{ cursor: "pointer" }}>
             <line
               x1={w.ax * S}
               y1={w.ay * S}
@@ -355,7 +366,7 @@ export function Editor() {
               textAnchor="middle"
               fontFamily="ui-monospace, monospace"
             >
-              {len.toFixed(2)}
+              {formatMm(len)}
             </text>
           </g>
         );
@@ -372,6 +383,7 @@ export function Editor() {
         return (
           <g
             key={it.id}
+            data-id={it.id}
             transform={`translate(${it.x * S} ${it.y * S}) rotate(${-it.rotation})`}
             onPointerDown={(e) => onItemDown(it.id, e)}
             style={{ cursor: "move" }}
@@ -418,7 +430,7 @@ export function Editor() {
       )}
       {editor.drawMode === "wall" && editor.pendingWallStart && mouse && (
         <text x={mouse.x * S + 10} y={mouse.y * S - 10} fontSize={12} fill="#e07b39" fontFamily="ui-monospace, monospace">
-          {segLen(editor.pendingWallStart.x, editor.pendingWallStart.y, mouse.x, mouse.y).toFixed(2)} m
+          {formatMm(segLen(editor.pendingWallStart.x, editor.pendingWallStart.y, mouse.x, mouse.y))} mm
         </text>
       )}
 

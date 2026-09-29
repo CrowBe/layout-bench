@@ -21,6 +21,11 @@ export interface Opening {
   width: number; // meters (the clear span of the vano)
   sill: number; // height of the bottom edge (0 for doors, ~0.9 for windows)
   height: number; // clear height of the opening
+  /**
+   * true while `height` is a default nobody supplied. Cleared the moment a real height is
+   * entered. get_issues reports it so an agent asks the human instead of trusting it.
+   */
+  heightDefaulted?: boolean;
   /** doors only — which jamb carries the hinges (default "a", the wall's A end) */
   hinge?: "a" | "b";
   /**

@@ -5,6 +5,7 @@
 
 import type { Issue, Opening, PlanModel, Wall } from "./types";
 import {
+  formatMm,
   aabbOverlap,
   areCollinear,
   collinearOverlap,
@@ -149,6 +150,14 @@ export function checkModel(model: PlanModel): Issue[] {
         code: "opening_too_tall",
         message: `${o.kind} ${o.id} (sill ${o.sill}m + height ${o.height}m) exceeds wall height ${wall.height}m.`,
         refs: [o.id, wall.id],
+      });
+    }
+    if (o.heightDefaulted) {
+      issues.push({
+        severity: "warning",
+        code: "opening_height_default",
+        message: `${o.kind} ${o.id} uses a default height of ${formatMm(o.height)} mm that nobody measured. Ask for the real height and set it with edit_opening.`,
+        refs: [o.id],
       });
     }
     // Overlap between openings on the same wall

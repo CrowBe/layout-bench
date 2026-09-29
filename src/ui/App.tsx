@@ -9,11 +9,16 @@ import { ApprovalBar } from "./ApprovalBar";
 import { SupplierBridge } from "./SupplierBridge";
 import { bus, EVENTS } from "../three/exportBus";
 import { ProjectChooser } from "./ProjectChooser";
+import { Inspector } from "./Inspector";
+
+/** Pointer snap choices for the 2D editor, in metres. Typed values and tools are never snapped. */
+const SNAP_STEPS: [number, string][] = [[0, "Off"], [0.001, "1 mm"], [0.01, "10 mm"], [0.05, "50 mm"], [0.1, "100 mm"]];
 
 export function App() {
   const view = useAppStore((s) => s.editor.view);
   const camera = useAppStore((s) => s.editor.camera);
   const drawMode = useAppStore((s) => s.editor.drawMode);
+  const snapStep = useAppStore((s) => s.editor.snapStep);
   const webmcpStatus = useAppStore((s) => s.webmcpStatus);
   const planName = useAppStore((s) => s.model.name);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
@@ -45,6 +50,12 @@ export function App() {
               <button className={drawMode === "room" ? "active" : ""} onClick={() => actions.setDrawMode("room")}>
                 + Room
               </button>
+              <label className="snap-select" title="Pointer snap while drawing and dragging. Typed values are never snapped.">
+                Snap
+                <select value={snapStep} onChange={(e) => actions.setSnapStep(Number(e.target.value))}>
+                  {SNAP_STEPS.map(([step, label]) => <option key={step} value={step}>{label}</option>)}
+                </select>
+              </label>
               <button
                 onClick={() => {
                   const r = actions.undo();
@@ -79,7 +90,10 @@ export function App() {
       {saveError && <div className="save-banner" role="alert">{saveError} <button onClick={() => projects.showChooser()}>Export backup</button></div>}
 
       <main className="main">
-        <div className="canvas-area">{view === "2d" ? <Editor key={activeProjectId} /> : <Scene3D key={activeProjectId} />}</div>
+        <div className="canvas-area">
+          {view === "2d" ? <Editor key={activeProjectId} /> : <Scene3D key={activeProjectId} />}
+          {view === "2d" && <Inspector />}
+        </div>
         <Sidebar />
       </main>
 

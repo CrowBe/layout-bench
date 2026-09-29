@@ -7,11 +7,16 @@
  *
  * The contract this test holds the app to:
  *  - Values entered through tools are stored and read back exactly (no hidden 50 mm snap).
- *  - An unknown window height stays unknown (null), not a default.
+ *    Storage precision is 0.1 mm, so derived set-out values such as a centred 1755 mm
+ *    window's 177.5 mm jamb offset survive; finer input is rounded and the result says so.
+ *  - A window added without a height gets a default that fits under the wall, marked
+ *    heightDefaulted; the tool result asks the agent to get the measured height, and
+ *    get_issues keeps warning until it is entered.
  *  - Selecting a window in the 2D editor exposes its centre distance from wall end A in mm,
  *    and typing a new value moves it by exactly that amount.
  *  - 2D elements carry `data-id` and 3D meshes are named `<entity id>` or `<entity id>:<part>`,
- *    so both renderings can be checked against the model they were drawn from.
+ *    so both renderings can be checked against the model they were drawn from. An opening's
+ *    `:frame` part spans exactly its clear opening.
  *
  * Survey decisions (see issue #1): walls run along the surveyed existing surfaces until #4 adds
  * real faces; the door's jamb reference waits for on-site orientation, so its position here is a
@@ -60,7 +65,7 @@ const centreFromA = (m, openingId) => {
   return o.t * Math.hypot(w.bx - w.ax, w.by - w.ay);
 };
 
-/** Export OBJ from the 3D view and return world-space bounds per entity id (mesh name before ":"). */
+/** Export OBJ from the 3D view and return world-space bounds per entity id and per full mesh name. */
 async function exportedBounds() {
   await page.getByRole("button", { name: /Build 3D/ }).click();
   await page.waitForSelector(".scene3d canvas", { timeout: 15000 });
@@ -75,14 +80,16 @@ async function exportedBounds() {
   const bounds = new Map();
   let current = "";
   for (const line of obj.split("\n")) {
-    if (line.startsWith("o ")) current = line.slice(2).trim().split(":")[0];
+    if (line.startsWith("o ")) current = line.slice(2).trim();
     else if (line.startsWith("v ") && current) {
       const [x, y, z] = line.slice(2).trim().split(/\s+/).map(Number);
-      const b = bounds.get(current) ?? { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity };
-      b.minX = Math.min(b.minX, x); b.maxX = Math.max(b.maxX, x);
-      b.minY = Math.min(b.minY, y); b.maxY = Math.max(b.maxY, y);
-      b.minZ = Math.min(b.minZ, z); b.maxZ = Math.max(b.maxZ, z);
-      bounds.set(current, b);
+      for (const key of new Set([current, current.split(":")[0]])) {
+        const b = bounds.get(key) ?? { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity };
+        b.minX = Math.min(b.minX, x); b.maxX = Math.max(b.maxX, x);
+        b.minY = Math.min(b.minY, y); b.maxY = Math.max(b.maxY, y);
+        b.minZ = Math.min(b.minZ, z); b.maxZ = Math.max(b.maxZ, z);
+        bounds.set(key, b);
+      }
     }
   }
   return bounds;
@@ -143,7 +150,10 @@ try {
   check("readback: window width 1755 mm", near(w0?.width, WINDOW.width), fmt(w0?.width));
   check("readback: window sill 1520 mm", near(w0?.sill, WINDOW.sill), fmt(w0?.sill));
   check("readback: window centred 1055 mm from end A", w0 && near(centreFromA(m, win.id), WINDOW.centreFromA), w0 && fmt(centreFromA(m, win.id)));
-  check("readback: unknown window height stays unknown", w0 && w0.height === null, `height = ${JSON.stringify(w0?.height)}`);
+  check("readback: window jamb 177.5 mm from end A (0.1 mm precision)", near(w0?.position?.nearJambFromA, 0.1775), fmt(w0?.position?.nearJambFromA));
+  check("height: missing window height is a default that fits under the wall",
+    w0?.heightDefaulted === true && near(w0?.height, 2.7 - WINDOW.sill), `height ${fmt(w0?.height)}, heightDefaulted ${w0?.heightDefaulted}`);
+  check("height: add_window asks the agent for the measured height", /ask the human for the measured height/i.test(win.summary ?? "") && /edit_opening/.test(win.summary ?? ""), win.summary);
   const d0 = m.openings.find((o) => o.id === door.id);
   check("readback: door width 800 mm", near(d0?.width, DOOR_WIDTH), fmt(d0?.width));
   const v0 = m.items.find((i) => i.id === vanity.id);
@@ -154,8 +164,13 @@ try {
   check("readback: measure reports the back wall as 2110 mm", near(measured.meters, W) && /2110|2\.110/.test(measured.summary), measured.summary);
   check("readback: no bath was inferred", !m.items.some((i) => /bath/i.test(i.kind)));
   const issues = (await tool("get_issues")).issues ?? [];
-  check("issues: checker handles an unknown window height without errors",
+  check("issues: no errors in the surveyed plan",
     !!w0 && !issues.some((i) => i.severity === "error"), issues.filter((i) => i.severity === "error").map((i) => i.message).join(" ;; "));
+  check("issues: get_issues keeps warning about the default window height",
+    issues.some((i) => i.code === "opening_height_default" && i.refs.includes(win.id)));
+  const rounded = await tool("edit_opening", { id: door.id, width: 0.80004 });
+  const d1 = (await model()).openings.find((o) => o.id === door.id);
+  check("rounding: finer-than-0.1 mm input is rounded and reported", near(d1?.width, DOOR_WIDTH) && /Rounded/.test(rounded.summary), rounded.summary);
 
   // ---------- 3. 2D and 3D agree with the stored model ----------
   const wallLabels = await page.locator(".editor-svg text").allTextContents();
@@ -169,10 +184,10 @@ try {
   check("3D: room floor spans 2110 × 3020 mm",
     floor && near(floor.maxX - floor.minX, W, 1e-6) && near(floor.maxZ - floor.minZ, D, 1e-6),
     floor ? `${fmt(floor.maxX - floor.minX)} × ${fmt(floor.maxZ - floor.minZ)}` : "no mesh named after the room");
-  let win3d = bounds.get(win.id);
+  let win3d = bounds.get(`${win.id}:frame`);
   check("3D: window opening is 1755 mm wide, centred 1055 mm from end A",
     win3d && near(win3d.maxX - win3d.minX, WINDOW.width, 1e-6) && near((win3d.minX + win3d.maxX) / 2, WINDOW.centreFromA, 1e-6),
-    win3d ? `${fmt(win3d.maxX - win3d.minX)} at ${fmt((win3d.minX + win3d.maxX) / 2)}` : "no mesh named after the window");
+    win3d ? `${fmt(win3d.maxX - win3d.minX)} at ${fmt((win3d.minX + win3d.maxX) / 2)}` : "no mesh named <window id>:frame");
   check("3D: window starts at the 1520 mm sill", win3d && near(win3d.minY, WINDOW.sill, 1e-6), win3d ? fmt(win3d.minY) : "no mesh");
   const van3d = bounds.get(vanity.id);
   check("3D: vanity footprint 910 × 465 mm",
@@ -196,13 +211,13 @@ try {
     m = await model();
     const w1 = m.openings.find((o) => o.id === win.id);
     check("after edit: WebMCP reads the window 1060 mm from end A", near(centreFromA(m, win.id), EDITED_CENTRE), fmt(centreFromA(m, win.id)));
-    check("after edit: width, sill and unknown height unchanged",
-      near(w1.width, WINDOW.width) && near(w1.sill, WINDOW.sill) && w1.height === null);
+    check("after edit: width, sill and default height unchanged",
+      near(w1.width, WINDOW.width) && near(w1.sill, WINDOW.sill) && w1.heightDefaulted === true);
     const winSvg1 = await svgCentre(win.id, room.id);
     check("after edit: 2D window drawn 1060 mm from end A",
       winSvg1 && near((winSvg1.x / winSvg1.roomW) * W, EDITED_CENTRE, 1e-6), winSvg1 ? fmt((winSvg1.x / winSvg1.roomW) * W) : "missing");
     bounds = await exportedBounds();
-    win3d = bounds.get(win.id);
+    win3d = bounds.get(`${win.id}:frame`);
     check("after edit: 3D window centred 1060 mm from end A",
       win3d && near((win3d.minX + win3d.maxX) / 2, EDITED_CENTRE, 1e-6), win3d ? fmt((win3d.minX + win3d.maxX) / 2) : "missing");
     const undo = await page.getByRole("button", { name: "Undo" }).click().then(() => model());
