@@ -176,7 +176,7 @@ if (mct.available && !mct.error) {
   check("webmcp runtime: add_wall executed", (await state("s.model.walls.length")) >= 3);
   check("webmcp runtime: agent note landed", (await state("s.notes.length")) >= 2);
 } else {
-  console.log("WARN  modelContextTesting not in this Chromium build — the 2 runtime-execution checks below are skipped (54 of 56 run here); registration is verified via the pill and the execution path via the ToolRunner, which shares the same wrapper.");
+  console.log("WARN  modelContextTesting not in this Chromium build — the 3 runtime-execution checks below are skipped (54 of 57 run here); registration is verified via the pill and the execution path via the ToolRunner, which shares the same wrapper.");
 }
 
 // ---------- 11. manual ToolRunner: full sweep ----------
