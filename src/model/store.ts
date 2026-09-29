@@ -176,6 +176,7 @@ export const projects = {
     const base = fromDemo ? store.getState().projects.find((p) => p.id === DEMO_ID)! : null;
     const project: ProjectDocument = { version: DOCUMENT_VERSION, id: uid("project"),
       model: { ...(base ? structuredClone(base.model) : emptyModel()), name: trimmed },
+      presentation: base?.presentation ?? "planning",
       notes: base ? structuredClone(base.notes) : [], kinds: base ? structuredClone(base.kinds) : [] };
     store.setState((s) => ({ projects: [...s.projects, project] }));
     return this.open(project.id);
@@ -200,6 +201,14 @@ export const projects = {
         undoStack: [], editor: { ...initialEditor } } : {}) });
     if (state.activeProjectId === DEMO_ID) restoreKinds([]);
     return ok("Sunset Loft reset to the shipped demo.");
+  },
+  setPresentation(presentation: "planning" | "styled"): ActionResult {
+    const state = store.getState();
+    if (!state.activeProjectId) return fail("Open a project before changing its presentation.");
+    store.setState((s) => ({ projects: s.projects.map((project) => project.id === s.activeProjectId
+      ? { ...project, presentation }
+      : project) }));
+    return ok(`Presentation set to ${presentation}.`);
   },
   export(id: string): string {
     const state = store.getState();

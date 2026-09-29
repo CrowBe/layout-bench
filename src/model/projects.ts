@@ -16,6 +16,7 @@ export interface ProjectDocument {
   version: 1;
   id: string;
   model: PlanModel;
+  presentation: "planning" | "styled";
   notes: Note[];
   kinds: ProjectKind[];
 }
@@ -27,7 +28,7 @@ export interface ProjectLibrary {
 }
 
 export const demoProject = (): ProjectDocument => ({
-  version: DOCUMENT_VERSION, id: DEMO_ID, model: seedLoft(), notes: [], kinds: [],
+  version: DOCUMENT_VERSION, id: DEMO_ID, model: seedLoft(), presentation: "styled", notes: [], kinds: [],
 });
 export const emptyLibrary = (): ProjectLibrary => ({ version: DOCUMENT_VERSION, activeId: null, projects: [demoProject()] });
 
@@ -52,7 +53,11 @@ export function parseProject(value: unknown): ProjectDocument {
       !(model.underlay === null || (object(model.underlay) && typeof model.underlay.dataUrl === "string" && ["opacity", "x", "y", "w", "h"].every((k) => finite((model.underlay as Record<string, unknown>)[k]))))) {
     throw new Error("Project document contains invalid model data.");
   }
-  return value as unknown as ProjectDocument;
+  const presentation = value.presentation ?? (id === DEMO_ID ? "styled" : "planning");
+  if (presentation !== "planning" && presentation !== "styled") {
+    throw new Error("Project presentation must be planning or styled.");
+  }
+  return { ...value, presentation } as unknown as ProjectDocument;
 }
 
 export function parseLibrary(raw: string): ProjectLibrary {

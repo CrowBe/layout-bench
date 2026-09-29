@@ -23,6 +23,8 @@ import { catalogByKind } from "../model/catalog";
 export function Scene3D() {
   const mountRef = useRef<HTMLDivElement>(null);
   const model = useAppStore((s) => s.model);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const presentation = useAppStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.presentation ?? "planning");
   const camera = useAppStore((s) => s.editor.camera);
   const placingKind = useAppStore((s) => (s.editor.drawMode === "place" ? s.editor.placingKind : null));
   const cameraRef = useRef<string>(camera);
@@ -70,7 +72,7 @@ export function Scene3D() {
     scene.add(fill);
 
     // ---- content ----
-    const { group, bounds } = buildPlan(model);
+    const { group, bounds } = buildPlan(model, presentation);
     scene.add(group);
     const center = bounds.getCenter(new THREE.Vector3());
     const size = bounds.getSize(new THREE.Vector3());
@@ -421,7 +423,7 @@ export function Scene3D() {
       });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model]);
+  }, [model, presentation, activeProjectId]);
 
   return (
     <div className="scene3d-wrap">

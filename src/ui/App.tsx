@@ -21,6 +21,7 @@ export function App() {
   const snapStep = useAppStore((s) => s.editor.snapStep);
   const webmcpStatus = useAppStore((s) => s.webmcpStatus);
   const planName = useAppStore((s) => s.model.name);
+  const presentation = useAppStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.presentation ?? "planning");
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const chooserOpen = useAppStore((s) => s.chooserOpen);
   const saveError = useAppStore((s) => s.saveError);
@@ -67,6 +68,13 @@ export function App() {
             </>
           ) : (
             <>
+              <label className="snap-select" title="Choose whether the 3D plan shows authored geometry only or demo decoration.">
+                Presentation
+                <select aria-label="3D presentation" value={presentation} onChange={(e) => projects.setPresentation(e.target.value as "planning" | "styled")}>
+                  <option value="planning">Planning</option>
+                  <option value="styled">Styled</option>
+                </select>
+              </label>
               {(["orbit", "top", "walk"] as const).map((m) => (
                 <button key={m} className={camera === m ? "active" : ""} onClick={() => actions.setCamera(m)}>
                   {m === "orbit" ? "Orbit" : m === "top" ? "Top" : "Walk"}
