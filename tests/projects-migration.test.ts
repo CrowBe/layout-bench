@@ -76,6 +76,20 @@ describe("project document migration", () => {
     expect(project.model).toEqual(v1Project.model);
   });
 
+  it("re-versions a library wrapper that has no model, then migrates each project", () => {
+    const library = parseLibrary(JSON.stringify(v1Library));
+    expect(library.version).toBe(2);
+    expect("model" in library).toBe(false);
+    expect(library.projects.map((project) => project.version)).toEqual([2, 2]);
+  });
+
+  it("migrates a current library's older projects without rewriting the wrapper step", () => {
+    const library = parseLibrary(JSON.stringify({ ...v1Library, version: 2 }));
+    expect(library.version).toBe(2);
+    expect(library.projects.map((project) => project.version)).toEqual([2, 2]);
+    expect(library.projects[1].model).toEqual(v1Project.model);
+  });
+
   it("loads a stored v1 library as v2 and migrates every project", () => {
     const library = parseLibrary(JSON.stringify(v1Library));
     expect(library.version).toBe(2);

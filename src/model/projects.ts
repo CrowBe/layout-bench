@@ -37,36 +37,49 @@ const point = (v: unknown, fields: string[]) => object(v) && typeof v.id === "st
 
 const LIBRARY_UNREADABLE = "Unsupported or unreadable saved library. Original browser data was kept.";
 
+type Migration = (doc: Record<string, unknown>) => Record<string, unknown>;
+
 /**
- * v1 and v2 are the same model. The bump only reserves a version for later schema
- * changes; walls, openings, rooms, items, notes, kinds, and underlay stay as stored.
+ * Project documents only. v1 and v2 share a model; this step reserves the version.
+ * A later schema change adds migrateProjectV2ToV3 here and reads `model` — it must
+ * not be registered on the library wrapper, which has no model.
  */
-function migrateV1ToV2(doc: Record<string, unknown>): Record<string, unknown> {
+function migrateProjectV1ToV2(doc: Record<string, unknown>): Record<string, unknown> {
+  if (!object(doc.model)) throw new Error("Unsupported project document version.");
   return { ...doc, version: 2 };
 }
 
 /**
- * One step per older version, applied in order before validation.
- * A later schema adds the next function (migrateV2ToV3) to this map and bumps
- * DOCUMENT_VERSION; the loaders do not need to change.
+ * Library wrapper only. Re-versions the envelope and leaves each project untouched;
+ * parseLibrary then runs the project steps on `projects`.
  */
-const migrations: Record<number, (doc: Record<string, unknown>) => Record<string, unknown>> = {
-  1: migrateV1ToV2,
+function migrateLibraryV1ToV2(doc: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(doc.projects)) throw new Error(LIBRARY_UNREADABLE);
+  return { ...doc, version: 2 };
+}
+
+/** One step per older version, applied in order before validation. */
+const projectMigrations: Record<number, Migration> = {
+  1: migrateProjectV1ToV2,
 };
 
-function migrateToCurrent(doc: Record<string, unknown>): Record<string, unknown> {
+const libraryMigrations: Record<number, Migration> = {
+  1: migrateLibraryV1ToV2,
+};
+
+function applyMigrations(doc: Record<string, unknown>, steps: Record<number, Migration>, unsupported: string): Record<string, unknown> {
   const version = doc.version;
   if (typeof version !== "number" || !Number.isInteger(version) || version < 1 || version > DOCUMENT_VERSION) {
-    throw new Error("Unsupported project document version.");
+    throw new Error(unsupported);
   }
   let current = doc;
   let v = version;
   while (v < DOCUMENT_VERSION) {
-    const step = migrations[v];
-    if (!step) throw new Error("Unsupported project document version.");
+    const step = steps[v];
+    if (!step) throw new Error(unsupported);
     current = step(current);
     const next = current.version;
-    if (typeof next !== "number" || next !== v + 1) throw new Error("Unsupported project document version.");
+    if (typeof next !== "number" || next !== v + 1) throw new Error(unsupported);
     v = next;
   }
   return current;
@@ -74,7 +87,7 @@ function migrateToCurrent(doc: Record<string, unknown>): Record<string, unknown>
 
 export function parseProject(value: unknown): ProjectDocument {
   if (!object(value)) throw new Error("Unsupported project document version.");
-  const migrated = migrateToCurrent(value);
+  const migrated = applyMigrations(value, projectMigrations, "Unsupported project document version.");
   if (migrated.version !== DOCUMENT_VERSION) throw new Error("Unsupported project document version.");
   const { id, model, notes, kinds } = migrated;
   if (typeof id !== "string" || !id.trim() || !object(model) || typeof model.name !== "string" ||
@@ -102,7 +115,7 @@ export function parseLibrary(raw: string): ProjectLibrary {
   }
   let migrated: Record<string, unknown>;
   try {
-    migrated = migrateToCurrent(value);
+    migrated = applyMigrations(value, libraryMigrations, LIBRARY_UNREADABLE);
   } catch (error) {
     if (error instanceof Error && error.message === "Unsupported project document version.") {
       throw new Error(LIBRARY_UNREADABLE);

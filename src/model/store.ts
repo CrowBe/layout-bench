@@ -109,25 +109,6 @@ export const store = createStore<AppState>(() => ({
 }));
 
 let storageReady = false;
-/**
- * Set while hydrating a library whose stored version is older than DOCUMENT_VERSION.
- * The subscriber skips that one persist so localStorage keeps the original JSON
- * until the user opens, creates, edits, deletes, or imports a project.
- */
-let holdStorageWrite = false;
-
-function storedLibraryVersion(raw: string): number | null {
-  try {
-    const value: unknown = JSON.parse(raw);
-    if (value !== null && typeof value === "object" && !Array.isArray(value) &&
-        typeof (value as { version?: unknown }).version === "number") {
-      return (value as { version: number }).version;
-    }
-  } catch {
-    /* parseLibrary reports the failure and the caller leaves storage untouched */
-  }
-  return null;
-}
 
 function restoreKinds(kinds: ProjectKind[]) {
   resetRuntimeCatalog();
@@ -142,27 +123,13 @@ export function initializeProjects(): void {
   if (storageReady) return;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    const storedVersion = raw === null ? null : storedLibraryVersion(raw);
     const library = raw ? parseLibrary(raw) : emptyLibrary();
     // The chooser is deliberate on each page load; saved documents stay in place until selected.
-    // Legacy JSON is migrated for this session only. Mark the hydration write so the
-    // subscriber below does not replace the stored bytes with DOCUMENT_VERSION.
-    const legacy = storedVersion !== null && storedVersion < DOCUMENT_VERSION;
-    if (legacy) {
-      holdStorageWrite = true;
-      storageReady = true;
-    }
     store.setState({ projects: library.projects, activeProjectId: null, chooserOpen: true,
       saveError: null, model: emptyModel(), notes: [], kinds: [] });
     storageReady = true;
-    // A current library never entered the subscriber (storageReady was still false).
-    // If a legacy hydration missed the persist branch, release the hold so the next
-    // user change still writes the migrated document.
-    holdStorageWrite = false;
   } catch (error) {
     // Do not write over an unreadable or newer saved library.
-    holdStorageWrite = false;
-    storageReady = false;
     store.setState({ saveError: `${error instanceof Error ? error.message : String(error)} Export the original data before resetting storage.`,
       chooserOpen: true });
   }
@@ -178,10 +145,6 @@ store.subscribe((state, previous) => {
     return;
   }
   if (state.projects !== previous.projects || state.activeProjectId !== previous.activeProjectId) {
-    if (holdStorageWrite) {
-      holdStorageWrite = false;
-      return;
-    }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: DOCUMENT_VERSION,
         activeId: state.activeProjectId, projects: state.projects }));
