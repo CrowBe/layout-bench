@@ -19,7 +19,7 @@ const check = (name, cond, extra = "") => {
 
 const errors = [];
 const browser = await chromium.launch({
-  args: ["--enable-features=WebMCP", "--enable-unsafe-swiftshader"],
+  args: ["--enable-features=WebMCP,WebMCPTesting", "--enable-unsafe-swiftshader"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
@@ -41,6 +41,17 @@ const state = (expr) =>
   }, expr);
 
 await page.goto(BASE, { waitUntil: "networkidle" });
+// The page opens on the project chooser; open the shipped demo like a person would.
+const demoCard = () => page.locator(".project-card", { hasText: "Shipped demo" });
+await demoCard().getByRole("button", { name: "Open" }).click();
+/** Projects → Reset demo (accepting its confirm) → Open: the chooser's way back to the shipped plan. */
+const reloadDemo = async () => {
+  await page.getByRole("button", { name: "Projects", exact: true }).click();
+  page.once("dialog", (d) => d.accept());
+  await demoCard().getByRole("button", { name: "Reset demo" }).click();
+  await demoCard().getByRole("button", { name: "Open" }).click();
+  await page.waitForSelector("text=Build 3D");
+};
 await page.waitForSelector("text=Build 3D", { timeout: 10000 });
 await page.waitForTimeout(500);
 
@@ -134,14 +145,14 @@ await page.click("button:has-text('Add note')");
 check("notes: human note saved", (await state("s.notes.length")) === 1);
 
 // ---------- 10. REAL WebMCP runtime path ----------
-const mct = await page.evaluate(() => {
+const mct = await page.evaluate(async () => {
   const m = navigator.modelContextTesting;
   if (!m) return { available: false };
   try {
-    const r1 = m.executeTool("add_wall", JSON.stringify({ ax: 6, ay: 1, bx: 6, by: 5 }));
-    const r2 = m.executeTool("add_door", JSON.stringify({ wallId: "wall", t: 0.5 }));
-    const r3 = m.executeTool("get_issues", "{}");
-    const r4 = m.executeTool("leave_note", JSON.stringify({ text: "Agent was here." }));
+    const r1 = await m.executeTool("add_wall", JSON.stringify({ ax: 6, ay: 1, bx: 6, by: 5 }));
+    const r2 = await m.executeTool("add_door", JSON.stringify({ wallId: "wall", t: 0.5 }));
+    const r3 = await m.executeTool("get_issues", "{}");
+    const r4 = await m.executeTool("leave_note", JSON.stringify({ text: "Agent was here." }));
     return { available: true, r1: String(r1).slice(0, 120), r2: String(r2).slice(0, 120), r3: String(r3).slice(0, 160), r4: String(r4).slice(0, 80) };
   } catch (e) {
     return { available: true, error: String(e) };
@@ -220,8 +231,7 @@ r = await runTool("clear_model", {});
 check("tool clear_model (destructive)", r.ok && (await state("s.model.walls.length")) === 0);
 
 // ---------- 11b. human-in-the-loop approval gate ----------
-await page.click(".sidebar-tabs button:has-text('Model')");
-await page.click("button:has-text('Load Sunset Loft demo')");
+await reloadDemo();
 await page.click(".sidebar-tabs button:has-text('Tools')");
 const wallsBeforeGate = await state("s.model.walls.length");
 r = await runTool("clear_model", {}, "reject");
@@ -271,8 +281,7 @@ if (r.ok) {
 }
 
 // ---------- 12. reload seed + 3D flow ----------
-await page.click(".sidebar-tabs button:has-text('Model')");
-await page.click("button:has-text('Load Sunset Loft demo')");
+await reloadDemo();
 check("seed reloaded", (await state("s.model.walls.length")) === 7);
 
 await page.click("button.primary"); // Build 3D
@@ -297,7 +306,8 @@ await page.waitForTimeout(400);
 check("3D: click-to-place adds item", (await state("s.model.items.length")) === itemsBefore + 1);
 
 // OBJ export (download event)
-const dl = page.waitForEvent("download", { timeout: 5000 }).catch(() => null);
+// Headless Chromium renders the scene in software at a few fps, so the click alone can take ~6 s.
+const dl = page.waitForEvent("download", { timeout: 20000 }).catch(() => null);
 await page.click("button:has-text('Export OBJ')");
 const download = await dl;
 check("3D: OBJ export downloads", !!download, download ? await download.suggestedFilename() : "no download");

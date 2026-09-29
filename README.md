@@ -225,9 +225,9 @@ src/
   ui/       App · Sidebar (Model/Check/Catalog/Supplier/Notes/Tools) · ToolRunner
             ActivityFeed · ApprovalBar (human-in-the-loop gate) · SupplierPanel (cross-origin)
 tests/      geometry + issues suites (30 tests, incl. seed = 0 issues regression)
-e2e-full.mjs  Playwright: drives the real app in Chromium with --enable-features=WebMCP,
-            runs every tool, asserts zero console errors — 56 checks
-            (2 skip on Chrome builds without navigator.modelContextTesting)
+e2e-full.mjs  Playwright: drives the real app in Chromium with
+            --enable-features=WebMCP,WebMCPTesting, runs every tool through the UI and
+            through navigator.modelContextTesting, asserts zero console errors — 56 checks
 trace.mjs   the demo plan as data: walls, openings, rooms, furniture, and the kinds the
             agent defines for itself. Shared by the video and the screenshot gallery.
 record6.mjs records the film's eight beats as real 60 fps screen capture (ffmpeg ddagrab)
@@ -274,8 +274,9 @@ description budget on every tool that references it, and there is no way to say 
 procedure" rather than "this is a tool".
 
 **Testing.** `navigator.modelContextTesting` is the difference between guessing and knowing —
-the E2E battery drives real tool execution through it. It only exists in Chrome dev and canary
-builds, so 2 of the 56 checks skip on a stable build.
+the E2E battery drives real tool execution through it. It is off by default: Playwright's
+bundled Chromium exposes it with `--enable-features=WebMCP,WebMCPTesting`, which the battery
+passes. A stable Google Chrome (153 at the time of writing) did not expose it with any flag I tried.
 
 **One thing that simply worked:** unregistering by aborting the registration signal.
 `extend_selected_wall` appears when a human selects a wall and disappears when they deselect it,
@@ -302,6 +303,13 @@ The partner catalogue is a separate origin on purpose; that is the whole point o
 cross-origin tool exchange. A different port is a different origin, so `localhost:5200` is
 all you need locally. In production, deploy `dist/partner/` to its own host or subdomain
 and pass it with `?supplier=https://…`. Without it, everything else in the app still works.
+
+`.env` bakes the deployed partner origin into every build, including `npm run dev`. To keep an
+E2E run entirely local, point the studio at the local partner:
+
+```bash
+BASE_URL="http://localhost:5199/?supplier=http://localhost:5200" node e2e-full.mjs
+```
 
 ## License
 
