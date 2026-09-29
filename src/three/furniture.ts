@@ -27,7 +27,13 @@ function bevelled(w: number, h: number, d: number): THREE.BufferGeometry {
   // thin slabs (rugs, panels, glass) keep sharp edges: a bevel comparable to the slab's own
   // thickness bends the face normals and shades the surface like a pillow
   if (Math.min(w, h, d) < 0.06) return new THREE.BoxGeometry(w, h, d);
-  return new RoundedBoxGeometry(w, h, d, 2, 0.014);
+  // RoundedBoxGeometry falls up to ~0.6 mm short of the size it is given (0.91 × 0.465 comes
+  // out 0.90975 × 0.46438), so scale it back: the 3D footprint must match the model's numbers.
+  const geo = new RoundedBoxGeometry(w, h, d, 2, 0.014);
+  geo.computeBoundingBox();
+  const size = geo.boundingBox!.getSize(new THREE.Vector3());
+  geo.scale(w / size.x, h / size.y, d / size.z);
+  return geo;
 }
 
 function B(

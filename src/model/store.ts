@@ -18,8 +18,8 @@ import type {
   Wall,
 } from "./types";
 import { emptyModel } from "./types";
-import { clampOpeningT, checkModel } from "./issues";
-import { segLen, snap } from "./geometry";
+import { checkModel } from "./issues";
+import { SNAP, formatMm, quantize, segLen } from "./geometry";
 import { catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogEntry } from "./catalog";
 import { defineCustomKind, FURNITURE_BUILDERS, resetCustomKinds, type PartSpec } from "../three/furniture";
 import { DEMO_ID, DOCUMENT_VERSION, STORAGE_KEY, demoProject, emptyLibrary, parseImport, parseLibrary, type ProjectDocument, type ProjectKind } from "./projects";
@@ -39,6 +39,9 @@ export interface EditorState {
   selectedWallId: string | null;
   selectedItemId: string | null;
   selectedRoomId: string | null;
+  selectedOpeningId: string | null;
+  /** pointer snap step in metres for the 2D editor; 0 turns it off. Typed values and tools never snap. */
+  snapStep: number;
   drawMode: "select" | "wall" | "room" | "place";
   placingKind: string | null;
   pendingWallStart: { x: number; y: number } | null;
@@ -71,12 +74,16 @@ let idCounter = 0;
 export const uid = (prefix: string): string =>
   `${prefix}_${Date.now().toString(36)}_${(idCounter++).toString(36)}`;
 
+const noSelection = { selectedWallId: null, selectedItemId: null, selectedRoomId: null, selectedOpeningId: null };
+
 const initialEditor: EditorState = {
   view: "2d",
   camera: "orbit",
   selectedWallId: null,
   selectedItemId: null,
   selectedRoomId: null,
+  selectedOpeningId: null,
+  snapStep: SNAP,
   drawMode: "select",
   placingKind: null,
   pendingWallStart: null,
@@ -276,37 +283,105 @@ function findItem(idOrKind: string): Item | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// Precision and opening helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Collects every input that carried detail finer than the stored 0.1 mm, so the result can
+ * say what was rounded instead of changing a number silently.
+ */
+function rounding() {
+  const notes: string[] = [];
+  return {
+    q(v: number, label: string): number {
+      const out = quantize(v);
+      if (Math.abs(out - v) > 1e-12) notes.push(`${label} ${v} m stored as ${out} m`);
+      return out;
+    },
+    ok(summary: string, extra: Record<string, unknown> = {}): ActionResult {
+      return notes.length
+        ? ok(`${summary} Rounded to 0.1 mm: ${notes.join("; ")}.`, { ...extra, rounded: notes })
+        : ok(summary, extra);
+    },
+  };
+}
+
+/** Where an opening's centre sits: a 0..1 fraction of the wall, or a distance from a named end. */
+export interface OpeningPosition {
+  t?: number;
+  /** metres from the named wall end to the opening's centre */
+  centre?: number;
+  from?: "a" | "b";
+}
+
+export interface OpeningPatch extends OpeningPosition {
+  width?: number;
+  sill?: number;
+  height?: number;
+}
+
+/** Centre distance from end A, at stored precision, or null when no usable position was given. */
+function centreFromA(wall: Wall, at: OpeningPosition, r: ReturnType<typeof rounding>): number | null {
+  const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
+  if (at.centre !== undefined && Number.isFinite(at.centre)) {
+    const c = r.q(at.centre, `centre from ${at.from ?? "a"}`);
+    return at.from === "b" ? quantize(len - c) : c;
+  }
+  if (at.t !== undefined && Number.isFinite(at.t)) return quantize(at.t * len);
+  return null;
+}
+
+/** Keep the whole opening inside its wall. Returns the centre from end A, or null if it cannot fit. */
+function clampCentre(wall: Wall, width: number, centre: number): number | null {
+  const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
+  if (width > len - 0.02) return null;
+  return Math.min(len - width / 2, Math.max(width / 2, centre));
+}
+
+/** The usual height for the kind, reduced so it always fits under the wall. */
+function defaultHeight(kind: OpeningKind, wall: Wall, sill: number): number {
+  return quantize(Math.min(kind === "door" ? 2.1 : 1.2, wall.height - sill));
+}
+
+const heightPrompt = (o: Opening): string =>
+  `Height was not supplied, so ${formatMm(o.height)} mm is a default, not a measurement. Ask the human for the measured height, then call edit_opening with id "${o.id}" and height in metres.`;
+
+// ---------------------------------------------------------------------------
 // Shared actions (UI + WebMCP tools)
 // ---------------------------------------------------------------------------
 
 export const actions = {
   // ---- structure ----
   addWall(ax: number, ay: number, bx: number, by: number, thickness = 0.15, height = 2.7): ActionResult {
-    ax = snap(ax); ay = snap(ay); bx = snap(bx); by = snap(by);
+    const r = rounding();
+    ax = r.q(ax, "ax"); ay = r.q(ay, "ay"); bx = r.q(bx, "bx"); by = r.q(by, "by");
+    thickness = r.q(thickness, "thickness"); height = r.q(height, "height");
     const len = segLen(ax, ay, bx, by);
-    if (len < 0.2) return fail(`Wall too short (${(len * 100).toFixed(0)} cm, min 20 cm).`);
+    if (len < 0.2) return fail(`Wall too short (${formatMm(len)} mm, min 200 mm).`);
+    if (!(thickness > 0) || !(height > 0)) return fail("Wall thickness and height must be positive.");
     const wall: Wall = { id: uid("wall"), ax, ay, bx, by, thickness, height };
     pushUndo();
     setModel({ ...store.getState().model, walls: [...store.getState().model.walls, wall] });
-    return ok(`Wall added (${len.toFixed(2)} m).`, { id: wall.id, length: len });
+    return r.ok(`Wall added (${formatMm(len)} mm).`, { id: wall.id, length: len });
   },
 
   editWall(id: string, patch: Partial<Pick<Wall, "ax" | "ay" | "bx" | "by" | "thickness" | "height">>): ActionResult {
     const wall = findWall(id);
     if (!wall) return fail(`Wall "${id}" not found.`);
+    const r = rounding();
     const next: Wall = { ...wall };
-    for (const k of ["ax", "ay", "bx", "by"] as const) {
-      if (patch[k] !== undefined) next[k] = snap(patch[k]!);
+    for (const k of ["ax", "ay", "bx", "by", "thickness", "height"] as const) {
+      if (patch[k] !== undefined) next[k] = r.q(patch[k]!, k);
     }
-    if (patch.thickness !== undefined) next.thickness = patch.thickness;
-    if (patch.height !== undefined) next.height = patch.height;
-    if (segLen(next.ax, next.ay, next.bx, next.by) < 0.2) return fail("Edit rejected: wall would be shorter than 20 cm.");
+    if (!(next.thickness > 0) || !(next.height > 0)) return fail("Edit rejected: wall thickness and height must be positive.");
+    const len = segLen(next.ax, next.ay, next.bx, next.by);
+    if (len < 0.2) return fail("Edit rejected: wall would be shorter than 200 mm.");
     pushUndo();
     setModel({
       ...store.getState().model,
       walls: store.getState().model.walls.map((w) => (w.id === wall.id ? next : w)),
     });
-    return ok(`Wall ${wall.id} updated.`, { id: wall.id });
+    return r.ok(`Wall ${wall.id} updated (${formatMm(len)} mm).`, { id: wall.id, length: len });
   },
 
   removeWall(id: string): ActionResult {
@@ -323,38 +398,85 @@ export const actions = {
   },
 
   // ---- openings ----
+  /**
+   * Add a door or window. Position is either `t` (0..1 along the wall, to the centre) or a
+   * distance from a named wall end to the centre. A height nobody supplied gets a default that
+   * fits under the wall, is marked `heightDefaulted`, and the result asks for the real value.
+   */
   addOpening(
     kind: OpeningKind,
     wallId: string,
-    t: number,
-    width?: number,
-    sill?: number,
-    height?: number,
+    at: OpeningPosition,
+    dims: { width?: number; sill?: number; height?: number } = {},
     swing?: { hinge?: "a" | "b"; side?: "left" | "right" },
   ): ActionResult {
     const wall = findWall(wallId);
     if (!wall) return fail(`Wall "${wallId}" not found.`);
-    const w = width ?? (kind === "door" ? 0.9 : 1.2);
-    const s = sill ?? (kind === "door" ? 0 : 0.9);
-    const h = height ?? (kind === "door" ? 2.1 : 1.2);
-    const clamped = clampOpeningT(wall, w, t);
-    if (clamped === null) {
-      const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
-      return fail(`Wall ${wall.id} is ${len.toFixed(2)} m long — a ${w.toFixed(2)} m ${kind} does not fit.`);
-    }
-    if (s + h > wall.height) return fail(`${kind} (sill ${s} + height ${h}) exceeds wall height ${wall.height} m.`);
-    const opening: Opening = { id: uid(kind), kind, wallId: wall.id, t: clamped, width: w, sill: s, height: h };
+    const r = rounding();
+    const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
+    const w = r.q(dims.width ?? (kind === "door" ? 0.9 : 1.2), "width");
+    const s = kind === "door" ? 0 : r.q(dims.sill ?? 0.9, "sill");
+    if (!(w > 0) || s < 0) return fail("Width must be positive and sill cannot be negative.");
+    const requested = centreFromA(wall, at, r);
+    if (requested === null) return fail("Give the position as t (0..1) or as centre + from (\"a\" | \"b\").");
+    const clamped = clampCentre(wall, w, requested);
+    if (clamped === null) return fail(`Wall ${wall.id} is ${formatMm(len)} mm long — a ${formatMm(w)} mm ${kind} does not fit.`);
+    const defaulted = dims.height === undefined;
+    const h = defaulted ? defaultHeight(kind, wall, s) : r.q(dims.height!, "height");
+    if (!(h > 0)) return fail(`The ${formatMm(s)} mm sill leaves no room under the ${formatMm(wall.height)} mm wall.`);
+    if (s + h > wall.height + 1e-9) return fail(`${kind} (sill ${formatMm(s)} + height ${formatMm(h)} mm) exceeds wall height ${formatMm(wall.height)} mm.`);
+    const opening: Opening = { id: uid(kind), kind, wallId: wall.id, t: clamped / len, width: w, sill: s, height: h };
+    if (defaulted) opening.heightDefaulted = true;
     if (kind === "door") {
       opening.hinge = swing?.hinge ?? "a";
       opening.side = swing?.side ?? "right";
     }
     pushUndo();
     setModel({ ...store.getState().model, openings: [...store.getState().model.openings, opening] });
-    const moved = Math.abs(clamped - t) > 1e-6 ? ` (clamped to t=${clamped.toFixed(2)} to fit the vano)` : "";
-    return ok(`${kind === "door" ? "Door" : "Window"} added on wall ${wall.id} at t=${clamped.toFixed(2)}${moved}.`, {
-      id: opening.id,
-      t: clamped,
-    });
+    const moved = Math.abs(clamped - requested) > 1e-9 ? ` Moved from ${formatMm(requested)} mm so the opening fits inside the wall.` : "";
+    const label = kind === "door" ? "Door" : "Window";
+    return r.ok(
+      `${label} added on wall ${wall.id}, centre ${formatMm(clamped)} mm from end A (${formatMm(len - clamped)} mm from end B).${moved}` +
+        (defaulted ? ` ${heightPrompt(opening)}` : ""),
+      { id: opening.id, t: opening.t, centreFromA: clamped, ...(defaulted ? { heightDefaulted: true } : {}) },
+    );
+  },
+
+  /** Exact numeric edit of an opening: position from a named wall end, width, sill, height. */
+  editOpening(id: string, patch: OpeningPatch): ActionResult {
+    const { openings } = store.getState().model;
+    const o = openings.find((x) => x.id === id) ?? openings.find((x) => x.id.includes(id));
+    if (!o) return fail(`Opening "${id}" not found.`);
+    const wall = findWall(o.wallId)!;
+    const r = rounding();
+    const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
+    const next: Opening = { ...o };
+    if (patch.width !== undefined) next.width = r.q(patch.width, "width");
+    if (patch.sill !== undefined && o.kind === "window") next.sill = r.q(patch.sill, "sill");
+    if (patch.height !== undefined) {
+      next.height = r.q(patch.height, "height");
+      delete next.heightDefaulted;
+    } else if (next.heightDefaulted) {
+      next.height = defaultHeight(o.kind, wall, next.sill);
+    }
+    if (!(next.width > 0) || next.sill < 0 || !(next.height > 0)) return fail("Width and height must be positive and sill cannot be negative.");
+    if (next.sill + next.height > wall.height + 1e-9) {
+      return fail(`Edit rejected: sill ${formatMm(next.sill)} + height ${formatMm(next.height)} mm exceeds wall height ${formatMm(wall.height)} mm.`);
+    }
+    const hasPosition = patch.t !== undefined || patch.centre !== undefined;
+    const requested = hasPosition ? centreFromA(wall, patch, r) : quantize(o.t * len);
+    if (requested === null) return fail("Give the position as t (0..1) or as centre + from (\"a\" | \"b\").");
+    const clamped = clampCentre(wall, next.width, requested);
+    if (clamped === null) return fail(`Edit rejected: a ${formatMm(next.width)} mm ${o.kind} does not fit on the ${formatMm(len)} mm wall.`);
+    next.t = clamped / len;
+    pushUndo();
+    setModel({ ...store.getState().model, openings: openings.map((x) => (x.id === o.id ? next : x)) });
+    const moved = Math.abs(clamped - requested) > 1e-9 ? ` Moved from ${formatMm(requested)} mm so the opening fits inside the wall.` : "";
+    return r.ok(
+      `${o.kind} ${o.id}: centre ${formatMm(clamped)} mm from end A, width ${formatMm(next.width)}, sill ${formatMm(next.sill)}, height ${formatMm(next.height)} mm${next.heightDefaulted ? " (default)" : ""}.${moved}` +
+        (next.heightDefaulted ? ` ${heightPrompt(next)}` : ""),
+      { id: o.id, t: next.t, centreFromA: clamped },
+    );
   },
 
   /** Flip which jamb a door hinges on and/or which way it swings. */
@@ -373,18 +495,7 @@ export const actions = {
   },
 
   moveOpening(id: string, t: number): ActionResult {
-    const { openings } = store.getState().model;
-    const o = openings.find((x) => x.id === id) ?? openings.find((x) => x.id.includes(id));
-    if (!o) return fail(`Opening "${id}" not found.`);
-    const wall = findWall(o.wallId)!;
-    const clamped = clampOpeningT(wall, o.width, t);
-    if (clamped === null) return fail("Opening does not fit on its wall.");
-    pushUndo();
-    setModel({
-      ...store.getState().model,
-      openings: openings.map((x) => (x.id === o.id ? { ...x, t: clamped } : x)),
-    });
-    return ok(`${o.kind} ${o.id} moved to t=${clamped.toFixed(2)}.`, { id: o.id, t: clamped });
+    return this.editOpening(id, { t });
   },
 
   removeOpening(id: string): ActionResult {
@@ -398,25 +509,30 @@ export const actions = {
 
   // ---- rooms ----
   addRoom(x: number, y: number, w: number, h: number, label: string, floor = "oak"): ActionResult {
-    x = snap(x); y = snap(y); w = snap(w); h = snap(h);
-    if (w < 0.5 || h < 0.5) return fail("Room must be at least 0.5 × 0.5 m.");
+    const r = rounding();
+    x = r.q(x, "x"); y = r.q(y, "y"); w = r.q(w, "w"); h = r.q(h, "h");
+    if (w < 0.5 || h < 0.5) return fail("Room must be at least 500 × 500 mm.");
     const room: Room = { id: uid("room"), x, y, w, h, label, floor };
     pushUndo();
     setModel({ ...store.getState().model, rooms: [...store.getState().model.rooms, room] });
-    return ok(`Room "${label}" added (${w.toFixed(2)} × ${h.toFixed(2)} m).`, { id: room.id });
+    return r.ok(`Room "${label}" added (${formatMm(w)} × ${formatMm(h)} mm).`, { id: room.id });
   },
 
   updateRoom(idOrLabel: string, patch: Partial<Pick<Room, "x" | "y" | "w" | "h" | "label" | "floor">>): ActionResult {
     const room = findRoom(idOrLabel);
     if (!room) return fail(`Room "${idOrLabel}" not found.`);
-    const next: Room = { ...room, ...patch };
-    if (next.w < 0.5 || next.h < 0.5) return fail("Room must be at least 0.5 × 0.5 m.");
+    const r = rounding();
+    const next: Room = { ...room };
+    for (const k of ["x", "y", "w", "h"] as const) if (patch[k] !== undefined) next[k] = r.q(patch[k]!, k);
+    if (patch.label !== undefined) next.label = patch.label;
+    if (patch.floor !== undefined) next.floor = patch.floor;
+    if (next.w < 0.5 || next.h < 0.5) return fail("Room must be at least 500 × 500 mm.");
     pushUndo();
     setModel({
       ...store.getState().model,
-      rooms: store.getState().model.rooms.map((r) => (r.id === room.id ? next : r)),
+      rooms: store.getState().model.rooms.map((x) => (x.id === room.id ? next : x)),
     });
-    return ok(`Room "${next.label}" updated.`, { id: room.id });
+    return r.ok(`Room "${next.label}" updated (${formatMm(next.w)} × ${formatMm(next.h)} mm at ${formatMm(next.x)}, ${formatMm(next.y)}).`, { id: room.id });
   },
 
   removeRoom(idOrLabel: string): ActionResult {
@@ -431,19 +547,21 @@ export const actions = {
   placeItem(kind: string, x: number, y: number, rotation = 0): ActionResult {
     const cat = catalogByKind(kind);
     if (!cat) return fail(`Unknown furniture kind "${kind}". Use get_item_catalog.`);
-    const item: Item = { id: uid("item"), kind: cat.kind, x: snap(x), y: snap(y), rotation };
+    const r = rounding();
+    const item: Item = { id: uid("item"), kind: cat.kind, x: r.q(x, "x"), y: r.q(y, "y"), rotation };
     pushUndo();
     setModel({ ...store.getState().model, items: [...store.getState().model.items, item] });
-    return ok(`${cat.label} placed at (${item.x.toFixed(2)}, ${item.y.toFixed(2)}).`, { id: item.id });
+    return r.ok(`${cat.label} placed at (${formatMm(item.x)}, ${formatMm(item.y)}) mm.`, { id: item.id });
   },
 
   moveItem(idOrKind: string, x?: number, y?: number, rotation?: number): ActionResult {
     const item = findItem(idOrKind);
     if (!item) return fail(`Item "${idOrKind}" not found.`);
+    const r = rounding();
     const next: Item = {
       ...item,
-      x: x !== undefined ? snap(x) : item.x,
-      y: y !== undefined ? snap(y) : item.y,
+      x: x !== undefined ? r.q(x, "x") : item.x,
+      y: y !== undefined ? r.q(y, "y") : item.y,
       rotation: rotation !== undefined ? rotation : item.rotation,
     };
     pushUndo();
@@ -451,7 +569,7 @@ export const actions = {
       ...store.getState().model,
       items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)),
     });
-    return ok(`Item ${item.id} moved to (${next.x.toFixed(2)}, ${next.y.toFixed(2)}).`, { id: item.id });
+    return r.ok(`Item ${item.id} moved to (${formatMm(next.x)}, ${formatMm(next.y)}) mm.`, { id: item.id });
   },
 
   removeItem(idOrKind: string): ActionResult {
@@ -644,13 +762,22 @@ export const actions = {
 
   // ---- selection / editor ----
   selectWall(id: string | null) {
-    store.setState((s) => ({ editor: { ...s.editor, selectedWallId: id, selectedItemId: null, selectedRoomId: null } }));
+    store.setState((s) => ({ editor: { ...s.editor, ...noSelection, selectedWallId: id } }));
   },
   selectItem(id: string | null) {
-    store.setState((s) => ({ editor: { ...s.editor, selectedItemId: id, selectedWallId: null, selectedRoomId: null } }));
+    store.setState((s) => ({ editor: { ...s.editor, ...noSelection, selectedItemId: id } }));
   },
   selectRoom(id: string | null) {
-    store.setState((s) => ({ editor: { ...s.editor, selectedRoomId: id, selectedWallId: null, selectedItemId: null } }));
+    store.setState((s) => ({ editor: { ...s.editor, ...noSelection, selectedRoomId: id } }));
+  },
+  selectOpening(id: string | null) {
+    store.setState((s) => ({ editor: { ...s.editor, ...noSelection, selectedOpeningId: id } }));
+  },
+  clearSelection() {
+    store.setState((s) => ({ editor: { ...s.editor, ...noSelection } }));
+  },
+  setSnapStep(step: number) {
+    store.setState((s) => ({ editor: { ...s.editor, snapStep: Math.max(0, step) } }));
   },
   setDrawMode(mode: EditorState["drawMode"], placingKind: string | null = null) {
     store.setState((s) => ({ editor: { ...s.editor, drawMode: mode, placingKind, pendingWallStart: null } }));

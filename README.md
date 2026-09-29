@@ -87,13 +87,13 @@ More stills in [`shots/showcase/`](shots/showcase/).
 1. Open the live app (link at the top of this repo).
 2. **In ChatGPT desktop:** open the URL in the in-app browser. WebMCP works out of the box.
    **In Google Chrome 149+:** enable `chrome://flags/#enable-webmcp-testing` and restart.
-   The pill in the header turns green: **● Site tools live** (31 tools registered).
+   The pill in the header turns green: **● Site tools live** (32 tools registered).
 3. Ask your agent, for example:
    - *"Add a 3 × 2.5 m study next to the bedroom, with a door and a window."*
    - *"The sofa placement feels off. Check the plan and fix any issues."*
    - *"Build the 3D and give me a walkthrough."*
 4. No WebMCP runtime? The app is still complete. Open the **Tools** tab and run the exact
-   same 32 tools manually; every call is logged in the activity feed at the bottom.
+   same 33 tools manually; every call is logged in the activity feed at the bottom.
 
 ## Trace your own plan with the agent
 
@@ -126,14 +126,14 @@ document.modelContext.registerTool({
 });
 ```
 
-## The 31 tools (+ 1 dynamic)
+## The 32 tools (+ 1 dynamic)
 
 | Group | Tools |
 |---|---|
 | **Read** (readOnly) | `get_model` · `get_issues` · `get_item_catalog` · `get_editor_state` · `measure` · `get_underlay` |
 | **Blueprint** | `calibrate_underlay`, scales the uploaded plan image to real meters from one known dimension |
 | **Structure** | `add_wall` · `edit_wall` · `remove_wall` |
-| **Openings** | `add_door` · `add_window` · `move_opening` · `remove_opening` · `set_door_swing` (hinge side + swing direction) |
+| **Openings** | `add_door` · `add_window` · `edit_opening` (exact position from a named wall end, width, sill, height) · `move_opening` · `remove_opening` · `set_door_swing` (hinge side + swing direction) |
 | **Rooms** | `add_room` · `update_room` · `remove_room` |
 | **Furniture** | `place_item` · `move_item` · `remove_item` · `define_item_kind`, model a piece the catalogue lacks, from primitives |
 | **Model & view** | `set_plan_name` · `clear_model` · `build_3d` · `set_camera` (orbit/top/walk) · `set_doors` (swing the leaves open/shut) |
@@ -142,6 +142,16 @@ document.modelContext.registerTool({
 | **Dynamic** | `extend_selected_wall`, published **only while the human has a wall selected** (registered/unregistered live, per the spec's `toolchange` cycle). The human points, the agent acts on exactly that wall. |
 
 A few design notes:
+
+- Millimetre precision. Every length is stored in metres rounded to 0.1 mm, one step finer
+  than a surveyor reads, so derived set-out values (a centred 1755 mm window's 177.5 mm jamb
+  offset) survive. Tools and typed values are never snapped; input finer than 0.1 mm is
+  rounded and the result says so. The 2D editor shows millimetres, and its pointer snap is a
+  drawing aid you can set or turn off. Select any wall, opening, room or item to type exact
+  values; openings are positioned from a named wall end.
+- A height nobody supplied is a default, not a fact. `add_door` / `add_window` without a
+  height store one that fits under the wall, mark it `heightDefaulted`, and tell the agent
+  to ask for the measured value; `get_issues` warns until it is entered with `edit_opening`.
 
 - One store, two users. A vanilla zustand store powers both the React UI and the WebMCP
   tools, so actions, validation and undo history are identical for both.
@@ -216,15 +226,16 @@ src/
   model/    types.ts · geometry.ts (snap, SAT, segment math) · issues.ts (checker)
             catalog.ts (31 furniture kinds + runtime entries) · store.ts (shared actions, undo, activity) · seed.ts
   editor/   Editor.tsx — SVG: chained walls, rooms, openings with door arcs,
-            furniture drag, blueprint underlay, metric dimensions, 5 cm snap, pan/zoom
+            furniture drag, blueprint underlay, millimetre dimensions, configurable pointer snap, pan/zoom
   three/    build.ts (extrusion with real openings, resolved joints, floors)
             furniture.ts (composite pieces + generic builder for imported products) · Scene3D.tsx (orbit/top/walk + WASD,
             click-to-place, OBJ/PNG export) · exportBus.ts
-  mcp/      registry.ts (registration + uniform logging) · tools.ts (31 + 1 dynamic)
+  mcp/      registry.ts (registration + uniform logging) · tools.ts (32 + 1 dynamic)
             bootstrap.ts (runtime detection, dynamic tool lifecycle, toolchange)
   ui/       App · Sidebar (Model/Check/Catalog/Supplier/Notes/Tools) · ToolRunner
             ActivityFeed · ApprovalBar (human-in-the-loop gate) · SupplierPanel (cross-origin)
-tests/      geometry + issues suites (30 tests, incl. seed = 0 issues regression)
+tests/      geometry + issues suites (34 tests, incl. seed = 0 issues regression)
+            mm-geometry.e2e.mjs: the surveyed-bathroom check for millimetre geometry (#3)
 e2e-full.mjs  Playwright: drives the real app in Chromium with
             --enable-features=WebMCP,WebMCPTesting, runs every tool through the UI and
             through navigator.modelContextTesting, asserts zero console errors — 56 checks
@@ -294,7 +305,7 @@ clients; the activity feed says which transport actually ran.
 npm install
 npm run dev        # the studio            → http://localhost:5199
 npm run partner    # the partner origin    → http://localhost:5200   (second terminal)
-npm test           # 30 unit tests
+npm test           # 34 unit tests
 npm run build      # production build — two entry points: the studio and partner/
 node e2e-full.mjs  # 56-check Playwright battery (run both servers first)
 ```

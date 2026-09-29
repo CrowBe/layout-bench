@@ -1,8 +1,27 @@
-/** Precision geometry helpers — snapping, segment math, oriented-rectangle SAT. */
+/** Precision geometry helpers — the precision policy, pointer snapping, segment math, oriented-rectangle SAT. */
 
+/**
+ * The canonical precision policy. Every stored length or coordinate is metres rounded to
+ * 0.1 mm, one step finer than the 1 mm a surveyor reads, so derived set-out values such as a
+ * centred 1755 mm window's 177.5 mm jamb offset are stored without loss. The UI and the tools
+ * go through the same `quantize`, so a value never means one thing on screen and another in
+ * the model.
+ */
+export const PRECISION = 1e-4; // metres (0.1 mm)
+
+/** Round metres to the stored precision. Dividing an integer keeps 2.11 as 2.11, not 2.1100000000000003. */
+export const quantize = (v: number): number => Math.round(v * 1e4) / 1e4;
+
+/** Millimetres for display: whole mm where exact, otherwise the stored 0.1 mm. Never rounds away stored detail. */
+export const formatMm = (metres: number): string => {
+  const mm = Math.round(metres * 1e4) / 10;
+  return Number.isInteger(mm) ? String(mm) : mm.toFixed(1);
+};
+
+/** Pointer snap default for the 2D editor. A UI aid only: tools and typed values are never snapped. */
 export const SNAP = 0.05; // 5 cm
 
-export const snap = (v: number, step = SNAP): number => Math.round(v / step) * step;
+export const snap = (v: number, step = SNAP): number => (step > 0 ? quantize(Math.round(v / step) * step) : quantize(v));
 
 export const nearly = (a: number, b: number, eps = 1e-6): boolean => Math.abs(a - b) <= eps;
 

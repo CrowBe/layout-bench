@@ -160,7 +160,7 @@ const mct = await page.evaluate(async () => {
 });
 console.log("modelContextTesting:", JSON.stringify(mct, null, 1));
 // Informational: modelContextTesting exists only in Chrome dev/canary builds.
-// Tool REGISTRATION is already proven by the "Site tools live" pill (31 tools);
+// Tool REGISTRATION is already proven by the "Site tools live" pill (32 tools);
 // real end-to-end execution is verified in ChatGPT desktop before submission.
 if (mct.available && !mct.error) {
   check("webmcp runtime: add_wall executed", (await state("s.model.walls.length")) >= 3);
