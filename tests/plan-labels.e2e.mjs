@@ -119,7 +119,8 @@ async function zoomOut(page) {
   const box = await svg.boundingBox();
   assert.ok(box, "editor svg has no box");
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 240);
+  // Enough notches to reach the editor's minimum scale (15 px/m) from a large auto-fit.
+  for (let i = 0; i < 24; i++) await page.mouse.wheel(0, 240);
   let after = await readScale(page);
   if (!(after < before * 0.75)) {
     for (let i = 0; i < 28; i++) {
