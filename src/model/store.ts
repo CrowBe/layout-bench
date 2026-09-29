@@ -19,7 +19,7 @@ import type {
 } from "./types";
 import { emptyModel } from "./types";
 import { checkModel } from "./issues";
-import { SNAP, formatMm, quantize, segLen } from "./geometry";
+import { SNAP, dist, formatMm, quantize, segLen, segPoint } from "./geometry";
 import { catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogEntry } from "./catalog";
 import { defineCustomKind, FURNITURE_BUILDERS, resetCustomKinds, type PartSpec } from "../three/furniture";
 import { DEMO_ID, DOCUMENT_VERSION, STORAGE_KEY, demoProject, emptyLibrary, parseImport, parseLibrary, type ProjectDocument, type ProjectKind } from "./projects";
@@ -338,6 +338,18 @@ function clampCentre(wall: Wall, width: number, centre: number): number | null {
   return Math.min(len - width / 2, Math.max(width / 2, centre));
 }
 
+function openingAnchor(o: Opening, wall: Wall): { end: "a" | "b"; distance: number } {
+  const end = o.anchorEnd === "b" ? "b" : "a";
+  const distance = Number.isFinite(o.anchorDistance)
+    ? o.anchorDistance!
+    : quantize(o.t * segLen(wall.ax, wall.ay, wall.bx, wall.by));
+  return { end, distance };
+}
+
+function anchorCentreFromA(end: "a" | "b", distance: number, len: number): number {
+  return end === "b" ? len - distance : distance;
+}
+
 /** The usual height for the kind, reduced so it always fits under the wall. */
 function defaultHeight(kind: OpeningKind, wall: Wall, sill: number): number {
   return quantize(Math.min(kind === "door" ? 2.1 : 1.2, wall.height - sill));
@@ -376,12 +388,31 @@ export const actions = {
     if (!(next.thickness > 0) || !(next.height > 0)) return fail("Edit rejected: wall thickness and height must be positive.");
     const len = segLen(next.ax, next.ay, next.bx, next.by);
     if (len < 0.2) return fail("Edit rejected: wall would be shorter than 200 mm.");
+    const attached = store.getState().model.openings.filter((o) => o.wallId === wall.id);
+    const relocated: Opening[] = [];
+    const moved: string[] = [];
+    for (const opening of attached) {
+      const anchor = openingAnchor(opening, wall);
+      const centre = anchorCentreFromA(anchor.end, anchor.distance, len);
+      if (centre < opening.width / 2 - 1e-9 || centre > len - opening.width / 2 + 1e-9) {
+        return fail(
+          `Edit rejected: opening ${opening.id} no longer fits on the ${formatMm(len)} mm wall at ${formatMm(anchor.distance)} mm from end ${anchor.end.toUpperCase()}.`,
+          { openingId: opening.id, reason: "opening_no_fit" },
+        );
+      }
+      const oldCentre = segPoint({ x: wall.ax, y: wall.ay }, { x: wall.bx, y: wall.by }, opening.t);
+      const newCentre = segPoint({ x: next.ax, y: next.ay }, { x: next.bx, y: next.by }, centre / len);
+      if (dist(oldCentre, newCentre) > 1e-6) moved.push(opening.id);
+      relocated.push({ ...opening, anchorEnd: anchor.end, anchorDistance: anchor.distance, t: centre / len });
+    }
     pushUndo();
     setModel({
       ...store.getState().model,
       walls: store.getState().model.walls.map((w) => (w.id === wall.id ? next : w)),
+      openings: store.getState().model.openings.map((o) => relocated.find((nextOpening) => nextOpening.id === o.id) ?? o),
     });
-    return r.ok(`Wall ${wall.id} updated (${formatMm(len)} mm).`, { id: wall.id, length: len });
+    const note = moved.length ? ` Openings repositioned with their wall: ${moved.join(", ")}.` : "";
+    return r.ok(`Wall ${wall.id} updated (${formatMm(len)} mm).${note}`, { id: wall.id, length: len, ...(moved.length ? { movedOpenings: moved } : {}) });
   },
 
   removeWall(id: string): ActionResult {
@@ -425,7 +456,9 @@ export const actions = {
     const h = defaulted ? defaultHeight(kind, wall, s) : r.q(dims.height!, "height");
     if (!(h > 0)) return fail(`The ${formatMm(s)} mm sill leaves no room under the ${formatMm(wall.height)} mm wall.`);
     if (s + h > wall.height + 1e-9) return fail(`${kind} (sill ${formatMm(s)} + height ${formatMm(h)} mm) exceeds wall height ${formatMm(wall.height)} mm.`);
-    const opening: Opening = { id: uid(kind), kind, wallId: wall.id, t: clamped / len, width: w, sill: s, height: h };
+    const anchorEnd = at.centre !== undefined && at.from === "b" ? "b" : "a";
+    const anchorDistance = anchorEnd === "b" ? len - clamped : clamped;
+    const opening: Opening = { id: uid(kind), kind, wallId: wall.id, t: clamped / len, anchorEnd, anchorDistance, width: w, sill: s, height: h };
     if (defaulted) opening.heightDefaulted = true;
     if (kind === "door") {
       opening.hinge = swing?.hinge ?? "a";
@@ -464,11 +497,16 @@ export const actions = {
       return fail(`Edit rejected: sill ${formatMm(next.sill)} + height ${formatMm(next.height)} mm exceeds wall height ${formatMm(wall.height)} mm.`);
     }
     const hasPosition = patch.t !== undefined || patch.centre !== undefined;
-    const requested = hasPosition ? centreFromA(wall, patch, r) : quantize(o.t * len);
+    const oldAnchor = openingAnchor(o, wall);
+    const requested = hasPosition ? centreFromA(wall, patch, r) : anchorCentreFromA(oldAnchor.end, oldAnchor.distance, len);
     if (requested === null) return fail("Give the position as t (0..1) or as centre + from (\"a\" | \"b\").");
     const clamped = clampCentre(wall, next.width, requested);
     if (clamped === null) return fail(`Edit rejected: a ${formatMm(next.width)} mm ${o.kind} does not fit on the ${formatMm(len)} mm wall.`);
     next.t = clamped / len;
+    next.anchorEnd = hasPosition && patch.centre !== undefined
+      ? (patch.from === "b" ? "b" : "a")
+      : hasPosition ? "a" : oldAnchor.end;
+    next.anchorDistance = next.anchorEnd === "b" ? len - clamped : clamped;
     pushUndo();
     setModel({ ...store.getState().model, openings: openings.map((x) => (x.id === o.id ? next : x)) });
     const moved = Math.abs(clamped - requested) > 1e-9 ? ` Moved from ${formatMm(requested)} mm so the opening fits inside the wall.` : "";
