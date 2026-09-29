@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 import { strict as assert } from "node:assert";
 
-const baseUrl = process.env.ALZA_BASE_URL ?? "http://127.0.0.1:5173/";
+const baseUrl = process.env.ALZA_BASE_URL ?? "http://127.0.0.1:5199/";
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ acceptDownloads: true });
