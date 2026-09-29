@@ -312,15 +312,12 @@ node e2e-full.mjs  # 56-check Playwright battery (run both servers first)
 
 The partner catalogue is a separate origin on purpose; that is the whole point of the
 cross-origin tool exchange. A different port is a different origin, so `localhost:5200` is
-all you need locally. In production, deploy `dist/partner/` to its own host or subdomain
-and pass it with `?supplier=https://…`. Without it, everything else in the app still works.
+all you need locally. `.env` points `npm run dev` and `node e2e-full.mjs` at that local
+partner, so neither needs a `?supplier=` query.
 
-`.env` bakes the deployed partner origin into every build, including `npm run dev`. To keep an
-E2E run entirely local, point the studio at the local partner:
-
-```bash
-BASE_URL="http://localhost:5199/?supplier=http://localhost:5200" node e2e-full.mjs
-```
+In production, `.env.production` bakes the deployed origins into the build. Deploy
+`dist/partner/` to its own host or subdomain. `?supplier=https://…` remains an optional
+override. Without a partner origin, everything else in the app still works.
 
 ## License
 
