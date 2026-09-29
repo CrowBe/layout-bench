@@ -51,7 +51,7 @@ export const TOOLS: ToolDef[] = [
     name: "get_model",
     title: "Read the whole plan",
     description:
-      "Read the full floor plan: walls (endpoints, thickness, height), openings (doors/windows with position along their wall), rooms (metric rects with labels), furniture, and plan name. All units are meters, stored to 0.1 mm. Each opening also carries `position`: its centre and both jambs measured from wall end A and from end B, so you never have to convert t yourself. heightDefaulted: true means its height is a default nobody measured.",
+      "Read the full floor plan in meters. Each wall and opening includes dimensionStatus for thickness/height or width/sill/height: defaulted, entered, or unknown for older data. Entered means supplied to the editor, not site-confirmed. Numeric defaults are layout placeholders, not surveyed dimensions. Each opening also carries its centre and jamb positions from both wall ends.",
     inputSchema: obj({}),
     annotations: { readOnlyHint: true },
     execute: () => {
@@ -64,6 +64,11 @@ export const TOOLS: ToolDef[] = [
         const jambs = [quantize(c - o.width / 2), quantize(c + o.width / 2)];
         return {
           ...o,
+          dimensionStatus: {
+            width: o.widthDefaulted === undefined ? "unknown" : o.widthDefaulted ? "defaulted" : "entered",
+            ...(o.kind === "window" ? { sill: o.sillDefaulted === undefined ? "unknown" : o.sillDefaulted ? "defaulted" : "entered" } : {}),
+            height: o.heightDefaulted === undefined ? "unknown" : o.heightDefaulted ? "defaulted" : "entered",
+          },
           position: {
             centreFromA: c,
             centreFromB: quantize(len - c),
@@ -75,7 +80,10 @@ export const TOOLS: ToolDef[] = [
       return {
         ok: true,
         summary: `Plan "${m.name}": ${m.walls.length} walls, ${m.openings.length} openings, ${m.rooms.length} rooms, ${m.items.length} items.`,
-        model: { ...m, openings },
+        model: { ...m, walls: m.walls.map((w) => ({ ...w, dimensionStatus: {
+          thickness: w.thicknessDefaulted === undefined ? "unknown" : w.thicknessDefaulted ? "defaulted" : "entered",
+          height: w.heightDefaulted === undefined ? "unknown" : w.heightDefaulted ? "defaulted" : "entered",
+        } })), openings },
       };
     },
   },
@@ -203,7 +211,7 @@ export const TOOLS: ToolDef[] = [
     name: "add_wall",
     title: "Add a wall",
     description:
-      "Add a wall segment from (ax,ay) to (bx,by) in meters, stored to 0.1 mm (nothing snaps). Default thickness 0.15 m (use 0.1 for interior), height 2.7 m.",
+      "Add a wall segment in meters. Omitted thickness (0.15 m) and height (2.7 m) are marked as unmeasured defaults and reported by get_issues. Supply known values explicitly; explicit entry does not mean site-confirmed.",
     inputSchema: obj(
       { ax: num, ay: num, bx: num, by: num, thickness: num, height: num },
       ["ax", "ay", "bx", "by"],
@@ -214,7 +222,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: "edit_wall",
     title: "Edit a wall",
-    description: "Move endpoints or change thickness/height of an existing wall (by id). Metres, stored to 0.1 mm (nothing snaps).",
+    description: "Move endpoints or enter thickness/height of an existing wall (by id). Entering either dimension clears only that field's default warning; entry does not mean site-confirmed.",
     inputSchema: obj(
       { id: str, ax: num, ay: num, bx: num, by: num, thickness: num, height: num },
       ["id"],
@@ -236,7 +244,7 @@ export const TOOLS: ToolDef[] = [
     name: "add_door",
     title: "Add a door",
     description:
-      "Add a door on a wall. Position: t: position of the CENTER along the wall (0..1); or give centre (metres from the named wall end to the CENTER) with from (\"a\" = the wall's A endpoint, the default; \"b\" = its B endpoint). Lengths in metres, stored to 0.1 mm. Default width 0.9 m; default height 2.1 m (never above the wall). Leave height out only if nobody knows it: a default is stored, marked heightDefaulted, and get_issues keeps reporting it until a real height is entered with edit_opening. A door wider than 1.2 m is built as a double door with two leaves. The vano is clamped so it always fits inside the wall; too-wide doors are rejected with the wall length. hinge picks the jamb the hinges sit on (\"a\" = the wall's A end, the default; \"b\" = the B end) and side picks which way the leaf swings, as seen walking the wall from A to B: \"right\" (default) or \"left\". Match these to the swing arc drawn on the plan.",
+      "Add a door on a wall. Position: t: position of the CENTER along the wall (0..1); or give centre (metres from the named wall end to the CENTER) with from (\"a\" = the wall's A endpoint, the default; \"b\" = its B endpoint). Lengths in metres, stored to 0.1 mm. Omitted width defaults to 0.9 m; omitted height defaults to 2.1 m (never above the wall). Each omitted dimension is flagged separately as unmeasured and get_issues reports it until explicitly entered. A door wider than 1.2 m is built as a double door with two leaves. The vano is clamped so it always fits inside the wall; too-wide doors are rejected with the wall length. hinge picks the jamb the hinges sit on (\"a\" = the wall's A end, the default; \"b\" = the B end) and side picks which way the leaf swings, as seen walking the wall from A to B: \"right\" (default) or \"left\". Match these to the swing arc drawn on the plan.",
     inputSchema: obj(
       {
         wallId: str,
@@ -268,7 +276,7 @@ export const TOOLS: ToolDef[] = [
     name: "add_window",
     title: "Add a window",
     description:
-      "Add a window on a wall. Position: t: position of the CENTER along the wall (0..1); or give centre (metres from the named wall end to the CENTER) with from (\"a\" = the wall's A endpoint, the default; \"b\" = its B endpoint). Lengths in metres, stored to 0.1 mm. Default width 1.2 m, sill 0.9 m (height of the bottom edge above the floor); default height 1.2 m, reduced to fit under the wall. Leave height out only if nobody knows it: a default is stored, marked heightDefaulted, and get_issues keeps reporting it until a real height is entered with edit_opening. The vano is kept inside the wall and the result says if it had to move.",
+      "Add a window on a wall. Position: t: position of the CENTER along the wall (0..1); or give centre (metres from the named wall end to the CENTER) with from (\"a\" = the wall's A endpoint, the default; \"b\" = its B endpoint). Lengths in metres, stored to 0.1 mm. Omitted width defaults to 1.2 m, sill to 0.9 m above the floor, and height to 1.2 m reduced to fit the wall. Each omitted dimension is flagged separately as unmeasured and get_issues reports it until explicitly entered. The vano is kept inside the wall and the result says if it had to move.",
     inputSchema: obj({ wallId: str, t: num, centre: num, from: { type: "string", enum: ["a", "b"] }, width: num, sill: num, height: num }, ["wallId"]),
     execute: (i) =>
       actions.addOpening("window", i.wallId as string, position(i), {
@@ -288,7 +296,7 @@ export const TOOLS: ToolDef[] = [
     name: "edit_opening",
     title: "Set a door or window exactly",
     description:
-      "Set an existing door or window exactly, in metres (stored to 0.1 mm): its position as centre (metres from the named wall end to the CENTER; from \"a\" or \"b\", default \"a\") or t (0..1), and/or width, sill (windows only) and height. Entering a height replaces a default height. Use this to record a measured value the human gives you.",
+      "Set an existing door or window exactly, in metres (stored to 0.1 mm): its position as centre from wall end a or b, or t (0..1), and/or width, sill (windows only) and height. Entering a dimension clears only that field's default warning; entry alone does not mean site-confirmed.",
     inputSchema: obj(
       { id: str, t: num, centre: num, from: { type: "string", enum: ["a", "b"] }, width: num, sill: num, height: num },
       ["id"],

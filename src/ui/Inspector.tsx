@@ -52,6 +52,11 @@ function NumberField({ label, value, unit, onCommit }: {
   );
 }
 
+function DimensionStatus({ field, defaulted, onEnter }: { field: string; defaulted?: boolean; onEnter: () => void }) {
+  if (defaulted === false) return <span className="hint">{field}: entered; site confirmation is not recorded.</span>;
+  return <span className="inspector-warn">{field}: {defaulted ? "default placeholder" : "older value, provenance unknown"}. Not a surveyed value. <button type="button" onClick={onEnter}>Enter displayed value</button></span>;
+}
+
 /** Run a human edit and log it on the activity feed, like every other UI action. */
 const human = (tool: string, run: () => ActionResult) => () => {
   const r = run();
@@ -81,9 +86,11 @@ export function Inspector() {
         <NumberField label="Centre from wall end A (mm)" unit="mm" value={centre} onCommit={(v) => edit({ centre: v, from: "a" })} />
         <NumberField label="Centre from wall end B (mm)" unit="mm" value={len - centre} onCommit={(v) => edit({ centre: v, from: "b" })} />
         <NumberField label="Width (mm)" unit="mm" value={opening.width} onCommit={(v) => edit({ width: v })} />
+        <DimensionStatus field="Width" defaulted={opening.widthDefaulted} onEnter={() => edit({ width: opening.width })} />
         {opening.kind === "window" && <NumberField label="Sill (mm)" unit="mm" value={opening.sill} onCommit={(v) => edit({ sill: v })} />}
+        {opening.kind === "window" && <DimensionStatus field="Sill" defaulted={opening.sillDefaulted} onEnter={() => edit({ sill: opening.sill })} />}
         <NumberField label="Height (mm)" unit="mm" value={opening.height} onCommit={(v) => edit({ height: v })} />
-        {opening.heightDefaulted && <span className="inspector-warn">Height is a default, not a measurement. Enter the measured height.</span>}
+        <DimensionStatus field="Height" defaulted={opening.heightDefaulted} onEnter={() => edit({ height: opening.height })} />
       </aside>
     );
   }
@@ -103,7 +110,9 @@ export function Inspector() {
         <NumberField label="End B y (mm)" unit="mm" value={wall.by} onCommit={(v) => edit({ by: v })} />
         <NumberField label="Length, moving end B (mm)" unit="mm" value={len} onCommit={setLength} />
         <NumberField label="Thickness (mm)" unit="mm" value={wall.thickness} onCommit={(v) => edit({ thickness: v })} />
+        <DimensionStatus field="Thickness" defaulted={wall.thicknessDefaulted} onEnter={() => edit({ thickness: wall.thickness })} />
         <NumberField label="Height (mm)" unit="mm" value={wall.height} onCommit={(v) => edit({ height: v })} />
+        <DimensionStatus field="Height" defaulted={wall.heightDefaulted} onEnter={() => edit({ height: wall.height })} />
       </aside>
     );
   }
