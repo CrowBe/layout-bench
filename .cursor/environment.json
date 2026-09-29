@@ -1,0 +1,7 @@
+{
+  "install": "npm ci && npx playwright install chromium",
+  "terminals": [
+    { "name": "studio", "command": "npm run dev" },
+    { "name": "partner", "command": "npm run partner" }
+  ]
+}
