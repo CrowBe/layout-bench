@@ -80,6 +80,9 @@ export async function executeWrapped(
   input: Record<string, never>,
   ctx: { signal?: AbortSignal } = {},
 ): Promise<ActionResult> {
+  if (!store.getState().activeProjectId) {
+    return { ok: false, summary: "Open a project before using plan tools." };
+  }
   if (def.annotations?.destructiveHint && store.getState().requireApproval) {
     const request = def.confirm ? def.confirm(input) : `run ${def.name}`;
     const granted = await actions.requestApproval(def.name, request, input, ctx.signal);

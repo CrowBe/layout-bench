@@ -20,8 +20,9 @@ import type {
 import { emptyModel } from "./types";
 import { clampOpeningT, checkModel } from "./issues";
 import { segLen, snap } from "./geometry";
-import { catalogByKind, registerCatalogEntry, type CatalogEntry } from "./catalog";
-import { defineCustomKind, FURNITURE_BUILDERS, type PartSpec } from "../three/furniture";
+import { catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogEntry } from "./catalog";
+import { defineCustomKind, FURNITURE_BUILDERS, resetCustomKinds, type PartSpec } from "../three/furniture";
+import { DEMO_ID, DOCUMENT_VERSION, STORAGE_KEY, demoProject, emptyLibrary, parseImport, parseLibrary, type ProjectDocument, type ProjectKind } from "./projects";
 
 export interface ActionResult {
   ok: boolean;
@@ -44,6 +45,11 @@ export interface EditorState {
 }
 
 export interface AppState {
+  projects: ProjectDocument[];
+  activeProjectId: string | null;
+  chooserOpen: boolean;
+  saveError: string | null;
+  kinds: ProjectKind[];
   model: PlanModel;
   notes: Note[];
   activity: ActivityEntry[];
@@ -77,6 +83,11 @@ const initialEditor: EditorState = {
 };
 
 export const store = createStore<AppState>(() => ({
+  projects: [emptyLibrary().projects[0]],
+  activeProjectId: null,
+  chooserOpen: true,
+  saveError: null,
+  kinds: [],
   model: emptyModel(),
   notes: [],
   activity: [],
@@ -89,6 +100,129 @@ export const store = createStore<AppState>(() => ({
   supplierTools: [],
   catalogRev: 0,
 }));
+
+let storageReady = false;
+
+function restoreKinds(kinds: ProjectKind[]) {
+  resetRuntimeCatalog();
+  resetCustomKinds();
+  for (const kind of kinds) {
+    registerCatalogEntry(structuredClone(kind.entry));
+    if (kind.parts?.length) defineCustomKind(kind.entry.kind, structuredClone(kind.parts));
+  }
+}
+
+export function initializeProjects(): void {
+  if (storageReady) return;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const library = raw ? parseLibrary(raw) : emptyLibrary();
+    // The chooser is deliberate on each page load; saved documents stay in place until selected.
+    store.setState({ projects: library.projects, activeProjectId: null, chooserOpen: true,
+      saveError: null, model: emptyModel(), notes: [], kinds: [] });
+    storageReady = true;
+  } catch (error) {
+    // Do not write over an unreadable or newer saved library.
+    store.setState({ saveError: `${error instanceof Error ? error.message : String(error)} Export the original data before resetting storage.`,
+      chooserOpen: true });
+  }
+}
+
+store.subscribe((state, previous) => {
+  if (!storageReady) return;
+  if (state.activeProjectId && (state.model !== previous.model || state.notes !== previous.notes || state.kinds !== previous.kinds)) {
+    const projects = state.projects.map((project) => project.id === state.activeProjectId
+      ? { ...project, model: state.model, notes: state.notes, kinds: state.kinds }
+      : project);
+    store.setState({ projects });
+    return;
+  }
+  if (state.projects !== previous.projects || state.activeProjectId !== previous.activeProjectId) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: DOCUMENT_VERSION,
+        activeId: state.activeProjectId, projects: state.projects }));
+      if (state.saveError) store.setState({ saveError: null });
+    } catch (error) {
+      store.setState({ saveError: `Local save failed: ${error instanceof Error ? error.message : String(error)}. Export this project before closing the page.` });
+    }
+  }
+});
+
+export const projects = {
+  open(id: string): ActionResult {
+    const state = store.getState();
+    if (!storageReady) return fail("Saved library is unreadable. Download the original data or reset it before opening a project.");
+    if (state.approvals.length) return fail("Resolve pending agent approvals before switching projects.");
+    const project = state.projects.find((p) => p.id === id);
+    if (!project) return fail("Project not found.");
+    restoreKinds(project.kinds);
+    store.setState({ activeProjectId: id, model: structuredClone(project.model), notes: structuredClone(project.notes),
+      kinds: structuredClone(project.kinds), editor: { ...initialEditor }, undoStack: [], activity: [],
+      chooserOpen: false, catalogRev: state.catalogRev + 1, lastChangeAt: Date.now() });
+    return ok(`Opened ${project.model.name}.`);
+  },
+  create(name: string, fromDemo = false): ActionResult {
+    if (!storageReady) return fail("Resolve the unreadable saved library before creating a project.");
+    if (store.getState().approvals.length) return fail("Resolve pending agent approvals before creating projects.");
+    const trimmed = name.trim();
+    if (!trimmed) return fail("Enter a project name.");
+    const base = fromDemo ? store.getState().projects.find((p) => p.id === DEMO_ID)! : null;
+    const project: ProjectDocument = { version: DOCUMENT_VERSION, id: uid("project"),
+      model: { ...(base ? structuredClone(base.model) : emptyModel()), name: trimmed },
+      notes: base ? structuredClone(base.notes) : [], kinds: base ? structuredClone(base.kinds) : [] };
+    store.setState((s) => ({ projects: [...s.projects, project] }));
+    return this.open(project.id);
+  },
+  remove(id: string): ActionResult {
+    if (id === DEMO_ID) return fail("The Sunset Loft demo cannot be deleted.");
+    const state = store.getState();
+    if (!state.projects.some((p) => p.id === id)) return fail("Project not found.");
+    if (state.approvals.length) return fail("Resolve pending agent approvals before deleting projects.");
+    store.setState({ projects: state.projects.filter((p) => p.id !== id),
+      ...(state.activeProjectId === id ? { activeProjectId: null, model: emptyModel(), notes: [], kinds: [],
+        chooserOpen: true, editor: { ...initialEditor }, undoStack: [] } : {}) });
+    if (state.activeProjectId === id) restoreKinds([]);
+    return ok("Project deleted.");
+  },
+  resetDemo(): ActionResult {
+    if (store.getState().approvals.length) return fail("Resolve pending agent approvals before resetting the demo.");
+    const state = store.getState();
+    const fresh = demoProject();
+    store.setState({ projects: state.projects.map((p) => p.id === DEMO_ID ? fresh : p),
+      ...(state.activeProjectId === DEMO_ID ? { model: fresh.model, notes: [], kinds: [],
+        undoStack: [], editor: { ...initialEditor } } : {}) });
+    if (state.activeProjectId === DEMO_ID) restoreKinds([]);
+    return ok("Sunset Loft reset to the shipped demo.");
+  },
+  export(id: string): string {
+    const state = store.getState();
+    const project = state.projects.find((p) => p.id === id);
+    if (!project) throw new Error("Project not found.");
+    return JSON.stringify(project, null, 2);
+  },
+  import(raw: string, name: string): ActionResult {
+    if (!storageReady) return fail("Resolve the unreadable saved library before importing a project.");
+    if (store.getState().approvals.length) return fail("Resolve pending agent approvals before importing projects.");
+    try {
+      const source = parseImport(raw);
+      const trimmed = name.trim();
+      if (!trimmed) return fail("Enter a name for the imported project.");
+      const project: ProjectDocument = { ...structuredClone(source), id: uid("project"),
+        model: { ...structuredClone(source.model), name: trimmed } };
+      store.setState((s) => ({ projects: [...s.projects, project] }));
+      return this.open(project.id);
+    } catch (error) { return fail(`Import failed: ${error instanceof Error ? error.message : String(error)}`); }
+  },
+  exportOriginalStorage(): string | null { return localStorage.getItem(STORAGE_KEY); },
+  resetUnreadableStorage(): void {
+    localStorage.removeItem(STORAGE_KEY);
+    storageReady = false;
+    initializeProjects();
+  },
+  showChooser(): void {
+    if (!store.getState().approvals.length) store.setState({ chooserOpen: true });
+  },
+};
 
 export const useAppStore = <T>(selector: (s: AppState) => T): T => useStore(store, selector);
 
@@ -452,6 +586,8 @@ export const actions = {
         ? "kitchen"
         : "decor";
     registerCatalogEntry({ kind, label: p.name, w: p.w, d: p.d, h: p.h, color: p.color, category });
+    store.setState((s) => ({ kinds: [...s.kinds.filter((k) => k.entry.kind !== kind),
+      { entry: { kind, label: p.name, w: p.w, d: p.d, h: p.h, color: p.color, category } }] }));
     bumpCatalog();
     return ok(`${p.name} imported from the supplier (${p.w} × ${p.d} m).`, { kind });
   },
@@ -492,6 +628,9 @@ export const actions = {
       registerCatalogEntry({ kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category });
     }
     if (spec.parts?.length) defineCustomKind(kind, spec.parts);
+    store.setState((s) => ({ kinds: [...s.kinds.filter((k) => k.entry.kind !== kind),
+      { entry: { kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category },
+        ...(spec.parts?.length ? { parts: structuredClone(spec.parts) } : {}) }] }));
     bumpCatalog();
     return ok(
       `"${spec.label}" defined as ${kind} (${spec.w} × ${spec.d} × ${spec.h} m${spec.parts?.length ? `, ${spec.parts.length} parts` : ", blocked out from its footprint"}). Place it with place_item.`,

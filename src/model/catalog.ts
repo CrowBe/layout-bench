@@ -46,6 +46,12 @@ export const CATALOG: CatalogEntry[] = [
   { kind: "plant", label: "Plant", w: 0.4, d: 0.4, h: 1.1, color: "#5d8a54", category: "decor" },
 ];
 
+const builtInCount = CATALOG.length;
+
+export function resetRuntimeCatalog(): void {
+  CATALOG.splice(builtInCount);
+}
+
 export const catalogByKind = (kind: string): CatalogEntry | undefined =>
   CATALOG.find((c) => c.kind === kind);
 

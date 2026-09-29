@@ -560,6 +560,10 @@ export function defineCustomKind(kind: string, parts: PartSpec[]): void {
   CUSTOM_PARTS.set(kind, parts);
 }
 
+export function resetCustomKinds(): void {
+  CUSTOM_PARTS.clear();
+}
+
 export function hasCustomKind(kind: string): boolean {
   return CUSTOM_PARTS.has(kind);
 }
