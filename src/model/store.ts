@@ -276,7 +276,8 @@ const fail = (summary: string, extra: Record<string, unknown> = {}): ActionResul
  * may match when that full string (case-insensitive) picks out one entity.
  * Walls and openings have no separate name, so only an exact id selects them.
  * Anything else — including a substring that hits one or many ids or names — fails
- * and lists those candidates. Read-only measure keeps its own forgiving lookup.
+ * and lists those candidates. Read-only measure uses the same resolver in forgiving
+ * mode: the first id that equals the reference or contains it.
  */
 type Resolved<T> = { ok: true; entity: T } | { ok: false; summary: string; candidates: RefCandidate[] };
 
@@ -307,7 +308,13 @@ function resolveRef<T>(
     partial: (entity: T, ref: string) => boolean;
     candidate: (entity: T) => RefCandidate;
   },
+  forgiving = false,
 ): Resolved<T> {
+  if (forgiving) {
+    const hit = entities.find((entity) => spec.id(entity) === ref || spec.partial(entity, ref));
+    if (hit) return { ok: true, entity: hit };
+    return { ok: false, summary: `${noun} "${ref}" not found.`, candidates: [] };
+  }
   const exact = entities.filter((entity) => spec.id(entity) === ref);
   if (exact.length === 1) return { ok: true, entity: exact[0] };
   if (exact.length > 1) return unresolved(noun, ref, exact.map(spec.candidate));
@@ -318,13 +325,18 @@ function resolveRef<T>(
   return unresolved(noun, ref, entities.filter((entity) => spec.partial(entity, ref)).map(spec.candidate));
 }
 
-function resolveWall(ref: string): Resolved<Wall> {
+function resolveWall(ref: string, forgiving = false): Resolved<Wall> {
   return resolveRef("Wall", ref, store.getState().model.walls, {
     id: (wall) => wall.id,
     names: () => [],
     partial: (wall, hint) => wall.id.includes(hint),
     candidate: (wall) => ({ id: wall.id }),
-  });
+  }, forgiving);
+}
+
+/** Read-only wall lookup. Forgiving mode keeps measure's first substring match. */
+export function lookupWall(ref: string, forgiving = false): Resolved<Wall> {
+  return resolveWall(ref, forgiving);
 }
 
 function resolveRoom(ref: string): Resolved<Room> {

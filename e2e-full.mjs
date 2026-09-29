@@ -152,14 +152,17 @@ const mct = await page.evaluate(async () => {
     const r1 = await m.executeTool("add_wall", JSON.stringify({ ax: 6, ay: 1, bx: 6, by: 5 }));
     let added = r1;
     if (typeof r1 === "string") {
-      try { added = JSON.parse(r1); } catch { added = {}; }
+      try { added = JSON.parse(r1); } catch { added = null; }
     }
-    // Geometry tools require an exact id. "wall" used to match the first wall whose id contained it.
-    const wallId = added.id ?? window.__alza.store.getState().model.walls.at(-1)?.id;
+    // Geometry tools require an exact id. Use the id add_wall returned; do not guess from the model.
+    const wallId = added && typeof added === "object" && typeof added.id === "string" ? added.id : "";
+    if (!wallId) {
+      return { available: true, missingWallId: true, r1: String(r1).slice(0, 120) };
+    }
     const r2 = await m.executeTool("add_door", JSON.stringify({ wallId, t: 0.5 }));
     const r3 = await m.executeTool("get_issues", "{}");
     const r4 = await m.executeTool("leave_note", JSON.stringify({ text: "Agent was here." }));
-    return { available: true, r1: String(r1).slice(0, 120), r2: String(r2).slice(0, 120), r3: String(r3).slice(0, 160), r4: String(r4).slice(0, 80) };
+    return { available: true, missingWallId: false, wallId, r1: String(r1).slice(0, 120), r2: String(r2).slice(0, 120), r3: String(r3).slice(0, 160), r4: String(r4).slice(0, 80) };
   } catch (e) {
     return { available: true, error: String(e) };
   }
@@ -169,6 +172,7 @@ console.log("modelContextTesting:", JSON.stringify(mct, null, 1));
 // Tool REGISTRATION is already proven by the "Site tools live" pill (32 tools);
 // real end-to-end execution is verified in ChatGPT desktop before submission.
 if (mct.available && !mct.error) {
+  check("webmcp runtime: add_wall returned an id", mct.missingWallId === false && typeof mct.wallId === "string" && mct.wallId.length > 0);
   check("webmcp runtime: add_wall executed", (await state("s.model.walls.length")) >= 3);
   check("webmcp runtime: agent note landed", (await state("s.notes.length")) >= 2);
 } else {

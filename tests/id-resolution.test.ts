@@ -4,7 +4,7 @@
  * other mutating tools pass that reference straight into these actions.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { actions, store, type RefCandidate } from "../src/model/store";
+import { actions, lookupWall, store, type RefCandidate } from "../src/model/store";
 import { emptyModel, type Item, type Opening, type PlanModel, type Room, type Wall } from "../src/model/types";
 
 function useModel(partial: Partial<PlanModel>) {
@@ -85,6 +85,20 @@ describe("wall references", () => {
       ["wall_alpha", 2.7],
       ["wall_beta", 2.4],
     ]);
+  });
+
+  it("measure's forgiving lookup takes the first substring and does not edit", () => {
+    const before = snapshot();
+    const partial = lookupWall("wall", true);
+    expect(partial.ok).toBe(true);
+    if (partial.ok) expect(partial.entity.id).toBe("wall_alpha");
+    const exact = lookupWall("wall_beta", true);
+    expect(exact.ok).toBe(true);
+    if (exact.ok) expect(exact.entity.id).toBe("wall_beta");
+    const missing = lookupWall("no-such-wall", true);
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.summary).toBe('Wall "no-such-wall" not found.');
+    expectUnchanged(before);
   });
 
   it("an exact id wins when another wall id merely contains it", () => {
