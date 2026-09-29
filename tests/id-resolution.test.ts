@@ -1,8 +1,7 @@
 /**
  * Geometry-changing tools must select an entity by exact id, or by a human name that
- * matches exactly one entity. Partial ids are the bodies of add_door, edit_wall,
- * update_room, move_item and the other mutating actions — the tool wrappers pass the
- * reference through unchanged.
+ * matches exactly one entity. add_door, edit_wall, update_room, move_item and the
+ * other mutating tools pass that reference straight into these actions.
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { actions, store, type RefCandidate } from "../src/model/store";
