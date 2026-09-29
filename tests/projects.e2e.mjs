@@ -1,6 +1,8 @@
 import { chromium } from "playwright";
 import { strict as assert } from "node:assert";
 
+const baseUrl = process.env.ALZA_BASE_URL ?? "http://127.0.0.1:5173/";
+
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ acceptDownloads: true });
 await context.addInitScript(() => {
@@ -13,7 +15,7 @@ const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 
 try {
-  await page.goto("http://127.0.0.1:5173/");
+  await page.goto(baseUrl);
   await page.getByLabel("New project name").fill("Bathroom Survey");
   await page.getByRole("button", { name: "Create blank" }).click();
   assert.equal(await page.locator(".brand-plan").textContent(), "Bathroom Survey");
@@ -84,7 +86,7 @@ try {
   const corruptContext = await browser.newContext({ acceptDownloads: true });
   await corruptContext.addInitScript(() => localStorage.setItem("alza.projects.v1", '{"version":0,"projects":[]}'));
   const corruptPage = await corruptContext.newPage();
-  await corruptPage.goto("http://127.0.0.1:5173/");
+  await corruptPage.goto(baseUrl);
   assert.match(await corruptPage.getByRole("alert").textContent(), /Unsupported or unreadable saved library/);
   assert.equal(await corruptPage.evaluate(() => localStorage.getItem("alza.projects.v1")), '{"version":0,"projects":[]}');
   await corruptContext.close();
