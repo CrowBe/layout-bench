@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppStore, actions, logActivity } from "../model/store";
 import type { Opening, Wall } from "../model/types";
 import { formatMm, snap as snapTo, segLen, segPoint } from "../model/geometry";
+import { DIM_FONT_FAMILY, DIM_OFFSET_M, dimensionFontPx, layoutRoomLabel, planFontPx, ROOM_FONT_FAMILY, wallDimensionAnchor } from "./planLabels";
 import { openingSpan } from "../model/issues";
 import { catalogByKind } from "../model/catalog";
 
@@ -242,6 +243,7 @@ export function Editor() {
 
   // ---- rendering helpers ----
   const S = view.scale;
+  const dimFont = dimensionFontPx(S);
   const wallById = new Map(model.walls.map((w) => [w.id, w]));
 
   const renderOpening = (o: Opening) => {
@@ -321,30 +323,43 @@ export function Editor() {
       )}
 
       {/* rooms */}
-      {model.rooms.map((r) => (
-        <g key={r.id} data-id={r.id} onPointerDown={(e) => onRoomDown(r.id, e)} style={{ cursor: "move" }}>
-          <rect
-            x={r.x * S}
-            y={r.y * S}
-            width={r.w * S}
-            height={r.h * S}
-            fill={FLOOR_FILL[r.floor] ?? FLOOR_FILL.oak}
-            stroke={editor.selectedRoomId === r.id ? "#e07b39" : "#c9c2b2"}
-            strokeWidth={editor.selectedRoomId === r.id ? 2.5 : 1}
-          />
-          <text x={(r.x + 0.12) * S} y={(r.y + 0.32) * S} fontSize={Math.max(10, 0.28 * S)} fill="#8a8070" fontFamily="Inter, sans-serif">
-            {r.label} · {(r.w * r.h).toFixed(1)} m²
-          </text>
-        </g>
-      ))}
+      {model.rooms.map((r) => {
+        const label = layoutRoomLabel(r, model.walls, S);
+        return (
+          <g key={r.id} data-id={r.id} onPointerDown={(e) => onRoomDown(r.id, e)} style={{ cursor: "move" }}>
+            <rect
+              x={r.x * S}
+              y={r.y * S}
+              width={r.w * S}
+              height={r.h * S}
+              fill={FLOOR_FILL[r.floor] ?? FLOOR_FILL.oak}
+              stroke={editor.selectedRoomId === r.id ? "#e07b39" : "#c9c2b2"}
+              strokeWidth={editor.selectedRoomId === r.id ? 2.5 : 1}
+            />
+            <text
+              data-role="room-label"
+              x={label.x}
+              y={label.y}
+              fontSize={label.fontSize}
+              fill="#8a8070"
+              fontFamily={ROOM_FONT_FAMILY}
+            >
+              {label.lines.length === 1
+                ? label.lines[0]
+                : label.lines.map((line, index) => (
+                    <tspan key={index} x={label.x} dy={index === 0 ? 0 : label.lineDy}>
+                      {line}
+                    </tspan>
+                  ))}
+            </text>
+          </g>
+        );
+      })}
 
       {/* walls */}
       {model.walls.map((w) => {
         const selected = editor.selectedWallId === w.id;
-        const len = segLen(w.ax, w.ay, w.bx, w.by);
-        const mid = segPoint({ x: w.ax, y: w.ay }, { x: w.bx, y: w.by }, 0.5);
-        const nx = (-(w.by - w.ay) / len) * 0.22;
-        const ny = ((w.bx - w.ax) / len) * 0.22;
+        const anchor = wallDimensionAnchor(w, DIM_OFFSET_M);
         return (
           <g key={w.id} data-id={w.id} onClick={(e) => onWallClick(w, e)} style={{ cursor: "pointer" }}>
             <line
@@ -358,16 +373,19 @@ export function Editor() {
             />
             <line x1={w.ax * S} y1={w.ay * S} x2={w.bx * S} y2={w.by * S} stroke="transparent" strokeWidth={Math.max(14, w.thickness * S)} />
             {/* dimension */}
-            <text
-              x={(mid.x + nx) * S}
-              y={(mid.y + ny) * S}
-              fontSize={Math.max(9, 0.22 * S)}
-              fill="#9a8f7c"
-              textAnchor="middle"
-              fontFamily="ui-monospace, monospace"
-            >
-              {formatMm(len)}
-            </text>
+            {anchor && (
+              <text
+                data-role="wall-dimension"
+                x={anchor.x * S}
+                y={anchor.y * S}
+                fontSize={dimFont}
+                fill="#9a8f7c"
+                textAnchor="middle"
+                fontFamily={DIM_FONT_FAMILY}
+              >
+                {formatMm(anchor.len)}
+              </text>
+            )}
           </g>
         );
       })}
@@ -402,7 +420,7 @@ export function Editor() {
             <text
               x={0}
               y={0}
-              fontSize={Math.max(8, 0.2 * S)}
+              fontSize={planFontPx(S, 0.2, 8, 16)}
               fill="#fff"
               textAnchor="middle"
               dominantBaseline="middle"
