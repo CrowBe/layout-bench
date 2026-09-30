@@ -9,7 +9,7 @@
 
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
-import { categoryById, validateSubmission, type FieldValue, type SpecProblem, type SpecSubmission } from "./products";
+import { categoryById, roughInPoints, validateSubmission, type FieldValue, type RoughInPoint, type SpecProblem, type SpecSubmission } from "./products";
 
 export const PRODUCTS_KEY = "alza.products.v1";
 
@@ -48,6 +48,8 @@ export interface LibraryProduct {
   model: string;
   code?: string;
   fields: Record<string, FieldValue>;
+  /** service points derived from the accepted fields, each axis naming its datum */
+  roughIn: RoughInPoint[];
   requestId: string;
   acceptedAt: number;
 }
@@ -191,6 +193,7 @@ export const products = {
       model: req.submission.model.trim(),
       ...(req.submission.code?.trim() ? { code: req.submission.code.trim() } : {}),
       fields: structuredClone(req.submission.fields),
+      roughIn: roughInPoints(categoryById(req.category)!, req.submission.fields),
       requestId: req.id,
       acceptedAt: Date.now(),
     };

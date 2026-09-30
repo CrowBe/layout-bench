@@ -50,13 +50,16 @@ try {
   const fields = {
     width: pub(0.38), depth: pub(0.64), height: pub(0.8),
     panType: pub("wall-faced"), trap: pub("S"),
-    sTrapSetoutMin: { ...pub(0.14), alternatives: [{ value: 0.135, source: { url: "https://example.org/listing" } }] },
+    sTrapSetoutMin: { ...pub(0.14), alternatives: [{ value: 0.135, source: { url: "https://example.org/listing", locator: "dimensions table" } }] },
     sTrapSetoutMax: pub(0.2),
     inletHeight: { value: null, note: "Not on the spec sheet or the installation guide." },
   };
   const wrongUnit = await run("submit_product_spec", { requestId: toiletId, manufacturer: "Example Co", model: "Test Pan", fields: { ...fields, depth: pub(640) } });
   assert.equal(wrongUnit.ok, false);
   assert.match(wrongUnit.summary, /outside .* metres/);
+  const claimedMeasured = await run("submit_product_spec", { requestId: toiletId, manufacturer: "Example Co", model: "Test Pan", fields: { ...fields, width: { value: 0.38, status: "measured" } } });
+  assert.equal(claimedMeasured.ok, false);
+  assert.match(claimedMeasured.summary, /must be `published`/);
   const submitted = await run("submit_product_spec", { requestId: toiletId, manufacturer: "Example Co", model: "Test Pan", fields });
   assert.equal(submitted.ok, true, submitted.summary);
   assert.deepEqual(submitted.warnings.map((w) => w.code).sort(), ["required_unknown", "sources_disagree"]);
@@ -69,7 +72,7 @@ try {
   await page.getByRole("button", { name: /^Products/ }).filter({ hasText: "1 to review" }).count().then((n) => assert.equal(n, 1));
   await page.getByRole("region", { name: "Requests" }).getByRole("button", { name: /Toilet suite: Example Co Test Pan/ }).click();
   const detail = page.getByRole("region", { name: "Selected request" });
-  assert.match(await detail.locator('tr[data-field="sTrapSetoutMin"]').textContent(), /140 mm.*example\.com.*example\.org\/listing gives 135 mm, not 140 mm/);
+  assert.match(await detail.locator('tr[data-field="sTrapSetoutMin"]').textContent(), /140 mm.*example\.com.*example\.org\/listing \(dimensions table\) gives 135 mm, not 140 mm/);
   assert.match(await detail.locator('tr[data-field="inletHeight"]').textContent(), /unknown.*Not on the spec sheet/);
   await detail.getByRole("button", { name: "Accept product" }).click();
   assert.match(await detail.getByRole("alert").last().textContent(), /Review every field first/);
@@ -79,6 +82,9 @@ try {
   assert.match(await detail.textContent(), /status accepted/);
   const card = page.getByRole("region", { name: "Library" }).locator("details");
   assert.match(await card.textContent(), /Example Co Test Pan · Toilet suite · 380 × 640 × 800 mm/);
+  await card.locator("summary").click();
+  assert.match(await card.locator('tr[data-point="waste-s"]').textContent(), /140–200 mm from finished wall/);
+  assert.match(await card.locator('tr[data-point="inlet"]').textContent(), /missing inletOffset, inletHeight/);
 
   // Reload, open another project: the library is still there, figures still published, unknown still unknown
   await page.reload();
@@ -88,6 +94,7 @@ try {
   assert.equal(lib.products.length, 1);
   assert.equal(lib.products[0].fields.depth.status, "published");
   assert.equal(lib.products[0].fields.inletHeight.value, null);
+  assert.deepEqual(lib.products[0].roughIn.map((p) => [p.id, p.resolved]), [["waste-s", true], ["inlet", false]]);
   await page.getByRole("button", { name: /^Products/ }).click();
   assert.equal(await page.getByRole("region", { name: "Library" }).locator("details").count(), 1);
   const reqs = await run("list_product_requests");

@@ -7,7 +7,7 @@
 import { useState, type ReactNode } from "react";
 import { logActivity } from "../model/store";
 import { formatMm } from "../model/geometry";
-import { PRODUCT_CATEGORIES, REFERENCES, applies, safeUrl, categoryById, envelopeOf, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
+import { PRODUCT_CATEGORIES, REFERENCES, applies, safeUrl, type AxisValue, categoryById, envelopeOf, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
 import { products, useProductStore, type LibraryProduct, type LibraryResult, type ProductRequest } from "../model/productLibrary";
 
 const human = (tool: string, r: LibraryResult) => {
@@ -25,6 +25,15 @@ function Link({ url, children }: { url: string; children?: ReactNode }) {
   const href = safeUrl(url);
   const text = children ?? (href ? new URL(href).hostname : url);
   return href ? <a href={href} target="_blank" rel="noreferrer noopener">{text}</a> : <span>{text}</span>;
+}
+
+/** One rough-in axis: its value or range and the datum it is measured from. */
+function axisText(a: AxisValue | undefined): string {
+  if (!a) return "—";
+  const v = a.value !== undefined ? `${formatMm(a.value)} mm`
+    : a.min !== undefined || a.max !== undefined ? `${a.min !== undefined ? formatMm(a.min) : "?"}–${a.max !== undefined ? formatMm(a.max) : "?"} mm`
+    : "unknown";
+  return `${v} from ${a.from.replace("-", " ")}`;
 }
 
 const identity = (r: ProductRequest) =>
@@ -186,6 +195,19 @@ function ProductCard({ p }: { p: LibraryProduct }) {
                 <td className={p.fields[f.key].value === null ? "unknown" : ""}>{shown(f, p.fields[f.key])}</td>
                 <td>{p.fields[f.key].value === null ? "—" : p.fields[f.key].status}</td>
                 <td>{(p.fields[f.key].sources ?? []).map((s, i) => <span key={i}><Link url={s.url}>{s.locator ?? "source"}</Link> </span>)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {(p.roughIn ?? []).length > 0 && (
+        <table className="products-table" aria-label="Rough-in points">
+          <thead><tr><th>Service point</th><th>Across</th><th>Out</th><th>Up</th></tr></thead>
+          <tbody>
+            {p.roughIn.map((r) => (
+              <tr key={r.id} data-point={r.id}>
+                <td>{r.label}{!r.resolved && <div className="inspector-warn">missing {r.missing.join(", ")}</div>}</td>
+                {([r.across, r.out, r.up] as const).map((a, i) => <td key={i}>{axisText(a)}</td>)}
               </tr>
             ))}
           </tbody>

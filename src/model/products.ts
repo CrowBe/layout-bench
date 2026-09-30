@@ -9,7 +9,6 @@
  */
 
 import type { ValueStatus } from "./types";
-import { VALUE_STATUSES } from "./faces";
 import { formatMm } from "./geometry";
 
 /** Datums a field can be measured from. A spec sheet that uses another one must say so. */
@@ -42,12 +41,33 @@ export interface CountField extends BaseField { type: "count"; min: number; max:
 export interface TextField extends BaseField { type: "text" }
 export type FieldSpec = LengthField | ChoiceField | CountField | TextField;
 
+/**
+ * One axis of a rough-in point: taken from a field, a range between two fields, or fixed at
+ * zero on a named datum (e.g. a P-trap waste sits at the finished wall face).
+ */
+export type AxisSpec = { field: string } | { range: [string, string] } | { zeroAt: ReferenceId };
+
+/**
+ * A service connection on the fixture. Axes: across (sideways), out (away from the wall or
+ * the fixture's back edge) and up (above the floor). An axis left out is not part of the point.
+ */
+export interface RoughInSpec {
+  id: string;
+  label: string;
+  service: "waste" | "water";
+  when?: { field: string; in: string[] };
+  across?: AxisSpec;
+  out?: AxisSpec;
+  up?: AxisSpec;
+}
+
 export interface ProductCategory {
   id: string;
   label: string;
   /** what the footprint w × d × h fields are, for a 3D envelope */
   envelope: { w: string; d: string; h: string };
   fields: FieldSpec[];
+  roughIn: RoughInSpec[];
 }
 
 const len = (f: Omit<LengthField, "type">): LengthField => ({ type: "length", ...f });
@@ -71,6 +91,13 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
       len({ key: "inletOffset", label: "Water inlet offset", group: "rough-in", required: false, reference: "fixture-centreline", min: -0.5, max: 0.5, definition: "Sideways from the pan centreline, facing the pan; left is negative." }),
       len({ key: "frameDepth", label: "In-wall cistern frame depth", group: "installation", required: true, reference: "frame", min: 0.05, max: 0.3, when: { field: "panType", in: ["wall-hung"] }, definition: "Depth the in-wall cistern frame needs behind the finished wall." }),
     ],
+    roughIn: [
+      { id: "waste-s", label: "Floor waste (S-trap)", service: "waste", when: { field: "trap", in: ["S", "universal"] },
+        across: { zeroAt: "fixture-centreline" }, out: { range: ["sTrapSetoutMin", "sTrapSetoutMax"] }, up: { zeroAt: "finished-floor" } },
+      { id: "waste-p", label: "Wall waste (P-trap)", service: "waste", when: { field: "trap", in: ["P", "universal"] },
+        across: { zeroAt: "fixture-centreline" }, out: { zeroAt: "finished-wall" }, up: { field: "pTrapWasteHeight" } },
+      { id: "inlet", label: "Water inlet", service: "water", across: { field: "inletOffset" }, out: { zeroAt: "finished-wall" }, up: { field: "inletHeight" } },
+    ],
   },
   {
     id: "vanity",
@@ -87,6 +114,9 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
       { type: "count", key: "tapHoles", label: "Tap holes", group: "rough-in", required: true, min: 0, max: 3, definition: "Holes in the top or basin; 0 for wall-mounted tapware." },
       { type: "text", key: "tapHoleLayout", label: "Tap hole layout", group: "rough-in", required: false, definition: "Positions of the tap holes as the sheet gives them." },
     ],
+    roughIn: [
+      { id: "waste", label: "Wall waste", service: "waste", across: { field: "wasteOffset" }, out: { zeroAt: "finished-wall" }, up: { field: "wasteHeight" } },
+    ],
   },
   {
     id: "bath",
@@ -100,6 +130,12 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
       len({ key: "wasteFromEnd", label: "Waste from end", group: "rough-in", required: true, reference: "fixture-end", min: 0, max: 2.2, definition: "From the outside of the nearer end to the centre of the waste." }),
       len({ key: "wasteFromSide", label: "Waste from side", group: "rough-in", required: true, reference: "fixture-side", min: 0, max: 1.2, definition: "From the outside of the back or wall-side edge to the centre of the waste." }),
       { type: "choice", key: "overflow", label: "Overflow", group: "rough-in", required: false, options: ["yes", "no"], definition: "Whether the bath has an overflow." },
+      { type: "choice", key: "surround", label: "Hob or surround", group: "installation", required: true, options: ["hob", "apron", "tiled-frame", "none-required"], when: { field: "installation", in: ["inset", "back-to-wall", "corner"] }, definition: "What the bath needs built around or under its rim: a hob, a fitted apron or skirt, a tiled frame, or nothing." },
+      { type: "text", key: "surroundDetail", label: "Hob or surround detail", group: "installation", required: false, when: { field: "installation", in: ["inset", "back-to-wall", "corner"] }, definition: "Hob height and width, apron or recess dimensions, exactly as the sheet gives them." },
+    ],
+    // plan position only: the brief does not ask for the waste's height
+    roughIn: [
+      { id: "waste", label: "Bath waste", service: "waste", across: { field: "wasteFromEnd" }, out: { field: "wasteFromSide" } },
     ],
   },
 ];
@@ -109,8 +145,8 @@ export const categoryById = (id: string): ProductCategory | undefined => PRODUCT
 /** How the agent should research a brief. Returned with every brief. */
 export const RESEARCH_PROTOCOL: string[] = [
   "1. Identify the exact product from what the human gave you (brand, model, code, link). If several products match, do not pick one: submit nothing and say which candidates you found with leave_note.",
-  "2. Use the manufacturer's current specification sheet or installation guide first; a retailer listing only when the manufacturer publishes nothing. Cite each value's source: the URL and where on it (page, figure, table).",
-  "3. Report exactly what the source prints, converted to metres. Mark it `published` unless the human measured it themselves.",
+  "2. Use the manufacturer's current specification sheet or installation guide first; a retailer listing only when the manufacturer publishes nothing. Cite each value's source: the URL and, always, where on it (page, figure, table or section). Alternatives need the same.",
+  "3. Report exactly what the source prints, converted to metres, with status `published`. This path takes researched figures only; a site measurement is recorded by a person, not submitted here.",
   "4. Check each field's reference. If the source measures from a different point than the brief asks (e.g. set-out to the wall surface or frame instead of the finished wall face), submit the source's value with `reference` set to what it measures from and explain in `note`. Never convert it yourself.",
   "5. If a required field is not published, submit value null with a note saying where you looked. Never estimate from photos, drawings without dimensions, or similar models.",
   "6. If two sources disagree, submit the one you trust with the other under `alternatives`.",
@@ -145,7 +181,6 @@ export interface SpecProblem {
   message: string;
 }
 
-const STATUSES = VALUE_STATUSES;
 
 /** Whether a field applies, given the choices submitted so far. */
 export function applies(field: FieldSpec, fields: Record<string, FieldValue>): boolean {
@@ -162,6 +197,35 @@ export function safeUrl(url: unknown): string | null {
     return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
   } catch {
     return null;
+  }
+}
+
+const show = (f: FieldSpec, x: number | string) => (f.type === "length" && typeof x === "number" ? `${formatMm(x)} mm` : String(x));
+
+/** Every source needs an http(s) link and where on it the figure is. */
+function checkSources(sources: unknown[]): string | null {
+  if (!sources.length) return "has no source. Give the URL and where on it (page, figure, table).";
+  for (const x of sources) {
+    const src = x as Partial<SourceRef> | null;
+    if (!src || !safeUrl(src.url)) return "every source must be an http(s) link.";
+    if (typeof src.locator !== "string" || !src.locator.trim()) return `source ${src.url} needs a locator: the page, figure, table or section the figure is on.`;
+  }
+  return null;
+}
+
+/** Type and range for one value; the same rules apply to alternatives. */
+function checkValue(f: FieldSpec, value: unknown): { code: string; message: string } | null {
+  switch (f.type) {
+    case "length":
+      if (typeof value !== "number" || !Number.isFinite(value)) return { code: "not_a_length", message: "must be a number of metres." };
+      if (value < f.min || value > f.max) return { code: "out_of_range", message: `${value} m is outside ${f.min}–${f.max} m. Check the unit: lengths are metres.` };
+      return null;
+    case "choice":
+      return typeof value === "string" && f.options.includes(value) ? null : { code: "not_an_option", message: `must be one of ${f.options.join(", ")}.` };
+    case "count":
+      return typeof value === "number" && Number.isInteger(value) && value >= f.min && value <= f.max ? null : { code: "not_a_count", message: `must be a whole number from ${f.min} to ${f.max}.` };
+    case "text":
+      return typeof value === "string" && value.trim() ? null : { code: "not_text", message: "must be text." };
   }
 }
 
@@ -196,33 +260,19 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission)
       else if (f.required && applicable) warn(f.key, "required_unknown", `${f.label} is unknown. ${v.note}`);
       continue;
     }
-    if (!v.status || !STATUSES.includes(v.status)) err(f.key, "status_missing", `${f.label} needs a status: ${STATUSES.join(", ")}.`);
-    const given = Array.isArray(v.sources) ? v.sources : [];
-    if (given.some((x) => !x || !safeUrl(x.url))) err(f.key, "source_not_a_link", `${f.label}: every source must be an http(s) link.`);
-    const sources = given.filter((x) => x && safeUrl(x.url));
-    if (!sources.length && v.status !== "measured" && v.status !== "site-confirmed") err(f.key, "source_missing", `${f.label} has no source. Give the URL and where on it.`);
-    switch (f.type) {
-      case "length":
-        if (typeof v.value !== "number" || !Number.isFinite(v.value)) err(f.key, "not_a_length", `${f.label} must be a number of metres.`);
-        else if (v.value < f.min || v.value > f.max) err(f.key, "out_of_range", `${f.label} ${v.value} m is outside ${f.min}–${f.max} m. Check the unit: lengths are metres.`);
-        if (v.reference && v.reference !== f.reference) {
-          warn(f.key, "reference_mismatch", `${f.label} is measured from ${REFERENCES[v.reference] ?? v.reference}, but the brief asks for ${f.reference ? REFERENCES[f.reference] : "no particular datum"}.`);
-        }
-        break;
-      case "choice":
-        if (typeof v.value !== "string" || !f.options.includes(v.value)) err(f.key, "not_an_option", `${f.label} must be one of ${f.options.join(", ")}.`);
-        break;
-      case "count":
-        if (typeof v.value !== "number" || !Number.isInteger(v.value) || v.value < f.min || v.value > f.max) err(f.key, "not_a_count", `${f.label} must be a whole number from ${f.min} to ${f.max}.`);
-        break;
-      case "text":
-        if (typeof v.value !== "string") err(f.key, "not_text", `${f.label} must be text.`);
-        break;
+    if (v.status !== "published") err(f.key, "status_not_published", `${f.label}: a submitted value must be \`published\` (a manufacturer or retailer figure). Site measurements are recorded by a person, not through this path.`);
+    const sourceProblem = checkSources(Array.isArray(v.sources) ? v.sources : []);
+    if (sourceProblem) err(f.key, "source_invalid", `${f.label}: ${sourceProblem}`);
+    const valueProblem = checkValue(f, v.value);
+    if (valueProblem) err(f.key, valueProblem.code, `${f.label} ${valueProblem.message}`);
+    if (f.type === "length" && v.reference && v.reference !== f.reference) {
+      warn(f.key, "reference_mismatch", `${f.label} is measured from ${REFERENCES[v.reference] ?? v.reference}, but the brief asks for ${f.reference ? REFERENCES[f.reference] : "no particular datum"}.`);
     }
-    for (const alt of v.alternatives ?? []) {
-      if (alt && differs(alt.value, v.value)) {
-        const show = (x: number | string) => (f.type === "length" && typeof x === "number" ? `${formatMm(x)} mm` : String(x));
-        warn(f.key, "sources_disagree", `${f.label}: ${alt.source?.url ?? "another source"} gives ${show(alt.value)}, not ${show(v.value)}.`);
+    for (const [i, alt] of (Array.isArray(v.alternatives) ? v.alternatives : []).entries()) {
+      const altProblem = !alt ? "is empty" : checkSources([alt.source]) ?? (checkValue(f, alt.value)?.message ?? null);
+      if (altProblem) { err(f.key, "alternative_invalid", `${f.label}, alternative ${i + 1}: ${altProblem}`); continue; }
+      if (!valueProblem && differs(alt.value, v.value as number | string)) {
+        warn(f.key, "sources_disagree", `${f.label}: ${alt.source.url} (${alt.source.locator}) gives ${show(f, alt.value)}, not ${show(f, v.value as number | string)}.`);
       }
     }
   }
@@ -236,4 +286,59 @@ export function envelopeOf(category: ProductCategory, fields: Record<string, Fie
   const d = pick(category.envelope.d);
   const h = pick(category.envelope.h);
   return w !== null && d !== null && h !== null ? { w, d, h } : null;
+}
+
+export interface AxisValue {
+  from: ReferenceId;
+  /** the field it came from, when not a fixed zero */
+  field?: string;
+  value?: number;
+  min?: number;
+  max?: number;
+}
+
+export interface RoughInPoint {
+  id: string;
+  label: string;
+  service: "waste" | "water";
+  across?: AxisValue;
+  out?: AxisValue;
+  up?: AxisValue;
+  resolved: boolean;
+  /** fields whose values are unknown or not submitted */
+  missing: string[];
+}
+
+/**
+ * The fixture's service points, each axis naming its datum. An axis whose field is unknown
+ * stays without a value and the point is unresolved; nothing is filled in.
+ */
+export function roughInPoints(category: ProductCategory, fields: Record<string, FieldValue>): RoughInPoint[] {
+  const spec = (key: string) => category.fields.find((f) => f.key === key) as LengthField | undefined;
+  const num = (key: string) => (typeof fields[key]?.value === "number" ? (fields[key].value as number) : undefined);
+  const points: RoughInPoint[] = [];
+  for (const r of category.roughIn) {
+    if (r.when && !r.when.in.includes(String(fields[r.when.field]?.value))) continue;
+    const missing: string[] = [];
+    const axis = (a: AxisSpec | undefined): AxisValue | undefined => {
+      if (!a) return undefined;
+      if ("zeroAt" in a) return { from: a.zeroAt, value: 0 };
+      if ("range" in a) {
+        const [lo, hi] = a.range;
+        const min = num(lo);
+        const max = num(hi);
+        if (min === undefined) missing.push(lo);
+        if (max === undefined) missing.push(hi);
+        return { from: spec(lo)?.reference ?? "other", field: `${lo}..${hi}`, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) };
+      }
+      const value = num(a.field);
+      if (value === undefined) missing.push(a.field);
+      return { from: spec(a.field)?.reference ?? "other", field: a.field, ...(value !== undefined ? { value } : {}) };
+    };
+    const across = axis(r.across);
+    const out = axis(r.out);
+    const up = axis(r.up);
+    points.push({ id: r.id, label: r.label, service: r.service, ...(across ? { across } : {}), ...(out ? { out } : {}), ...(up ? { up } : {}), resolved: missing.length === 0, missing });
+  }
+  return points;
 }

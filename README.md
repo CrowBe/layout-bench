@@ -166,9 +166,12 @@ A few design notes:
 - The page sets the brief; the agent does the research. **Products** opens a library shared by
   every project in this browser. A request names a fixture (toilet, vanity, bath) and the page
   turns it into a brief: each field, its unit, what it is measured from, and whether a trade
-  drawing needs it. The agent searches, then submits values with a status (`published` for a
-  manufacturer figure) and a source link. A value with no source, a value in the wrong unit or a
-  required field left blank without saying where it looked is refused. Disagreeing sources and
+  drawing needs it. The agent searches, then submits values marked `published` (manufacturer or
+  retailer figures only; site measurements are a person's to record), each with a source link
+  and the page, figure or table it is on. A value with no located source, a value in the wrong
+  unit or a required field left blank without saying where it looked is refused, and
+  alternative sources are held to the same rules. Accepted products carry their rough-in
+  points (wastes, water inlet), each axis naming the datum it is measured from. Disagreeing sources and
   figures measured from a different datum are flagged. A person reviews each field and accepts
   the product; no tool can.
 

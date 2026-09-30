@@ -370,7 +370,7 @@ export const TOOLS: ToolDef[] = [
     name: "get_product_brief",
     title: "Read a product research brief",
     description:
-      "Read the brief for a product request: what the human knows, the protocol to follow, and every field to find with its unit (lengths in metres), definition, reference datum, allowed options or range, and whether it is required. A field with `when` applies only when that other field has one of the listed values. Includes any previous submission and the reviewer's feedback.",
+      "Read the brief for a product request: what the human knows, the protocol to follow, the service points (roughIn) the fields feed, and every field to find with its unit (lengths in metres), definition, reference datum, allowed options or range, and whether it is required. A field with `when` applies only when that other field has one of the listed values. Includes any previous submission and the reviewer's feedback.",
     inputSchema: obj({ requestId: str }, ["requestId"]),
     annotations: { readOnlyHint: true },
     execute: (i) => {
@@ -388,6 +388,7 @@ export const TOOLS: ToolDef[] = [
         protocol: RESEARCH_PROTOCOL,
         references: REFERENCES,
         fields: cat.fields.map((f) => ({ ...f, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
+        roughIn: cat.roughIn,
         submitShape: "submit_product_spec { requestId, manufacturer, model, code?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } }",
         ...(req.submission ? { previousSubmission: req.submission } : {}),
         ...(req.feedback ? { feedback: req.feedback } : {}),
@@ -398,7 +399,7 @@ export const TOOLS: ToolDef[] = [
     name: "submit_product_spec",
     title: "Submit a completed product brief",
     description:
-      "Submit the researched values for an open product request. Each field: value (metres for lengths; null when not found), status (published for a manufacturer or retailer figure), sources [{ url, locator }], optional reference when the source measures from a different datum than the brief asks, note (required for a required field left null: where you looked), alternatives when sources disagree. Errors (no source, out of range, wrong unit, missing required field) reject the whole submission and nothing is stored. A human reviews and accepts it on the Products page; you cannot accept it.",
+      "Submit the researched values for an open product request. Each field: value (metres for lengths; null when not found), status (always published: a manufacturer or retailer figure), sources [{ url, locator }] where locator (page, figure, table or section) is required, optional reference when the source measures from a different datum than the brief asks, note (required for a required field left null: where you looked), alternatives when sources disagree. Errors (no source, out of range, wrong unit, missing required field) reject the whole submission and nothing is stored. A human reviews and accepts it on the Products page; you cannot accept it.",
     inputSchema: obj(
       {
         requestId: str,
@@ -414,7 +415,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: "get_product_library",
     title: "Read the product library",
-    description: "Read the accepted products shared by every project: manufacturer, model, category and each field with its value, status and sources. Values marked published are manufacturer figures, not site measurements.",
+    description: "Read the accepted products shared by every project: manufacturer, model, category, each field with its value, status and sources, and roughIn: service points whose axes (across, out, up) each name their datum. An unresolved point lists the fields it is missing. Values marked published are manufacturer figures, not site measurements.",
     inputSchema: obj({}),
     annotations: { readOnlyHint: true },
     execute: () => {
