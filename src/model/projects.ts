@@ -17,6 +17,7 @@ export interface ProjectDocument {
   version: 2;
   id: string;
   model: PlanModel;
+  presentation: "planning" | "styled";
   notes: Note[];
   kinds: ProjectKind[];
 }
@@ -28,7 +29,7 @@ export interface ProjectLibrary {
 }
 
 export const demoProject = (): ProjectDocument => ({
-  version: DOCUMENT_VERSION, id: DEMO_ID, model: seedLoft(), notes: [], kinds: [],
+  version: DOCUMENT_VERSION, id: DEMO_ID, model: seedLoft(), presentation: "styled", notes: [], kinds: [],
 });
 export const emptyLibrary = (): ProjectLibrary => ({ version: DOCUMENT_VERSION, activeId: null, projects: [demoProject()] });
 
@@ -116,7 +117,11 @@ export function parseProject(value: unknown): ProjectDocument {
         typeof opening.anchorDistance === "number" && Number.isFinite(opening.anchorDistance))) return opening;
     return { ...opening, anchorEnd: "a" as const, anchorDistance: quantize(opening.t * Math.hypot(wall.bx - wall.ax, wall.by - wall.ay)) };
   });
-  return { ...project, model: { ...project.model, openings } };
+  const presentation = migrated.presentation ?? (id === DEMO_ID ? "styled" : "planning");
+  if (presentation !== "planning" && presentation !== "styled") {
+    throw new Error("Project presentation must be planning or styled.");
+  }
+  return { ...project, presentation, model: { ...project.model, openings } };
 }
 
 export function parseLibrary(raw: string): ProjectLibrary {

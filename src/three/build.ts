@@ -209,7 +209,7 @@ function box(
 }
 
 /** Build one wall with its openings as solid segments + lintels + sills + glass. */
-function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Set<string>): THREE.Group {
+function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Set<string>, presentation: "planning" | "styled"): THREE.Group {
   const g = new THREE.Group();
   const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
   const [extA, extB] = jointExtensions(wall, walls);
@@ -233,10 +233,11 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
     // local coords: group origin is the CENTER of the extended wall
     g.add(box(x1 - x0, y1 - y0, wall.thickness, mat, (x0 + x1) / 2 - total / 2, (y0 + y1) / 2, 0, 0));
     // skirting board wherever the wall meets the floor
-    if (y0 < 0.001 && y1 > SKIRTING_H) {
-      g.add(
+    if (presentation === "styled" && y0 < 0.001 && y1 > SKIRTING_H) {
+      g.add(named(
         box(x1 - x0, SKIRTING_H, wall.thickness + 0.024, skirtingMaterial, (x0 + x1) / 2 - total / 2, SKIRTING_H / 2, 0, 0, false),
-      );
+        `${wall.id}:skirting`,
+      ));
     }
   };
 
@@ -305,12 +306,12 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
       // stone sill, proud of both faces
       g.add(box(fw + 0.14, 0.045, wall.thickness + 0.16, sillMaterial, cx, o.sill - 0.022, 0, 0, false));
       // curtains, but only where nothing is parked in front of the window
-      if (curtained.has(o.id)) {
+      if (presentation === "styled" && curtained.has(o.id)) {
         const rodY = o.sill + fh + 0.16;
         const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, fw + 0.44, 10), frameMaterial);
         rod.rotation.z = Math.PI / 2;
         rod.position.set(cx, rodY, wall.thickness / 2 + 0.11);
-        g.add(rod);
+        g.add(named(rod, `${o.id}:curtain-rod`));
         const top = rodY - 0.05;
         const bottom = 0.06;
         const ph = top - bottom;
@@ -320,7 +321,7 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
           for (let k = 0; k < 4; k++) {
             const px2 = outer - edge * k * 0.082;
             const z = wall.thickness / 2 + (k % 2 === 0 ? 0.075 : 0.135);
-            g.add(box(0.085, ph, 0.055, curtainMaterial, px2, bottom + ph / 2, z, 0, false));
+            g.add(named(box(0.085, ph, 0.055, curtainMaterial, px2, bottom + ph / 2, z, 0, false), `${o.id}:curtain`));
           }
         }
       }
@@ -365,7 +366,14 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
   return g;
 }
 
-function buildFloor(room: Room): THREE.Mesh {
+function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh {
+  if (presentation === "planning") {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(room.w, 0.04, room.h), new THREE.MeshStandardMaterial({ color: "#b8b8b3", roughness: 0.95 }));
+    m.name = `${room.id}:planning-floor`;
+    m.position.set(room.x + room.w / 2, 0.02, room.y + room.h / 2);
+    m.receiveShadow = true;
+    return m;
+  }
   const color = FLOOR_COLORS[room.floor] ?? FLOOR_COLORS.oak;
   const mat = new THREE.MeshStandardMaterial({ color, roughness: room.floor === "carpet" ? 1 : 0.72 });
   const base = floorTexture(room.floor in FLOOR_SCALE ? room.floor : "oak");
@@ -436,7 +444,7 @@ function blockedInFront(wall: Wall, o: Opening, items: Item[]): boolean {
   return false;
 }
 
-export function buildPlan(model: PlanModel): BuiltPlan {
+export function buildPlan(model: PlanModel, presentation: "planning" | "styled" = "styled"): BuiltPlan {
   const group = new THREE.Group();
   group.name = "plan";
 
@@ -458,14 +466,16 @@ export function buildPlan(model: PlanModel): BuiltPlan {
   }
 
   for (const w of model.walls) {
-    group.add(buildWall(w, openingsByWall.get(w.id) ?? [], model.walls, curtained));
+    group.add(buildWall(w, openingsByWall.get(w.id) ?? [], model.walls, curtained, presentation));
   }
   for (const r of model.rooms) {
-    group.add(buildFloor(r));
+    group.add(buildFloor(r, presentation));
   }
   const ceiling = model.walls[0]?.height ?? 2.7;
-  for (const r of model.rooms) {
-    group.add(buildPendant(r, ceiling));
+  if (presentation === "styled") for (const r of model.rooms) {
+    const pendant = buildPendant(r, ceiling);
+    nameMeshes(pendant, `${r.id}:pendant`);
+    group.add(named(pendant, `${r.id}:pendant`));
   }
 
   // bounds of the CONTENT only (ground would blow up the camera fit)
