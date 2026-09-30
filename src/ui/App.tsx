@@ -10,6 +10,8 @@ import { SupplierBridge } from "./SupplierBridge";
 import { bus, EVENTS } from "../three/exportBus";
 import { ProjectChooser } from "./ProjectChooser";
 import { Inspector } from "./Inspector";
+import { ProductsPage } from "./ProductsPage";
+import { products, useProductStore } from "../model/productLibrary";
 
 /** Pointer snap choices for the 2D editor, in metres. Typed values and tools are never snapped. */
 const SNAP_STEPS: [number, string][] = [[0, "Off"], [0.001, "1 mm"], [0.01, "10 mm"], [0.05, "50 mm"], [0.1, "100 mm"]];
@@ -26,6 +28,8 @@ export function App() {
   const chooserOpen = useAppStore((s) => s.chooserOpen);
   const saveError = useAppStore((s) => s.saveError);
   const pendingApprovals = useAppStore((s) => s.approvals.length);
+  const productsOpen = useProductStore((s) => s.open);
+  const submittedProducts = useProductStore((s) => s.requests.filter((r) => r.status === "submitted").length);
 
   if (chooserOpen || !activeProjectId) return <ProjectChooser />;
 
@@ -37,6 +41,9 @@ export function App() {
           <span className="brand-name">Reno Layouts</span>
           <span className="brand-plan">{planName}</span>
           <button onClick={() => projects.showChooser()} disabled={pendingApprovals > 0} title={pendingApprovals ? "Resolve the pending agent request before switching projects" : undefined}>Projects</button>
+          <button onClick={() => products.show(true)} title="Research requests and accepted products, shared by every project">
+            Products{submittedProducts ? ` (${submittedProducts} to review)` : ""}
+          </button>
         </div>
 
         <div className="header-group">
@@ -105,6 +112,7 @@ export function App() {
         <Sidebar />
       </main>
 
+      {productsOpen && <ProductsPage />}
       <SupplierBridge />
       <ApprovalBar />
       <ActivityFeed />

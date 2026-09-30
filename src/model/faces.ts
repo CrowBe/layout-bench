@@ -16,7 +16,7 @@ import type { BuildUpLayer, LayerKind, Quantity, Room, ValueStatus, Wall, WallSi
 import { catalogByKind } from "./catalog";
 import { quantize, rectCorners, segLen, type Pt } from "./geometry";
 
-export const VALUE_STATUSES: ValueStatus[] = ["site-confirmed", "measured", "proposed", "estimated"];
+export const VALUE_STATUSES: ValueStatus[] = ["site-confirmed", "measured", "published", "proposed", "estimated"];
 export const LAYER_KINDS: LayerKind[] = ["board", "waterproofing", "adhesive", "tile"];
 export const LAYER_LABELS: Record<LayerKind, string> = {
   board: "Board (e.g. Villaboard)",
