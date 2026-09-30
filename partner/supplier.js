@@ -1,9 +1,9 @@
 /**
  * Nordika — a stand-alone furniture supplier on its OWN ORIGIN.
  *
- * It knows nothing about Alza's internals. It publishes its stock as WebMCP tools and shares
+ * It knows nothing about the app's internals. It publishes its stock as WebMCP tools and shares
  * them with the host origin via `registerTool(descriptor, { exposedTo })`, which is what lets
- * an agent standing on Alza's page read this catalogue directly.
+ * an agent standing on the app's page read this catalogue directly.
  *
  * The same two calls are also answered over postMessage, so the integration still works on
  * runtimes without cross-origin WebMCP.

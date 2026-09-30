@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOCUMENT_VERSION, DEMO_ID, parseImport, parseLibrary, parseProject } from "../src/model/projects";
+import { DOCUMENT_VERSION, parseImport, parseLibrary, parseProject } from "../src/model/projects";
 
 /** Stored v1 export. Identity migration must keep every field except the version number. */
 const v1Project = {
@@ -41,7 +41,7 @@ const v1Library = {
   projects: [
     {
       version: 1,
-      id: DEMO_ID,
+      id: "sunset-loft",
       model: {
         name: "Sunset Loft",
         walls: [{ id: "wall_n", ax: 0, ay: 0, bx: 8, by: 0, thickness: 0.15, height: 2.7 }],
@@ -104,7 +104,7 @@ describe("project document migration", () => {
     expect(library.version).toBe(2);
     expect(library.activeId).toBe(v1Library.activeId);
     expect(library.projects.map((project) => project.version)).toEqual([2, 2]);
-    expect(library.projects.map((project) => project.id)).toEqual([DEMO_ID, v1Project.id]);
+    expect(library.projects.map((project) => project.id)).toEqual(["sunset-loft", v1Project.id]);
     const survey = library.projects[1];
     expect(survey.model.walls).toEqual(v1Project.model.walls);
     expect(survey.model.openings).toEqual(v1LoadedModel.openings);

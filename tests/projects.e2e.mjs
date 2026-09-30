@@ -98,25 +98,31 @@ try {
   await page.evaluate((model) => window.__alza.store.setState({ model }), originalSurveyModel);
 
   await page.getByRole("button", { name: "Projects" }).click();
-  const demo = page.locator(".project-card").filter({ hasText: "Sunset Loft" });
-  await demo.getByRole("button", { name: "Open" }).click();
-  const demoState = await page.evaluate(() => ({ model: window.__alza.store.getState().model, notes: window.__alza.store.getState().notes }));
-  assert.equal(demoState.model.walls.length, 7);
-  assert.equal(demoState.notes.length, 0);
-  assert.equal(await page.getByLabel("3D presentation").count(), 0);
+  const sample = page.locator(".project-card").filter({ hasText: "Bathroom Concept" });
+  await sample.getByRole("button", { name: "Open" }).click();
+  const sampleState = await page.evaluate(() => ({ model: window.__alza.store.getState().model,
+    notes: window.__alza.store.getState().notes, kinds: window.__alza.store.getState().kinds }));
+  assert.equal(sampleState.model.walls.length, 4);
+  assert.equal(sampleState.model.items.length, 4);
+  assert.ok(sampleState.notes.some((note) => /approximate|not set-out/i.test(note.text)));
+  assert.equal(sampleState.kinds.length, 4);
   await page.getByRole("button", { name: "Build 3D" }).click();
-  assert.equal(await page.getByLabel("3D presentation").inputValue(), "styled", "Sunset Loft retains its styled presentation");
-  await page.getByLabel("3D presentation").selectOption("planning");
+  assert.equal(await page.getByLabel("3D presentation").inputValue(), "planning");
   await nextSceneFrame();
-  const sunsetPlanning = await exportObjNames();
-  assert.ok(sunsetPlanning.includes("item_sofa"), "authored Sunset Loft fixture remains visible");
-  assert.ok(!sunsetPlanning.some((name) => /pendant|curtain|skirting/.test(name)), "planning mode hides Sunset Loft decoration");
+  const samplePlanning = await exportObjNames();
+  assert.ok(samplePlanning.includes(sampleState.model.items[0].id), "authored bathroom fixture stays visible");
+  assert.ok(!samplePlanning.some((name) => /pendant|curtain|skirting/.test(name)), "planning hides decoration");
+  await page.getByLabel("3D presentation").selectOption("styled");
+  await nextSceneFrame();
+  const sampleStyled = await exportObjNames();
+  assert.ok(sampleStyled.some((name) => name.includes("pendant")), "styled presentation remains available");
+  await page.getByLabel("3D presentation").selectOption("planning");
   await page.getByRole("button", { name: "Projects" }).click();
   await page.reload();
-  const persistedDemo = page.locator(".project-card").filter({ hasText: "Sunset Loft" });
-  await persistedDemo.getByRole("button", { name: "Open" }).click();
+  const persistedSample = page.locator(".project-card").filter({ hasText: "Bathroom Concept" });
+  await persistedSample.getByRole("button", { name: "Open" }).click();
   await page.getByRole("button", { name: "Build 3D" }).click();
-  assert.equal(await page.getByLabel("3D presentation").inputValue(), "planning", "presentation persists across reload");
+  assert.equal(await page.getByLabel("3D presentation").inputValue(), "planning", "sample presentation persists across reload");
 
   await page.getByRole("button", { name: "Projects" }).click();
   await page.locator(".project-card").filter({ has: page.getByText("Bathroom Survey", { exact: true }) }).getByRole("button", { name: "Open" }).click();
@@ -198,6 +204,8 @@ try {
   await legacyPage.goto(baseUrl);
   await legacyPage.getByRole("heading", { name: "Choose a plan" }).waitFor();
   assert.equal(await legacyPage.evaluate(() => localStorage.getItem("alza.projects.v1")), legacyRaw, "opening the chooser must not rewrite a v1 library");
+  const chooserNames = await legacyPage.locator(".project-card strong").allTextContents();
+  assert.deepEqual(chooserNames, ["Bathroom Concept", "Sunset Loft", "Kept Survey"], "new sample leads while legacy projects are preserved");
   const migrated = await legacyPage.evaluate(() => {
     const project = window.__alza.store.getState().projects.find((entry) => entry.id === "survey-kept");
     return { version: project.version, wall: project.model.walls[0], note: project.notes[0].text, kind: project.kinds[0].entry.kind };
@@ -212,6 +220,9 @@ try {
   const upgraded = await legacyPage.evaluate(() => JSON.parse(localStorage.getItem("alza.projects.v1")));
   assert.equal(upgraded.version, 2);
   assert.equal(upgraded.activeId, "survey-kept");
+  assert.equal(upgraded.projects.filter((entry) => entry.id === "bathroom-concept").length, 1);
+  assert.deepEqual(upgraded.projects.find((entry) => entry.id === "sunset-loft").model,
+    legacyLibrary.projects[0].model, "old sample content is preserved as a saved project");
   const kept = upgraded.projects.find((entry) => entry.id === "survey-kept");
   assert.equal(kept.version, 2);
   assert.equal(kept.model.walls[0].id, "w_kept");
@@ -221,8 +232,11 @@ try {
   assert.equal(kept.notes[0].text, "Leave this note");
   assert.equal(kept.kinds[0].entry.kind, "survey_vanity");
   assert.equal(kept.model.underlay.dataUrl, "data:image/png;base64,aaaa");
+  await legacyPage.reload();
+  assert.equal(await legacyPage.locator(".project-card").filter({ hasText: "Bathroom Concept" }).count(), 1,
+    "reloading does not add a second sample");
   await legacyContext.close();
-  console.log("PASS: UI wall, registered tool note, custom kind, underlay, 3D, demo isolation, reload, export/import, independent edits, deletion, old data protection, v1 migration without rewrite until save");
+  console.log("PASS: UI wall, registered tool note, custom kind, underlay, 3D, sample isolation, reload, export/import, independent edits, deletion, old data protection, v1 migration without rewrite until save");
 } finally {
   await browser.close();
 }

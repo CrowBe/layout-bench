@@ -1,7 +1,7 @@
-# Alza — Plans that rise to 3D
+# Reno Layouts — Plans that rise to 3D
 
 A floor plan is coordinates, not buttons — which is why an agent cannot use one by
-pretending to be a mouse. So Alza does not make it try. It hands over the model itself: the
+pretending to be a mouse. So Reno Layouts does not make it try. It hands over the model itself: the
 full metric geometry, published as typed tools through **WebMCP**, on the same live page a
 person is drawing on.
 
@@ -15,8 +15,9 @@ Everything runs client side. No backend, no accounts, plans stay on your machine
 
 ## Browser-local projects
 
-The app opens with a project chooser. **Sunset Loft** remains available as the demo;
-create a blank project for a separate plan or duplicate the demo as a starting point.
+The app opens with a project chooser. **Bathroom Concept** is the shipped sample;
+create a blank project for a separate plan or duplicate the sample as a starting point.
+Older browser libraries keep their existing projects, including any Sunset Loft copy.
 Project changes save in this browser's local storage, including geometry, notes,
 custom item kinds, and an uploaded underlay. Use **Projects** to switch, export a
 project as JSON, import a backup under a new name, or delete a user-created project
@@ -30,7 +31,7 @@ shows an error and offers a backup download without overwriting that data.
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=RihMFcMstvI">
-    <img src="shots/showcase/00-video-poster.png" width="820" alt="Watch the Alza demo" />
+    <img src="shots/showcase/00-video-poster.png" width="820" alt="Watch the original WebMCP demo" />
   </a>
 </p>
 
@@ -60,11 +61,11 @@ coordinate came out of tool calls. Nothing was placed by hand.
 </p>
 
 The proof in one image. The drawing underneath is the source photo; the dark geometry on top
-is what Alza built from it. The agent asked for a single real dimension, set the scale from
+is what Reno Layouts built from it. The agent asked for a single real dimension, set the scale from
 that, and traced the rest.
 
 <p align="center">
-  <img src="shots/showcase/02-traced-over-the-drawing.png" width="820" alt="Alza's geometry laid over the original drawing" />
+  <img src="shots/showcase/02-traced-over-the-drawing.png" width="820" alt="the app's geometry laid over the original drawing" />
 </p>
 
 | | |
@@ -113,7 +114,7 @@ Have a floor-plan image (scan, photo, PDF export)? Let the agent rebuild it in 3
 ## Why WebMCP is the point
 
 Canvas geometry is exactly where agent actuation falls over. You cannot click-and-drag a
-wall reliably, and there is no DOM to scrape. So Alza publishes the plan as **structured
+wall reliably, and there is no DOM to scrape. So Reno Layouts publishes the plan as **structured
 tools** via `document.modelContext.registerTool`, and those tools call the same store
 actions the UI buttons call. Human and agent end up co-editing one model on one live page.
 
@@ -173,7 +174,7 @@ A few design notes:
 ### 1. The human approves what the agent destroys
 
 The explainer lists per-call user confirmation as an **open question** ("a way for a tool
-to prompt the user for confirmation"). Alza answers it on the page. A tool annotated
+to prompt the user for confirmation"). Reno Layouts answers it on the page. A tool annotated
 `destructiveHint` does not run when the agent calls it; it becomes a **request bar** at
 the bottom of the studio (*"AGENT WANTS TO erase the whole plan"*) and the agent's
 `execute()` stays pending until a human presses Approve or Reject. Reject returns a real
@@ -187,11 +188,11 @@ both paths run through the same wrapper.
 ### 2. One agent, two origins, one plan
 
 **Nordika** is a separate website on its own origin (`partner/`). It knows nothing about
-Alza. It publishes its stock as its own WebMCP tools (`nordika_list_products`,
+Reno Layouts. It publishes its stock as its own WebMCP tools (`nordika_list_products`,
 `nordika_get_product`) and shares them with the studio using
 `registerTool(descriptor, { exposedTo })`.
 
-Alza embeds it in an iframe carrying **`allow="tools"`** (the `tools` Permissions Policy),
+Reno Layouts embeds it in an iframe carrying **`allow="tools"`** (the `tools` Permissions Policy),
 discovers those tools with **`getTools({ fromOrigins })`** and calls them with
 **`executeTool()`**. So an agent standing on one page composes two origins: it reads a
 supplier's real catalogue and lays those products into the plan at their true dimensions,
@@ -216,8 +217,8 @@ Metric precision is the product. The checker validates:
   error), blocking door swing paths and window light (with a sill-height nuance),
   item-vs-item collisions (rugs exempt), items outside every room.
 
-The bundled **Sunset Loft** demo is audited to **0 issues** and kept that way by a
-regression test.
+The bundled **Bathroom Concept** sample is an approximate layout, not a set-out plan.
+Its notes identify display placeholders and dimensions that still need confirmation.
 
 ## Architecture
 
@@ -263,7 +264,7 @@ browser mediating it instead.
 Related, and worth flagging: `destructiveHint` is in
 [MCP's `ToolAnnotations`](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
 but not in [WebMCP's](https://webmachinelearning.github.io/webmcp/), which defines only
-`readOnlyHint` and `untrustedContentHint`. Alza keeps it in its own descriptors and enforces it
+`readOnlyHint` and `untrustedContentHint`. Reno Layouts keeps it in its own descriptors and enforces it
 page-side in `mcp/registry.ts`, so nothing depends on the browser propagating it. But if the
 browser is ever going to mediate confirmation, it needs some way to know which tools are
 destructive.

@@ -34,7 +34,7 @@ export function App() {
       <header className="header">
         <div className="brand">
           <span className="brand-mark">▲</span>
-          <span className="brand-name">Alza</span>
+          <span className="brand-name">Reno Layouts</span>
           <span className="brand-plan">{planName}</span>
           <button onClick={() => projects.showChooser()} disabled={pendingApprovals > 0} title={pendingApprovals ? "Resolve the pending agent request before switching projects" : undefined}>Projects</button>
         </div>
