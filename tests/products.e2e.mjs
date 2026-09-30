@@ -49,7 +49,7 @@ try {
 
   const fields = {
     width: pub(0.38), depth: pub(0.64), height: pub(0.8),
-    panType: pub("wall-faced"), trap: pub("S"),
+    panType: pub("back-to-wall"), cistern: pub("close-coupled"), inletEntry: pub("bottom"), power: pub("not-required"), trap: pub("S"),
     sTrapSetoutMin: { ...pub(0.14), alternatives: [{ value: 0.135, source: { url: "https://example.org/listing", locator: "dimensions table" } }] },
     sTrapSetoutMax: pub(0.2),
     inletHeight: { value: null, note: "Not on the spec sheet or the installation guide." },

@@ -54,7 +54,7 @@ export type AxisSpec = { field: string } | { range: [string, string] } | { zeroA
 export interface RoughInSpec {
   id: string;
   label: string;
-  service: "waste" | "water";
+  service: "waste" | "water" | "power";
   when?: { field: string; in: string[] };
   across?: AxisSpec;
   out?: AxisSpec;
@@ -82,14 +82,19 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
       len({ key: "depth", label: "Overall projection", group: "envelope", required: true, reference: "finished-wall", min: 0.4, max: 1.0, definition: "From the finished wall face to the front of the pan." }),
       len({ key: "height", label: "Overall height", group: "envelope", required: true, reference: "finished-floor", min: 0.3, max: 1.2, definition: "To the top of the cistern (or the pan, for an in-wall cistern)." }),
       len({ key: "seatHeight", label: "Seat height", group: "installation", required: false, reference: "finished-floor", min: 0.3, max: 0.55, definition: "Top of the seat." }),
-      { type: "choice", key: "panType", label: "Pan type", group: "installation", required: true, options: ["wall-faced", "back-to-wall", "close-coupled", "wall-hung", "other"], definition: "How the pan meets the wall." },
+      { type: "choice", key: "panType", label: "Pan type", group: "installation", required: true, options: ["back-to-wall", "wall-faced", "wall-hung", "other"], definition: "How the pan meets the wall." },
+      { type: "choice", key: "cistern", label: "Cistern", group: "installation", required: true, options: ["close-coupled", "in-wall", "exposed-wall-mounted", "other"], definition: "Where the cistern sits: on the pan, inside the wall, or on the wall face." },
+      { type: "choice", key: "inletEntry", label: "Water inlet entry", group: "rough-in", required: true, options: ["bottom", "back", "side"], definition: "Where the supply enters the cistern: underneath, through the back, or from the side." },
       { type: "choice", key: "trap", label: "Trap", group: "rough-in", required: true, options: ["S", "P", "universal"], definition: "S = floor waste, P = wall waste, universal = either." },
       len({ key: "sTrapSetoutMin", label: "S-trap set-out, minimum", group: "rough-in", required: true, reference: "finished-wall", min: 0.05, max: 0.5, when: { field: "trap", in: ["S", "universal"] }, definition: "From the finished wall face to the centre of the floor waste; smallest set-out the pan accepts." }),
       len({ key: "sTrapSetoutMax", label: "S-trap set-out, maximum", group: "rough-in", required: true, reference: "finished-wall", min: 0.05, max: 0.5, when: { field: "trap", in: ["S", "universal"] }, definition: "As above; largest set-out the pan accepts. Same as the minimum when it is fixed." }),
       len({ key: "pTrapWasteHeight", label: "P-trap waste height", group: "rough-in", required: true, reference: "finished-floor", min: 0.1, max: 0.3, when: { field: "trap", in: ["P", "universal"] }, definition: "To the centre of the wall waste." }),
       len({ key: "inletHeight", label: "Water inlet height", group: "rough-in", required: true, reference: "finished-floor", min: 0.05, max: 1.2, definition: "To the centre of the water inlet (stop valve)." }),
       len({ key: "inletOffset", label: "Water inlet offset", group: "rough-in", required: false, reference: "fixture-centreline", min: -0.5, max: 0.5, definition: "Sideways from the pan centreline, facing the pan; left is negative." }),
-      len({ key: "frameDepth", label: "In-wall cistern frame depth", group: "installation", required: true, reference: "frame", min: 0.05, max: 0.3, when: { field: "panType", in: ["wall-hung"] }, definition: "Depth the in-wall cistern frame needs behind the finished wall." }),
+      len({ key: "frameDepth", label: "In-wall cistern frame depth", group: "installation", required: true, reference: "frame", min: 0.05, max: 0.3, when: { field: "cistern", in: ["in-wall"] }, definition: "Depth the in-wall cistern frame needs behind the finished wall." }),
+      { type: "choice", key: "power", label: "Power for an electric seat", group: "rough-in", required: true, options: ["not-required", "required"], definition: "Whether the suite as supplied (e.g. with a bidet seat) needs a power outlet." },
+      len({ key: "powerOutletHeight", label: "Power outlet height", group: "rough-in", required: true, reference: "finished-floor", min: 0.1, max: 1.5, when: { field: "power", in: ["required"] }, definition: "To the centre of the power outlet the sheet recommends." }),
+      len({ key: "powerOutletOffset", label: "Power outlet offset", group: "rough-in", required: false, reference: "fixture-centreline", min: -1, max: 1, when: { field: "power", in: ["required"] }, definition: "Sideways from the pan centreline, facing the pan; left is negative." }),
     ],
     roughIn: [
       { id: "waste-s", label: "Floor waste (S-trap)", service: "waste", when: { field: "trap", in: ["S", "universal"] },
@@ -97,6 +102,7 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
       { id: "waste-p", label: "Wall waste (P-trap)", service: "waste", when: { field: "trap", in: ["P", "universal"] },
         across: { zeroAt: "fixture-centreline" }, out: { zeroAt: "finished-wall" }, up: { field: "pTrapWasteHeight" } },
       { id: "inlet", label: "Water inlet", service: "water", across: { field: "inletOffset" }, out: { zeroAt: "finished-wall" }, up: { field: "inletHeight" } },
+      { id: "power", label: "Power outlet", service: "power", when: { field: "power", in: ["required"] }, across: { field: "powerOutletOffset" }, out: { zeroAt: "finished-wall" }, up: { field: "powerOutletHeight" } },
     ],
   },
   {
@@ -300,7 +306,7 @@ export interface AxisValue {
 export interface RoughInPoint {
   id: string;
   label: string;
-  service: "waste" | "water";
+  service: "waste" | "water" | "power";
   across?: AxisValue;
   out?: AxisValue;
   up?: AxisValue;

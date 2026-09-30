@@ -13,7 +13,10 @@ const toilet = (): SpecSubmission => ({
     width: pub(0.38),
     depth: pub(0.64),
     height: pub(0.8),
-    panType: pub("wall-faced"),
+    panType: pub("back-to-wall"),
+    cistern: pub("close-coupled"),
+    inletEntry: pub("bottom"),
+    power: pub("not-required"),
     trap: pub("S"),
     sTrapSetoutMin: pub(0.14),
     sTrapSetoutMax: pub(0.2),
@@ -90,6 +93,15 @@ describe("product spec validation (#30)", () => {
     const withHob = bath("inset");
     withHob.fields.surround = pub("hob");
     expect(validateSubmission(cat, withHob)).toEqual([]);
+  });
+
+  it("asks an electric-seat suite for its power outlet and adds it as a service point", () => {
+    const s = toilet();
+    s.fields.power = pub("required");
+    expect(validateSubmission(categoryById("toilet")!, s).filter((p) => p.severity === "error").map((p) => p.field)).toEqual(["powerOutletHeight"]);
+    s.fields.powerOutletHeight = pub(0.3);
+    const power = roughInPoints(categoryById("toilet")!, s.fields).find((p) => p.id === "power")!;
+    expect(power).toMatchObject({ service: "power", up: { from: "finished-floor", value: 0.3 }, resolved: false, missing: ["powerOutletOffset"] });
   });
 
   it("derives rough-in points whose axes name their datum, leaving unknowns unknown", () => {
