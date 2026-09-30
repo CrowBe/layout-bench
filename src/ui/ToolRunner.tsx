@@ -11,6 +11,7 @@ const EXAMPLES: Record<string, string> = {
   add_wall: '{ "ax": 0, "ay": 0, "bx": 4, "by": 0 }',
   add_door: '{ "wallId": "wall_s", "t": 0.5 }',
   add_window: '{ "wallId": "wall_n", "t": 0.5 }',
+  set_wall_side: '{ "wallId": "wall_n", "side": "right", "frame": { "value": -0.045, "status": "site-confirmed" }, "layers": [{ "kind": "board", "name": "Villaboard", "thickness": { "value": 0.006, "status": "proposed" } }] }',
   add_room: '{ "x": 0, "y": 0, "w": 4, "h": 3, "label": "Studio", "floor": "oak" }',
   place_item: '{ "kind": "sofa", "x": 2, "y": 2, "rotation": 0 }',
   move_item: '{ "id": "sofa", "x": 3, "y": 3 }',

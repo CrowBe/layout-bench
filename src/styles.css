@@ -288,3 +288,24 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 .inspector-warn { color: var(--accent-ink); }
 .snap-select { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-soft); }
 .snap-select select { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+
+/* ---- wall reference faces (#4) ---- */
+.inspector:has(.wall-faces) { width: 340px; }
+.wall-faces { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.wall-faces select, .wall-faces button, .face-layer > input { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+.face-sides { display: flex; gap: 4px; }
+.face-sides button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.face-field { display: grid; grid-template-columns: 1fr 118px; gap: 4px 6px; align-items: end; }
+.face-field .inspector-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.face-field .inspector-field input { width: 100%; box-sizing: border-box; }
+.face-field .inspector-error { grid-column: 1 / -1; }
+.face-layers { display: flex; flex-direction: column; gap: 6px; }
+.face-layer { display: grid; grid-template-columns: 1fr auto; gap: 4px 6px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; }
+.face-layer > input { min-width: 0; }
+.face-layer > .face-field { grid-column: 1 / -1; }
+.face-add { display: flex; gap: 6px; }
+.face-add select { flex: 1; min-width: 0; }
+.face-section { background: #fbfaf7; border: 1px solid var(--line); border-radius: 6px; }
+.face-table { border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
+.face-table th, .face-table td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.face-table th { font-weight: 600; color: var(--ink-soft); }

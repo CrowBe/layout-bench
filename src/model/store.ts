@@ -16,9 +16,16 @@ import type {
   Room,
   Underlay,
   Wall,
+  WallSide,
+  WallSideName,
+  BuildUpLayer,
+  LayerKind,
+  Quantity,
+  ValueStatus,
 } from "./types";
 import { emptyModel } from "./types";
 import { checkModel } from "./issues";
+import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { SNAP, dist, formatMm, quantize, segLen, segPoint } from "./geometry";
 import { catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogEntry } from "./catalog";
 import { defineCustomKind, FURNITURE_BUILDERS, resetCustomKinds, type PartSpec } from "../three/furniture";
@@ -413,6 +420,28 @@ function rounding() {
   };
 }
 
+/** A length with provenance as a caller supplies it. Omitted or null `value` means unknown. */
+export interface QuantityInput {
+  value?: number | null;
+  status?: ValueStatus;
+  source?: string;
+}
+
+export interface LayerInput {
+  /** Keep an existing layer's id when re-sending it; omitted for a new layer. */
+  id?: string;
+  kind: LayerKind;
+  name?: string;
+  thickness?: QuantityInput | null;
+}
+
+/** Fields present replace what is stored; null clears a position back to unknown. */
+export interface WallSidePatch {
+  existing?: QuantityInput | null;
+  frame?: QuantityInput | null;
+  layers?: LayerInput[];
+}
+
 /** Where an opening's centre sits: a 0..1 fraction of the wall, or a distance from a named end. */
 export interface OpeningPosition {
   t?: number;
@@ -539,6 +568,72 @@ export const actions = {
       openings: model.openings.filter((o) => o.wallId !== wall.id),
     });
     return ok(`Wall ${wall.id} removed (its openings were removed too).`, { id: wall.id });
+  },
+
+  // ---- wall faces (#4) ----
+  /**
+   * Record one side's existing surface, frame face and proposed build-up. A value needs a
+   * status; a missing value stays unknown and every face beyond it stays unresolved.
+   * Nothing is converted: the existing surface never becomes a frame position.
+   */
+  setWallSide(wallId: string, side: WallSideName, patch: WallSidePatch): ActionResult {
+    const hit = resolveWall(wallId);
+    if (!hit.ok) return rejected(hit);
+    const wall = hit.entity;
+    if (side !== "left" && side !== "right") return fail(`Side must be "left" or "right" (walking from end A to end B), not "${side}".`);
+    const r = rounding();
+    const quantity = (label: string, q: QuantityInput | null | undefined, nonNegative: boolean): Quantity | string => {
+      if (!q) return {};
+      const out: Quantity = {};
+      if (q.source) out.source = String(q.source);
+      if (q.value === undefined || q.value === null) return out;
+      if (typeof q.value !== "number" || !Number.isFinite(q.value)) return `${label} must be a number of metres.`;
+      if (!q.status || !VALUE_STATUSES.includes(q.status)) return `${label} needs a status: ${VALUE_STATUSES.join(", ")}.`;
+      if (nonNegative && q.value < 0) return `${label} cannot be negative.`;
+      out.value = r.q(q.value, label);
+      out.status = q.status;
+      return out;
+    };
+    const current: WallSide = wall.sides?.[side] ?? { layers: [] };
+    const next: WallSide = { ...current, layers: [...current.layers] };
+    for (const key of ["existing", "frame"] as const) {
+      if (patch[key] === undefined) continue;
+      const q = quantity(`${key === "existing" ? "Existing surface" : "Frame face"} position`, patch[key], false);
+      if (typeof q === "string") return fail(`Rejected: ${q}`);
+      if (patch[key] === null || q.value === undefined && !q.source) delete next[key];
+      else next[key] = q;
+    }
+    if (patch.layers !== undefined) {
+      if (!Array.isArray(patch.layers)) return fail("Rejected: layers must be a list, ordered from the frame outward.");
+      const layers: BuildUpLayer[] = [];
+      for (const [i, l] of patch.layers.entries()) {
+        if (!l || !LAYER_KINDS.includes(l.kind)) return fail(`Rejected: layer ${i + 1} kind must be one of ${LAYER_KINDS.join(", ")}.`);
+        const name = (l.name ?? "").trim();
+        const t = quantity(`${name || l.kind} thickness`, l.thickness, true);
+        if (typeof t === "string") return fail(`Rejected: ${t}`);
+        const prev = layers[i - 1];
+        if (prev && LAYER_KINDS.indexOf(l.kind) < LAYER_KINDS.indexOf(prev.kind)) {
+          return fail(`Rejected: ${l.kind} cannot sit outside ${prev.kind}. Order from the frame out: ${LAYER_KINDS.join(", ")}.`);
+        }
+        const keep = l.id && current.layers.some((c) => c.id === l.id) && !layers.some((c) => c.id === l.id);
+        layers.push({ id: keep ? l.id! : uid("layer"), kind: l.kind, name, thickness: t });
+      }
+      next.layers = layers;
+    }
+    const sides = { ...wall.sides };
+    if (!next.existing && !next.frame && next.layers.length === 0) delete sides[side];
+    else sides[side] = next;
+    const nextWall: Wall = { ...wall, sides };
+    if (Object.keys(sides).length === 0) delete nextWall.sides;
+    pushUndo();
+    setModel({ ...store.getState().model, walls: store.getState().model.walls.map((w) => (w.id === wall.id ? nextWall : w)) });
+    const faces = sideFaces(next);
+    const unresolved = faces.filter((f) => !f.resolved).map((f) => f.label);
+    const layerText = next.layers.length ? next.layers.map(layerLabel).join(" → ") : "no layers";
+    return r.ok(
+      `Wall ${wall.id} ${side} side: ${layerText}.${unresolved.length ? ` Unresolved: ${unresolved.join(", ")}.` : " All faces resolved."}`,
+      { id: wall.id, side, faces },
+    );
   },
 
   // ---- openings ----

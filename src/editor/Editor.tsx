@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { sideFaces, sideNormal } from "../model/faces";
 import { useAppStore, actions, logActivity } from "../model/store";
 import type { Opening, Wall } from "../model/types";
 import { formatMm, snap as snapTo, segLen, segPoint } from "../model/geometry";
@@ -23,6 +24,16 @@ const FLOOR_FILL: Record<string, string> = {
   tile: "#e3e0d8",
   carpet: "#cfd6c4",
   concrete: "#d4d4d0",
+};
+
+/** How each reference face is drawn on the plan. */
+const FACE_STYLE: Record<string, { stroke: string; dash?: string }> = {
+  existing: { stroke: "#4f86b0", dash: "5 3" },
+  frame: { stroke: "#b0793f", dash: "2 2" },
+  board: { stroke: "#8a7f6b" },
+  waterproofing: { stroke: "#4f86b0" },
+  adhesive: { stroke: "#a39a86" },
+  tile: { stroke: "#2f2a24" },
 };
 
 export function Editor() {
@@ -372,6 +383,22 @@ export function Editor() {
               strokeLinecap="square"
             />
             <line x1={w.ax * S} y1={w.ay * S} x2={w.bx * S} y2={w.by * S} stroke="transparent" strokeWidth={Math.max(14, w.thickness * S)} />
+            {/* reference faces (#4): only resolved faces are drawn; an unknown face has no position */}
+            {(["left", "right"] as const).flatMap((side) => {
+              const spec = w.sides?.[side];
+              if (!spec) return [];
+              const n = sideNormal(w, side);
+              return sideFaces(spec).filter((f) => f.resolved).map((f) => {
+                const style = FACE_STYLE[f.face === "existing" || f.face === "frame" ? f.face : spec.layers.find((l) => l.id === f.face)?.kind ?? "tile"];
+                const dx = n.x * f.offset! * S;
+                const dy = n.y * f.offset! * S;
+                return (
+                  <line key={`${side}:${f.face}`} data-face={`${w.id}:${side}:${f.face}`} pointerEvents="none"
+                    x1={w.ax * S + dx} y1={w.ay * S + dy} x2={w.bx * S + dx} y2={w.by * S + dy}
+                    stroke={style.stroke} strokeWidth={1.2} strokeDasharray={style.dash} />
+                );
+              });
+            })}
             {/* dimension */}
             {anchor && (
               <text

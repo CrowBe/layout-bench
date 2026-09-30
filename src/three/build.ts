@@ -5,7 +5,8 @@
  */
 
 import * as THREE from "three";
-import type { Item, Opening, PlanModel, Room, Wall } from "../model/types";
+import type { Item, LayerKind, Opening, PlanModel, Room, Wall } from "../model/types";
+import { liningSlabs, wallBody } from "../model/faces";
 import { catalogByKind } from "../model/catalog";
 import { segLen } from "../model/geometry";
 import { openingSpan } from "../model/issues";
@@ -42,6 +43,12 @@ export const lampShadeMaterial = new THREE.MeshStandardMaterial({
   emissive: new THREE.Color("#ffe9bd"),
   emissiveIntensity: 0.9,
 });
+const liningMaterials: Record<LayerKind, THREE.Material> = {
+  board: new THREE.MeshStandardMaterial({ color: "#d9d2c3", roughness: 0.9 }),
+  waterproofing: new THREE.MeshStandardMaterial({ color: "#8fb3cf", roughness: 0.7 }),
+  adhesive: new THREE.MeshStandardMaterial({ color: "#c9c2b0", roughness: 0.95 }),
+  tile: new THREE.MeshStandardMaterial({ color: "#f2efe8", roughness: 0.4 }),
+};
 export const cableMaterial = new THREE.MeshStandardMaterial({ color: "#3a3733", roughness: 0.8 });
 
 const SKIRTING_H = 0.09;
@@ -149,14 +156,17 @@ function jointExtensions(wall: Wall, walls: Wall[]): [number, number] {
   let extB = 0;
   for (const o of walls) {
     if (o.id === wall.id) continue;
+    // the partner's farthest body face from its line: thickness/2 unless recorded faces shift it (#4)
+    const body = wallBody(o);
+    const reach = Math.abs(body.z) + body.depth / 2;
     const ends = [
       { x: o.ax, y: o.ay },
       { x: o.bx, y: o.by },
     ];
     for (const e of ends) {
       // extend just up to the partner's OUTER face — extending further pokes past the corner (X artifact)
-      if (Math.hypot(e.x - a.x, e.y - a.y) < 0.09) extA = Math.max(extA, o.thickness / 2);
-      if (Math.hypot(e.x - b.x, e.y - b.y) < 0.09) extB = Math.max(extB, o.thickness / 2);
+      if (Math.hypot(e.x - a.x, e.y - a.y) < 0.09) extA = Math.max(extA, reach);
+      if (Math.hypot(e.x - b.x, e.y - b.y) < 0.09) extB = Math.max(extB, reach);
     }
     // T-junction: our endpoint lands mid-span of the partner
     const pSeg = (p: { x: number; y: number }) => {
@@ -167,8 +177,8 @@ function jointExtensions(wall: Wall, walls: Wall[]): [number, number] {
       const t = Math.max(0, Math.min(1, ((p.x - o.ax) * dx + (p.y - o.ay) * dy) / l2));
       return Math.hypot(p.x - (o.ax + t * dx), p.y - (o.ay + t * dy));
     };
-    if (pSeg(a) < 0.09) extA = Math.max(extA, o.thickness / 2);
-    if (pSeg(b) < 0.09) extB = Math.max(extB, o.thickness / 2);
+    if (pSeg(a) < 0.09) extA = Math.max(extA, reach);
+    if (pSeg(b) < 0.09) extB = Math.max(extB, reach);
   }
   return [extA, extB];
 }
@@ -221,6 +231,7 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
   const ox = wall.ax - dirX * extA;
   const oy = wall.ay - dirY * extA;
 
+  const body = wallBody(wall);
   const spans = openings
     .map((o) => ({ o, span: openingSpan(wall, o) }))
     .sort((p, q) => p.span[0] - q.span[0]);
@@ -231,11 +242,11 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
   const addSeg = (x0: number, x1: number, y0: number, y1: number, mat = wallMaterial) => {
     if (x1 - x0 < 0.005 || y1 - y0 < 0.005) return;
     // local coords: group origin is the CENTER of the extended wall
-    g.add(box(x1 - x0, y1 - y0, wall.thickness, mat, (x0 + x1) / 2 - total / 2, (y0 + y1) / 2, 0, 0));
+    g.add(box(x1 - x0, y1 - y0, body.depth, mat, (x0 + x1) / 2 - total / 2, (y0 + y1) / 2, body.z, 0));
     // skirting board wherever the wall meets the floor
     if (presentation === "styled" && y0 < 0.001 && y1 > SKIRTING_H) {
       g.add(named(
-        box(x1 - x0, SKIRTING_H, wall.thickness + 0.024, skirtingMaterial, (x0 + x1) / 2 - total / 2, SKIRTING_H / 2, 0, 0, false),
+        box(x1 - x0, SKIRTING_H, body.depth + 0.024, skirtingMaterial, (x0 + x1) / 2 - total / 2, SKIRTING_H / 2, body.z, 0, false),
         `${wall.id}:skirting`,
       ));
     }
@@ -354,11 +365,34 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
   addSeg(cursor, total, 0, wall.height);
 
   // wall cap (top band) for a finished dollhouse look
-  const cap = new THREE.Mesh(new THREE.BoxGeometry(total, 0.03, wall.thickness + 0.02), wallTopMaterial);
-  cap.position.set(0, wall.height + 0.015, 0);
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(total, 0.03, body.depth + 0.02), wallTopMaterial);
+  cap.position.set(0, wall.height + 0.015, body.z);
   cap.castShadow = true;
   g.add(cap);
   nameMeshes(g, wall.id);
+
+  // proposed build-up (#4): one slab per resolved layer, over the wall's own length, open at
+  // each opening. Unresolved layers have no position and are not drawn.
+  for (const slab of liningSlabs(wall)) {
+    const depth = Math.abs(slab.z1 - slab.z0);
+    if (depth < 0.0005) continue;
+    const z = (slab.z0 + slab.z1) / 2;
+    const mat = liningMaterials[slab.layer.kind];
+    const seg = (x0: number, x1: number, y0: number, y1: number) => {
+      if (x1 - x0 < 0.005 || y1 - y0 < 0.005) return;
+      g.add(named(box(x1 - x0, y1 - y0, depth, mat, (x0 + x1) / 2 - total / 2, (y0 + y1) / 2, z, 0, false), `${wall.id}:${slab.side}:${slab.layer.id}`));
+    };
+    let at = extA;
+    for (const { o, span } of spans) {
+      const x0 = toX(span[0]);
+      const x1 = toX(span[1]);
+      seg(at, x0, 0, wall.height);
+      seg(x0, x1, o.sill + o.height, wall.height);
+      if (o.sill > 0.005) seg(x0, x1, 0, o.sill);
+      at = x1;
+    }
+    seg(at, extA + len, 0, wall.height);
+  }
 
   // place group: center of extended wall, rotated
   g.position.set(ox + (dirX * total) / 2, 0, oy + (dirY * total) / 2);
