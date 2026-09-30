@@ -8,6 +8,9 @@ export interface Wall {
   by: number;
   thickness: number; // meters, e.g. 0.15
   height: number; // meters, e.g. 2.7
+  /** Missing on older projects means provenance is unknown, not measured. */
+  thicknessDefaulted?: boolean;
+  heightDefaulted?: boolean;
 }
 
 export type OpeningKind = "door" | "window";
@@ -25,6 +28,9 @@ export interface Opening {
   width: number; // meters (the clear span of the vano)
   sill: number; // height of the bottom edge (0 for doors, ~0.9 for windows)
   height: number; // clear height of the opening
+  /** Missing on older projects means provenance is unknown, not measured. */
+  widthDefaulted?: boolean;
+  sillDefaulted?: boolean; // windows only
   /**
    * true while `height` is a default nobody supplied. Cleared the moment a real height is
    * entered. get_issues reports it so an agent asks the human instead of trusting it.

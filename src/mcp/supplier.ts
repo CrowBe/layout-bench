@@ -18,10 +18,12 @@ import { actions, logActivity } from "../model/store";
 import { callRemoteTool, discoverTools, type ModelContextLike, type RemoteTool } from "./registry";
 
 /**
- * Where the partner lives. In production it is baked in at build time with
- * VITE_SUPPLIER_ORIGIN, because the two origins are deliberately hosted by different
- * providers and cannot be derived from this one. `?supplier=https://…` overrides it for
- * debugging. It MUST be https: `exposedTo` only accepts secure origins (localhost counts).
+ * Where the partner lives. `VITE_SUPPLIER_ORIGIN` is baked in at build time: `.env`
+ * points `npm run dev` at the local partner (localhost:5200), and `.env.production`
+ * points a production build at the deployed partner. The two origins are deliberately
+ * hosted by different providers and cannot be derived from this one. `?supplier=`
+ * overrides the baked value for debugging. It MUST be a secure origin: `exposedTo`
+ * only accepts https, and localhost counts.
  */
 export const SUPPLIER_ORIGIN: string = (() => {
   const q = new URLSearchParams(location.search).get("supplier");

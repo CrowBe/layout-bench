@@ -67,6 +67,14 @@ export function checkModel(model: PlanModel): Issue[] {
         refs: [w.id],
       });
     }
+    for (const field of ["thickness", "height"] as const) {
+      if (w[`${field}Defaulted`]) issues.push({
+        severity: "warning",
+        code: `wall_${field}_default`,
+        message: `Wall ${w.id} uses a default ${field} of ${formatMm(w[field])} mm. This is not a measured value; enter the supplied value with edit_wall.`,
+        refs: [w.id],
+      });
+    }
   }
 
   for (let i = 0; i < walls.length; i++) {
@@ -156,7 +164,15 @@ export function checkModel(model: PlanModel): Issue[] {
       issues.push({
         severity: "warning",
         code: "opening_height_default",
-        message: `${o.kind} ${o.id} uses a default height of ${formatMm(o.height)} mm that nobody measured. Ask for the real height and set it with edit_opening.`,
+        message: `${o.kind} ${o.id} uses a default height of ${formatMm(o.height)} mm. This is not a measured value; enter the supplied value with edit_opening.`,
+        refs: [o.id],
+      });
+    }
+    for (const field of (o.kind === "window" ? ["width", "sill"] : ["width"]) as ("width" | "sill")[]) {
+      if (o[`${field}Defaulted`]) issues.push({
+        severity: "warning",
+        code: `opening_${field}_default`,
+        message: `${o.kind} ${o.id} uses a default ${field} of ${formatMm(o[field])} mm. This is not a measured value; enter the supplied value with edit_opening.`,
         refs: [o.id],
       });
     }

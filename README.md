@@ -238,7 +238,7 @@ tests/      geometry + issues suites (34 tests, incl. seed = 0 issues regression
             mm-geometry.e2e.mjs: the surveyed-bathroom check for millimetre geometry (#3)
 e2e-full.mjs  Playwright: drives the real app in Chromium with
             --enable-features=WebMCP,WebMCPTesting, runs every tool through the UI and
-            through navigator.modelContextTesting, asserts zero console errors — 56 checks
+            through navigator.modelContextTesting, asserts zero console errors — 57 checks
 trace.mjs   the demo plan as data: walls, openings, rooms, furniture, and the kinds the
             agent defines for itself. Shared by the video and the screenshot gallery.
 record6.mjs records the film's eight beats as real 60 fps screen capture (ffmpeg ddagrab)
@@ -307,20 +307,17 @@ npm run dev        # the studio            → http://localhost:5199
 npm run partner    # the partner origin    → http://localhost:5200   (second terminal)
 npm test           # 34 unit tests
 npm run build      # production build — two entry points: the studio and partner/
-node e2e-full.mjs  # 56-check Playwright battery (run both servers first)
+node e2e-full.mjs  # 57-check Playwright battery (run both servers first)
 ```
 
 The partner catalogue is a separate origin on purpose; that is the whole point of the
 cross-origin tool exchange. A different port is a different origin, so `localhost:5200` is
-all you need locally. In production, deploy `dist/partner/` to its own host or subdomain
-and pass it with `?supplier=https://…`. Without it, everything else in the app still works.
+all you need locally. `.env` points `npm run dev` and `node e2e-full.mjs` at that local
+partner, so neither needs a `?supplier=` query.
 
-`.env` bakes the deployed partner origin into every build, including `npm run dev`. To keep an
-E2E run entirely local, point the studio at the local partner:
-
-```bash
-BASE_URL="http://localhost:5199/?supplier=http://localhost:5200" node e2e-full.mjs
-```
+In production, `.env.production` bakes the deployed origins into the build. Deploy
+`dist/partner/` to its own host or subdomain. `?supplier=https://…` remains an optional
+override. Without a partner origin, everything else in the app still works.
 
 ## License
 
