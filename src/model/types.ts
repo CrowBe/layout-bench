@@ -21,6 +21,10 @@ export interface Opening {
   wallId: string;
   /** position along the wall, 0..1, measured to the CENTER of the opening */
   t: number;
+  /** Named end from which the surveyed centre distance is measured. */
+  anchorEnd?: "a" | "b";
+  /** Centre distance from anchorEnd in metres. Older documents omit this and are migrated. */
+  anchorDistance?: number;
   width: number; // meters (the clear span of the vano)
   sill: number; // height of the bottom edge (0 for doors, ~0.9 for windows)
   height: number; // clear height of the opening

@@ -57,6 +57,15 @@ const v1Library = {
   ],
 };
 
+/** Loading derives an end A anchor from legacy t (#13); every stored field is kept. */
+const v1LoadedModel = {
+  ...v1Project.model,
+  openings: [
+    { ...v1Project.model.openings[0], anchorEnd: "a", anchorDistance: 1.785 },
+    { ...v1Project.model.openings[1], anchorEnd: "a", anchorDistance: 1.705 },
+  ],
+};
+
 describe("project document migration", () => {
   it("bumps the stored document version", () => {
     expect(DOCUMENT_VERSION).toBe(2);
@@ -67,13 +76,13 @@ describe("project document migration", () => {
     expect(project.version).toBe(2);
     expect(project.id).toBe(v1Project.id);
     expect(project.model.walls).toEqual(v1Project.model.walls);
-    expect(project.model.openings).toEqual(v1Project.model.openings);
+    expect(project.model.openings).toEqual(v1LoadedModel.openings);
     expect(project.model.rooms).toEqual(v1Project.model.rooms);
     expect(project.model.items).toEqual(v1Project.model.items);
     expect(project.model.underlay).toEqual(v1Project.model.underlay);
     expect(project.notes).toEqual(v1Project.notes);
     expect(project.kinds).toEqual(v1Project.kinds);
-    expect(project.model).toEqual(v1Project.model);
+    expect(project.model).toEqual(v1LoadedModel);
   });
 
   it("re-versions a library wrapper that has no model, then migrates each project", () => {
@@ -87,7 +96,7 @@ describe("project document migration", () => {
     const library = parseLibrary(JSON.stringify({ ...v1Library, version: 2 }));
     expect(library.version).toBe(2);
     expect(library.projects.map((project) => project.version)).toEqual([2, 2]);
-    expect(library.projects[1].model).toEqual(v1Project.model);
+    expect(library.projects[1].model).toEqual(v1LoadedModel);
   });
 
   it("loads a stored v1 library as v2 and migrates every project", () => {
@@ -98,7 +107,7 @@ describe("project document migration", () => {
     expect(library.projects.map((project) => project.id)).toEqual([DEMO_ID, v1Project.id]);
     const survey = library.projects[1];
     expect(survey.model.walls).toEqual(v1Project.model.walls);
-    expect(survey.model.openings).toEqual(v1Project.model.openings);
+    expect(survey.model.openings).toEqual(v1LoadedModel.openings);
     expect(survey.model.rooms).toEqual(v1Project.model.rooms);
     expect(survey.model.items).toEqual(v1Project.model.items);
     expect(survey.model.underlay).toEqual(v1Project.model.underlay);
@@ -118,7 +127,7 @@ describe("project document migration", () => {
   it("parses a native v2 project and library", () => {
     const project = parseProject({ ...v1Project, version: 2 });
     expect(project.version).toBe(2);
-    expect(project.model).toEqual(v1Project.model);
+    expect(project.model).toEqual(v1LoadedModel);
     expect(project.notes).toEqual(v1Project.notes);
     expect(project.kinds).toEqual(v1Project.kinds);
 
@@ -129,7 +138,7 @@ describe("project document migration", () => {
     }));
     expect(library.version).toBe(2);
     expect(library.projects.map((entry) => entry.version)).toEqual([2, 2]);
-    expect(library.projects[1].model).toEqual(v1Project.model);
+    expect(library.projects[1].model).toEqual(v1LoadedModel);
     expect(library.activeId).toBe("project_survey");
   });
 

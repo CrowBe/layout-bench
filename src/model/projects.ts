@@ -2,6 +2,7 @@ import type { CatalogEntry } from "./catalog";
 import type { PartSpec } from "../three/furniture";
 import type { Note, PlanModel } from "./types";
 import { seedLoft } from "./seed";
+import { quantize } from "./geometry";
 
 export const STORAGE_KEY = "alza.projects.v1";
 export const DOCUMENT_VERSION = 2;
@@ -104,7 +105,18 @@ export function parseProject(value: unknown): ProjectDocument {
       !(model.underlay === null || (object(model.underlay) && typeof model.underlay.dataUrl === "string" && ["opacity", "x", "y", "w", "h"].every((k) => finite((model.underlay as Record<string, unknown>)[k]))))) {
     throw new Error("Project document contains invalid model data.");
   }
-  return migrated as unknown as ProjectDocument;
+  // v1 documents written before opening anchors stored only t. Derive an end A
+  // distance from that legacy fraction while retaining t for renderers; this
+  // preserves position but does not establish surveyed provenance.
+  const project = migrated as unknown as ProjectDocument;
+  const walls = new Map(project.model.walls.map((wall) => [wall.id, wall]));
+  const openings = project.model.openings.map((opening) => {
+    const wall = walls.get(opening.wallId);
+    if (!wall || ((opening.anchorEnd === "a" || opening.anchorEnd === "b") &&
+        typeof opening.anchorDistance === "number" && Number.isFinite(opening.anchorDistance))) return opening;
+    return { ...opening, anchorEnd: "a" as const, anchorDistance: quantize(opening.t * Math.hypot(wall.bx - wall.ax, wall.by - wall.ay)) };
+  });
+  return { ...project, model: { ...project.model, openings } };
 }
 
 export function parseLibrary(raw: string): ProjectLibrary {
