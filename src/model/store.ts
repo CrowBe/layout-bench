@@ -442,7 +442,7 @@ function defaultHeight(kind: OpeningKind, wall: Wall, sill: number): number {
 }
 
 const heightPrompt = (o: Opening): string =>
-  `Height was not supplied, so ${formatMm(o.height)} mm is a default, not a measurement. Ask the human for the measured height, then call edit_opening with id "${o.id}" and height in metres.`;
+  `Height was not supplied, so ${formatMm(o.height)} mm is a default, not a measurement. Ask for the actual height, then call edit_opening with id "${o.id}" and height in metres.`;
 
 // ---------------------------------------------------------------------------
 // Shared actions (UI + WebMCP tools)
@@ -450,17 +450,19 @@ const heightPrompt = (o: Opening): string =>
 
 export const actions = {
   // ---- structure ----
-  addWall(ax: number, ay: number, bx: number, by: number, thickness = 0.15, height = 2.7): ActionResult {
+  addWall(ax: number, ay: number, bx: number, by: number, thickness?: number, height?: number): ActionResult {
     const r = rounding();
     ax = r.q(ax, "ax"); ay = r.q(ay, "ay"); bx = r.q(bx, "bx"); by = r.q(by, "by");
-    thickness = r.q(thickness, "thickness"); height = r.q(height, "height");
+    const thicknessDefaulted = thickness === undefined;
+    const heightDefaulted = height === undefined;
+    thickness = r.q(thickness ?? 0.15, "thickness"); height = r.q(height ?? 2.7, "height");
     const len = segLen(ax, ay, bx, by);
     if (len < 0.2) return fail(`Wall too short (${formatMm(len)} mm, min 200 mm).`);
     if (!(thickness > 0) || !(height > 0)) return fail("Wall thickness and height must be positive.");
-    const wall: Wall = { id: uid("wall"), ax, ay, bx, by, thickness, height };
+    const wall: Wall = { id: uid("wall"), ax, ay, bx, by, thickness, height, thicknessDefaulted, heightDefaulted };
     pushUndo();
     setModel({ ...store.getState().model, walls: [...store.getState().model.walls, wall] });
-    return r.ok(`Wall added (${formatMm(len)} mm).`, { id: wall.id, length: len });
+    return r.ok(`Wall added (${formatMm(len)} mm).${thicknessDefaulted ? " Thickness is a default, not a measurement." : ""}${heightDefaulted ? " Height is a default, not a measurement." : ""}`, { id: wall.id, length: len, thicknessDefaulted, heightDefaulted });
   },
 
   editWall(id: string, patch: Partial<Pick<Wall, "ax" | "ay" | "bx" | "by" | "thickness" | "height">>): ActionResult {
@@ -472,6 +474,8 @@ export const actions = {
     for (const k of ["ax", "ay", "bx", "by", "thickness", "height"] as const) {
       if (patch[k] !== undefined) next[k] = r.q(patch[k]!, k);
     }
+    if (patch.thickness !== undefined) next.thicknessDefaulted = false;
+    if (patch.height !== undefined) next.heightDefaulted = false;
     if (!(next.thickness > 0) || !(next.height > 0)) return fail("Edit rejected: wall thickness and height must be positive.");
     const len = segLen(next.ax, next.ay, next.bx, next.by);
     if (len < 0.2) return fail("Edit rejected: wall would be shorter than 200 mm.");
@@ -526,8 +530,9 @@ export const actions = {
     const h = defaulted ? defaultHeight(kind, wall, s) : r.q(dims.height!, "height");
     if (!(h > 0)) return fail(`The ${formatMm(s)} mm sill leaves no room under the ${formatMm(wall.height)} mm wall.`);
     if (s + h > wall.height + 1e-9) return fail(`${kind} (sill ${formatMm(s)} + height ${formatMm(h)} mm) exceeds wall height ${formatMm(wall.height)} mm.`);
-    const opening: Opening = { id: uid(kind), kind, wallId: wall.id, t: clamped / len, width: w, sill: s, height: h };
-    if (defaulted) opening.heightDefaulted = true;
+    const opening: Opening = { id: uid(kind), kind, wallId: wall.id, t: clamped / len, width: w, sill: s, height: h,
+      widthDefaulted: dims.width === undefined, heightDefaulted: defaulted };
+    if (kind === "window") opening.sillDefaulted = dims.sill === undefined;
     if (kind === "door") {
       opening.hinge = swing?.hinge ?? "a";
       opening.side = swing?.side ?? "right";
@@ -538,8 +543,11 @@ export const actions = {
     const label = kind === "door" ? "Door" : "Window";
     return r.ok(
       `${label} added on wall ${wall.id}, centre ${formatMm(clamped)} mm from end A (${formatMm(len - clamped)} mm from end B).${moved}` +
-        (defaulted ? ` ${heightPrompt(opening)}` : ""),
-      { id: opening.id, t: opening.t, centreFromA: clamped, ...(defaulted ? { heightDefaulted: true } : {}) },
+        (defaulted ? ` ${heightPrompt(opening)}` : "") +
+        (opening.widthDefaulted ? ` Width ${formatMm(w)} mm is a default, not a measurement.` : "") +
+        (opening.sillDefaulted ? ` Sill ${formatMm(s)} mm is a default, not a measurement.` : ""),
+      { id: opening.id, t: opening.t, centreFromA: clamped, widthDefaulted: opening.widthDefaulted,
+        ...(kind === "window" ? { sillDefaulted: opening.sillDefaulted } : {}), heightDefaulted: defaulted },
     );
   },
 
@@ -555,11 +563,11 @@ export const actions = {
     const r = rounding();
     const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
     const next: Opening = { ...o };
-    if (patch.width !== undefined) next.width = r.q(patch.width, "width");
-    if (patch.sill !== undefined && o.kind === "window") next.sill = r.q(patch.sill, "sill");
+    if (patch.width !== undefined) { next.width = r.q(patch.width, "width"); next.widthDefaulted = false; }
+    if (patch.sill !== undefined && o.kind === "window") { next.sill = r.q(patch.sill, "sill"); next.sillDefaulted = false; }
     if (patch.height !== undefined) {
       next.height = r.q(patch.height, "height");
-      delete next.heightDefaulted;
+      next.heightDefaulted = false;
     } else if (next.heightDefaulted) {
       next.height = defaultHeight(o.kind, wall, next.sill);
     }

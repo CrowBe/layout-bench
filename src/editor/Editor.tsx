@@ -167,7 +167,7 @@ export function Editor() {
       } else {
         const s = editor.pendingWallStart;
         if (Math.hypot(sp.x - s.x, sp.y - s.y) >= 0.2) {
-          const r = actions.addWall(s.x, s.y, sp.x, sp.y, 0.15, 2.7);
+          const r = actions.addWall(s.x, s.y, sp.x, sp.y);
           logActivity("human", "add_wall", r.summary, r.ok);
           actions.setPendingWallStart(sp); // chain
         }
