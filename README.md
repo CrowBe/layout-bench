@@ -88,13 +88,13 @@ More stills in [`shots/showcase/`](shots/showcase/).
 1. Open the live app (link at the top of this repo).
 2. **In ChatGPT desktop:** open the URL in the in-app browser. WebMCP works out of the box.
    **In Google Chrome 149+:** enable `chrome://flags/#enable-webmcp-testing` and restart.
-   The pill in the header turns green: **● Site tools live** (32 tools registered).
+   The pill in the header turns green: **● Site tools live** (35 tools registered).
 3. Ask your agent, for example:
    - *"Add a 3 × 2.5 m study next to the bedroom, with a door and a window."*
    - *"The sofa placement feels off. Check the plan and fix any issues."*
    - *"Build the 3D and give me a walkthrough."*
 4. No WebMCP runtime? The app is still complete. Open the **Tools** tab and run the exact
-   same 33 tools manually; every call is logged in the activity feed at the bottom.
+   same 35 tools manually; every call is logged in the activity feed at the bottom.
 
 ## Trace your own plan with the agent
 
@@ -127,7 +127,7 @@ document.modelContext.registerTool({
 });
 ```
 
-## The 32 tools (+ 1 dynamic)
+## The 35 tools (+ 1 dynamic)
 
 | Group | Tools |
 |---|---|
@@ -135,6 +135,7 @@ document.modelContext.registerTool({
 | **Blueprint** | `calibrate_underlay`, scales the uploaded plan image to real meters from one known dimension |
 | **Structure** | `add_wall` · `edit_wall` · `remove_wall` |
 | **Openings** | `add_door` · `add_window` · `edit_opening` (exact position from a named wall end, width, sill, height) · `move_opening` · `remove_opening` · `set_door_swing` (hinge side + swing direction) |
+| **Wall faces** | `set_wall_side` (existing surface, frame face and proposed build-up per wall side, each value with a status) · `get_wall_faces` (readOnly) · `measure_to_face` (readOnly: distance from the existing, frame, board or finished face, or unresolved) |
 | **Rooms** | `add_room` · `update_room` · `remove_room` |
 | **Furniture** | `place_item` · `move_item` · `remove_item` · `define_item_kind`, model a piece the catalogue lacks, from primitives |
 | **Model & view** | `set_plan_name` · `clear_model` · `build_3d` · `set_camera` (orbit/top/walk) · `set_doors` (swing the leaves open/shut) |
@@ -153,6 +154,13 @@ A few design notes:
 - A height nobody supplied is a default, not a fact. `add_door` / `add_window` without a
   height store one that fits under the wall, mark it `heightDefaulted`, and tell the agent
   to ask for the measured value; `get_issues` warns until it is entered with `edit_opening`.
+
+- Unknown stays unknown on wall faces. Each side of a wall can record its existing surveyed
+  surface, its frame face and a proposed build-up (board, waterproofing, adhesive, tile), every
+  value tagged site-confirmed, measured, proposed or estimated. A face with an unknown input is
+  *unresolved* and names what is missing; no default thickness is substituted, and a surveyed
+  surface is never converted into a frame position. Select a wall to edit its sides, see a
+  section, and read every face's offset from a chosen reference face.
 
 - One store, two users. A vanilla zustand store powers both the React UI and the WebMCP
   tools, so actions, validation and undo history are identical for both.
@@ -225,13 +233,14 @@ Its notes identify display placeholders and dimensions that still need confirmat
 ```
 src/
   model/    types.ts · geometry.ts (snap, SAT, segment math) · issues.ts (checker)
+            faces.ts (wall reference faces, build-ups, face-to-point distances)
             catalog.ts (31 furniture kinds + runtime entries) · store.ts (shared actions, undo, activity) · seed.ts
   editor/   Editor.tsx — SVG: chained walls, rooms, openings with door arcs,
             furniture drag, blueprint underlay, millimetre dimensions, configurable pointer snap, pan/zoom
   three/    build.ts (extrusion with real openings, resolved joints, floors)
             furniture.ts (composite pieces + generic builder for imported products) · Scene3D.tsx (orbit/top/walk + WASD,
             click-to-place, OBJ/PNG export) · exportBus.ts
-  mcp/      registry.ts (registration + uniform logging) · tools.ts (32 + 1 dynamic)
+  mcp/      registry.ts (registration + uniform logging) · tools.ts (35 + 1 dynamic)
             bootstrap.ts (runtime detection, dynamic tool lifecycle, toolchange)
   ui/       App · Sidebar (Model/Check/Catalog/Supplier/Notes/Tools) · ToolRunner
             ActivityFeed · ApprovalBar (human-in-the-loop gate) · SupplierPanel (cross-origin)

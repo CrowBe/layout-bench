@@ -22,6 +22,7 @@ import {
   type Pt,
 } from "./geometry";
 import { catalogByKind } from "./catalog";
+import { sideProblems } from "./faces";
 
 const MIN_WALL_LEN = 0.2; // 20 cm
 const ENDPOINT_SNAP = 0.08; // endpoints closer than this count as connected
@@ -74,6 +75,13 @@ export function checkModel(model: PlanModel): Issue[] {
         message: `Wall ${w.id} uses a default ${field} of ${formatMm(w[field])} mm. This is not a measured value; enter the supplied value with edit_wall.`,
         refs: [w.id],
       });
+    }
+    for (const side of ["left", "right"] as const) {
+      const spec = w.sides?.[side];
+      if (!spec) continue;
+      for (const p of sideProblems(spec)) {
+        issues.push({ severity: p.severity, code: p.code, message: `Wall ${w.id} ${side} side: ${p.message}`, refs: [w.id] });
+      }
     }
   }
 

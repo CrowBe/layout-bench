@@ -8,6 +8,8 @@ import { useEffect, useState } from "react";
 import { actions, logActivity, useAppStore, type ActionResult } from "../model/store";
 import { formatMm, segLen } from "../model/geometry";
 import { catalogByKind } from "../model/catalog";
+import { roomOnSide } from "../model/faces";
+import { WallFaces } from "./WallFaces";
 
 /** A text field that shows a stored value and commits a new one on Enter or blur. */
 function NumberField({ label, value, unit, onCommit }: {
@@ -113,6 +115,7 @@ export function Inspector() {
         <DimensionStatus field="Thickness" defaulted={wall.thicknessDefaulted} onEnter={() => edit({ thickness: wall.thickness })} />
         <NumberField label="Height (mm)" unit="mm" value={wall.height} onCommit={(v) => edit({ height: v })} />
         <DimensionStatus field="Height" defaulted={wall.heightDefaulted} onEnter={() => edit({ height: wall.height })} />
+        <WallFaces wall={wall} roomFor={(side) => roomOnSide(wall, side, model.rooms)} />
       </aside>
     );
   }

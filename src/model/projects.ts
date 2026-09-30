@@ -39,6 +39,12 @@ const point = (v: unknown, fields: string[]) => object(v) && typeof v.id === "st
 
 const LIBRARY_UNREADABLE = "Unsupported or unreadable saved library. Original browser data was kept.";
 
+/** Wall faces (#4): each recorded side carries a layer list; quantities are optional objects. */
+const quantity = (v: unknown) => v === undefined || (object(v) && (v.value === undefined || finite(v.value)));
+const wallSides = (v: unknown) => object(v) && Object.entries(v).every(([side, spec]) =>
+  (side === "left" || side === "right") && object(spec) && quantity(spec.existing) && quantity(spec.frame) &&
+  Array.isArray(spec.layers) && spec.layers.every((l) => object(l) && typeof l.id === "string" && typeof l.kind === "string" && quantity(l.thickness)));
+
 type Migration = (doc: Record<string, unknown>) => Record<string, unknown>;
 
 /**
@@ -97,7 +103,7 @@ export function parseProject(value: unknown): ProjectDocument {
       !Array.isArray(model.items) || !Array.isArray(notes) || !Array.isArray(kinds)) {
     throw new Error("Project document is incomplete or unreadable.");
   }
-  if (!model.walls.every((v) => point(v, ["ax", "ay", "bx", "by", "thickness", "height"])) ||
+  if (!model.walls.every((v) => point(v, ["ax", "ay", "bx", "by", "thickness", "height"]) && (v.sides === undefined || wallSides(v.sides))) ||
       !model.openings.every((v) => point(v, ["t", "width", "sill", "height"]) && typeof v.wallId === "string" && (v.kind === "door" || v.kind === "window")) ||
       !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string") ||
       !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string") ||

@@ -11,6 +11,40 @@ export interface Wall {
   /** Missing on older projects means provenance is unknown, not measured. */
   thicknessDefaulted?: boolean;
   heightDefaulted?: boolean;
+  /** Reference faces per side (#4). Missing side means nothing is recorded, not zero. */
+  sides?: Partial<Record<WallSideName, WallSide>>;
+}
+
+/** Walking the wall from end A to end B on the plan (x right, y down): the side on your left or right. */
+export type WallSideName = "left" | "right";
+
+/** How a value came to be. There is no "default": an unsupplied value is simply absent. */
+export type ValueStatus = "site-confirmed" | "measured" | "proposed" | "estimated";
+
+/** A length with its provenance. No `value` means unknown. */
+export interface Quantity {
+  value?: number; // metres
+  status?: ValueStatus;
+  source?: string;
+}
+
+export type LayerKind = "board" | "waterproofing" | "adhesive" | "tile";
+
+export interface BuildUpLayer {
+  id: string;
+  kind: LayerKind;
+  name: string; // e.g. "Villaboard 6 mm"
+  thickness: Quantity;
+}
+
+/** One side of a wall. Positions are offsets from the drawn line toward this side, in metres. */
+export interface WallSide {
+  /** The existing surface as surveyed. Kept as a measured reference; never converted to a frame position. */
+  existing?: Quantity;
+  /** The frame face after strip-out. Usually behind the existing surface (a smaller offset). */
+  frame?: Quantity;
+  /** Proposed build-up, ordered from the frame outward. */
+  layers: BuildUpLayer[];
 }
 
 export type OpeningKind = "door" | "window";

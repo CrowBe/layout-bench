@@ -1,10 +1,12 @@
 /**
- * The 32 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
+ * The 35 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
  * Every tool calls THE SAME actions the UI buttons use — one store, human and agent co-edit.
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
-import { actions, lookupWall, store, type ActionResult, type OpeningPosition } from "../model/store";
+import { actions, lookupWall, store, type ActionResult, type OpeningPosition, type WallSidePatch } from "../model/store";
+import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
+import type { WallSideName } from "../model/types";
 import { checkModel } from "../model/issues";
 import { CATALOG } from "../model/catalog";
 import { SUPPLIER_ORIGIN, getProduct, listProducts } from "./supplier";
@@ -21,6 +23,17 @@ const position = (i: Record<string, unknown>): OpeningPosition => ({
   centre: i.centre as number | undefined,
   from: i.from as "a" | "b" | undefined,
 });
+
+const quantitySchema = {
+  type: ["object", "null"],
+  properties: {
+    value: { type: ["number", "null"], description: "metres; omit or null when unknown" },
+    status: { type: "string", enum: VALUE_STATUSES },
+    source: str,
+  },
+  additionalProperties: false,
+} as const;
+const sideSchema = { type: "string", enum: ["left", "right"], description: "Walking the wall from end A to end B on the plan: the side on your left or right." } as const;
 
 const obj = (properties: Record<string, unknown>, required: string[] = []): Record<string, unknown> => ({
   type: "object",
@@ -91,7 +104,7 @@ export const TOOLS: ToolDef[] = [
     name: "get_issues",
     title: "Check the plan for problems",
     description:
-      "Run the constraint checker over the plan. Detects: too-short walls, loose ends, collinear overlaps, mid-span crossings, openings overflowing their wall or overlapping each other, walls ending inside an opening, floating/overlapping/doorless rooms, furniture crossing walls, blocking doors/windows, or colliding. Use it after editing to self-repair.",
+      "Run the constraint checker over the plan. Detects: too-short walls, loose ends, collinear overlaps, mid-span crossings, openings overflowing their wall or overlapping each other, walls ending inside an opening, floating/overlapping/doorless rooms, furniture crossing walls, blocking doors/windows, or colliding, and on wall sides: out-of-order or negative build-up layers, unresolved faces (unknown frame or thickness), and a frame recorded in front of the existing surface. Use it after editing to self-repair.",
     inputSchema: obj({}),
     annotations: { readOnlyHint: true },
     execute: () => {
@@ -238,6 +251,90 @@ export const TOOLS: ToolDef[] = [
     annotations: { destructiveHint: true },
     confirm: (i) => `delete wall ${i.id} (and every door and window on it)`,
     execute: (i) => actions.removeWall(i.id as string),
+  },
+
+  // ------------------------------------------------------------------ wall faces
+  {
+    name: "set_wall_side",
+    title: "Record a wall side's faces and build-up",
+    description:
+      "Record one side of a wall: the existing surveyed surface, the frame face, and the proposed build-up from the frame outward (board, waterproofing, adhesive, tile). Positions are metres from the wall's drawn line toward that side (negative = behind the line). Side: walking from end A to end B, \"left\" or \"right\"; get_wall_faces says which room each side faces. Every value needs a status (site-confirmed, measured, proposed, estimated). Unknown values stay unknown: omit value, and faces beyond it are reported unresolved rather than filled with a default. Never derive a frame position from the existing surface; enter it only when it has been measured or confirmed. Fields sent replace what is stored; layers replaces the whole list (send a layer's id to keep it). Out-of-order layers or negative thicknesses are rejected and nothing changes.",
+    inputSchema: obj(
+      {
+        wallId: str,
+        side: sideSchema,
+        existing: quantitySchema,
+        frame: quantitySchema,
+        layers: {
+          type: "array",
+          items: obj({ id: str, kind: { type: "string", enum: LAYER_KINDS }, name: str, thickness: quantitySchema }, ["kind"]),
+        },
+      },
+      ["wallId", "side"],
+    ),
+    execute: (i) => actions.setWallSide(i.wallId as string, i.side as WallSideName, i as WallSidePatch),
+  },
+  {
+    name: "get_wall_faces",
+    title: "Read a wall's reference faces",
+    description:
+      "Read the reference faces of a wall side: existing surface, frame, and each build-up layer's outer face, as offsets (metres) from the drawn line toward that side. Each face states whether it is resolved, its basis (the weakest status of its inputs), every input with its status, and what is missing. Also names the room each side faces.",
+    inputSchema: obj({ wallId: str, side: sideSchema }, ["wallId"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const hit = lookupWall(i.wallId as string);
+      if (!hit.ok) return { ok: false, summary: hit.summary };
+      const w = hit.entity;
+      const sides = (i.side ? [i.side as WallSideName] : (["left", "right"] as const)).map((side) => {
+        const spec = w.sides?.[side];
+        return { side, room: roomOnSide(w, side, store.getState().model.rooms), recorded: !!spec, layers: spec?.layers ?? [], faces: sideFaces(spec), problems: spec ? sideProblems(spec) : [] };
+      });
+      const summary = sides.map((s) => `${s.side}${s.room ? ` (${s.room})` : ""}: ${s.recorded ? `${s.faces.filter((f) => f.resolved).length}/${s.faces.length} faces resolved` : "nothing recorded"}`).join("; ");
+      return { ok: true, summary: `Wall ${w.id} — ${summary}.`, wallId: w.id, sides };
+    },
+  },
+  {
+    name: "measure_to_face",
+    title: "Measure from a wall face",
+    description:
+      `Perpendicular distance from a named face of a wall side to a point (x, y) or to an item's footprint (itemId: its nearest edge). face is one of ${FACE_NAMES.join(", ")} or a layer id: existing = surveyed surface, frame = frame face, board = fixed board face (e.g. Villaboard), finished = outermost layer face. Positive means in front of the face, toward that side. The result names the face and the status of every input; if any input is unknown the distance is unresolved and the missing inputs are listed. Never report an unresolved distance as a number.`,
+    inputSchema: obj(
+      { wallId: str, side: sideSchema, face: str, x: num, y: num, itemId: str },
+      ["wallId", "side", "face"],
+    ),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const hit = lookupWall(i.wallId as string);
+      if (!hit.ok) return { ok: false, summary: hit.summary };
+      const w = hit.entity;
+      const side = i.side as WallSideName;
+      if (side !== "left" && side !== "right") return { ok: false, summary: `side must be "left" or "right".` };
+      let p: { x: number; y: number } | null = null;
+      let target = "";
+      if (i.itemId) {
+        const item = store.getState().model.items.find((it) => it.id === i.itemId);
+        if (!item) return { ok: false, summary: `No item with id "${i.itemId}".` };
+        p = nearestFootprintPoint(w, side, item);
+        if (!p) return { ok: false, summary: `Item ${item.id} has an unknown kind, so its footprint is unknown.` };
+        target = `item ${item.id} (nearest edge)`;
+      } else if (typeof i.x === "number" && typeof i.y === "number") {
+        p = { x: i.x, y: i.y };
+        target = `point (${formatMm(i.x)}, ${formatMm(i.y)}) mm`;
+      } else {
+        return { ok: false, summary: "Give a point (x, y) or an itemId." };
+      }
+      const d = distanceToFace(w, side, i.face as string, p);
+      if (!d.resolved) {
+        return { ok: true, resolved: false, summary: `Unresolved: ${d.face.label} of wall ${w.id} ${side} side is unknown. Missing: ${d.face.missing.join(", ")}.`, face: d.face };
+      }
+      return {
+        ok: true,
+        resolved: true,
+        summary: `${target} is ${formatMm(d.distance!)} mm from the ${d.face.label.toLowerCase()} of wall ${w.id} ${side} side (basis: ${d.face.basis}).`,
+        meters: d.distance,
+        face: d.face,
+      };
+    },
   },
 
   // ------------------------------------------------------------------ openings
