@@ -19,14 +19,22 @@ import type {
 } from "./types";
 import { emptyModel } from "./types";
 import { checkModel } from "./issues";
-import { SNAP, formatMm, quantize, segLen } from "./geometry";
+import { SNAP, dist, formatMm, quantize, segLen, segPoint } from "./geometry";
 import { catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogEntry } from "./catalog";
 import { defineCustomKind, FURNITURE_BUILDERS, resetCustomKinds, type PartSpec } from "../three/furniture";
 import { DEMO_ID, DOCUMENT_VERSION, STORAGE_KEY, demoProject, emptyLibrary, parseImport, parseLibrary, type ProjectDocument, type ProjectKind } from "./projects";
 
+export interface RefCandidate {
+  id: string;
+  label?: string;
+  kind?: string;
+}
+
 export interface ActionResult {
   ok: boolean;
   summary: string;
+  /** Set when a reference did not select exactly one entity. */
+  candidates?: RefCandidate[];
   [key: string]: unknown;
 }
 
@@ -271,24 +279,114 @@ const bumpCatalog = () => store.setState((s) => ({ catalogRev: s.catalogRev + 1 
 const ok = (summary: string, extra: Record<string, unknown> = {}): ActionResult => ({ ok: true, summary, ...extra });
 const fail = (summary: string, extra: Record<string, unknown> = {}): ActionResult => ({ ok: false, summary, ...extra });
 
-function findWall(idOrHint: string): Wall | undefined {
-  const { walls } = store.getState().model;
-  return walls.find((w) => w.id === idOrHint) ?? walls.find((w) => w.id.includes(idOrHint));
+/**
+ * Mutating tools resolve a reference to exactly one entity.
+ * An exact id wins. Otherwise a room label, or an item kind or catalogue label,
+ * may match when that full string (case-insensitive) picks out one entity.
+ * Walls and openings have no separate name, so only an exact id selects them.
+ * Anything else — including a substring that hits one or many ids or names — fails
+ * and lists those candidates. Read-only measure uses the same resolver in forgiving
+ * mode: the first id that equals the reference or contains it.
+ */
+type Resolved<T> = { ok: true; entity: T } | { ok: false; summary: string; candidates: RefCandidate[] };
+
+function describeCandidate(candidate: RefCandidate): string {
+  const bits = [candidate.id];
+  if (candidate.kind) bits.push(`kind "${candidate.kind}"`);
+  if (candidate.label) bits.push(`label "${candidate.label}"`);
+  return bits.join(", ");
 }
 
-function findRoom(idOrLabel: string): Room | undefined {
-  const { rooms } = store.getState().model;
-  const q = idOrLabel.toLowerCase();
-  return rooms.find((r) => r.id === idOrLabel) ?? rooms.find((r) => r.label.toLowerCase().includes(q));
+function unresolved(noun: string, ref: string, candidates: RefCandidate[]): { ok: false; summary: string; candidates: RefCandidate[] } {
+  if (candidates.length === 0) return { ok: false, summary: `${noun} "${ref}" not found.`, candidates };
+  const list = candidates.map(describeCandidate).join("; ");
+  return {
+    ok: false,
+    summary: `${noun} "${ref}" is not an exact id or a unique name, so nothing was changed. Candidates: ${list}.`,
+    candidates,
+  };
 }
 
-function findItem(idOrKind: string): Item | undefined {
-  const { items } = store.getState().model;
-  const q = idOrKind.toLowerCase();
-  return (
-    items.find((i) => i.id === idOrKind) ??
-    items.find((i) => i.kind.toLowerCase().includes(q) || (catalogByKind(i.kind)?.label.toLowerCase().includes(q) ?? false))
-  );
+function resolveRef<T>(
+  noun: string,
+  ref: string,
+  entities: readonly T[],
+  spec: {
+    id: (entity: T) => string;
+    names: (entity: T) => string[];
+    partial: (entity: T, ref: string) => boolean;
+    candidate: (entity: T) => RefCandidate;
+  },
+  forgiving = false,
+): Resolved<T> {
+  if (forgiving) {
+    const hit = entities.find((entity) => spec.id(entity) === ref || spec.partial(entity, ref));
+    if (hit) return { ok: true, entity: hit };
+    return { ok: false, summary: `${noun} "${ref}" not found.`, candidates: [] };
+  }
+  const exact = entities.filter((entity) => spec.id(entity) === ref);
+  if (exact.length === 1) return { ok: true, entity: exact[0] };
+  if (exact.length > 1) return unresolved(noun, ref, exact.map(spec.candidate));
+  const q = ref.toLowerCase();
+  const named = entities.filter((entity) => spec.names(entity).some((name) => name.toLowerCase() === q));
+  if (named.length === 1) return { ok: true, entity: named[0] };
+  if (named.length > 1) return unresolved(noun, ref, named.map(spec.candidate));
+  return unresolved(noun, ref, entities.filter((entity) => spec.partial(entity, ref)).map(spec.candidate));
+}
+
+function resolveWall(ref: string, forgiving = false): Resolved<Wall> {
+  return resolveRef("Wall", ref, store.getState().model.walls, {
+    id: (wall) => wall.id,
+    names: () => [],
+    partial: (wall, hint) => wall.id.includes(hint),
+    candidate: (wall) => ({ id: wall.id }),
+  }, forgiving);
+}
+
+/** Read-only wall lookup. Forgiving mode keeps measure's first substring match. */
+export function lookupWall(ref: string, forgiving = false): Resolved<Wall> {
+  return resolveWall(ref, forgiving);
+}
+
+function resolveRoom(ref: string): Resolved<Room> {
+  return resolveRef("Room", ref, store.getState().model.rooms, {
+    id: (room) => room.id,
+    names: (room) => [room.label],
+    partial: (room, hint) => room.id.includes(hint) || room.label.toLowerCase().includes(hint.toLowerCase()),
+    candidate: (room) => ({ id: room.id, label: room.label }),
+  });
+}
+
+function resolveItem(ref: string): Resolved<Item> {
+  return resolveRef("Item", ref, store.getState().model.items, {
+    id: (item) => item.id,
+    names: (item) => {
+      const label = catalogByKind(item.kind)?.label;
+      return label ? [item.kind, label] : [item.kind];
+    },
+    partial: (item, hint) => {
+      const q = hint.toLowerCase();
+      const label = catalogByKind(item.kind)?.label ?? "";
+      return item.id.includes(hint) || item.kind.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+    },
+    candidate: (item) => {
+      const label = catalogByKind(item.kind)?.label;
+      return { id: item.id, kind: item.kind, ...(label ? { label } : {}) };
+    },
+  });
+}
+
+function resolveOpening(ref: string): Resolved<Opening> {
+  return resolveRef("Opening", ref, store.getState().model.openings, {
+    id: (opening) => opening.id,
+    names: () => [],
+    partial: (opening, hint) => opening.id.includes(hint),
+    candidate: (opening) => ({ id: opening.id, kind: opening.kind }),
+  });
+}
+
+function rejected(hit: { summary: string; candidates: RefCandidate[] }): ActionResult {
+  return fail(hit.summary, { candidates: hit.candidates });
 }
 
 // ---------------------------------------------------------------------------
@@ -347,13 +445,25 @@ function clampCentre(wall: Wall, width: number, centre: number): number | null {
   return Math.min(len - width / 2, Math.max(width / 2, centre));
 }
 
+function openingAnchor(o: Opening, wall: Wall): { end: "a" | "b"; distance: number } {
+  const end = o.anchorEnd === "b" ? "b" : "a";
+  const distance = Number.isFinite(o.anchorDistance)
+    ? o.anchorDistance!
+    : quantize(o.t * segLen(wall.ax, wall.ay, wall.bx, wall.by));
+  return { end, distance };
+}
+
+function anchorCentreFromA(end: "a" | "b", distance: number, len: number): number {
+  return end === "b" ? len - distance : distance;
+}
+
 /** The usual height for the kind, reduced so it always fits under the wall. */
 function defaultHeight(kind: OpeningKind, wall: Wall, sill: number): number {
   return quantize(Math.min(kind === "door" ? 2.1 : 1.2, wall.height - sill));
 }
 
 const heightPrompt = (o: Opening): string =>
-  `Height was not supplied, so ${formatMm(o.height)} mm is a default, not a measurement. Ask the human for the measured height, then call edit_opening with id "${o.id}" and height in metres.`;
+  `Height was not supplied, so ${formatMm(o.height)} mm is a default, not a measurement. Ask for the actual height, then call edit_opening with id "${o.id}" and height in metres.`;
 
 // ---------------------------------------------------------------------------
 // Shared actions (UI + WebMCP tools)
@@ -361,41 +471,66 @@ const heightPrompt = (o: Opening): string =>
 
 export const actions = {
   // ---- structure ----
-  addWall(ax: number, ay: number, bx: number, by: number, thickness = 0.15, height = 2.7): ActionResult {
+  addWall(ax: number, ay: number, bx: number, by: number, thickness?: number, height?: number): ActionResult {
     const r = rounding();
     ax = r.q(ax, "ax"); ay = r.q(ay, "ay"); bx = r.q(bx, "bx"); by = r.q(by, "by");
-    thickness = r.q(thickness, "thickness"); height = r.q(height, "height");
+    const thicknessDefaulted = thickness === undefined;
+    const heightDefaulted = height === undefined;
+    thickness = r.q(thickness ?? 0.15, "thickness"); height = r.q(height ?? 2.7, "height");
     const len = segLen(ax, ay, bx, by);
     if (len < 0.2) return fail(`Wall too short (${formatMm(len)} mm, min 200 mm).`);
     if (!(thickness > 0) || !(height > 0)) return fail("Wall thickness and height must be positive.");
-    const wall: Wall = { id: uid("wall"), ax, ay, bx, by, thickness, height };
+    const wall: Wall = { id: uid("wall"), ax, ay, bx, by, thickness, height, thicknessDefaulted, heightDefaulted };
     pushUndo();
     setModel({ ...store.getState().model, walls: [...store.getState().model.walls, wall] });
-    return r.ok(`Wall added (${formatMm(len)} mm).`, { id: wall.id, length: len });
+    return r.ok(`Wall added (${formatMm(len)} mm).${thicknessDefaulted ? " Thickness is a default, not a measurement." : ""}${heightDefaulted ? " Height is a default, not a measurement." : ""}`, { id: wall.id, length: len, thicknessDefaulted, heightDefaulted });
   },
 
   editWall(id: string, patch: Partial<Pick<Wall, "ax" | "ay" | "bx" | "by" | "thickness" | "height">>): ActionResult {
-    const wall = findWall(id);
-    if (!wall) return fail(`Wall "${id}" not found.`);
+    const hit = resolveWall(id);
+    if (!hit.ok) return rejected(hit);
+    const wall = hit.entity;
     const r = rounding();
     const next: Wall = { ...wall };
     for (const k of ["ax", "ay", "bx", "by", "thickness", "height"] as const) {
       if (patch[k] !== undefined) next[k] = r.q(patch[k]!, k);
     }
+    if (patch.thickness !== undefined) next.thicknessDefaulted = false;
+    if (patch.height !== undefined) next.heightDefaulted = false;
     if (!(next.thickness > 0) || !(next.height > 0)) return fail("Edit rejected: wall thickness and height must be positive.");
     const len = segLen(next.ax, next.ay, next.bx, next.by);
     if (len < 0.2) return fail("Edit rejected: wall would be shorter than 200 mm.");
+    const attached = store.getState().model.openings.filter((o) => o.wallId === wall.id);
+    const relocated: Opening[] = [];
+    const moved: string[] = [];
+    for (const opening of attached) {
+      const anchor = openingAnchor(opening, wall);
+      const centre = anchorCentreFromA(anchor.end, anchor.distance, len);
+      if (centre < opening.width / 2 - 1e-9 || centre > len - opening.width / 2 + 1e-9) {
+        return fail(
+          `Edit rejected: opening ${opening.id} no longer fits on the ${formatMm(len)} mm wall at ${formatMm(anchor.distance)} mm from end ${anchor.end.toUpperCase()}.`,
+          { openingId: opening.id, reason: "opening_no_fit" },
+        );
+      }
+      const oldCentre = segPoint({ x: wall.ax, y: wall.ay }, { x: wall.bx, y: wall.by }, opening.t);
+      const newCentre = segPoint({ x: next.ax, y: next.ay }, { x: next.bx, y: next.by }, centre / len);
+      if (dist(oldCentre, newCentre) > 1e-6) moved.push(opening.id);
+      relocated.push({ ...opening, anchorEnd: anchor.end, anchorDistance: anchor.distance, t: centre / len });
+    }
     pushUndo();
     setModel({
       ...store.getState().model,
       walls: store.getState().model.walls.map((w) => (w.id === wall.id ? next : w)),
+      openings: store.getState().model.openings.map((o) => relocated.find((nextOpening) => nextOpening.id === o.id) ?? o),
     });
-    return r.ok(`Wall ${wall.id} updated (${formatMm(len)} mm).`, { id: wall.id, length: len });
+    const note = moved.length ? ` Openings repositioned with their wall: ${moved.join(", ")}.` : "";
+    return r.ok(`Wall ${wall.id} updated (${formatMm(len)} mm).${note}`, { id: wall.id, length: len, ...(moved.length ? { movedOpenings: moved } : {}) });
   },
 
   removeWall(id: string): ActionResult {
-    const wall = findWall(id);
-    if (!wall) return fail(`Wall "${id}" not found.`);
+    const hit = resolveWall(id);
+    if (!hit.ok) return rejected(hit);
+    const wall = hit.entity;
     pushUndo();
     const model = store.getState().model;
     setModel({
@@ -419,8 +554,9 @@ export const actions = {
     dims: { width?: number; sill?: number; height?: number } = {},
     swing?: { hinge?: "a" | "b"; side?: "left" | "right" },
   ): ActionResult {
-    const wall = findWall(wallId);
-    if (!wall) return fail(`Wall "${wallId}" not found.`);
+    const hit = resolveWall(wallId);
+    if (!hit.ok) return rejected(hit);
+    const wall = hit.entity;
     const r = rounding();
     const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
     const w = r.q(dims.width ?? (kind === "door" ? 0.9 : 1.2), "width");
@@ -434,8 +570,11 @@ export const actions = {
     const h = defaulted ? defaultHeight(kind, wall, s) : r.q(dims.height!, "height");
     if (!(h > 0)) return fail(`The ${formatMm(s)} mm sill leaves no room under the ${formatMm(wall.height)} mm wall.`);
     if (s + h > wall.height + 1e-9) return fail(`${kind} (sill ${formatMm(s)} + height ${formatMm(h)} mm) exceeds wall height ${formatMm(wall.height)} mm.`);
-    const opening: Opening = { id: uid(kind), kind, wallId: wall.id, t: clamped / len, width: w, sill: s, height: h };
-    if (defaulted) opening.heightDefaulted = true;
+    const anchorEnd = at.centre !== undefined && at.from === "b" ? "b" : "a";
+    const anchorDistance = anchorEnd === "b" ? len - clamped : clamped;
+    const opening: Opening = { id: uid(kind), kind, wallId: wall.id, t: clamped / len, anchorEnd, anchorDistance, width: w, sill: s, height: h,
+      widthDefaulted: dims.width === undefined, heightDefaulted: defaulted };
+    if (kind === "window") opening.sillDefaulted = dims.sill === undefined;
     if (kind === "door") {
       opening.hinge = swing?.hinge ?? "a";
       opening.side = swing?.side ?? "right";
@@ -446,25 +585,31 @@ export const actions = {
     const label = kind === "door" ? "Door" : "Window";
     return r.ok(
       `${label} added on wall ${wall.id}, centre ${formatMm(clamped)} mm from end A (${formatMm(len - clamped)} mm from end B).${moved}` +
-        (defaulted ? ` ${heightPrompt(opening)}` : ""),
-      { id: opening.id, t: opening.t, centreFromA: clamped, ...(defaulted ? { heightDefaulted: true } : {}) },
+        (defaulted ? ` ${heightPrompt(opening)}` : "") +
+        (opening.widthDefaulted ? ` Width ${formatMm(w)} mm is a default, not a measurement.` : "") +
+        (opening.sillDefaulted ? ` Sill ${formatMm(s)} mm is a default, not a measurement.` : ""),
+      { id: opening.id, t: opening.t, centreFromA: clamped, widthDefaulted: opening.widthDefaulted,
+        ...(kind === "window" ? { sillDefaulted: opening.sillDefaulted } : {}), heightDefaulted: defaulted },
     );
   },
 
   /** Exact numeric edit of an opening: position from a named wall end, width, sill, height. */
   editOpening(id: string, patch: OpeningPatch): ActionResult {
+    const hit = resolveOpening(id);
+    if (!hit.ok) return rejected(hit);
+    const o = hit.entity;
+    const wallHit = resolveWall(o.wallId);
+    if (!wallHit.ok) return rejected(wallHit);
+    const wall = wallHit.entity;
     const { openings } = store.getState().model;
-    const o = openings.find((x) => x.id === id) ?? openings.find((x) => x.id.includes(id));
-    if (!o) return fail(`Opening "${id}" not found.`);
-    const wall = findWall(o.wallId)!;
     const r = rounding();
     const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
     const next: Opening = { ...o };
-    if (patch.width !== undefined) next.width = r.q(patch.width, "width");
-    if (patch.sill !== undefined && o.kind === "window") next.sill = r.q(patch.sill, "sill");
+    if (patch.width !== undefined) { next.width = r.q(patch.width, "width"); next.widthDefaulted = false; }
+    if (patch.sill !== undefined && o.kind === "window") { next.sill = r.q(patch.sill, "sill"); next.sillDefaulted = false; }
     if (patch.height !== undefined) {
       next.height = r.q(patch.height, "height");
-      delete next.heightDefaulted;
+      next.heightDefaulted = false;
     } else if (next.heightDefaulted) {
       next.height = defaultHeight(o.kind, wall, next.sill);
     }
@@ -473,11 +618,16 @@ export const actions = {
       return fail(`Edit rejected: sill ${formatMm(next.sill)} + height ${formatMm(next.height)} mm exceeds wall height ${formatMm(wall.height)} mm.`);
     }
     const hasPosition = patch.t !== undefined || patch.centre !== undefined;
-    const requested = hasPosition ? centreFromA(wall, patch, r) : quantize(o.t * len);
+    const oldAnchor = openingAnchor(o, wall);
+    const requested = hasPosition ? centreFromA(wall, patch, r) : anchorCentreFromA(oldAnchor.end, oldAnchor.distance, len);
     if (requested === null) return fail("Give the position as t (0..1) or as centre + from (\"a\" | \"b\").");
     const clamped = clampCentre(wall, next.width, requested);
     if (clamped === null) return fail(`Edit rejected: a ${formatMm(next.width)} mm ${o.kind} does not fit on the ${formatMm(len)} mm wall.`);
     next.t = clamped / len;
+    next.anchorEnd = hasPosition && patch.centre !== undefined
+      ? (patch.from === "b" ? "b" : "a")
+      : hasPosition ? "a" : oldAnchor.end;
+    next.anchorDistance = next.anchorEnd === "b" ? len - clamped : clamped;
     pushUndo();
     setModel({ ...store.getState().model, openings: openings.map((x) => (x.id === o.id ? next : x)) });
     const moved = Math.abs(clamped - requested) > 1e-9 ? ` Moved from ${formatMm(requested)} mm so the opening fits inside the wall.` : "";
@@ -490,9 +640,10 @@ export const actions = {
 
   /** Flip which jamb a door hinges on and/or which way it swings. */
   setDoorSwing(id: string, hinge?: "a" | "b", side?: "left" | "right"): ActionResult {
+    const hit = resolveOpening(id);
+    if (!hit.ok) return rejected(hit);
+    const o = hit.entity;
     const { openings } = store.getState().model;
-    const o = openings.find((x) => x.id === id) ?? openings.find((x) => x.id.includes(id));
-    if (!o) return fail(`Opening "${id}" not found.`);
     if (o.kind !== "door") return fail(`${o.id} is a window — only doors swing.`);
     const next = { ...o, hinge: hinge ?? o.hinge ?? "a", side: side ?? o.side ?? "right" };
     pushUndo();
@@ -508,9 +659,10 @@ export const actions = {
   },
 
   removeOpening(id: string): ActionResult {
+    const hit = resolveOpening(id);
+    if (!hit.ok) return rejected(hit);
+    const o = hit.entity;
     const { openings } = store.getState().model;
-    const o = openings.find((x) => x.id === id) ?? openings.find((x) => x.id.includes(id));
-    if (!o) return fail(`Opening "${id}" not found.`);
     pushUndo();
     setModel({ ...store.getState().model, openings: openings.filter((x) => x.id !== o.id) });
     return ok(`${o.kind} ${o.id} removed.`, { id: o.id });
@@ -528,8 +680,9 @@ export const actions = {
   },
 
   updateRoom(idOrLabel: string, patch: Partial<Pick<Room, "x" | "y" | "w" | "h" | "label" | "floor">>): ActionResult {
-    const room = findRoom(idOrLabel);
-    if (!room) return fail(`Room "${idOrLabel}" not found.`);
+    const hit = resolveRoom(idOrLabel);
+    if (!hit.ok) return rejected(hit);
+    const room = hit.entity;
     const r = rounding();
     const next: Room = { ...room };
     for (const k of ["x", "y", "w", "h"] as const) if (patch[k] !== undefined) next[k] = r.q(patch[k]!, k);
@@ -545,8 +698,9 @@ export const actions = {
   },
 
   removeRoom(idOrLabel: string): ActionResult {
-    const room = findRoom(idOrLabel);
-    if (!room) return fail(`Room "${idOrLabel}" not found.`);
+    const hit = resolveRoom(idOrLabel);
+    if (!hit.ok) return rejected(hit);
+    const room = hit.entity;
     pushUndo();
     setModel({ ...store.getState().model, rooms: store.getState().model.rooms.filter((r) => r.id !== room.id) });
     return ok(`Room "${room.label}" removed.`, { id: room.id });
@@ -564,8 +718,9 @@ export const actions = {
   },
 
   moveItem(idOrKind: string, x?: number, y?: number, rotation?: number): ActionResult {
-    const item = findItem(idOrKind);
-    if (!item) return fail(`Item "${idOrKind}" not found.`);
+    const hit = resolveItem(idOrKind);
+    if (!hit.ok) return rejected(hit);
+    const item = hit.entity;
     const r = rounding();
     const next: Item = {
       ...item,
@@ -582,8 +737,9 @@ export const actions = {
   },
 
   removeItem(idOrKind: string): ActionResult {
-    const item = findItem(idOrKind);
-    if (!item) return fail(`Item "${idOrKind}" not found.`);
+    const hit = resolveItem(idOrKind);
+    if (!hit.ok) return rejected(hit);
+    const item = hit.entity;
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.filter((i) => i.id !== item.id) });
     return ok(`Item ${item.id} removed.`, { id: item.id });
