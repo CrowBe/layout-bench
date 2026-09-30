@@ -2,10 +2,12 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./ui/App";
 import { store, actions, initializeProjects } from "./model/store";
+import { initializeProductLibrary } from "./model/productLibrary";
 import { bootstrapWebMCP } from "./mcp/bootstrap";
 import "./styles.css";
 
 initializeProjects();
+initializeProductLibrary();
 
 bootstrapWebMCP();
 

@@ -18,8 +18,8 @@ export interface Wall {
 /** Walking the wall from end A to end B on the plan (x right, y down): the side on your left or right. */
 export type WallSideName = "left" | "right";
 
-/** How a value came to be. There is no "default": an unsupplied value is simply absent. */
-export type ValueStatus = "site-confirmed" | "measured" | "proposed" | "estimated";
+/** How a value came to be. "published" is a manufacturer or retailer figure. There is no "default": an unsupplied value is simply absent. */
+export type ValueStatus = "site-confirmed" | "measured" | "published" | "proposed" | "estimated";
 
 /** A length with its provenance. No `value` means unknown. */
 export interface Quantity {

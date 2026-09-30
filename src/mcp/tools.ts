@@ -1,5 +1,5 @@
 /**
- * The 35 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
+ * The 40 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
  * Every tool calls THE SAME actions the UI buttons use — one store, human and agent co-edit.
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
@@ -7,6 +7,8 @@
 import { actions, lookupWall, store, type ActionResult, type OpeningPosition, type WallSidePatch } from "../model/store";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
 import type { WallSideName } from "../model/types";
+import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
+import { productStore, products } from "../model/productLibrary";
 import { checkModel } from "../model/issues";
 import { CATALOG } from "../model/catalog";
 import { SUPPLIER_ORIGIN, getProduct, listProducts } from "./supplier";
@@ -334,6 +336,91 @@ export const TOOLS: ToolDef[] = [
         meters: d.distance,
         face: d.face,
       };
+    },
+  },
+
+  // ------------------------------------------------------------------ products (#30)
+  {
+    name: "request_product",
+    title: "Open a product research request",
+    description:
+      `Open a request to research one product for the product library. category: ${PRODUCT_CATEGORIES.map((c) => `${c.id} (${c.label})`).join(", ")}. Give whatever identifies it: brand, model, reference (quote line or product code), link, notes. Then read its brief with get_product_brief.`,
+    inputSchema: obj(
+      { category: { type: "string", enum: PRODUCT_CATEGORIES.map((c) => c.id) }, brand: str, model: str, reference: str, link: str, notes: str },
+      ["category"],
+    ),
+    execute: (i) => products.request(i.category as string, i as Record<string, string>),
+  },
+  {
+    name: "list_product_requests",
+    title: "List product research requests",
+    description: "List product research requests with their status (open = needs research, submitted = waiting for human review, accepted, withdrawn) and any feedback from the reviewer.",
+    inputSchema: obj({}),
+    annotations: { readOnlyHint: true },
+    execute: () => {
+      const { requests } = productStore.getState();
+      return {
+        ok: true,
+        summary: `${requests.length} request(s); ${requests.filter((r) => r.status === "open").length} open.`,
+        requests: requests.map((r) => ({ id: r.id, category: r.category, known: r.known, status: r.status, ...(r.feedback ? { feedback: r.feedback } : {}) })),
+      };
+    },
+  },
+  {
+    name: "get_product_brief",
+    title: "Read a product research brief",
+    description:
+      "Read the brief for a product request: what the human knows, the protocol to follow, the service points (roughIn) the fields feed, and every field to find with its unit (lengths in metres), definition, reference datum, allowed options or range, and whether it is required. A field with `when` applies only when that other field has one of the listed values. Includes any previous submission and the reviewer's feedback.",
+    inputSchema: obj({ requestId: str }, ["requestId"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const req = productStore.getState().requests.find((r) => r.id === i.requestId);
+      if (!req) return { ok: false, summary: `No product request "${i.requestId}".` };
+      const cat = categoryById(req.category)!;
+      const current = req.submission?.fields ?? {};
+      return {
+        ok: true,
+        summary: `${cat.label} brief for ${[req.known.brand, req.known.model].filter(Boolean).join(" ") || req.known.reference || req.known.link}: ${cat.fields.length} fields, status ${req.status}.`,
+        requestId: req.id,
+        status: req.status,
+        category: { id: cat.id, label: cat.label },
+        known: req.known,
+        protocol: RESEARCH_PROTOCOL,
+        references: REFERENCES,
+        fields: cat.fields.map((f) => ({ ...f, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
+        roughIn: cat.roughIn,
+        submitShape: "submit_product_spec { requestId, manufacturer, model, code?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } }",
+        ...(req.submission ? { previousSubmission: req.submission } : {}),
+        ...(req.feedback ? { feedback: req.feedback } : {}),
+      };
+    },
+  },
+  {
+    name: "submit_product_spec",
+    title: "Submit a completed product brief",
+    description:
+      "Submit the researched values for an open product request. Each field: value (metres for lengths; null when not found), status (always published: a manufacturer or retailer figure), sources [{ url, locator }] where locator (page, figure, table or section) is required, optional reference when the source measures from a different datum than the brief asks, note (required for a required field left null: where you looked), alternatives when sources disagree. Errors (no source, out of range, wrong unit, missing required field) reject the whole submission and nothing is stored. A human reviews and accepts it on the Products page; you cannot accept it.",
+    inputSchema: obj(
+      {
+        requestId: str,
+        manufacturer: str,
+        model: str,
+        code: str,
+        fields: { type: "object", additionalProperties: { type: "object" } },
+      },
+      ["requestId", "manufacturer", "model", "fields"],
+    ),
+    execute: (i) => products.submit(i.requestId as string, i as unknown as SpecSubmission),
+  },
+  {
+    name: "get_product_library",
+    title: "Read the product library",
+    description: "Read the accepted products shared by every project: manufacturer, model, category, each field with its value, status and sources, and roughIn: service points whose axes (across, out, up) each name their datum. An unresolved point lists the fields it is missing. Values marked published are manufacturer figures, not site measurements.",
+    inputSchema: obj({}),
+    annotations: { readOnlyHint: true },
+    execute: () => {
+      const { products: list } = productStore.getState();
+      return { ok: true, summary: `${list.length} product(s) in the library.`, products: list };
     },
   },
 
