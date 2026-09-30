@@ -1,7 +1,7 @@
 /**
  * The human-in-the-loop gate.
  *
- * The WebMCP explainer lists per-call user confirmation as an open question. Alza's answer:
+ * The WebMCP explainer lists per-call user confirmation as an open question. the app's answer:
  * a tool the agent calls with `destructiveHint` does not run — it becomes a request on the
  * page, and the human is the one who lets it through. The agent's execute() stays pending
  * until then, so the answer it gets back is the truth about what happened.

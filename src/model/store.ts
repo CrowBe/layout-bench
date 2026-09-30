@@ -131,7 +131,12 @@ export function initializeProjects(): void {
   if (storageReady) return;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    const library = raw ? parseLibrary(raw) : emptyLibrary();
+    const loaded = raw ? parseLibrary(raw) : emptyLibrary();
+    // Keep every saved project intact. Older libraries used Sunset Loft as the reserved sample;
+    // it now remains an ordinary user project while the bathroom concept is added once.
+    const library = loaded.projects.some((project) => project.id === DEMO_ID)
+      ? loaded
+      : { ...loaded, projects: [demoProject(), ...loaded.projects] };
     // The chooser is deliberate on each page load; saved documents stay in place until selected.
     store.setState({ projects: library.projects, activeProjectId: null, chooserOpen: true,
       saveError: null, model: emptyModel(), notes: [], kinds: [] });
@@ -190,7 +195,7 @@ export const projects = {
     return this.open(project.id);
   },
   remove(id: string): ActionResult {
-    if (id === DEMO_ID) return fail("The Sunset Loft demo cannot be deleted.");
+    if (id === DEMO_ID) return fail("The Bathroom Concept sample cannot be deleted.");
     const state = store.getState();
     if (!state.projects.some((p) => p.id === id)) return fail("Project not found.");
     if (state.approvals.length) return fail("Resolve pending agent approvals before deleting projects.");
@@ -201,14 +206,14 @@ export const projects = {
     return ok("Project deleted.");
   },
   resetDemo(): ActionResult {
-    if (store.getState().approvals.length) return fail("Resolve pending agent approvals before resetting the demo.");
+    if (store.getState().approvals.length) return fail("Resolve pending agent approvals before resetting the sample.");
     const state = store.getState();
     const fresh = demoProject();
     store.setState({ projects: state.projects.map((p) => p.id === DEMO_ID ? fresh : p),
-      ...(state.activeProjectId === DEMO_ID ? { model: fresh.model, notes: [], kinds: [],
+      ...(state.activeProjectId === DEMO_ID ? { model: fresh.model, notes: fresh.notes, kinds: fresh.kinds,
         undoStack: [], editor: { ...initialEditor } } : {}) });
-    if (state.activeProjectId === DEMO_ID) restoreKinds([]);
-    return ok("Sunset Loft reset to the shipped demo.");
+    if (state.activeProjectId === DEMO_ID) restoreKinds(fresh.kinds);
+    return ok("Bathroom Concept reset to the shipped sample.");
   },
   setPresentation(presentation: "planning" | "styled"): ActionResult {
     const state = store.getState();

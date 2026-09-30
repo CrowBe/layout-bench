@@ -84,7 +84,7 @@ export interface Underlay {
  * A destructive tool call an agent has asked for, parked until the human decides.
  * The WebMCP explainer flags user confirmation as an open question
  * (webmachinelearning/webmcp — "a way for a tool to prompt the user for confirmation");
- * this is Alza's answer to it.
+ * this is the app's answer to it.
  */
 export interface PendingApproval {
   id: string;

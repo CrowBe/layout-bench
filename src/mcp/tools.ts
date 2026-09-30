@@ -484,7 +484,7 @@ export const TOOLS: ToolDef[] = [
     name: "get_supplier_catalog",
     title: "Supplier catalogue (cross-origin)",
     description:
-      "Read the furniture catalogue published by the PARTNER ORIGIN (Nordika) as its own WebMCP tools — sku, name, category, real footprint in metres, price and stock. Alza discovers those tools with getTools({fromOrigins}) and calls them with executeTool(), so the data crosses origins in the browser with no server in between. Filter with category (living | bedroom | office | dining), maxPrice, maxWidth (metres) or inStock. Pair it with place_supplier_product to drop a real product into the plan at its true size.",
+      "Read the furniture catalogue published by the PARTNER ORIGIN (Nordika) as its own WebMCP tools — sku, name, category, real footprint in metres, price and stock. Reno Layouts discovers those tools with getTools({fromOrigins}) and calls them with executeTool(), so the data crosses origins in the browser with no server in between. Filter with category (living | bedroom | office | dining), maxPrice, maxWidth (metres) or inStock. Pair it with place_supplier_product to drop a real product into the plan at its true size.",
     inputSchema: obj({ category: str, maxPrice: num, maxWidth: num, inStock: { type: "boolean" } }, []),
     annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: async (i) => {
