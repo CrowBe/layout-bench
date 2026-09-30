@@ -24,9 +24,17 @@ import { catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogE
 import { defineCustomKind, FURNITURE_BUILDERS, resetCustomKinds, type PartSpec } from "../three/furniture";
 import { DEMO_ID, DOCUMENT_VERSION, STORAGE_KEY, demoProject, emptyLibrary, parseImport, parseLibrary, type ProjectDocument, type ProjectKind } from "./projects";
 
+export interface RefCandidate {
+  id: string;
+  label?: string;
+  kind?: string;
+}
+
 export interface ActionResult {
   ok: boolean;
   summary: string;
+  /** Set when a reference did not select exactly one entity. */
+  candidates?: RefCandidate[];
   [key: string]: unknown;
 }
 
@@ -262,24 +270,114 @@ const bumpCatalog = () => store.setState((s) => ({ catalogRev: s.catalogRev + 1 
 const ok = (summary: string, extra: Record<string, unknown> = {}): ActionResult => ({ ok: true, summary, ...extra });
 const fail = (summary: string, extra: Record<string, unknown> = {}): ActionResult => ({ ok: false, summary, ...extra });
 
-function findWall(idOrHint: string): Wall | undefined {
-  const { walls } = store.getState().model;
-  return walls.find((w) => w.id === idOrHint) ?? walls.find((w) => w.id.includes(idOrHint));
+/**
+ * Mutating tools resolve a reference to exactly one entity.
+ * An exact id wins. Otherwise a room label, or an item kind or catalogue label,
+ * may match when that full string (case-insensitive) picks out one entity.
+ * Walls and openings have no separate name, so only an exact id selects them.
+ * Anything else — including a substring that hits one or many ids or names — fails
+ * and lists those candidates. Read-only measure uses the same resolver in forgiving
+ * mode: the first id that equals the reference or contains it.
+ */
+type Resolved<T> = { ok: true; entity: T } | { ok: false; summary: string; candidates: RefCandidate[] };
+
+function describeCandidate(candidate: RefCandidate): string {
+  const bits = [candidate.id];
+  if (candidate.kind) bits.push(`kind "${candidate.kind}"`);
+  if (candidate.label) bits.push(`label "${candidate.label}"`);
+  return bits.join(", ");
 }
 
-function findRoom(idOrLabel: string): Room | undefined {
-  const { rooms } = store.getState().model;
-  const q = idOrLabel.toLowerCase();
-  return rooms.find((r) => r.id === idOrLabel) ?? rooms.find((r) => r.label.toLowerCase().includes(q));
+function unresolved(noun: string, ref: string, candidates: RefCandidate[]): { ok: false; summary: string; candidates: RefCandidate[] } {
+  if (candidates.length === 0) return { ok: false, summary: `${noun} "${ref}" not found.`, candidates };
+  const list = candidates.map(describeCandidate).join("; ");
+  return {
+    ok: false,
+    summary: `${noun} "${ref}" is not an exact id or a unique name, so nothing was changed. Candidates: ${list}.`,
+    candidates,
+  };
 }
 
-function findItem(idOrKind: string): Item | undefined {
-  const { items } = store.getState().model;
-  const q = idOrKind.toLowerCase();
-  return (
-    items.find((i) => i.id === idOrKind) ??
-    items.find((i) => i.kind.toLowerCase().includes(q) || (catalogByKind(i.kind)?.label.toLowerCase().includes(q) ?? false))
-  );
+function resolveRef<T>(
+  noun: string,
+  ref: string,
+  entities: readonly T[],
+  spec: {
+    id: (entity: T) => string;
+    names: (entity: T) => string[];
+    partial: (entity: T, ref: string) => boolean;
+    candidate: (entity: T) => RefCandidate;
+  },
+  forgiving = false,
+): Resolved<T> {
+  if (forgiving) {
+    const hit = entities.find((entity) => spec.id(entity) === ref || spec.partial(entity, ref));
+    if (hit) return { ok: true, entity: hit };
+    return { ok: false, summary: `${noun} "${ref}" not found.`, candidates: [] };
+  }
+  const exact = entities.filter((entity) => spec.id(entity) === ref);
+  if (exact.length === 1) return { ok: true, entity: exact[0] };
+  if (exact.length > 1) return unresolved(noun, ref, exact.map(spec.candidate));
+  const q = ref.toLowerCase();
+  const named = entities.filter((entity) => spec.names(entity).some((name) => name.toLowerCase() === q));
+  if (named.length === 1) return { ok: true, entity: named[0] };
+  if (named.length > 1) return unresolved(noun, ref, named.map(spec.candidate));
+  return unresolved(noun, ref, entities.filter((entity) => spec.partial(entity, ref)).map(spec.candidate));
+}
+
+function resolveWall(ref: string, forgiving = false): Resolved<Wall> {
+  return resolveRef("Wall", ref, store.getState().model.walls, {
+    id: (wall) => wall.id,
+    names: () => [],
+    partial: (wall, hint) => wall.id.includes(hint),
+    candidate: (wall) => ({ id: wall.id }),
+  }, forgiving);
+}
+
+/** Read-only wall lookup. Forgiving mode keeps measure's first substring match. */
+export function lookupWall(ref: string, forgiving = false): Resolved<Wall> {
+  return resolveWall(ref, forgiving);
+}
+
+function resolveRoom(ref: string): Resolved<Room> {
+  return resolveRef("Room", ref, store.getState().model.rooms, {
+    id: (room) => room.id,
+    names: (room) => [room.label],
+    partial: (room, hint) => room.id.includes(hint) || room.label.toLowerCase().includes(hint.toLowerCase()),
+    candidate: (room) => ({ id: room.id, label: room.label }),
+  });
+}
+
+function resolveItem(ref: string): Resolved<Item> {
+  return resolveRef("Item", ref, store.getState().model.items, {
+    id: (item) => item.id,
+    names: (item) => {
+      const label = catalogByKind(item.kind)?.label;
+      return label ? [item.kind, label] : [item.kind];
+    },
+    partial: (item, hint) => {
+      const q = hint.toLowerCase();
+      const label = catalogByKind(item.kind)?.label ?? "";
+      return item.id.includes(hint) || item.kind.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+    },
+    candidate: (item) => {
+      const label = catalogByKind(item.kind)?.label;
+      return { id: item.id, kind: item.kind, ...(label ? { label } : {}) };
+    },
+  });
+}
+
+function resolveOpening(ref: string): Resolved<Opening> {
+  return resolveRef("Opening", ref, store.getState().model.openings, {
+    id: (opening) => opening.id,
+    names: () => [],
+    partial: (opening, hint) => opening.id.includes(hint),
+    candidate: (opening) => ({ id: opening.id, kind: opening.kind }),
+  });
+}
+
+function rejected(hit: { summary: string; candidates: RefCandidate[] }): ActionResult {
+  return fail(hit.summary, { candidates: hit.candidates });
 }
 
 // ---------------------------------------------------------------------------
@@ -366,8 +464,9 @@ export const actions = {
   },
 
   editWall(id: string, patch: Partial<Pick<Wall, "ax" | "ay" | "bx" | "by" | "thickness" | "height">>): ActionResult {
-    const wall = findWall(id);
-    if (!wall) return fail(`Wall "${id}" not found.`);
+    const hit = resolveWall(id);
+    if (!hit.ok) return rejected(hit);
+    const wall = hit.entity;
     const r = rounding();
     const next: Wall = { ...wall };
     for (const k of ["ax", "ay", "bx", "by", "thickness", "height"] as const) {
@@ -385,8 +484,9 @@ export const actions = {
   },
 
   removeWall(id: string): ActionResult {
-    const wall = findWall(id);
-    if (!wall) return fail(`Wall "${id}" not found.`);
+    const hit = resolveWall(id);
+    if (!hit.ok) return rejected(hit);
+    const wall = hit.entity;
     pushUndo();
     const model = store.getState().model;
     setModel({
@@ -410,8 +510,9 @@ export const actions = {
     dims: { width?: number; sill?: number; height?: number } = {},
     swing?: { hinge?: "a" | "b"; side?: "left" | "right" },
   ): ActionResult {
-    const wall = findWall(wallId);
-    if (!wall) return fail(`Wall "${wallId}" not found.`);
+    const hit = resolveWall(wallId);
+    if (!hit.ok) return rejected(hit);
+    const wall = hit.entity;
     const r = rounding();
     const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
     const w = r.q(dims.width ?? (kind === "door" ? 0.9 : 1.2), "width");
@@ -444,10 +545,13 @@ export const actions = {
 
   /** Exact numeric edit of an opening: position from a named wall end, width, sill, height. */
   editOpening(id: string, patch: OpeningPatch): ActionResult {
+    const hit = resolveOpening(id);
+    if (!hit.ok) return rejected(hit);
+    const o = hit.entity;
+    const wallHit = resolveWall(o.wallId);
+    if (!wallHit.ok) return rejected(wallHit);
+    const wall = wallHit.entity;
     const { openings } = store.getState().model;
-    const o = openings.find((x) => x.id === id) ?? openings.find((x) => x.id.includes(id));
-    if (!o) return fail(`Opening "${id}" not found.`);
-    const wall = findWall(o.wallId)!;
     const r = rounding();
     const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
     const next: Opening = { ...o };
@@ -481,9 +585,10 @@ export const actions = {
 
   /** Flip which jamb a door hinges on and/or which way it swings. */
   setDoorSwing(id: string, hinge?: "a" | "b", side?: "left" | "right"): ActionResult {
+    const hit = resolveOpening(id);
+    if (!hit.ok) return rejected(hit);
+    const o = hit.entity;
     const { openings } = store.getState().model;
-    const o = openings.find((x) => x.id === id) ?? openings.find((x) => x.id.includes(id));
-    if (!o) return fail(`Opening "${id}" not found.`);
     if (o.kind !== "door") return fail(`${o.id} is a window — only doors swing.`);
     const next = { ...o, hinge: hinge ?? o.hinge ?? "a", side: side ?? o.side ?? "right" };
     pushUndo();
@@ -499,9 +604,10 @@ export const actions = {
   },
 
   removeOpening(id: string): ActionResult {
+    const hit = resolveOpening(id);
+    if (!hit.ok) return rejected(hit);
+    const o = hit.entity;
     const { openings } = store.getState().model;
-    const o = openings.find((x) => x.id === id) ?? openings.find((x) => x.id.includes(id));
-    if (!o) return fail(`Opening "${id}" not found.`);
     pushUndo();
     setModel({ ...store.getState().model, openings: openings.filter((x) => x.id !== o.id) });
     return ok(`${o.kind} ${o.id} removed.`, { id: o.id });
@@ -519,8 +625,9 @@ export const actions = {
   },
 
   updateRoom(idOrLabel: string, patch: Partial<Pick<Room, "x" | "y" | "w" | "h" | "label" | "floor">>): ActionResult {
-    const room = findRoom(idOrLabel);
-    if (!room) return fail(`Room "${idOrLabel}" not found.`);
+    const hit = resolveRoom(idOrLabel);
+    if (!hit.ok) return rejected(hit);
+    const room = hit.entity;
     const r = rounding();
     const next: Room = { ...room };
     for (const k of ["x", "y", "w", "h"] as const) if (patch[k] !== undefined) next[k] = r.q(patch[k]!, k);
@@ -536,8 +643,9 @@ export const actions = {
   },
 
   removeRoom(idOrLabel: string): ActionResult {
-    const room = findRoom(idOrLabel);
-    if (!room) return fail(`Room "${idOrLabel}" not found.`);
+    const hit = resolveRoom(idOrLabel);
+    if (!hit.ok) return rejected(hit);
+    const room = hit.entity;
     pushUndo();
     setModel({ ...store.getState().model, rooms: store.getState().model.rooms.filter((r) => r.id !== room.id) });
     return ok(`Room "${room.label}" removed.`, { id: room.id });
@@ -555,8 +663,9 @@ export const actions = {
   },
 
   moveItem(idOrKind: string, x?: number, y?: number, rotation?: number): ActionResult {
-    const item = findItem(idOrKind);
-    if (!item) return fail(`Item "${idOrKind}" not found.`);
+    const hit = resolveItem(idOrKind);
+    if (!hit.ok) return rejected(hit);
+    const item = hit.entity;
     const r = rounding();
     const next: Item = {
       ...item,
@@ -573,8 +682,9 @@ export const actions = {
   },
 
   removeItem(idOrKind: string): ActionResult {
-    const item = findItem(idOrKind);
-    if (!item) return fail(`Item "${idOrKind}" not found.`);
+    const hit = resolveItem(idOrKind);
+    if (!hit.ok) return rejected(hit);
+    const item = hit.entity;
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.filter((i) => i.id !== item.id) });
     return ok(`Item ${item.id} removed.`, { id: item.id });

@@ -238,7 +238,7 @@ tests/      geometry + issues suites (34 tests, incl. seed = 0 issues regression
             mm-geometry.e2e.mjs: the surveyed-bathroom check for millimetre geometry (#3)
 e2e-full.mjs  Playwright: drives the real app in Chromium with
             --enable-features=WebMCP,WebMCPTesting, runs every tool through the UI and
-            through navigator.modelContextTesting, asserts zero console errors — 56 checks
+            through navigator.modelContextTesting, asserts zero console errors — 57 checks
 trace.mjs   the demo plan as data: walls, openings, rooms, furniture, and the kinds the
             agent defines for itself. Shared by the video and the screenshot gallery.
 record6.mjs records the film's eight beats as real 60 fps screen capture (ffmpeg ddagrab)
@@ -307,7 +307,7 @@ npm run dev        # the studio            → http://localhost:5199
 npm run partner    # the partner origin    → http://localhost:5200   (second terminal)
 npm test           # 34 unit tests
 npm run build      # production build — two entry points: the studio and partner/
-node e2e-full.mjs  # 56-check Playwright battery (run both servers first)
+node e2e-full.mjs  # 57-check Playwright battery (run both servers first)
 ```
 
 The partner catalogue is a separate origin on purpose; that is the whole point of the

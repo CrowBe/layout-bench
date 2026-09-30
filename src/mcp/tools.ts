@@ -4,7 +4,7 @@
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
-import { actions, store, type ActionResult, type OpeningPosition } from "../model/store";
+import { actions, lookupWall, store, type ActionResult, type OpeningPosition } from "../model/store";
 import { checkModel } from "../model/issues";
 import { CATALOG } from "../model/catalog";
 import { SUPPLIER_ORIGIN, getProduct, listProducts } from "./supplier";
@@ -131,8 +131,9 @@ export const TOOLS: ToolDef[] = [
     annotations: { readOnlyHint: true },
     execute: (i) => {
       if (i.wallId) {
-        const w = store.getState().model.walls.find((x) => x.id === i.wallId || x.id.includes(i.wallId as string));
-        if (!w) return { ok: false, summary: `Wall "${i.wallId}" not found.` };
+        const hit = lookupWall(i.wallId as string, true);
+        if (!hit.ok) return { ok: false, summary: hit.summary };
+        const w = hit.entity;
         const len = segLen(w.ax, w.ay, w.bx, w.by);
         return { ok: true, summary: `Wall ${w.id} is ${formatMm(len)} mm long.`, meters: len };
       }
