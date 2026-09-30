@@ -1,12 +1,12 @@
 import type { CatalogEntry } from "./catalog";
 import type { PartSpec } from "../three/furniture";
 import type { Note, PlanModel } from "./types";
-import { seedLoft } from "./seed";
+import { seedBathroom, bathroomKinds, bathroomNotes } from "./seed-bathroom";
 import { quantize } from "./geometry";
 
 export const STORAGE_KEY = "alza.projects.v1";
 export const DOCUMENT_VERSION = 2;
-export const DEMO_ID = "sunset-loft";
+export const DEMO_ID = "bathroom-concept";
 
 export interface ProjectKind {
   entry: CatalogEntry;
@@ -29,7 +29,7 @@ export interface ProjectLibrary {
 }
 
 export const demoProject = (): ProjectDocument => ({
-  version: DOCUMENT_VERSION, id: DEMO_ID, model: seedLoft(), presentation: "styled", notes: [], kinds: [],
+  version: DOCUMENT_VERSION, id: DEMO_ID, model: seedBathroom(), presentation: "planning", notes: bathroomNotes(), kinds: structuredClone(bathroomKinds),
 });
 export const emptyLibrary = (): ProjectLibrary => ({ version: DOCUMENT_VERSION, activeId: null, projects: [demoProject()] });
 
@@ -151,8 +151,7 @@ export function parseLibrary(raw: string): ProjectLibrary {
     throw new Error(LIBRARY_UNREADABLE);
   }
   const projects = storedProjects.map(parseProject);
-  if (!projects.some((p) => p.id === DEMO_ID) ||
-      new Set(projects.map((p) => p.id)).size !== projects.length ||
+  if (new Set(projects.map((p) => p.id)).size !== projects.length ||
       (activeId !== null && !projects.some((p) => p.id === activeId))) {
     throw new Error("Saved library has missing or duplicate projects. Original browser data was kept.");
   }

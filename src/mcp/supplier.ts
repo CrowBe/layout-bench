@@ -2,12 +2,12 @@
  * Cross-origin tool exchange.
  *
  * The furniture supplier ("Nordika") is a SEPARATE ORIGIN that registers its own WebMCP
- * tools and shares them with this one via `registerTool(..., { exposedTo })`. Alza embeds it
+ * tools and shares them with this one via `registerTool(..., { exposedTo })`. Reno Layouts embeds it
  * in an iframe carrying `allow="tools"` (the `tools` Permissions Policy), then discovers its
  * tools with `getTools({ fromOrigins })` and calls them with `executeTool()`.
  *
  * The agent therefore stands on ONE page and composes TWO origins: the supplier's product
- * tools and Alza's geometry tools. Nothing is proxied through a server — the browser is the
+ * tools and the app's geometry tools. Nothing is proxied through a server — the browser is the
  * integration layer.
  *
  * Where the runtime has no cross-origin support (or no WebMCP at all) the same protocol runs
