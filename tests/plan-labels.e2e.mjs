@@ -2,7 +2,8 @@
  * Issue #16: room labels and wall dimensions stay readable and don't overlap.
  *
  * Builds the surveyed 2110 × 3020 mm bathroom the same way tests/mm-geometry.e2e.mjs does,
- * reloads so auto-fit runs on that plan, then checks SVG text boxes. Also checks Sunset Loft
+ * reloads so auto-fit runs on that plan, then checks SVG text boxes. Also checks the shipped
+ * Bathroom Concept sample and Sunset Loft (loaded from its seed through the dev server)
  * at its auto-fit zoom, and that a wheel zoom-out leaves labels at a readable size.
  *
  * Run with the studio dev server: ALZA_BASE_URL=http://127.0.0.1:5316/ node tests/plan-labels.e2e.mjs
@@ -201,7 +202,29 @@ try {
   }
   console.log(`bathroom zoomed ${zoomed.before.toFixed(1)} → ${zoomed.after.toFixed(1)} px/m, room font ${bathroomZoomed.rooms[0].fontSize}px`);
 
+  // The shipped sample is now Bathroom Concept: one room with labelled fixtures.
   await page.getByRole("button", { name: "Projects" }).click();
+  await page.getByRole("heading", { name: "Choose a plan" }).waitFor();
+  const sample = page.locator(".project-card").filter({ has: page.getByText("Bathroom Concept", { exact: true }) });
+  await sample.getByRole("button", { name: "Open" }).click();
+  await waitForAutoFit(page);
+  const concept = await readLayout(page);
+  assert.equal(concept.rooms.length, 1, "Bathroom Concept has one room label");
+  assert.equal(concept.dims.length, 4, "Bathroom Concept has four wall dimensions");
+  assertReadablePlan("Bathroom Concept auto-fit", concept);
+  console.log(`Bathroom Concept auto-fit: room ${concept.rooms[0].text} ${concept.rooms[0].fontSize}px`);
+
+  // Sunset Loft no longer ships, but it is still the multi-room case. Load its seed through the
+  // Vite dev server into a blank project, then reopen it so auto-fit runs on it.
+  await page.getByRole("button", { name: "Projects" }).click();
+  await page.getByLabel("New project name").fill("Sunset Loft");
+  await page.getByRole("button", { name: "Create blank" }).click();
+  await page.waitForSelector(".editor-svg");
+  await page.evaluate(async () => {
+    const { seedLoft } = await import("/src/model/seed.ts");
+    window.__alza.actions.loadModel(seedLoft());
+  });
+  await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Choose a plan" }).waitFor();
   const loft = page.locator(".project-card").filter({ has: page.getByText("Sunset Loft", { exact: true }) });
   await loft.getByRole("button", { name: "Open" }).click();
