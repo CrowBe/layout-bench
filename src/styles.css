@@ -339,3 +339,14 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 .products-product summary { cursor: pointer; }
 @media (max-width: 760px) { .products-body { grid-template-columns: 1fr; } }
 .products-card > button { align-self: flex-start; }
+
+/* ---- fixture set-out (#5) ---- */
+.inspector:has(.fixture-panel) { width: 340px; }
+.fixture-panel { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.fixture-anchor { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+.fixture-anchor .field, .fixture-point-form .field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fixture-panel select, .fixture-panel button, .fixture-panel input { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); min-width: 0; }
+.fixture-actions { grid-column: 1 / -1; display: flex; gap: 6px; }
+.fixture-anchor .inspector-error { grid-column: 1 / -1; }
+.fixture-point-form { display: flex; flex-direction: column; gap: 4px; }
+.fixture-point-form summary { cursor: pointer; color: var(--accent-ink); }

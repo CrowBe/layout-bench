@@ -7,6 +7,7 @@
 import * as THREE from "three";
 import type { Item, LayerKind, Opening, PlanModel, Room, Wall } from "../model/types";
 import { liningSlabs, wallBody } from "../model/faces";
+import { roughIn } from "../model/fixtures";
 import { catalogByKind } from "../model/catalog";
 import { segLen } from "../model/geometry";
 import { openingSpan } from "../model/issues";
@@ -43,6 +44,11 @@ export const lampShadeMaterial = new THREE.MeshStandardMaterial({
   emissive: new THREE.Color("#ffe9bd"),
   emissiveIntensity: 0.9,
 });
+const serviceMaterials = {
+  waste: new THREE.MeshStandardMaterial({ color: "#7a5230" }),
+  water: new THREE.MeshStandardMaterial({ color: "#2f78b7" }),
+  power: new THREE.MeshStandardMaterial({ color: "#c0392b" }),
+};
 const liningMaterials: Record<LayerKind, THREE.Material> = {
   board: new THREE.MeshStandardMaterial({ color: "#d9d2c3", roughness: 0.9 }),
   waterproofing: new THREE.MeshStandardMaterial({ color: "#8fb3cf", roughness: 0.7 }),
@@ -510,6 +516,16 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
     const pendant = buildPendant(r, ceiling);
     nameMeshes(pendant, `${r.id}:pendant`);
     group.add(named(pendant, `${r.id}:pendant`));
+  }
+
+  // service points (#5): a small marker where plan position and height are both known
+  for (const it of model.items) {
+    for (const r of roughIn(model, it)) {
+      if (r.x === undefined || r.y === undefined || r.up === undefined) continue;
+      const marker = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), serviceMaterials[r.service]);
+      marker.position.set(r.x, r.up, r.y);
+      group.add(named(marker, `${it.id}:service:${r.pointId}`));
+    }
   }
 
   // bounds of the CONTENT only (ground would blow up the camera fit)

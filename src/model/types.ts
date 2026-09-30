@@ -95,6 +95,48 @@ export interface Item {
   x: number; // center
   y: number;
   rotation: number; // degrees, counterclockwise
+  /** Set out from a wall face (#5). While set, x, y and rotation are derived from it. */
+  anchor?: FixtureAnchor;
+  /** Service connections (#5): entered, or copied from a library product's rough-in. */
+  servicePoints?: ServicePoint[];
+  /** The product-library entry this fixture was placed from. */
+  productId?: string;
+}
+
+/**
+ * Where a fixture's back sits: `gap` in front of a named face of one wall side, with its
+ * centreline `distance` from a named wall end. Its position follows the face, so a fixture
+ * set against the tile face moves when the build-up changes; one set against the frame does not.
+ */
+export interface FixtureAnchor {
+  wallId: string;
+  side: WallSideName;
+  /** "existing" | "frame" | "board" | "finished" | a layer id */
+  face: string;
+  gap: number; // metres from the face to the fixture's back
+  from: "a" | "b";
+  distance: number; // metres from that wall end to the fixture centreline
+  status: ValueStatus;
+  source?: string;
+}
+
+/**
+ * A service connection on a fixture. `out` is measured from a named face of the anchor wall
+ * side (a range when `outMax` is set, e.g. an S-trap set-out); `across` from the fixture
+ * centreline, facing the fixture, left negative; `up` above the finished floor. A missing
+ * value is unknown and leaves the point unresolved.
+ */
+export interface ServicePoint {
+  id: string;
+  label: string;
+  service: "waste" | "water" | "power";
+  face: string;
+  out?: number;
+  outMax?: number;
+  across?: number;
+  up?: number;
+  status: ValueStatus;
+  source?: string;
 }
 
 export interface Underlay {

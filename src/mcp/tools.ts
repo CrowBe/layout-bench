@@ -1,10 +1,12 @@
 /**
- * The 40 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
+ * The 45 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
  * Every tool calls THE SAME actions the UI buttons use — one store, human and agent co-edit.
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
-import { actions, lookupWall, store, type ActionResult, type OpeningPosition, type WallSidePatch } from "../model/store";
+import { actions, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch } from "../model/store";
+import { anchorPose, clearances, roughIn } from "../model/fixtures";
+import { catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
 import type { WallSideName } from "../model/types";
 import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
@@ -336,6 +338,80 @@ export const TOOLS: ToolDef[] = [
         meters: d.distance,
         face: d.face,
       };
+    },
+  },
+
+  // ------------------------------------------------------------------ fixtures (#5)
+  {
+    name: "anchor_fixture",
+    title: "Set a fixture out from a wall face",
+    description:
+      "Set a placed fixture out from a wall face, so its position follows that face: its back sits `gap` metres (default 0) in front of `face` on the given side of the wall, facing into that side, with its centreline `distance` metres from wall end `from` (a default, or b). face: existing, frame, board, finished, or a layer id (get_wall_faces lists them). status says how the set-out is known (usually proposed). A fixture against the finished face moves when the build-up changes; one against the frame does not. If the face is unresolved the anchor is kept but the position stays unresolved and the result lists what is missing. Pass release: true to free the fixture again.",
+    inputSchema: obj(
+      { itemId: str, wallId: str, side: sideSchema, face: str, gap: num, from: { type: "string", enum: ["a", "b"] }, distance: num, status: { type: "string", enum: VALUE_STATUSES }, source: str, release: { type: "boolean" } },
+      ["itemId"],
+    ),
+    execute: (i) => i.release ? actions.anchorFixture(i.itemId as string, null) : actions.anchorFixture(i.itemId as string, i as unknown as AnchorInput),
+  },
+  {
+    name: "set_service_point",
+    title: "Enter a fixture's service point",
+    description:
+      "Add or replace (by id) a waste, water or power point on a fixture. out: metres from `face` of the fixture's anchor wall side (give outMax too for a range, e.g. an S-trap set-out); across: metres from the fixture centreline, facing the fixture, left negative; up: metres above the finished floor. Omit a value you do not know: the point stays unresolved and says so. status is required (proposed for a planned position, measured or site-confirmed once checked).",
+    inputSchema: obj(
+      { itemId: str, id: str, label: str, service: { type: "string", enum: ["waste", "water", "power"] }, face: str, out: num, outMax: num, across: num, up: num, status: { type: "string", enum: VALUE_STATUSES }, source: str },
+      ["itemId", "label", "service", "face", "status"],
+    ),
+    execute: (i) => actions.setServicePoint(i.itemId as string, i as unknown as ServicePointInput),
+  },
+  {
+    name: "remove_service_point",
+    title: "Remove a fixture's service point",
+    description: "Remove one service point from a fixture by its id.",
+    inputSchema: obj({ itemId: str, pointId: str }, ["itemId", "pointId"]),
+    execute: (i) => actions.removeServicePoint(i.itemId as string, i.pointId as string),
+  },
+  {
+    name: "place_product",
+    title: "Place a library product against a wall face",
+    description:
+      "Place an accepted product from the product library (get_product_library) against a wall face, with the same anchor fields as anchor_fixture. Its published envelope becomes the fixture's footprint and its rough-in points are copied onto it as published service points, each still measured from its datum. A product with an unknown envelope is refused rather than given an invented size.",
+    inputSchema: obj(
+      { productId: str, wallId: str, side: sideSchema, face: str, gap: num, from: { type: "string", enum: ["a", "b"] }, distance: num, status: { type: "string", enum: VALUE_STATUSES }, source: str },
+      ["productId", "wallId", "side", "face", "distance", "status"],
+    ),
+    execute: (i) => {
+      const product = productStore.getState().products.find((p) => p.id === i.productId);
+      if (!product) return { ok: false, summary: `No accepted product "${i.productId}" in the library.` };
+      return actions.placeProduct(product, i as unknown as AnchorInput);
+    },
+  },
+  {
+    name: "get_rough_in",
+    title: "Read the rough-in set-out",
+    description:
+      "The plumber's view of each fixture (or one, by itemId): where it is set out from, its clearances to the nearest wall surfaces, and every service point read as distances out from the existing surface, frame, board and finished face of its wall side, along from both wall ends, and up from the finished floor. Each distance names its face; anything that depends on an unknown value is unresolved and lists what is missing.",
+    inputSchema: obj({ itemId: str }),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const model = store.getState().model;
+      const items = model.items.filter((it) => (i.itemId ? it.id === i.itemId : it.anchor || it.servicePoints?.length));
+      if (i.itemId && !items.length) return { ok: false, summary: `No item "${i.itemId}".` };
+      const fixtures = items.map((it) => {
+        const pose = anchorPose(model, it);
+        const points = roughIn(model, it);
+        return {
+          id: it.id,
+          label: catalogByKind(it.kind)?.label ?? it.kind,
+          ...(it.productId ? { productId: it.productId } : {}),
+          anchor: it.anchor ?? null,
+          position: pose.resolved ? { x: pose.x, y: pose.y, rotation: pose.rotation, alongFromA: pose.alongFromA, backOffset: pose.backOffset } : { unresolved: pose.missing },
+          clearances: clearances(model, it),
+          servicePoints: points,
+        };
+      });
+      const open = fixtures.reduce((n, f) => n + f.servicePoints.filter((p) => !p.resolved).length, 0);
+      return { ok: true, summary: `${fixtures.length} fixture(s); ${fixtures.reduce((n, f) => n + f.servicePoints.length, 0)} service point(s), ${open} unresolved.`, fixtures };
     },
   },
 
