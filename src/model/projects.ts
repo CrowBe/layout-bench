@@ -46,6 +46,10 @@ const wallSides = (v: unknown) => object(v) && Object.entries(v).every(([side, s
   (side === "left" || side === "right") && object(spec) && quantity(spec.existing) && quantity(spec.frame) &&
   Array.isArray(spec.layers) && spec.layers.every((l) => object(l) && typeof l.id === "string" && typeof l.kind === "string" && quantity(l.thickness)));
 
+/** Floor assembly (#6): datum, optional substrate top, and a layer list with optional quantities. */
+const floorBuildUp = (v: unknown) => v === undefined || (object(v) && typeof v.datum === "string" && quantity(v.substrateTop) &&
+  Array.isArray(v.layers) && v.layers.every((l) => object(l) && typeof l.id === "string" && typeof l.kind === "string" && quantity(l.thickness)));
+
 /** Fixture set-out (#5): every field the derivation reads, with the values it allows. */
 const STATUS = ["site-confirmed", "measured", "published", "proposed", "estimated"];
 const optionalFinite = (v: unknown) => v === undefined || finite(v);
@@ -135,7 +139,7 @@ export function parseProject(value: unknown): ProjectDocument {
   }
   if (!model.walls.every((v) => point(v, ["ax", "ay", "bx", "by", "thickness", "height"]) && (v.sides === undefined || wallSides(v.sides))) ||
       !model.openings.every((v) => point(v, ["t", "width", "sill", "height"]) && typeof v.wallId === "string" && (v.kind === "door" || v.kind === "window")) ||
-      !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string") ||
+      !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp)) ||
       !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string" &&
         (v.anchor === undefined || validAnchor(v.anchor)) &&
         (v.corner === undefined || (object(v.corner) && typeof v.corner.left === "string" && typeof v.corner.right === "string" && (v.corner.side === "left" || v.corner.side === "right"))) &&

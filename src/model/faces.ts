@@ -49,14 +49,14 @@ export interface FaceResult {
   missing: string[];
 }
 
-const known = (q: Quantity | undefined): q is Quantity & { value: number; status: ValueStatus } =>
+export const known = (q: Quantity | undefined): q is Quantity & { value: number; status: ValueStatus } =>
   !!q && typeof q.value === "number" && Number.isFinite(q.value) && !!q.status;
 
-const input = (field: string, q: Quantity | undefined): FaceInput =>
+export const input = (field: string, q: Quantity | undefined): FaceInput =>
   known(q) ? { field, value: q.value, status: q.status } : { field, value: null, status: "unknown" };
 
 /** Weakest status wins: a face derived from an estimate is no better than that estimate. */
-function weakest(inputs: FaceInput[]): ValueStatus | "unknown" {
+export function weakest(inputs: FaceInput[]): ValueStatus | "unknown" {
   let rank = -1;
   for (const i of inputs) {
     if (i.status === "unknown") return "unknown";

@@ -25,12 +25,16 @@ import type {
   FixtureAnchor,
   ServicePoint,
   SheetRevision,
+  FloorAssembly,
+  FloorLayer,
+  FloorLayerKind,
 } from "./types";
 import { emptyModel } from "./types";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
 import { sideNormal } from "./faces";
+import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
 import type { LibraryProduct } from "./productLibrary";
 import { categoryById, cornerBathOutline, envelopeOf } from "./products";
 import { outlineExtents, outlineProblems, type Outline } from "./outline";
@@ -495,6 +499,22 @@ export interface WallSidePatch {
   layers?: LayerInput[];
 }
 
+export interface FloorLayerInput {
+  /** Keep an existing layer's id when re-sending it; omitted for a new layer. */
+  id?: string;
+  kind: FloorLayerKind;
+  name?: string;
+  thickness?: QuantityInput | null;
+}
+
+/** Fields present replace what is stored; null clears back to unknown. */
+export interface FloorPatch {
+  datum?: string;
+  substrate?: string | null;
+  substrateTop?: QuantityInput | null;
+  layers?: FloorLayerInput[];
+}
+
 /** Where an opening's centre sits: a 0..1 fraction of the wall, or a distance from a named end. */
 export interface OpeningPosition {
   t?: number;
@@ -879,6 +899,76 @@ export const actions = {
       rooms: store.getState().model.rooms.map((x) => (x.id === room.id ? next : x)),
     });
     return r.ok(`Room "${next.label}" updated (${formatMm(next.w)} × ${formatMm(next.h)} mm at ${formatMm(next.x)}, ${formatMm(next.y)}).`, { id: room.id });
+  },
+
+  // ---- floor assembly (#6) ----
+  /**
+   * Record a room's floor assembly: the datum, the stripped substrate's top, and the layers
+   * above it. A value needs a status; a missing value stays unknown and every level above it
+   * stays unresolved. Nothing is defaulted.
+   */
+  setRoomFloor(roomRef: string, patch: FloorPatch): ActionResult {
+    const hit = resolveRoom(roomRef);
+    if (!hit.ok) return rejected(hit);
+    const room = hit.entity;
+    const r = rounding();
+    const quantity = (label: string, q: QuantityInput | null | undefined, nonNegative: boolean): Quantity | string => {
+      if (!q) return {};
+      const out: Quantity = {};
+      if (q.source) out.source = String(q.source);
+      if (q.value === undefined || q.value === null) return out;
+      if (typeof q.value !== "number" || !Number.isFinite(q.value)) return `${label} must be a number of metres.`;
+      if (!q.status || !VALUE_STATUSES.includes(q.status)) return `${label} needs a status: ${VALUE_STATUSES.join(", ")}.`;
+      if (nonNegative && q.value < 0) return `${label} cannot be negative.`;
+      out.value = r.q(q.value, label);
+      out.status = q.status;
+      return out;
+    };
+    const current: FloorAssembly = room.floorBuildUp ?? { datum: DEFAULT_DATUM, layers: [] };
+    const next: FloorAssembly = { ...current, layers: [...current.layers] };
+    if (patch.datum !== undefined) {
+      const d = String(patch.datum).trim();
+      if (!d) return fail("Rejected: datum needs a name, e.g. \"existing floor surface\".");
+      next.datum = d;
+    }
+    if (patch.substrate !== undefined) {
+      const text = patch.substrate === null ? "" : String(patch.substrate).trim();
+      if (text) next.substrate = text; else delete next.substrate;
+    }
+    if (patch.substrateTop !== undefined) {
+      const q = quantity("Substrate top", patch.substrateTop, false);
+      if (typeof q === "string") return fail(`Rejected: ${q}`);
+      if (patch.substrateTop === null || (q.value === undefined && !q.source)) delete next.substrateTop;
+      else next.substrateTop = q;
+    }
+    if (patch.layers !== undefined) {
+      if (!Array.isArray(patch.layers)) return fail("Rejected: layers must be a list, ordered from the substrate upward.");
+      const layers: FloorLayer[] = [];
+      for (const [i, l] of patch.layers.entries()) {
+        if (!l || !FLOOR_LAYER_KINDS.includes(l.kind)) return fail(`Rejected: layer ${i + 1} kind must be one of ${FLOOR_LAYER_KINDS.join(", ")}.`);
+        const name = (l.name ?? "").trim();
+        const t = quantity(`${name || FLOOR_LAYER_LABELS[l.kind]} thickness`, l.thickness, true);
+        if (typeof t === "string") return fail(`Rejected: ${t}`);
+        const prev = layers[i - 1];
+        if (prev && FLOOR_RANK[l.kind] < FLOOR_RANK[prev.kind]) {
+          return fail(`Rejected: ${l.kind} cannot sit above ${prev.kind}. Order from the substrate up: waterproofing and screed (either way round), adhesive, tile.`);
+        }
+        const keep = l.id && current.layers.some((c) => c.id === l.id) && !layers.some((c) => c.id === l.id);
+        layers.push({ id: keep ? l.id! : uid("floor"), kind: l.kind, name, thickness: t });
+      }
+      next.layers = layers;
+    }
+    const empty = !next.substrateTop && !next.substrate && next.layers.length === 0 && next.datum === DEFAULT_DATUM;
+    const nextRoom: Room = { ...room };
+    if (empty) delete nextRoom.floorBuildUp; else nextRoom.floorBuildUp = next;
+    pushUndo();
+    setModel({ ...store.getState().model, rooms: store.getState().model.rooms.map((x) => (x.id === room.id ? nextRoom : x)) });
+    const levels = floorLevels(next);
+    const finished = finishedLevel(next);
+    return r.ok(
+      `Room "${room.label}" floor (datum: ${next.datum}): ${finished.resolved ? `finished level ${formatMm(finished.top!)} mm.` : `finished level unresolved (missing ${finished.missing.join(", ")}).`}`,
+      { id: room.id, datum: next.datum, levels },
+    );
   },
 
   removeRoom(idOrLabel: string): ActionResult {

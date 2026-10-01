@@ -1,16 +1,17 @@
 /**
- * The 49 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
+ * The 51 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
  * Every tool calls THE SAME actions the UI buttons use — one store, human and agent co-edit.
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
-import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch } from "../model/store";
+import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type FloorPatch } from "../model/store";
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { SHEETS, checkSheet, type AckInput } from "../sheets/check";
 import { recordIssued } from "../sheets/issued";
 import { catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
 import type { WallSideName } from "../model/types";
+import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems } from "../model/floor";
 import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
 import { productStore, products } from "../model/productLibrary";
 import { checkModel } from "../model/issues";
@@ -257,6 +258,47 @@ export const TOOLS: ToolDef[] = [
     annotations: { destructiveHint: true },
     confirm: (i) => `delete wall ${i.id} (and every door and window on it)`,
     execute: (i) => actions.removeWall(i.id as string),
+  },
+
+  // ------------------------------------------------------------------ floor assembly
+  {
+    name: "set_room_floor",
+    title: "Record a room's floor assembly and level datum",
+    description:
+      "Record a room's proposed floor build-up: the datum, the top of the stripped substrate, and the layers above it from the substrate upward (waterproofing and screed in either order, then adhesive, then tile). Levels are metres, up positive, from the datum (default \"existing floor surface\" = 0); substrateTop is an offset from it and may be negative. Every value needs a status (site-confirmed, measured, published, proposed, estimated). Unknown values stay unknown: omit value, and levels above are reported unresolved rather than filled with a default or zero. Never assume the substrate type: pass it as free text only when known. Fields sent replace what is stored; layers replaces the whole list (send a layer's id to keep it). Out-of-order layers or negative thicknesses are rejected and nothing changes.",
+    inputSchema: obj(
+      {
+        room: str,
+        datum: str,
+        substrate: str,
+        substrateTop: quantitySchema,
+        layers: {
+          type: "array",
+          items: obj({ id: str, kind: { type: "string", enum: FLOOR_LAYER_KINDS }, name: str, thickness: quantitySchema }, ["kind"]),
+        },
+      },
+      ["room"],
+    ),
+    execute: (i) => actions.setRoomFloor(i.room as string, i as FloorPatch),
+  },
+  {
+    name: "get_floor_levels",
+    title: "Read a room's floor levels",
+    description:
+      "Read a room's floor assembly: the datum, the substrate top and the top of each layer (screed, tile, ...) as metres above the datum. Each level states whether it is resolved, its basis (the weakest status of its inputs), every input with its status, and what is missing. An unresolved level has no number: do not report one.",
+    inputSchema: obj({ room: str }, ["room"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const ref = String(i.room).toLowerCase();
+      const rooms = store.getState().model.rooms;
+      const hits = rooms.filter((r) => r.id === i.room || r.label.toLowerCase() === ref);
+      if (hits.length !== 1) return { ok: false, summary: hits.length ? `Room "${i.room}" is ambiguous; use its id.` : `No room "${i.room}". Rooms: ${rooms.map((r) => `${r.id} (${r.label})`).join(", ") || "none"}.` };
+      const room = hits[0];
+      const spec = room.floorBuildUp;
+      const levels = floorLevels(spec);
+      const summary = `Room "${room.label}" floor, datum ${spec?.datum ?? DEFAULT_DATUM}: ${spec ? `${levels.filter((l) => l.resolved).length}/${levels.length} levels resolved` : "nothing recorded"}.`;
+      return { ok: true, summary, roomId: room.id, datum: spec?.datum ?? DEFAULT_DATUM, substrate: spec?.substrate, recorded: !!spec, layers: spec?.layers ?? [], levels, problems: spec ? floorProblems(spec) : [] };
+    },
   },
 
   // ------------------------------------------------------------------ wall faces
