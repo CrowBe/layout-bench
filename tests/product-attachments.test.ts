@@ -219,3 +219,14 @@ describe("attaching spec sheets (#34)", () => {
     expect((await products.attach(id, pdfFile())).summary).toMatch(/withdrawn; attach spec sheets while it is open/);
   });
 });
+
+describe("stored attachment type (#34)", () => {
+  it("stores an untyped .pdf under application/pdf, so the viewer never sniffs it", async () => {
+    const id = openRequest();
+    const r = await products.attach(id, new File([makePdf(SHEET)], "untyped.pdf"));
+    expect(r.ok).toBe(true);
+    const blob = await products.file(r.attachmentId as string);
+    expect(blob?.type).toBe("application/pdf");
+    expect(productStore.getState().requests[0].attachments![0].mime).toBe("application/pdf");
+  });
+});

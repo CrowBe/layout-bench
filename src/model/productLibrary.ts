@@ -289,7 +289,9 @@ export const products = {
     }
     const att: ProductAttachment = { id: uid("att"), name, kind, mime, size: file.size, addedAt: Date.now(), ...(pages ? { pages } : {}) };
     try {
-      await io.files.put(att.id, file);
+      // stored under the type that was checked, so viewing it never depends on the browser's
+      // guess for an untyped file (a typeless blob: URL may be sniffed as a page)
+      await io.files.put(att.id, file.type === mime ? file : new Blob([file], { type: mime }));
     } catch (error) {
       return fail(isQuotaError(error) ? storageFull(name) : `Could not store ${name} in this browser: ${error instanceof Error ? error.message : String(error)}. Nothing was attached.`);
     }
