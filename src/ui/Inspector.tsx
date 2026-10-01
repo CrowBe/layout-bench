@@ -120,7 +120,7 @@ export function Inspector() {
         <NumberField label="Height (mm)" unit="mm" value={wall.height} onCommit={(v) => edit({ height: v })} />
         <DimensionStatus field="Height" defaulted={wall.heightDefaulted} onEnter={() => edit({ height: wall.height })} />
         <WallFaces wall={wall} roomFor={(side) => roomOnSide(wall, side, model.rooms)} />
-        <WallTiling wall={wall} roomFor={(side) => roomOnSide(wall, side, model.rooms)} />
+        <WallTiling key={wall.id} wall={wall} roomFor={(side) => roomOnSide(wall, side, model.rooms)} />
       </aside>
     );
   }
