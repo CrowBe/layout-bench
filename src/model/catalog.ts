@@ -56,6 +56,9 @@ export function resetRuntimeCatalog(): void {
   CATALOG.splice(builtInCount);
 }
 
+/** A built-in kind: its footprint is a generic catalogue size, not one entered for this project. */
+export const isBuiltInKind = (kind: string): boolean => CATALOG.slice(0, builtInCount).some((c) => c.kind === kind);
+
 export const catalogByKind = (kind: string): CatalogEntry | undefined =>
   CATALOG.find((c) => c.kind === kind);
 

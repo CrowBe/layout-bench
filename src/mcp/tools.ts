@@ -1,12 +1,14 @@
 /**
- * The 53 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
+ * The 57 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
  * Every tool calls THE SAME actions the UI buttons use — one store, human and agent co-edit.
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
 import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type FloorPatch, type DrainagePatch } from "../model/store";
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
-import { SHEETS, checkSheet, type AckInput } from "../sheets/check";
+import { SHEETS, checkSheet, reconcile, type AckInput } from "../sheets/check";
+import { catalogue, renderStageDiagram, renderStageSpec } from "../sheets/stageView";
+import { applyView, composeView, currentView, recordExport, savedViews } from "../sheets/viewState";
 import { recordIssued } from "../sheets/issued";
 import { catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
@@ -510,6 +512,112 @@ export const TOOLS: ToolDef[] = [
       recordIssued(store.getState().activeProjectId, i.sheet as string, r.rev as string, r.svg as string);
       const { svg, ...rest } = r;
       return i.includeSvg ? r : { ...rest, svgBytes: (svg as string).length };
+    },
+  },
+
+  // ------------------------------------------------------------------ stage diagram views (#41)
+  {
+    name: "list_diagram_content",
+    title: "List layers and objects a stage diagram can show",
+    description:
+      "List every layer and object of the open project that a construction-stage diagram can show, with stable ids: layer ids (e.g. walls, wall-frame, wall-board, wall-waterproofing, windows, doors, floor-screed, drainage-wastes, fixtures, services-waste) and element ids under them (e.g. wall:<wallId>, wall:<wallId>:<side>:<layerId>, opening:<id>, room:<id>:floor:<layerId>, item:<id>, item:<id>:sp:<pointId>). Only what the model really records is listed: emptyLayers are kinds with nothing recorded yet, and notModelled names construction content the model cannot represent at all (in-screed heating cable, pipe and cable runs). Never claim a diagram shows those. Read-only; also returns the current view.",
+    inputSchema: obj({}),
+    annotations: { readOnlyHint: true },
+    execute: () => {
+      const s = store.getState();
+      const cat = catalogue(s.model);
+      const view = currentView(s.activeProjectId);
+      return {
+        ok: true,
+        summary: `${cat.layers.length} layer(s) with ${cat.elements.length} element(s); ${cat.emptyLayers.length} known layer kind(s) empty; not modelled: ${cat.notModelled.length}.`,
+        layers: cat.layers.map((l) => ({ ...l, elements: l.elements.map((id) => ({ id, label: cat.elements.find((e) => e.id === id)!.label })) })),
+        emptyLayers: cat.emptyLayers,
+        notModelled: cat.notModelled,
+        currentView: view,
+        composedThisSession: savedViews(s.activeProjectId).map((v) => v.label),
+      };
+    },
+  },
+  {
+    name: "set_diagram_view",
+    title: "Compose a construction-stage view",
+    description:
+      "Choose exactly what the stage diagram and specification sheet show: label names the stage (e.g. \"4. Waterproofing\"), visible is the explicit list of layer ids and/or element ids from list_diagram_content (a layer id includes all its elements). Everything not listed is hidden. Any unknown id rejects the whole call and the current view stays as it was. This changes only the view: the project's walls, fixtures, service points, measurements and their statuses are not edited, copied or versioned, and undo history is untouched. To return to an earlier stage, call it again with that stage's list. Then inspect with get_diagram_view and generate with export_diagram_view.",
+    inputSchema: obj({ label: str, visible: { type: "array", items: str } }, ["label", "visible"]),
+    execute: (i) => {
+      const s = store.getState();
+      const r = applyView(s.activeProjectId, s.model, i.label, i.visible);
+      if (!r.ok) return { ok: false, summary: r.summary, unknown: r.unknown, suggestions: r.suggestions };
+      const hidden = r.catalogue.elements.length - r.resolution.elements.length;
+      return { ok: true, summary: `View "${r.view.label}": ${r.resolution.elements.length} element(s) visible, ${hidden} hidden. The model is unchanged.`, view: r.view, visibleElements: r.resolution.elements.map((e) => e.id) };
+    },
+  },
+  {
+    name: "get_diagram_view",
+    title: "Inspect the current stage view",
+    description:
+      "Inspect the current stage view before exporting: its label, the ids as given, every visible element with its layer, the specification rows the sheet will print (value in mm, status, the face or datum it is measured from, source, and what is missing when unknown), and the preflight findings scoped to this view (blocking: title block, broken geometry or a default that would print as a dimension, on visible content; advisory: values printed as \"?\"). Optionally pass includeSvg to preview the diagram. Read-only.",
+    inputSchema: obj({ includeSvg: { type: "boolean" } }),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const s = store.getState();
+      const view = currentView(s.activeProjectId);
+      if (!view) return { ok: false, summary: "No stage view is set. Call list_diagram_content, then set_diagram_view." };
+      const products = productStore.getState().products;
+      const c = composeView(s.model, view, products);
+      const { rows } = renderStageSpec(s.model, c.resolution.elements, { label: view.label, findings: c.findings, products });
+      const blocking = c.findings.filter((f) => f.severity === "blocking");
+      return {
+        ok: true,
+        summary: `View "${view.label}": ${c.resolution.elements.length} element(s), ${rows.length} spec row(s), ${rows.filter((r) => r.value === "?").length} unknown. ${blocking.length ? `${blocking.length} blocking: not exportable yet.` : "Exportable."}`,
+        view,
+        exportable: blocking.length === 0,
+        elements: c.resolution.elements,
+        spec: rows,
+        findings: c.findings,
+        ...(c.resolution.unknown.length ? { staleIds: c.resolution.unknown } : {}),
+        ...(i.includeSvg ? { svg: renderStageDiagram(s.model, c.resolution.elements, { label: view.label, findings: c.findings, products }) } : {}),
+      };
+    },
+  },
+  {
+    name: "export_diagram_view",
+    title: "Generate the stage diagram and specification sheet",
+    description:
+      "Generate, from the current stage view only, the dimensioned A3 diagram (SVG) and the matching specification sheet (HTML table). Both list the same visible elements; unknown values print as \"?\" with what is missing and are never shown as measurements, and every value keeps its status tag and datum. The A-01 sheet rules apply to the visible content: blocking findings refuse the export until fixed, or acknowledged with acknowledge: [{ code, ref, reason }] (10+ characters, printed on both outputs). This records no sheet revision and does not change the model. The person can download both from the Sheets tab; pass includeOutputs: true to get the text back.",
+    inputSchema: obj({
+      acknowledge: { type: "array", items: obj({ code: str, ref: str, reason: str }, ["code", "ref", "reason"]) },
+      note: str,
+      includeOutputs: { type: "boolean" },
+    }),
+    execute: (i) => {
+      const s = store.getState();
+      const view = currentView(s.activeProjectId);
+      if (!view) return { ok: false, summary: "No stage view is set. Call set_diagram_view first." };
+      const products = productStore.getState().products;
+      const c = composeView(s.model, view, products);
+      // a view naming ids the model no longer has, or showing nothing, is not a stage: no acknowledgement exports it
+      if (c.resolution.unknown.length || !c.resolution.elements.length) {
+        return { ok: false, summary: `Not exported. ${c.resolution.unknown.length ? `The view names id(s) the model no longer has: ${c.resolution.unknown.join(", ")}.` : "Nothing is visible in this view."} Compose it again with set_diagram_view using ids from list_diagram_content.`, staleIds: c.resolution.unknown };
+      }
+      const result = reconcile(c.findings, Array.isArray(i.acknowledge) ? (i.acknowledge as AckInput[]) : [], "agent");
+      if (!result.ok) {
+        return { ok: false, summary: `Not exported. ${result.open.length} blocking finding(s) open${result.problems.length ? `; ${result.problems.join(" ")}` : ""}. Fix each one (see fix) or acknowledge it with a reason that is printed on the outputs.`, open: result.open, problems: result.problems };
+      }
+      const rawNote = i.note as unknown;
+      const note = typeof rawNote === "string" && rawNote.trim() ? rawNote.trim().slice(0, 160) : undefined;
+      const opts = { label: view.label, findings: c.findings, acknowledged: result.acknowledged, date: new Date().toISOString().slice(0, 10), note, products };
+      const svg = renderStageDiagram(s.model, c.resolution.elements, opts);
+      const spec = renderStageSpec(s.model, c.resolution.elements, opts);
+      recordExport({ projectId: s.activeProjectId, label: view.label, date: opts.date, svg, specHtml: spec.html, elements: c.resolution.elements.map((e) => e.id), at: Date.now() });
+      const advisory = c.findings.filter((f) => f.severity === "advisory").length;
+      return {
+        ok: true,
+        summary: `Exported "${view.label}": diagram and specification sheet, ${c.resolution.elements.length} element(s), ${spec.rows.length} row(s), ${advisory} unresolved item(s) listed${result.acknowledged.length ? `, past ${result.acknowledged.length} acknowledged finding(s)` : ""}.`,
+        elements: c.resolution.elements.map((e) => e.id),
+        acknowledged: result.acknowledged,
+        ...(i.includeOutputs ? { svg, specHtml: spec.html } : { svgBytes: svg.length, specBytes: spec.html.length }),
+      };
     },
   },
 

@@ -10,6 +10,42 @@ import { SHEETS, checkSheet, revisionLetter, type SheetFinding } from "../sheets
 import { download } from "./download";
 import { renderFloorPlan } from "../sheets/floorPlan";
 import { recordIssued, useIssued } from "../sheets/issued";
+import { composeView, useDiagramView, useLastExport } from "../sheets/viewState";
+import { renderStageDiagram } from "../sheets/stageView";
+import { useProductStore } from "../model/productLibrary";
+
+/**
+ * The stage view an agent composed (#41): what it shows, a preview, and the last exported
+ * diagram and specification sheet. Read-only here: the view is composed with set_diagram_view.
+ */
+function StageViewCard({ projectId, fileBase }: { projectId: string | null; fileBase: string }) {
+  const model = useAppStore((s) => s.model);
+  const view = useDiagramView(projectId);
+  const last = useLastExport();
+  const exported = last && last.projectId === projectId ? last : null;
+  const products = useProductStore((s) => s.products);
+  const composed = useMemo(() => (view ? composeView(model, view, products) : null), [model, view, products]);
+  const preview = useMemo(() => (view && composed ? renderStageDiagram(model, composed.resolution.elements, { label: view.label, findings: composed.findings, products }) : ""), [model, view, composed, products]);
+  const slug = (s: string) => s.replace(/[^\w-]+/g, "-");
+  return (
+    <div className="sheets-card stage-view-card" aria-label="Stage view">
+      <strong>Stage view</strong>
+      {!view && <span className="hint">No stage view composed. An agent composes one with list_diagram_content and set_diagram_view; it only changes what is shown, never the model.</span>}
+      {view && composed && (
+        <>
+          <span className="hint" data-stage-label>{view.label}: {composed.resolution.elements.length} element(s) visible. {composed.findings.filter((f) => f.severity === "blocking").length} blocking, {composed.findings.filter((f) => f.severity === "advisory").length} unresolved.</span>
+          <div className="sheets-preview" aria-label="Stage preview" dangerouslySetInnerHTML={{ __html: preview }} />
+        </>
+      )}
+      {exported && (
+        <div className="sheets-actions">
+          <button type="button" onClick={() => download(`${fileBase}-${slug(exported.label)}-diagram.svg`, exported.svg, "image/svg+xml")}>Download "{exported.label}" diagram (SVG)</button>
+          <button type="button" onClick={() => download(`${fileBase}-${slug(exported.label)}-spec.html`, exported.specHtml, "text/html")}>Download "{exported.label}" spec (HTML)</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Open the sheet alone, sized to A3 landscape, and hand it to the browser's print-to-PDF. */
 function printSheet(svg: string) {
@@ -99,6 +135,7 @@ export function SheetsPanel() {
         <div className="sheets-preview" aria-label="Sheet preview" dangerouslySetInnerHTML={{ __html: preview }} />
         <button type="button" onClick={() => { const w = window.open("", "_blank"); if (w) { w.document.write(`<!doctype html><title>Preview</title>${preview}`); w.document.close(); } }}>Open preview full size</button>
       </div>
+      <StageViewCard projectId={activeProjectId} fileBase={model.name.replace(/[^\w-]+/g, "-")} />
       <div className="sheets-card">
         <strong>Issued</strong>
         {revisions.length === 0 && <span className="hint">Nothing issued yet.</span>}

@@ -35,11 +35,13 @@ shows an error and offers a backup download without overwriting that data.
 ## Reno Layouts skills plugin
 
 The skills-only plugin in [`plugins/reno-layouts`](./plugins/reno-layouts) provides
-two workflows for ChatGPT:
+three workflows for ChatGPT:
 
 - **reno-edit-layout** applies supplied measurements and verifies scoped layout changes.
 - **reno-research-product** resumes a product request and submits sourced specifications
   for human review.
+- **reno-stage-diagrams** composes construction-stage views of the one project model and
+  exports a dimensioned diagram and matching specification sheet for each.
 
 Open Reno Layouts and select a project in a browser surface that exposes its WebMCP
 tools. The plugin supplies workflow guidance; the page supplies the tools and their
@@ -53,7 +55,7 @@ npm run plugin:pack
 ```
 
 This writes `dist/reno-layouts-plugin.zip`, containing the supported
-`.codex-plugin/plugin.json` compatibility manifest and both skills at the archive root.
+`.codex-plugin/plugin.json` compatibility manifest and the skills at the archive root.
 The format follows OpenAI's [plugin packaging guidance](https://developers.openai.com/plugins/build/plugins).
 Where ChatGPT offers plugin ZIP upload, upload this archive and try a scoped layout edit
 or a named product request. Installation does not grant browser access. ChatGPT upload
@@ -123,13 +125,13 @@ More stills in [`shots/showcase/`](shots/showcase/).
 1. Open the live app (link at the top of this repo).
 2. **In ChatGPT desktop:** open the URL in the in-app browser. WebMCP works out of the box.
    **In Google Chrome 149+:** enable `chrome://flags/#enable-webmcp-testing` and restart.
-   The pill in the header turns green: **● Site tools live** (49 tools registered).
+   The pill in the header turns green: **● Site tools live** (57 tools registered).
 3. Ask your agent, for example:
    - *"Add a 3 × 2.5 m study next to the bedroom, with a door and a window."*
    - *"The sofa placement feels off. Check the plan and fix any issues."*
    - *"Build the 3D and give me a walkthrough."*
 4. No WebMCP runtime? The app is still complete. Open the **Tools** tab and run the exact
-   same 49 tools manually; every call is logged in the activity feed at the bottom.
+   same 57 tools manually; every call is logged in the activity feed at the bottom.
 
 ## Trace your own plan with the agent
 
@@ -162,7 +164,7 @@ document.modelContext.registerTool({
 });
 ```
 
-## The 49 tools (+ 1 dynamic)
+## The 57 tools (+ 1 dynamic)
 
 | Group | Tools |
 |---|---|
@@ -173,6 +175,7 @@ document.modelContext.registerTool({
 | **Wall faces** | `set_wall_side` (existing surface, frame face and proposed build-up per wall side, each value with a status) · `get_wall_faces` (readOnly) · `measure_to_face` (readOnly: distance from the existing, frame, board or finished face, or unresolved) |
 | **Floor and drainage** | `set_room_floor` · `get_floor_levels` (readOnly) · `set_room_drainage` (point or linear wastes and sloped floor planes, each level and fall with a status) · `get_floor_heights` (readOnly: derived heights at points and along a section, checks for contradictory levels, gaps and unresolved falls, build-up and door-threshold references) |
 | **Trade sheets** | `set_sheet_info` · `list_sheets` (readOnly) · `check_sheets` (readOnly: blocking and advisory findings, each with a ref and a suggested fix) · `export_sheet` (issues an A3 SVG revision; blocking findings must be fixed or acknowledged with a reason that is printed on the sheet) |
+| **Stage diagrams** | `list_diagram_content` (readOnly: the layer and object ids the model really has, empty layer kinds, and what is not modelled) · `set_diagram_view` (an explicit visible set for a labelled stage; any unknown id is refused) · `get_diagram_view` (readOnly: the visible elements, the spec rows with status and datum, and scoped findings) · `export_diagram_view` (the dimensioned A3 diagram SVG and the matching specification sheet HTML) |
 | **Fixtures** | `anchor_fixture` (set a fixture out from a wall face) · `set_service_point` · `remove_service_point` · `place_product` (a library product against a face, with its published rough-in) · `get_rough_in` (readOnly: every service point as distances from the existing, frame, board and finished faces, along from both wall ends and up from the floor, plus clearances) |
 | **Products** | `request_product` · `list_product_requests` (readOnly) · `get_product_brief` (readOnly: the fields to find, their definitions and datums, the research protocol, and the text of attached spec sheets page by page) · `submit_product_spec` · `get_product_library` (readOnly). Accepting a product is human-only, on the Products page. |
 | **Rooms** | `add_room` · `update_room` · `remove_room` |
@@ -210,6 +213,22 @@ A few design notes:
   dimensioned floor plan at a standard scale on A3, with the walls as built, faces, fixtures,
   rough-in schedule, status tag on every value, unresolved list and title block; the Sheets
   tab previews it, issues revisions, downloads the SVG and prints to PDF.
+
+- One renovation, many stage drawings. Post-demolition, rough-in, waterproofing, screed, tiles
+  and fit-out are views of the same project, not copies of it. An agent lists what the model
+  holds (`list_diagram_content`: wall faces and each build-up layer, floor layers, wastes and
+  planes, openings, fixtures, and waste, water and power points, each with a stable id),
+  chooses exactly which layers and objects a stage shows (`set_diagram_view`), checks it
+  (`get_diagram_view`), and exports a dimensioned diagram and a specification sheet from that
+  same set (`export_diagram_view`). The view is kept per project for the page session, outside
+  the project document and its undo history, so composing or switching stages never edits,
+  copies or versions the geometry, services or their provenance. An id the model does not have
+  is refused: there is no heating-cable layer, and the tools say so instead of drawing one.
+  Values keep their status tags and the face or datum they are measured from; unknowns print
+  as "?" with what is missing. The A-01 blocking rules apply to visible content (a defaulted
+  door width blocks only when the door is shown), with the same printed acknowledgement escape
+  hatch. Exports are not sheet revisions; the Sheets tab previews the current stage and
+  downloads both files.
 
 - Fixtures can have their real plan shape. A kind may carry an outline of straight edges and
   arcs through a point (define_item_kind `outline`), and that one polygon is drawn in the plan
@@ -322,13 +341,14 @@ src/
             fixtures.ts (face-anchored fixtures, rough-in readings, clearances, occupied walls)
             outline.ts (fixture plan outlines: arcs, polygons, convex SAT)
   sheets/   check.ts (sheet preflight findings, acknowledgements) · floorPlan.ts (A-01 SVG) · issued.ts
+            stageView.ts (stage view catalogue, spec rows, stage diagram + spec sheet) · viewState.ts (view state, outside the model)
             catalog.ts (31 furniture kinds + runtime entries) · store.ts (shared actions, undo, activity) · seed.ts
   editor/   Editor.tsx — SVG: chained walls, rooms, openings with door arcs,
             furniture drag, blueprint underlay, millimetre dimensions, configurable pointer snap, pan/zoom
   three/    build.ts (extrusion with real openings, resolved joints, floors)
             furniture.ts (composite pieces + generic builder for imported products) · Scene3D.tsx (orbit/top/walk + WASD,
             click-to-place, OBJ/PNG export) · exportBus.ts
-  mcp/      registry.ts (registration + uniform logging) · tools.ts (49 + 1 dynamic)
+  mcp/      registry.ts (registration + uniform logging) · tools.ts (57 + 1 dynamic)
             bootstrap.ts (runtime detection, dynamic tool lifecycle, toolchange)
   ui/       App · Sidebar (Model/Check/Catalog/Supplier/Notes/Tools) · ToolRunner
             ActivityFeed · ApprovalBar (human-in-the-loop gate) · SupplierPanel (cross-origin)

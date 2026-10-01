@@ -24,28 +24,29 @@ export const TAGS: Record<string, string> = {
   "site-confirmed": "SC", measured: "M", published: "PUB", proposed: "P", estimated: "E",
   entered: "ENT", defaulted: "DEF", unknown: "?",
 };
-const tag = (status: string | undefined) => TAGS[status ?? "unknown"] ?? "?";
+export const tag = (status: string | undefined) => TAGS[status ?? "unknown"] ?? "?";
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const f1 = (n: number) => (Math.round(n * 100) / 100).toString();
-const mm = (m: number) => {
+export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+export const f1 = (n: number) => (Math.round(n * 100) / 100).toString();
+export const mm = (m: number) => {
   const v = Math.round(m * 10000) / 10;
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 };
 
 /**
  * A wall's occupied rectangle, lengthened at each end to reach the far face of any wall that
- * meets it there, so corners close the way they do in 3D.
+ * meets it there, so corners close the way they do in 3D. `occupied` says what a wall takes up
+ * across its thickness: by default the body plus any resolved build-up.
  */
-function joinedRect(model: PlanModel, w: Wall): ORect {
-  const r = wallOccupiedRect(w);
+export function joinedRect(model: PlanModel, w: Wall, occupied: (w: Wall) => { zMin: number; zMax: number } = wallOccupied): ORect {
+  const r = occupiedRect(w, occupied(w));
   const reach = (p: Pt) => {
     let ext = 0;
     for (const o of model.walls) {
       if (o.id === w.id) continue;
       const touches = [{ x: o.ax, y: o.ay }, { x: o.bx, y: o.by }].some((e) => Math.hypot(e.x - p.x, e.y - p.y) < 0.09) || pointSegDist(p, { x: o.ax, y: o.ay }, { x: o.bx, y: o.by }) < 0.09;
       if (!touches) continue;
-      const occ = wallOccupied(o);
+      const occ = occupied(o);
       ext = Math.max(ext, Math.abs(occ.zMin), Math.abs(occ.zMax));
     }
     return ext;
@@ -56,6 +57,14 @@ function joinedRect(model: PlanModel, w: Wall): ORect {
   const d = { x: (w.bx - w.ax) / len, y: (w.by - w.ay) / len };
   const shift = (eb - ea) / 2;
   return { ...r, cx: r.cx + d.x * shift, cy: r.cy + d.y * shift, hw: r.hw + (ea + eb) / 2 };
+}
+
+/** wallOccupiedRect for any extent across the thickness. */
+function occupiedRect(w: Wall, { zMin, zMax }: { zMin: number; zMax: number }): ORect {
+  const r = wallOccupiedRect(w);
+  const n = sideNormal(w, "right");
+  const mid = (zMin + zMax) / 2;
+  return { ...r, cx: (w.ax + w.bx) / 2 + n.x * mid, cy: (w.ay + w.by) / 2 + n.y * mid, hd: (zMax - zMin) / 2 };
 }
 
 export interface RenderOptions {
