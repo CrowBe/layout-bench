@@ -274,4 +274,29 @@ describe("wall tile set-out (#9)", () => {
     expect(a.z).toBeLessThan(-0.01);
   });
 
+  it("warns on a joint not smaller than the tile and stops listing pieces for a huge grid", () => {
+    bathroom();
+    setOut({ joint: P(0.3) });
+    expect(layout().problems.some((p) => p.code === "tiling_joint_not_smaller")).toBe(true);
+    // a 1 mm mosaic over the wall: cuts are given, pieces are not enumerated
+    setOut({ tileLength: P(0.001), tileWidth: P(0.001), joint: P(0) });
+    const t0 = Date.now();
+    const l = layout();
+    expect(Date.now() - t0).toBeLessThan(500);
+    expect(l.cuts).toBeTruthy();
+    expect(l.pieces).toEqual([]);
+    expect(l.problems.some((p) => p.code === "tiling_too_many_pieces")).toBe(true);
+    // a size that rounds to zero at 0.1 mm is refused rather than stored as 0
+    expect(actions.setWallTiling(ids.north, "right", { tileWidth: P(0.00004) }).ok).toBe(false);
+  });
+
+  it("puts the origin tile's B-side edge originAlong from end B", () => {
+    bathroom();
+    setOut({ originFrom: "b", originAlong: P(0.05) });
+    const l = layout();
+    expect(l.origin!.s + l.tile!.along).toBeCloseTo(l.limits.b.s! - 0.05, 6);
+    // beyond the origin tile: a 2 mm joint, then a 48 mm strip to the end B face
+    expect(l.cuts!.b).toMatchObject({ full: false });
+    expect(l.cuts!.b.size).toBeCloseTo(0.048, 6);
+  });
 });

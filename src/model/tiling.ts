@@ -13,9 +13,10 @@
  *  - The run along the wall is bounded at each end by the reference face of the return wall
  *    that meets this wall there, measured where that face crosses this wall's drawn line.
  *  - The tiled band runs from the floor reference level up `tiledHeight`.
- *  - The origin is the A-side edge of one full tile, `originAlong` from the named end's limit
- *    face (or from the run centre), and the bottom edge of one full course `originUp` above
- *    the floor reference. Tiles repeat from it at tile size plus joint.
+ *  - The origin is one full tile placed `originAlong` from the named end's limit face, into the
+ *    run (its A-side edge from end A or from the run centre, its B-side edge from end B), and
+ *    the bottom edge of one full course `originUp` above the floor reference. Tiles repeat from
+ *    it at tile size plus joint.
  *  - Openings are cut to their clear span and sill/head as entered (heights above the floor
  *    datum). Reveal linings are not modelled.
  */
@@ -39,6 +40,8 @@ export const FLOOR_LABELS: Record<TileFloorReference, string> = {
 const ON_EDGE = 1e-4;
 /** Wall ends within this of another wall join it, as the 3D builder and A-01 sheet treat them. */
 const JOIN = 0.09;
+/** Above this many tile positions the pieces are not listed or drawn (the cuts still are). */
+export const MAX_PIECES = 20000;
 
 export type Basis = ValueStatus | "unknown";
 
@@ -265,6 +268,7 @@ export function tilingLayout(model: PlanModel, wall: Wall, side: WallSideName): 
     if (i.field !== "origin along" && i.field !== "origin up" && i.field !== "grout joint" && !(i.value > 0)) problems.push({ severity: "error", code: "tiling_nonpositive", message: `${i.field} must be greater than zero.` });
     if (i.field === "grout joint" && i.value < 0) problems.push({ severity: "error", code: "tiling_nonpositive", message: "grout joint cannot be negative." });
   }
+  if (known(t.joint) && known(t.tileWidth) && t.joint.value >= t.tileWidth.value) problems.push({ severity: "warning", code: "tiling_joint_not_smaller", message: `Grout joint ${mmText(t.joint.value)} is not smaller than the ${mmText(t.tileWidth.value)} tile edge; check the units.` });
   for (const l of [limits.a, limits.b]) if (l.skew) problems.push({ severity: "warning", code: "tiling_corner_not_square", message: `The return wall at end ${l.end.toUpperCase()} is not square to this wall; its cut is measured where its face crosses this wall's drawn line.` });
 
   // the tile on the wall, after orientation
@@ -346,7 +350,9 @@ export function tilingLayout(model: PlanModel, wall: Wall, side: WallSideName): 
   }
   out.columns = cols;
   out.rows = rows;
-  for (let k = kA; k <= kB; k++) for (let r = rA; r <= rB; r++) {
+  const positions = (kB - kA + 1) * (rB - rA + 1);
+  if (positions > MAX_PIECES) problems.push({ severity: "warning", code: "tiling_too_many_pieces", message: `${cols} × ${rows} tiles is more than ${MAX_PIECES} pieces to draw; the edge and opening cuts are given but the pieces are not drawn.` });
+  else for (let k = kA; k <= kB; k++) for (let r = rA; r <= rB; r++) {
     const ts0 = o.s + k * pa, tz0 = o.z + r * pu;
     let rects: TilePiece[] = [{ s0: Math.max(ts0, s0), s1: Math.min(ts0 + along, s1), z0: Math.max(tz0, z0), z1: Math.min(tz0 + up, z1), cut: false }];
     rects = rects.filter((p) => p.s1 - p.s0 > ON_EDGE && p.z1 - p.z0 > ON_EDGE);

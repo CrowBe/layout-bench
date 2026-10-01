@@ -844,7 +844,7 @@ export const actions = {
       if (q.value !== undefined && q.value !== null) {
         if (typeof q.value !== "number" || !Number.isFinite(q.value)) return fail(`Rejected: ${label} must be a number of metres.`);
         if (!q.status || !VALUE_STATUSES.includes(q.status)) return fail(`Rejected: ${label} needs a status: ${VALUE_STATUSES.join(", ")}.`);
-        if (rule === "positive" && !(q.value > 0)) return fail(`Rejected: ${label} must be greater than zero.`);
+        if (rule === "positive" && !(quantize(q.value) > 0)) return fail(`Rejected: ${label} must be greater than zero (at least 0.1 mm).`);
         if (rule === "nonNegative" && q.value < 0) return fail(`Rejected: ${label} cannot be negative.`);
         out.value = r.q(q.value, label);
         out.status = q.status;

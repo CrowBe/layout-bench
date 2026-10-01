@@ -28,9 +28,10 @@ export type TileFloorReference = "finished" | "screed" | "substrate" | "datum";
  * A proposed tile set-out on one side of a wall (#9). Every length is user-entered with a
  * status; nothing is defaulted. The pattern is always a proposal for review, never as-built.
  *
- * The origin is the A-side edge of one full tile (`originAlong`, measured along the wall
- * from `originFrom`: the run's limit face at end A, at end B, or the run's centre) and the
- * bottom edge of one full course (`originUp`, above the floor reference).
+ * The origin is one full tile `originAlong` from `originFrom`: from end A's limit face to the
+ * tile's A-side edge, from end B's limit face to its B-side edge (both positive into the run),
+ * or from the run's centre to its A-side edge (negative toward A). Its bottom edge is one full
+ * course `originUp` above the floor reference.
  */
 export interface WallTiling {
   /** longer tile edge, metres */
