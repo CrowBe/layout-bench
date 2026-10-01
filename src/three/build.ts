@@ -6,8 +6,9 @@
 
 import * as THREE from "three";
 import { surfaces } from "../model/drainage";
+import { tilingLayout } from "../model/tiling";
 import type { Item, LayerKind, Opening, PlanModel, Room, Wall } from "../model/types";
-import { liningSlabs, wallBody } from "../model/faces";
+import { liningSlabs, resolveFace, sideNormal, wallBody } from "../model/faces";
 import { roughIn } from "../model/fixtures";
 import { catalogByKind } from "../model/catalog";
 import { segLen } from "../model/geometry";
@@ -471,6 +472,46 @@ function buildFalls(room: Room, material: THREE.Material): THREE.Group | null {
   return g.children.length ? g : null;
 }
 
+export const tileMaterials = {
+  full: new THREE.MeshStandardMaterial({ color: "#e9e4d8", roughness: 0.35 }),
+  cut: new THREE.MeshStandardMaterial({ color: "#e6b98f", roughness: 0.35 }),
+};
+const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
+
+/**
+ * The proposed tile set-out (#9) on one wall side, from the same derivation the elevation and
+ * sheet use: one thin box per piece just proud of the finished face (or of the chosen reference
+ * face when the finished face is unresolved). Cut pieces are tinted. Nothing is drawn until the
+ * set-out resolves, so an unresolved input is never shown as a pattern.
+ */
+function buildTiling(model: PlanModel, wall: Wall, side: "left" | "right"): THREE.Group | null {
+  if (!wall.tiling?.[side]) return null;
+  const layout = tilingLayout(model, wall, side);
+  if (!layout.cuts || !layout.pieces.length) return null;
+  const finished = resolveFace(wall.sides?.[side], "finished");
+  const offset = finished.resolved ? finished.offset! : layout.face.offset;
+  if (offset === undefined) return null;
+  const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
+  const d = { x: (wall.bx - wall.ax) / len, y: (wall.by - wall.ay) / len };
+  const n = sideNormal(wall, side);
+  const angle = Math.atan2(wall.by - wall.ay, wall.bx - wall.ax);
+  const g = new THREE.Group();
+  g.name = `${wall.id}:tiling:${side}`;
+  const T = 0.002;
+  for (const [i, p] of layout.pieces.entries()) {
+    const m = new THREE.Mesh(tileGeometry, p.cut ? tileMaterials.cut : tileMaterials.full);
+    const s = (p.s0 + p.s1) / 2;
+    const o = offset + T / 2 + 0.0005;
+    m.scale.set(p.s1 - p.s0, p.z1 - p.z0, T);
+    m.position.set(wall.ax + d.x * s + n.x * o, (p.z0 + p.z1) / 2, wall.ay + d.y * s + n.y * o);
+    m.rotation.y = -angle;
+    m.name = `${wall.id}:tiling:${side}:${i}`;
+    m.receiveShadow = true;
+    g.add(m);
+  }
+  return g;
+}
+
 function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh {
   if (presentation === "planning") {
     const m = new THREE.Mesh(new THREE.BoxGeometry(room.w, 0.04, room.h), new THREE.MeshStandardMaterial({ color: "#b8b8b3", roughness: 0.95 }));
@@ -578,6 +619,12 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
     group.add(floor);
     const falls = buildFalls(r, floor.material as THREE.Material);
     if (falls) group.add(named(falls, `${r.id}:falls`));
+  }
+  for (const w of model.walls) {
+    for (const side of ["left", "right"] as const) {
+      const tiles = buildTiling(model, w, side);
+      if (tiles) group.add(tiles);
+    }
   }
   const ceiling = model.walls[0]?.height ?? 2.7;
   if (presentation === "styled") for (const r of model.rooms) {
