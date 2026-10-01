@@ -185,6 +185,29 @@ export interface PlanModel {
   rooms: Room[];
   items: Item[];
   underlay: Underlay | null;
+  /** Trade sheets (#29): title block and the revisions issued so far. */
+  sheetSet?: SheetSet;
+}
+
+/** A blocking sheet finding someone chose to issue past, with the reason printed on the sheet. */
+export interface Acknowledgement {
+  code: string;
+  ref: string;
+  reason: string;
+  by: "human" | "agent";
+}
+
+export interface SheetRevision {
+  rev: string; // A, B, C…
+  date: string; // YYYY-MM-DD
+  sheet: string;
+  note?: string;
+  acknowledged: Acknowledgement[];
+}
+
+export interface SheetSet {
+  titleBlock: { project?: string; site?: string; preparedBy?: string };
+  revisions: SheetRevision[];
 }
 
 export interface ActivityEntry {

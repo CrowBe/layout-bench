@@ -121,6 +121,8 @@ export function parseProject(value: unknown): ProjectDocument {
         (v.servicePoints === undefined || (Array.isArray(v.servicePoints) && v.servicePoints.every(validServicePoint)))) ||
       !notes.every((v) => object(v) && typeof v.id === "string" && typeof v.text === "string" && finite(v.at) && (v.author === "human" || v.author === "agent")) ||
       !kinds.every((v) => object(v) && object(v.entry) && typeof v.entry.kind === "string" && typeof v.entry.label === "string" && ["w", "d", "h"].every((k) => finite((v.entry as Record<string, unknown>)[k])) && (v.parts === undefined || Array.isArray(v.parts))) ||
+      !(model.sheetSet === undefined || (object(model.sheetSet) && object(model.sheetSet.titleBlock) && Array.isArray(model.sheetSet.revisions) &&
+        model.sheetSet.revisions.every((r: unknown) => object(r) && typeof r.rev === "string" && typeof r.sheet === "string" && Array.isArray(r.acknowledged)))) ||
       !(model.underlay === null || (object(model.underlay) && typeof model.underlay.dataUrl === "string" && ["opacity", "x", "y", "w", "h"].every((k) => finite((model.underlay as Record<string, unknown>)[k]))))) {
     throw new Error("Project document contains invalid model data.");
   }

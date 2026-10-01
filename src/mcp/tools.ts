@@ -1,11 +1,13 @@
 /**
- * The 45 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
+ * The 49 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
  * Every tool calls THE SAME actions the UI buttons use — one store, human and agent co-edit.
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
 import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch } from "../model/store";
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
+import { SHEETS, checkSheet, type AckInput } from "../sheets/check";
+import { recordIssued } from "../sheets/issued";
 import { catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
 import type { WallSideName } from "../model/types";
@@ -338,6 +340,74 @@ export const TOOLS: ToolDef[] = [
         meters: d.distance,
         face: d.face,
       };
+    },
+  },
+
+  // ------------------------------------------------------------------ trade sheets (#29)
+  {
+    name: "set_sheet_info",
+    title: "Fill in the sheet title block",
+    description: "Set the title block printed on every trade sheet: project name, site or room, and who prepared it. Ask the human for these; do not invent them.",
+    inputSchema: obj({ project: str, site: str, preparedBy: str }),
+    execute: (i) => actions.setSheetInfo(i as { project?: string; site?: string; preparedBy?: string }),
+  },
+  {
+    name: "list_sheets",
+    title: "List the trade sheets",
+    description: "List the trade sheets this plan can issue, with their number, title and revisions issued so far.",
+    inputSchema: obj({}),
+    annotations: { readOnlyHint: true },
+    execute: () => {
+      const revisions = store.getState().model.sheetSet?.revisions ?? [];
+      return {
+        ok: true,
+        summary: SHEETS.map((s) => `${s.number} ${s.title} (${revisions.filter((r) => r.sheet === s.id).length} revision(s))`).join("; "),
+        sheets: SHEETS.map((s) => ({ ...s, revisions: revisions.filter((r) => r.sheet === s.id) })),
+      };
+    },
+  },
+  {
+    name: "check_sheets",
+    title: "Preflight a trade sheet",
+    description:
+      "Check a sheet before issuing it (sheet: floor-plan). Returns findings, each with a code, ref (the entity), severity and usually a fix (a tool and arguments to fill in). blocking findings stop export_sheet: fix them and check again. If you are confident a blocking rule is wrong for this plan, export_sheet can acknowledge it with a reason, which is printed on the sheet for the trade to see. advisory findings never block; they are what the sheet will list as unresolved. Work the list down; do not acknowledge to save effort.",
+    inputSchema: obj({ sheet: { type: "string", enum: SHEETS.map((s) => s.id) } }),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const sheet = (i.sheet as string) ?? "floor-plan";
+      const findings = checkSheet(store.getState().model, sheet);
+      const blocking = findings.filter((f) => f.severity === "blocking");
+      return {
+        ok: true,
+        summary: blocking.length
+          ? `${blocking.length} blocking, ${findings.length - blocking.length} advisory. Not issuable yet.`
+          : `Issuable. ${findings.length} advisory item(s) will be listed as unresolved on the sheet.`,
+        sheet,
+        issuable: blocking.length === 0,
+        findings,
+      };
+    },
+  },
+  {
+    name: "export_sheet",
+    title: "Issue a trade sheet",
+    description:
+      "Issue a sheet (sheet: floor-plan) as an A3 SVG and record a new revision. Refused while blocking findings are open; the refusal lists each one with its fix. To issue past a blocking finding you believe is wrong, pass acknowledge: [{ code, ref, reason }] matching it exactly; the reason (10+ characters) is printed on the sheet. note is printed in the title block. The person can download the issued sheet from the Sheets tab; pass includeSvg: true to get the SVG text back.",
+    inputSchema: obj(
+      {
+        sheet: { type: "string", enum: SHEETS.map((s) => s.id) },
+        acknowledge: { type: "array", items: obj({ code: str, ref: str, reason: str }, ["code", "ref", "reason"]) },
+        note: str,
+        includeSvg: { type: "boolean" },
+      },
+      ["sheet"],
+    ),
+    execute: (i) => {
+      const r = actions.exportSheet(i.sheet as string, { acknowledge: i.acknowledge as AckInput[] | undefined, note: i.note as string | undefined, by: "agent" });
+      if (!r.ok) return r;
+      recordIssued(i.sheet as string, r.rev as string, r.svg as string);
+      const { svg, ...rest } = r;
+      return i.includeSvg ? r : { ...rest, svgBytes: (svg as string).length };
     },
   },
 

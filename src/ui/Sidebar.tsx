@@ -1,4 +1,4 @@
-/** Sidebar — Model / Check / Catalog / Notes tabs. */
+/** Sidebar — Model / Check / Sheets / Catalog / Supplier / Notes / Tools tabs. */
 
 import { useState } from "react";
 import { useAppStore, actions, logActivity } from "../model/store";
@@ -7,9 +7,10 @@ import { CATALOG } from "../model/catalog";
 import { TOOLS } from "../mcp/tools";
 import { ToolRunner } from "./ToolRunner";
 import { SupplierPanel } from "./SupplierPanel";
+import { SheetsPanel } from "./SheetsPanel";
 import { thumbnailFor } from "../three/thumbnails";
 
-type Tab = "model" | "check" | "catalog" | "supplier" | "notes" | "tools";
+type Tab = "model" | "check" | "sheets" | "catalog" | "supplier" | "notes" | "tools";
 
 export function Sidebar() {
   const [tab, setTab] = useState<Tab>("catalog");
@@ -25,6 +26,7 @@ export function Sidebar() {
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: "model", label: "Model" },
     { id: "check", label: "Check", badge: issues.length },
+    { id: "sheets", label: "Sheets" },
     { id: "catalog", label: "Catalog" },
     { id: "supplier", label: "Supplier", badge: supplierTools.length || undefined },
     { id: "notes", label: "Notes", badge: notes.length },
@@ -176,6 +178,8 @@ export function Sidebar() {
         )}
 
         {tab === "supplier" && <SupplierPanel />}
+
+        {tab === "sheets" && <SheetsPanel />}
 
         {tab === "notes" && (
           <div className="panel">
