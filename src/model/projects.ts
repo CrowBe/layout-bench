@@ -46,6 +46,15 @@ const wallSides = (v: unknown) => object(v) && Object.entries(v).every(([side, s
   (side === "left" || side === "right") && object(spec) && quantity(spec.existing) && quantity(spec.frame) &&
   Array.isArray(spec.layers) && spec.layers.every((l) => object(l) && typeof l.id === "string" && typeof l.kind === "string" && quantity(l.thickness)));
 
+/** Wall tiling (#9): per side, optional quantities and enumerated choices; nothing else is read. */
+const oneOf = (v: unknown, allowed: string[]) => v === undefined || (typeof v === "string" && allowed.includes(v));
+const wallTiling = (v: unknown) => v === undefined || (object(v) && Object.entries(v).every(([side, t]) =>
+  (side === "left" || side === "right") && object(t) &&
+  ["tileLength", "tileWidth", "joint", "originAlong", "originUp", "tiledHeight"].every((k) => quantity(t[k])) &&
+  oneOf(t.orientation, ["landscape", "portrait"]) && oneOf(t.reference, ["board", "finished"]) &&
+  oneOf(t.floor, ["finished", "screed", "substrate", "datum"]) && oneOf(t.originFrom, ["a", "b", "centre"]) &&
+  (t.note === undefined || typeof t.note === "string")));
+
 /** Floor assembly (#6): datum, optional substrate top, and a layer list with optional quantities. */
 const floorBuildUp = (v: unknown) => v === undefined || (object(v) && typeof v.datum === "string" && quantity(v.substrateTop) &&
   Array.isArray(v.layers) && v.layers.every((l) => object(l) && typeof l.id === "string" && typeof l.kind === "string" && quantity(l.thickness)));
@@ -144,7 +153,7 @@ export function parseProject(value: unknown): ProjectDocument {
       !Array.isArray(model.items) || !Array.isArray(notes) || !Array.isArray(kinds)) {
     throw new Error("Project document is incomplete or unreadable.");
   }
-  if (!model.walls.every((v) => point(v, ["ax", "ay", "bx", "by", "thickness", "height"]) && (v.sides === undefined || wallSides(v.sides))) ||
+  if (!model.walls.every((v) => point(v, ["ax", "ay", "bx", "by", "thickness", "height"]) && (v.sides === undefined || wallSides(v.sides)) && wallTiling(v.tiling)) ||
       !model.openings.every((v) => point(v, ["t", "width", "sill", "height"]) && typeof v.wallId === "string" && (v.kind === "door" || v.kind === "window")) ||
       !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp) && drainage(v.drainage)) ||
       !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string" &&

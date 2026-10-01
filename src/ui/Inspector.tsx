@@ -10,6 +10,7 @@ import { formatMm, segLen } from "../model/geometry";
 import { catalogByKind } from "../model/catalog";
 import { roomOnSide } from "../model/faces";
 import { WallFaces } from "./WallFaces";
+import { WallTiling } from "./WallTiling";
 import { FloorBuildUp } from "./FloorBuildUp";
 import { Drainage } from "./Drainage";
 import { FixturePanel } from "./FixturePanel";
@@ -119,6 +120,7 @@ export function Inspector() {
         <NumberField label="Height (mm)" unit="mm" value={wall.height} onCommit={(v) => edit({ height: v })} />
         <DimensionStatus field="Height" defaulted={wall.heightDefaulted} onEnter={() => edit({ height: wall.height })} />
         <WallFaces wall={wall} roomFor={(side) => roomOnSide(wall, side, model.rooms)} />
+        <WallTiling key={wall.id} wall={wall} roomFor={(side) => roomOnSide(wall, side, model.rooms)} />
       </aside>
     );
   }

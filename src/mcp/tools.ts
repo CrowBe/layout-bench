@@ -1,15 +1,17 @@
 /**
- * The 57 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
+ * The 60 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
  * Every tool calls THE SAME actions the UI buttons use — one store, human and agent co-edit.
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
-import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type FloorPatch, type DrainagePatch } from "../model/store";
+import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type FloorPatch, type DrainagePatch, type TilingPatch } from "../model/store";
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { SHEETS, checkSheet, reconcile, type AckInput } from "../sheets/check";
 import { catalogue, renderStageDiagram, renderStageSpec } from "../sheets/stageView";
 import { applyView, composeView, currentView, recordExport, savedViews } from "../sheets/viewState";
 import { recordIssued } from "../sheets/issued";
+import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "../model/tiling";
+import { cutRows, renderTilingSheet } from "../sheets/tiling";
 import { catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
 import type { WallSideName } from "../model/types";
@@ -401,6 +403,75 @@ export const TOOLS: ToolDef[] = [
       });
       const summary = sides.map((s) => `${s.side}${s.room ? ` (${s.room})` : ""}: ${s.recorded ? `${s.faces.filter((f) => f.resolved).length}/${s.faces.length} faces resolved` : "nothing recorded"}`).join("; ");
       return { ok: true, summary: `Wall ${w.id} — ${summary}.`, wallId: w.id, sides };
+    },
+  },
+  // ------------------------------------------------------------------ wall tiling (#9)
+  {
+    name: "set_wall_tiling",
+    title: "Propose a wall tile set-out",
+    description:
+      "Record a PROPOSED tile set-out on one side of one wall, for review with a tiler. Lengths are metres, each { value, status }; tile sizes, joint, origin and tiled height are the user's choices, so record them as proposed (or published for a manufacturer's nominal size) and never invent them: leave out what the user has not given and the set-out reports it as unresolved. tileLength is the long edge, tileWidth the short edge; orientation landscape lays the long edge along the wall, portrait up it. reference: the face of each return wall the run is cut to, board (the fixed board face, e.g. Villaboard) or finished (tile face); it comes from set_wall_side build-ups, so record those first. floor: the level the courses are measured from, finished (top of the room's floor build-up), screed, substrate, or datum (0). Origin: one full tile sits originAlong from originFrom: a, its A-side edge from end A's reference face; b, its B-side edge from end B's reference face (both positive into the run); centre, its A-side edge from the run's centre (negative toward A), and the bottom of one full course is originUp above the floor reference. tiledHeight: top of tiling above the floor reference. Fields sent replace what is stored; null clears one; clear: true removes the side's set-out. Read the cuts with get_wall_tiling. This is not as-built, not a procurement list and not a waterproofing compliance statement.",
+    inputSchema: obj({
+      wallId: str, side: sideSchema,
+      tileLength: quantitySchema, tileWidth: quantitySchema,
+      orientation: { type: ["string", "null"], enum: [...TILE_ORIENTATIONS, null] },
+      joint: quantitySchema,
+      reference: { type: ["string", "null"], enum: [...TILE_REFERENCES, null] },
+      floor: { type: ["string", "null"], enum: [...TILE_FLOOR_REFERENCES, null] },
+      originFrom: { type: ["string", "null"], enum: [...TILE_ORIGIN_FROM, null] },
+      originAlong: quantitySchema, originUp: quantitySchema, tiledHeight: quantitySchema,
+      note: { type: ["string", "null"] }, clear: { type: "boolean" },
+    }, ["wallId", "side"]),
+    execute: (i) => actions.setWallTiling(i.wallId as string, i.side as WallSideName, i as TilingPatch),
+  },
+  {
+    name: "get_wall_tiling",
+    title: "Read a wall's proposed tile set-out and cuts",
+    description:
+      "Read the derived set-out of one wall side: every input with its status, the run limits (which return wall face each end is cut to, as metres along from end A), the floor reference level (metres above the room's floor datum), the origin, the tile size on the wall after orientation, the edge cuts at end A, end B, the bottom course and the top course, the cuts beside, under and over each opening, and the tile pieces (s along from A, z up from the datum). A cut is { size, of, full, gap? } in metres: size is the piece kept; full with a gap means the edge falls in or near a joint. Everything unknown is listed under missing and no cut is given for it. Always label the result as a proposed set-out, never as built. Pass includeSvg for the printable A3 elevation.",
+    inputSchema: obj({ wallId: str, side: sideSchema, includeSvg: { type: "boolean" }, includePieces: { type: "boolean" } }, ["wallId", "side"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const hit = lookupWall(i.wallId as string);
+      if (!hit.ok) return { ok: false, summary: hit.summary };
+      const w = hit.entity;
+      const side = i.side as WallSideName;
+      if (side !== "left" && side !== "right") return { ok: false, summary: `Side must be "left" or "right", not "${String(i.side)}".` };
+      const model = store.getState().model;
+      const l = tilingLayout(model, w, side);
+      const { pieces, ...rest } = l;
+      const rows = cutRows(l);
+      return {
+        ok: true,
+        summary: `Wall ${w.id} ${side} side tiling (proposed${w.tiling?.[side] ? "" : ", nothing recorded"}): ${rows.map((r) => `${r.label} ${r.value}`).join("; ")}.${l.missing.length ? ` Unknown: ${l.missing.join("; ")}.` : ""}`,
+        recorded: !!w.tiling?.[side], tiling: w.tiling?.[side] ?? null, ...rest, cutTable: rows,
+        pieceCount: pieces.length, cutPieceCount: pieces.filter((p) => p.cut).length,
+        ...(i.includePieces ? { pieces } : {}),
+        ...(i.includeSvg ? { svg: renderTilingSheet(model, w.id, side) } : {}),
+      };
+    },
+  },
+  {
+    name: "export_wall_tiling",
+    title: "Export the printable wall tile set-out",
+    description:
+      "Generate the printable A3 SVG elevation of one wall side's proposed tile set-out: tile size, joint, origin, the reference face each end is cut to, the floor reference, every cut, opening cuts, the status of each input and every unresolved input (printed as \"?\"). It is stamped PROPOSED SET-OUT, NOT AS-BUILT. The person can also print it to PDF from the wall's Inspector. Does not change the model.",
+    inputSchema: obj({ wallId: str, side: sideSchema, title: str }, ["wallId", "side"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const hit = lookupWall(i.wallId as string);
+      if (!hit.ok) return { ok: false, summary: hit.summary };
+      const w = hit.entity;
+      const side = i.side as WallSideName;
+      if (side !== "left" && side !== "right") return { ok: false, summary: `Side must be "left" or "right", not "${String(i.side)}".` };
+      const model = store.getState().model;
+      const l = tilingLayout(model, w, side);
+      const svg = renderTilingSheet(model, w.id, side, { title: i.title as string | undefined });
+      return {
+        ok: true,
+        summary: `Exported the proposed tile set-out for wall ${w.id} ${side} side (${l.resolved ? "all inputs known" : `${l.missing.length} unresolved input(s) printed as ?`}).`,
+        fileName: `${model.name.replace(/[^\w-]+/g, "-")}-${w.id}-${side}-tiling.svg`, resolved: l.resolved, missing: l.missing, svg,
+      };
     },
   },
   {

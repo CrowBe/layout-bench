@@ -13,6 +13,41 @@ export interface Wall {
   heightDefaulted?: boolean;
   /** Reference faces per side (#4). Missing side means nothing is recorded, not zero. */
   sides?: Partial<Record<WallSideName, WallSide>>;
+  /** Proposed wall tile set-out per side (#9). Missing side means nothing is proposed. */
+  tiling?: Partial<Record<WallSideName, WallTiling>>;
+}
+
+/** Long edge horizontal ("landscape") or vertical ("portrait"). */
+export type TileOrientation = "landscape" | "portrait";
+/** The face of each wall meeting this one that the tiled run is cut to (#9). */
+export type TileReferenceFace = "board" | "finished";
+/** The floor level the first course is measured from (#9). */
+export type TileFloorReference = "finished" | "screed" | "substrate" | "datum";
+
+/**
+ * A proposed tile set-out on one side of a wall (#9). Every length is user-entered with a
+ * status; nothing is defaulted. The pattern is always a proposal for review, never as-built.
+ *
+ * The origin is one full tile `originAlong` from `originFrom`: from end A's limit face to the
+ * tile's A-side edge, from end B's limit face to its B-side edge (both positive into the run),
+ * or from the run's centre to its A-side edge (negative toward A). Its bottom edge is one full
+ * course `originUp` above the floor reference.
+ */
+export interface WallTiling {
+  /** longer tile edge, metres */
+  tileLength?: Quantity;
+  /** shorter tile edge, metres */
+  tileWidth?: Quantity;
+  orientation?: TileOrientation;
+  joint?: Quantity;
+  reference?: TileReferenceFace;
+  floor?: TileFloorReference;
+  originFrom?: "a" | "b" | "centre";
+  originAlong?: Quantity;
+  originUp?: Quantity;
+  /** top of the tiling above the floor reference */
+  tiledHeight?: Quantity;
+  note?: string;
 }
 
 /** Walking the wall from end A to end B on the plan (x right, y down): the side on your left or right. */
