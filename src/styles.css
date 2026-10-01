@@ -350,3 +350,18 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 .fixture-anchor .inspector-error { grid-column: 1 / -1; }
 .fixture-point-form { display: flex; flex-direction: column; gap: 4px; }
 .fixture-point-form summary { cursor: pointer; color: var(--accent-ink); }
+
+/* ---- trade sheets (#29) ---- */
+.sheets-panel { display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
+.sheets-card { display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.sheets-card .field { display: flex; flex-direction: column; gap: 2px; }
+.sheets-panel input, .sheets-panel button { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+.sheets-panel button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sheets-findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sheets-finding { display: flex; flex-direction: column; gap: 3px; padding: 6px; border-radius: 6px; background: #faf7f1; }
+.sheets-finding.blocking { background: #fbe9e9; }
+.sheets-finding .badge { align-self: flex-start; font-size: 10px; padding: 0 5px; border-radius: 999px; background: #eee8dc; color: var(--ink); }
+.sheets-finding.blocking .badge { background: var(--danger); color: #fff; }
+.sheets-preview { border: 1px solid var(--line); background: #fff; }
+.sheets-preview svg { width: 100%; height: auto; display: block; }
+.sheets-actions { display: flex; flex-wrap: wrap; gap: 6px; }

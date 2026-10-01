@@ -24,6 +24,7 @@ import type {
   ValueStatus,
   FixtureAnchor,
   ServicePoint,
+  SheetRevision,
 } from "./types";
 import { emptyModel } from "./types";
 import { checkModel } from "./issues";
@@ -31,6 +32,8 @@ import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { anchorPose, applyAnchors, faceChoices } from "./fixtures";
 import type { LibraryProduct } from "./productLibrary";
 import { categoryById, envelopeOf } from "./products";
+import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
+import { renderFloorPlan } from "../sheets/floorPlan";
 import { SNAP, dist, formatMm, quantize, segLen, segPoint } from "./geometry";
 import { catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogEntry } from "./catalog";
 import { defineCustomKind, FURNITURE_BUILDERS, resetCustomKinds, type PartSpec } from "../three/furniture";
@@ -282,6 +285,13 @@ export function logActivity(source: ActivityEntry["source"], tool: string, summa
 
 function pushUndo() {
   store.setState((s) => ({ undoStack: [...s.undoStack.slice(-49), structuredClone(s.model)] }));
+}
+
+/** Carry issued sheet revisions into a model being restored or cleared: issued sheets cannot be un-issued. */
+function withIssued(next: PlanModel, current: PlanModel): PlanModel {
+  const revisions = current.sheetSet?.revisions ?? [];
+  if (!revisions.length) return next;
+  return { ...next, sheetSet: { titleBlock: next.sheetSet?.titleBlock ?? current.sheetSet!.titleBlock, revisions } };
 }
 
 function setModel(model: PlanModel) {
@@ -900,6 +910,53 @@ export const actions = {
     return r.ok(`Item ${item.id} moved to (${formatMm(next.x)}, ${formatMm(next.y)}) mm.`, { id: item.id });
   },
 
+  // ---- trade sheets (#29) ----
+  setSheetInfo(info: { project?: string; site?: string; preparedBy?: string }): ActionResult {
+    const model = store.getState().model;
+    const current = model.sheetSet ?? { titleBlock: {}, revisions: [] };
+    const titleBlock = { ...current.titleBlock };
+    for (const k of ["project", "site", "preparedBy"] as const) {
+      const v = info?.[k];
+      if (typeof v === "string") titleBlock[k] = v.trim().slice(0, 120);
+    }
+    pushUndo();
+    setModel({ ...model, sheetSet: { ...current, titleBlock } });
+    return ok(`Title block: ${titleBlock.project || "?"} · ${titleBlock.site || "?"} · prepared by ${titleBlock.preparedBy || "?"}.`, { titleBlock });
+  },
+
+  /**
+   * Issue a sheet. Refused, with every open blocking finding and how to close it, until each
+   * is fixed or acknowledged with a reason. An issued sheet records a revision carrying those
+   * acknowledgements, and prints them.
+   */
+  exportSheet(sheet: string, opts: { acknowledge?: AckInput[]; note?: string; by?: "human" | "agent" } = {}): ActionResult {
+    if (!sheetById(sheet)) return fail(`No sheet "${sheet}".`);
+    const model = store.getState().model;
+    const findings = checkSheet(model, sheet);
+    const result = reconcile(findings, Array.isArray(opts.acknowledge) ? opts.acknowledge : [], opts.by ?? "agent");
+    if (!result.ok) {
+      return fail(
+        `Not issued. ${result.open.length} blocking finding(s) open${result.problems.length ? `; ${result.problems.join(" ")}` : ""}. Fix each one (see fix), or acknowledge it with { code, ref, reason } if you are confident the rule is wrong here; the reason is printed on the sheet.`,
+        { open: result.open, problems: result.problems, advisory: findings.filter((f) => f.severity === "advisory").length },
+      );
+    }
+    const current = model.sheetSet ?? { titleBlock: {}, revisions: [] };
+    const rev = revisionLetter(current.revisions.length);
+    const revision: SheetRevision = {
+      rev, date: new Date().toISOString().slice(0, 10), sheet,
+      ...(opts.note?.trim() ? { note: opts.note.trim().slice(0, 160) } : {}),
+      acknowledged: result.acknowledged,
+    };
+    const svg = renderFloorPlan(model, { sheet, findings, revision });
+    // an issued revision has left the building: it is not undoable, and undo keeps it (see withIssued)
+    setModel({ ...model, sheetSet: { ...current, revisions: [...current.revisions, revision] } });
+    const advisory = findings.filter((f) => f.severity === "advisory").length;
+    return ok(
+      `Issued ${sheetById(sheet)!.number} rev ${rev}${revision.acknowledged.length ? `, past ${revision.acknowledged.length} acknowledged finding(s) printed on the sheet` : ""}. ${advisory} unresolved item(s) are listed on it.`,
+      { rev, svg, acknowledged: revision.acknowledged, advisory },
+    );
+  },
+
   // ---- fixtures (#5) ----
   /**
    * Set a fixture out from a wall face, or release it (anchor null). Its position is then
@@ -1048,7 +1105,7 @@ export const actions = {
 
   clearModel(): ActionResult {
     pushUndo();
-    setModel(emptyModel());
+    setModel(withIssued(emptyModel(), store.getState().model));
     store.setState({ notes: [] });
     return ok("Model cleared. Blank canvas ready.");
   },
@@ -1250,7 +1307,7 @@ export const actions = {
     if (undoStack.length === 0) return fail("Nothing to undo.");
     const prev = undoStack[undoStack.length - 1];
     store.setState({ undoStack: undoStack.slice(0, -1) });
-    setModel(prev);
+    setModel(withIssued(prev, store.getState().model));
     return ok("Undone.");
   },
 

@@ -1,15 +1,8 @@
 import { useState, type ChangeEvent } from "react";
 import { projects, useAppStore } from "../model/store";
 import { DEMO_ID } from "../model/projects";
+import { download } from "./download";
 
-function download(name: string, content: string) {
-  const url = URL.createObjectURL(new Blob([content], { type: "application/json" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 export function ProjectChooser() {
   const list = useAppStore((s) => s.projects);
