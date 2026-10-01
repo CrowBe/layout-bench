@@ -9,7 +9,9 @@
 
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
-import { categoryById, roughInPoints, validateSubmission, type FieldValue, type RoughInPoint, type SpecProblem, type SpecSubmission } from "./products";
+import { ATTACHMENT_PREFIX, categoryById, roughInPoints, validateSubmission, type FieldValue, type RoughInPoint, type SpecProblem, type SpecSubmission } from "./products";
+import { extractPdfPages, type PageText } from "./pdfText";
+import { indexedDbFiles, memoryFiles, type FileStore } from "./productFiles";
 
 export const PRODUCTS_KEY = "alza.products.v1";
 
@@ -28,6 +30,25 @@ export interface FieldReview {
   reason?: string;
 }
 
+/** Largest file a request takes (#34). Spec sheets are rarely over a few MB. */
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const IMAGE_TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
+
+/**
+ * A spec sheet the person attached to a request (#34). Its bytes are in IndexedDB under the
+ * same id; this record, with a PDF's text page by page, is saved with the library.
+ */
+export interface ProductAttachment {
+  id: string;
+  name: string;
+  kind: "pdf" | "image";
+  mime: string;
+  size: number;
+  addedAt: number;
+  /** PDF only, page 1 first; a page with no text layer (a scan) has empty text */
+  pages?: PageText[];
+}
+
 export interface ProductRequest {
   id: string;
   category: string;
@@ -39,6 +60,8 @@ export interface ProductRequest {
   /** what the human said when sending it back */
   feedback?: string;
   productId?: string;
+  /** spec sheets the person attached; absent on requests saved before #34 */
+  attachments?: ProductAttachment[];
 }
 
 export interface LibraryProduct {
@@ -81,14 +104,42 @@ export const productStore = createStore<LibraryState>(() => ({
 }));
 export const useProductStore = <T>(selector: (s: LibraryState) => T): T => useStore(productStore, selector);
 
-const hasStorage = () => typeof localStorage !== "undefined";
+type KeyValueStore = Pick<Storage, "getItem" | "setItem">;
+
+/** Where the library and its files live. Tests swap these for in-memory ones. */
+const io: { local: () => KeyValueStore | null; files: FileStore; extract: (data: ArrayBuffer) => Promise<PageText[]> } = {
+  local: () => (typeof localStorage !== "undefined" ? localStorage : null),
+  files: typeof indexedDB !== "undefined" ? indexedDbFiles : memoryFiles(),
+  extract: (data) => extractPdfPages(data),
+};
+
+/** Replace the storage or PDF reader (tests). Returns the previous settings. */
+export function configureProductStorage(next: Partial<typeof io>): typeof io {
+  const prev = { ...io };
+  Object.assign(io, next);
+  return prev;
+}
+
+const hasStorage = () => io.local() !== null;
 let ready = false;
 
+const docOf = (s: Pick<LibraryDoc, "requests" | "products">) => JSON.stringify({ version: 1, requests: s.requests, products: s.products });
+
+/** Browsers report a full store as QuotaExceededError (code 22, or 1014 in old Firefox). */
+export function isQuotaError(error: unknown): boolean {
+  const e = error as { name?: string; code?: number } | null;
+  return !!e && (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED" || e.code === 22 || e.code === 1014);
+}
+
+const storageFull = (name: string) =>
+  `Browser storage is full, so ${name} was not attached and nothing changed. Remove attachments or library products you no longer need, or export and remove old projects, then try again.`;
+
 /** Read the library once. An unreadable library is left untouched and reported. */
-export function initializeProductLibrary(): void {
-  if (ready || !hasStorage()) return;
+export function initializeProductLibrary(force = false): void {
+  if ((ready && !force) || !hasStorage()) return;
+  ready = false;
   try {
-    const raw = localStorage.getItem(PRODUCTS_KEY);
+    const raw = io.local()!.getItem(PRODUCTS_KEY);
     if (raw) {
       const doc = JSON.parse(raw) as Partial<LibraryDoc>;
       if (doc.version !== 1 || !Array.isArray(doc.requests) || !Array.isArray(doc.products)) {
@@ -105,7 +156,7 @@ export function initializeProductLibrary(): void {
 productStore.subscribe((s, prev) => {
   if (!ready || !hasStorage() || (s.requests === prev.requests && s.products === prev.products)) return;
   try {
-    localStorage.setItem(PRODUCTS_KEY, JSON.stringify({ version: 1, requests: s.requests, products: s.products }));
+    io.local()!.setItem(PRODUCTS_KEY, docOf(s));
   } catch (error) {
     productStore.setState({ loadError: `Product library save failed: ${error instanceof Error ? error.message : String(error)}` });
   }
@@ -142,7 +193,7 @@ export const products = {
     if (!req) return fail(`No product request "${requestId}".`);
     if (req.status !== "open") return fail(`Request ${req.id} is ${req.status}; only an open request takes a submission.`);
     const cat = categoryById(req.category)!;
-    const problems = validateSubmission(cat, submission);
+    const problems = validateSubmission(cat, submission, { attachments: req.attachments ?? [] });
     const errors = problems.filter((p) => p.severity === "error");
     if (errors.length) {
       return fail(`Submission rejected, nothing stored: ${errors.map((e) => e.message).join(" ")}`, { problems: errors });
@@ -209,6 +260,80 @@ export const products = {
     if (!req || req.status === "accepted") return fail("Only an open or submitted request can be withdrawn.");
     updateRequest(req.id, { status: "withdrawn" });
     return ok("Request withdrawn.");
+  },
+
+  /**
+   * Attach a spec sheet the person holds (#34). A PDF's text is read page by page in the
+   * browser; an image is kept for the person to look at. The file is refused whole when it is
+   * too large, unreadable or does not fit in browser storage: nothing is half-saved.
+   */
+  async attach(requestId: string, file: Blob & { name?: string }): Promise<LibraryResult> {
+    const req = findRequest(requestId);
+    if (!req) return fail(`No product request "${requestId}".`);
+    if (req.status !== "open") return fail(`Request ${req.id} is ${req.status}; attach spec sheets while it is open.`);
+    const name = (file.name ?? "").trim() || "spec sheet";
+    const mime = file.type || (/\.pdf$/i.test(name) ? "application/pdf" : "");
+    const kind = mime === "application/pdf" ? "pdf" : IMAGE_TYPES[mime] ? "image" : null;
+    if (!kind) return fail(`${name} is not a PDF or an image (PNG, JPEG, WebP or GIF).`);
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      return fail(`${name} is ${(file.size / 1048576).toFixed(1)} MB; the limit is ${MAX_ATTACHMENT_BYTES / 1048576} MB per file. Attach just the specification pages.`);
+    }
+    if (file.size === 0) return fail(`${name} is empty.`);
+    let pages: PageText[] | undefined;
+    if (kind === "pdf") {
+      try {
+        pages = await io.extract(await file.arrayBuffer());
+      } catch (error) {
+        return fail(`Could not read ${name} as a PDF (${error instanceof Error ? error.message : String(error)}). Nothing was attached.`);
+      }
+    }
+    const att: ProductAttachment = { id: uid("att"), name, kind, mime, size: file.size, addedAt: Date.now(), ...(pages ? { pages } : {}) };
+    try {
+      // stored under the type that was checked, so viewing it never depends on the browser's
+      // guess for an untyped file (a typeless blob: URL may be sniffed as a page)
+      await io.files.put(att.id, file.type === mime ? file : new Blob([file], { type: mime }));
+    } catch (error) {
+      return fail(isQuotaError(error) ? storageFull(name) : `Could not store ${name} in this browser: ${error instanceof Error ? error.message : String(error)}. Nothing was attached.`);
+    }
+    // the request may have moved on while the file was read
+    const now = findRequest(requestId);
+    if (!now || now.status !== "open") {
+      await io.files.remove(att.id).catch(() => {});
+      return fail(`Request ${requestId} is no longer open; ${name} was not attached.`);
+    }
+    const state = productStore.getState();
+    const requests = state.requests.map((r) => (r.id === now.id ? { ...r, attachments: [...(r.attachments ?? []), att] } : r));
+    // write first, so a full localStorage refuses the attachment instead of leaving it unsaved
+    const local = ready ? io.local() : null;
+    if (local) {
+      try {
+        local.setItem(PRODUCTS_KEY, docOf({ requests, products: state.products }));
+      } catch (error) {
+        await io.files.remove(att.id).catch(() => {});
+        return fail(isQuotaError(error) ? storageFull(name) : `Product library save failed: ${error instanceof Error ? error.message : String(error)}. ${name} was not attached.`);
+      }
+    }
+    productStore.setState({ requests, ...(state.loadError?.startsWith("Product library save failed") ? { loadError: null } : {}) });
+    const text = !pages ? "An image has no text for the agent: it is for your review."
+      : pages.some((p) => p.text.trim()) ? `${pages.length} page(s) of text read for the agent.`
+      : `${pages.length} page(s), but no text could be read (a scanned sheet?). Scans are not OCR'd, so the agent cannot read it.`;
+    return ok(`${name} attached as ${ATTACHMENT_PREFIX}${att.id}. ${text}`, { attachmentId: att.id });
+  },
+
+  /** Remove an attachment from an open request. A submission that cites it will be refused. */
+  async detach(requestId: string, attachmentId: string): Promise<LibraryResult> {
+    const req = findRequest(requestId);
+    const att = req?.attachments?.find((a) => a.id === attachmentId);
+    if (!req || !att) return fail("Attachment not found.");
+    if (req.status !== "open") return fail(`Request ${req.id} is ${req.status}; its attachments are kept as the record of what was cited.`);
+    updateRequest(req.id, { attachments: req.attachments!.filter((a) => a.id !== attachmentId) });
+    await io.files.remove(attachmentId).catch(() => {});
+    return ok(`${att.name} removed.`);
+  },
+
+  /** The attached file itself, for the person to view. Null when this browser no longer has it. */
+  file(attachmentId: string): Promise<Blob | null> {
+    return io.files.get(attachmentId).catch(() => null);
   },
 
   removeProduct(id: string): LibraryResult {

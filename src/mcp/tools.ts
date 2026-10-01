@@ -614,7 +614,7 @@ export const TOOLS: ToolDef[] = [
       return {
         ok: true,
         summary: `${requests.length} request(s); ${requests.filter((r) => r.status === "open").length} open.`,
-        requests: requests.map((r) => ({ id: r.id, category: r.category, known: r.known, status: r.status, ...(r.feedback ? { feedback: r.feedback } : {}) })),
+        requests: requests.map((r) => ({ id: r.id, category: r.category, known: r.known, status: r.status, ...(r.feedback ? { feedback: r.feedback } : {}), ...(r.attachments?.length ? { attachments: r.attachments.map((a) => ({ id: a.id, name: a.name, kind: a.kind })) } : {}) })),
       };
     },
   },
@@ -622,7 +622,7 @@ export const TOOLS: ToolDef[] = [
     name: "get_product_brief",
     title: "Read a product research brief",
     description:
-      "Read the brief for a product request: what the human knows, the protocol to follow, the service points (roughIn) the fields feed, and every field to find with its unit (lengths in metres), definition, reference datum, allowed options or range, and whether it is required. A field with `when` applies only when that other field has one of the listed values. Includes any previous submission and the reviewer's feedback.",
+      "Read the brief for a product request: what the human knows, the protocol to follow, the service points (roughIn) the fields feed, and every field to find with its unit (lengths in metres), definition, reference datum, allowed options or range, and whether it is required. A field with `when` applies only when that other field has one of the listed values. Includes any previous submission and the reviewer's feedback. `attachments` are spec sheets the person attached: a PDF comes with its text page by page; cite it as source { url: \"attachment:<id>\", locator: \"p. <n>\" }. An image attachment has no text: ask the person to paste it into the conversation if you need it.",
     inputSchema: obj({ requestId: str }, ["requestId"]),
     annotations: { readOnlyHint: true },
     execute: (i) => {
@@ -641,7 +641,16 @@ export const TOOLS: ToolDef[] = [
         references: REFERENCES,
         fields: cat.fields.map((f) => ({ ...f, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
         roughIn: cat.roughIn,
-        submitShape: "submit_product_spec { requestId, manufacturer, model, code?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } }",
+        attachments: (req.attachments ?? []).map((a) => ({
+          id: a.id,
+          cite: `attachment:${a.id}`,
+          name: a.name,
+          kind: a.kind,
+          ...(a.kind === "pdf"
+            ? { pageCount: a.pages?.length ?? 0, pages: a.pages ?? [], ...(a.pages?.some((p) => p.text.trim()) ? {} : { textNote: "No text layer on any page (a scan?). Nothing is OCR'd: ask the person to paste the figures, or find a published source." }) }
+            : { textNote: "An image: no text is extracted. It is for the person's review; if you need what it shows, ask them to paste it into the conversation." }),
+        })),
+        submitShape: "submit_product_spec { requestId, manufacturer, model, code?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } } — url is an http(s) link or attachment:<id>; for an attachment the locator starts with the page, e.g. \"p. 2, fig. 1\"",
         ...(req.submission ? { previousSubmission: req.submission } : {}),
         ...(req.feedback ? { feedback: req.feedback } : {}),
       };
@@ -651,7 +660,7 @@ export const TOOLS: ToolDef[] = [
     name: "submit_product_spec",
     title: "Submit a completed product brief",
     description:
-      "Submit the researched values for an open product request. Each field: value (metres for lengths; null when not found), status (always published: a manufacturer or retailer figure), sources [{ url, locator }] where locator (page, figure, table or section) is required, optional reference when the source measures from a different datum than the brief asks, note (required for a required field left null: where you looked), alternatives when sources disagree. Errors (no source, out of range, wrong unit, missing required field) reject the whole submission and nothing is stored. A human reviews and accepts it on the Products page; you cannot accept it.",
+      "Submit the researched values for an open product request. Each field: value (metres for lengths; null when not found), status (always published: a manufacturer or retailer figure), sources [{ url, locator }] where url is an http(s) link or attachment:<id> for a spec sheet attached to this request, and locator (page, figure, table or section; for an attachment, a page it has, e.g. \"p. 2\") is required, optional reference when the source measures from a different datum than the brief asks, note (required for a required field left null: where you looked), alternatives when sources disagree. Errors (no source, out of range, wrong unit, missing required field) reject the whole submission and nothing is stored. A human reviews and accepts it on the Products page; you cannot accept it.",
     inputSchema: obj(
       {
         requestId: str,

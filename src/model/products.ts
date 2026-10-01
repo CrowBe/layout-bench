@@ -155,6 +155,7 @@ export const categoryById = (id: string): ProductCategory | undefined => PRODUCT
 
 /** How the agent should research a brief. Returned with every brief. */
 export const RESEARCH_PROTOCOL: string[] = [
+  "0. If the request has attachments, they are the spec sheet the person already holds for this exact product: complete the brief from them first and cite them as `attachment:<id>` with the page as locator (\"p. 2\", \"p. 2, fig. 1\"). An image attachment has no text you can read; if you need its contents, ask the person to paste it into the conversation. A PDF page with no text (a scan) is not read for you either: nothing is OCR'd.",
   "1. Identify the exact product from what the human gave you (brand, model, code, link). If several products match, do not pick one: submit nothing and say which candidates you found with leave_note.",
   "2. Use the manufacturer's current specification sheet or installation guide first; a retailer listing only when the manufacturer publishes nothing. Cite each value's source: the URL and, always, where on it (page, figure, table or section). Alternatives need the same.",
   "3. Report exactly what the source prints, converted to metres, with status `published`. This path takes researched figures only; a site measurement is recorded by a person, not submitted here.",
@@ -164,6 +165,7 @@ export const RESEARCH_PROTOCOL: string[] = [
 ];
 
 export interface SourceRef {
+  /** an http(s) link, or `attachment:<id>` for a file attached to the request */
   url: string;
   /** page, figure or table */
   locator?: string;
@@ -183,6 +185,34 @@ export interface SpecSubmission {
   model: string;
   code?: string;
   fields: Record<string, FieldValue>;
+}
+
+/** What validation needs to know about a file attached to the request (#34). */
+export interface AttachmentRef {
+  id: string;
+  name: string;
+  kind: "pdf" | "image";
+  /** PDF only: the text of each page, page 1 first; empty for a page with no text layer */
+  pages?: { page: number; text: string }[];
+}
+
+/** Context a submission is checked against: the request's own attachments. */
+export interface SubmissionContext {
+  attachments?: AttachmentRef[];
+}
+
+export const ATTACHMENT_PREFIX = "attachment:";
+
+/** The attachment id a source cites, or null when it is not an attachment citation. */
+export function attachmentIdOf(url: unknown): string | null {
+  return typeof url === "string" && url.trim().startsWith(ATTACHMENT_PREFIX) ? url.trim().slice(ATTACHMENT_PREFIX.length).trim() : null;
+}
+
+/** The page a locator names ("p. 2", "page 3, table 1", "pp. 4"), or null. */
+export function pageOfLocator(locator: unknown): number | null {
+  if (typeof locator !== "string") return null;
+  const m = /^\s*(?:pp?|pg|page)\.?\s*(\d+)\b/i.exec(locator);
+  return m ? Number(m[1]) : null;
 }
 
 export interface SpecProblem {
@@ -213,12 +243,34 @@ export function safeUrl(url: unknown): string | null {
 
 const show = (f: FieldSpec, x: number | string) => (f.type === "length" && typeof x === "number" ? `${formatMm(x)} mm` : String(x));
 
-/** Every source needs an http(s) link and where on it the figure is. */
-function checkSources(sources: unknown[]): string | null {
-  if (!sources.length) return "has no source. Give the URL and where on it (page, figure, table).";
+/**
+ * Every source needs an http(s) link, or an attachment on this request, and where on it the
+ * figure is. A PDF attachment's locator must name a page it has (#34).
+ */
+function checkSources(sources: unknown[], ctx: SubmissionContext, onNote?: (message: string) => void): string | null {
+  if (!sources.length) return "has no source. Give the URL and where on it (page, figure, table), or cite an attachment as attachment:<id> with its page.";
   for (const x of sources) {
     const src = x as Partial<SourceRef> | null;
-    if (!src || !safeUrl(src.url)) return "every source must be an http(s) link.";
+    const attId = src ? attachmentIdOf(src.url) : null;
+    if (attId !== null) {
+      const att = (ctx.attachments ?? []).find((a) => a.id === attId);
+      if (!att) {
+        const have = (ctx.attachments ?? []).map((a) => `${ATTACHMENT_PREFIX}${a.id} (${a.name})`);
+        return `${src!.url} is not attached to this request. ${have.length ? `Attached: ${have.join(", ")}.` : "It has no attachments."}`;
+      }
+      if (typeof src!.locator !== "string" || !src!.locator.trim()) {
+        return `source ${src!.url} needs a locator: the page the figure is on, e.g. "p. 2".`;
+      }
+      if (att.kind === "pdf") {
+        const page = pageOfLocator(src!.locator);
+        const count = att.pages?.length ?? 0;
+        if (page === null) return `source ${src!.url} (${att.name}) needs its locator to start with the page, e.g. "p. 2" or "p. 2, fig. 1"; got "${src!.locator}".`;
+        if (page < 1 || page > count) return `source ${src!.url} (${att.name}) has ${count} page(s); page ${page} does not exist.`;
+        if (!att.pages![page - 1].text.trim()) onNote?.(`${att.name} p. ${page} has no text layer (a scan?), so nothing was extracted from it; check the figure against the page itself.`);
+      }
+      continue;
+    }
+    if (!src || !safeUrl(src.url)) return "every source must be an http(s) link or an attachment:<id> on this request.";
     if (typeof src.locator !== "string" || !src.locator.trim()) return `source ${src.url} needs a locator: the page, figure, table or section the figure is on.`;
   }
   return null;
@@ -247,7 +299,7 @@ const differs = (a: number | string, b: number | string): boolean =>
  * Check a submission against its category. Errors block the submission (nothing is stored);
  * warnings travel with it to the human reviewer.
  */
-export function validateSubmission(category: ProductCategory, s: SpecSubmission): SpecProblem[] {
+export function validateSubmission(category: ProductCategory, s: SpecSubmission, ctx: SubmissionContext = {}): SpecProblem[] {
   const out: SpecProblem[] = [];
   const err = (field: string | null, code: string, message: string) => out.push({ field, severity: "error", code, message });
   const warn = (field: string | null, code: string, message: string) => out.push({ field, severity: "warning", code, message });
@@ -272,7 +324,7 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission)
       continue;
     }
     if (v.status !== "published") err(f.key, "status_not_published", `${f.label}: a submitted value must be \`published\` (a manufacturer or retailer figure). Site measurements are recorded by a person, not through this path.`);
-    const sourceProblem = checkSources(Array.isArray(v.sources) ? v.sources : []);
+    const sourceProblem = checkSources(Array.isArray(v.sources) ? v.sources : [], ctx, (m) => warn(f.key, "attachment_page_no_text", `${f.label}: ${m}`));
     if (sourceProblem) err(f.key, "source_invalid", `${f.label}: ${sourceProblem}`);
     const valueProblem = checkValue(f, v.value);
     if (valueProblem) err(f.key, valueProblem.code, `${f.label} ${valueProblem.message}`);
@@ -280,7 +332,7 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission)
       warn(f.key, "reference_mismatch", `${f.label} is measured from ${REFERENCES[v.reference] ?? v.reference}, but the brief asks for ${f.reference ? REFERENCES[f.reference] : "no particular datum"}.`);
     }
     for (const [i, alt] of (Array.isArray(v.alternatives) ? v.alternatives : []).entries()) {
-      const altProblem = !alt ? "is empty" : checkSources([alt.source]) ?? (checkValue(f, alt.value)?.message ?? null);
+      const altProblem = !alt ? "is empty" : checkSources([alt.source], ctx) ?? (checkValue(f, alt.value)?.message ?? null);
       if (altProblem) { err(f.key, "alternative_invalid", `${f.label}, alternative ${i + 1}: ${altProblem}`); continue; }
       if (!valueProblem && differs(alt.value, v.value as number | string)) {
         warn(f.key, "sources_disagree", `${f.label}: ${alt.source.url} (${alt.source.locator}) gives ${show(f, alt.value)}, not ${show(f, v.value as number | string)}.`);
