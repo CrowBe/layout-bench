@@ -1,5 +1,13 @@
 # Reno Layouts — Plans that rise to 3D
 
+Reno Layouts is a fork of [Alza](https://github.com/Elioz404/Alza), created by
+[Elioz404](https://github.com/Elioz404) for the
+[WebMCP Challenge](https://webmcp.devpost.com/). Credit for the original floor-plan
+studio, WebMCP integration and hackathon demo belongs to Alza and its contributors.
+This fork builds on that foundation with renovation planning, surveyed geometry,
+wall build-ups, fixture rough-in, product research and trade sheets. The original
+MIT copyright notice is retained in [LICENSE](./LICENSE).
+
 A floor plan is coordinates, not buttons — which is why an agent cannot use one by
 pretending to be a mouse. So Reno Layouts does not make it try. It hands over the model itself: the
 full metric geometry, published as typed tools through **WebMCP**, on the same live page a
@@ -8,8 +16,7 @@ person is drawing on.
 You draw walls, rooms, doors, windows and furniture in a precise 2D editor, or load a photo
 of a plan and trace over it. Your agent works that same model with the same tools — it
 checks its own work against a constraint engine, buys furniture from a second origin, and
-raises the result into a 3D model you can walk through. Built for the
-[WebMCP Challenge](https://webmcp.devpost.com/).
+raises the result into a 3D model you can walk through.
 
 Everything runs client side. No backend, no accounts, plans stay on your machine.
 
@@ -25,6 +32,34 @@ after confirmation. Browser storage does not sync between devices and may be cle
 with site data. If storage is full or saved data uses an unreadable version, the app
 shows an error and offers a backup download without overwriting that data.
 
+## Reno Layouts skills plugin
+
+The skills-only plugin in [`plugins/reno-layouts`](./plugins/reno-layouts) provides
+two workflows for ChatGPT:
+
+- **reno-edit-layout** applies supplied measurements and verifies scoped layout changes.
+- **reno-research-product** resumes a product request and submits sourced specifications
+  for human review.
+
+Open Reno Layouts and select a project in a browser surface that exposes its WebMCP
+tools. The plugin supplies workflow guidance; the page supplies the tools and their
+descriptions, units, datums and validation rules. Product research also needs browsing
+or document-reading tools. The plugin adds no MCP server, app connection or runtime code.
+
+Build the upload archive with Python 3 available:
+
+```bash
+npm run plugin:pack
+```
+
+This writes `dist/reno-layouts-plugin.zip`, containing the supported
+`.codex-plugin/plugin.json` compatibility manifest and both skills at the archive root.
+The format follows OpenAI's [plugin packaging guidance](https://developers.openai.com/plugins/build/plugins).
+Where ChatGPT offers plugin ZIP upload, upload this archive and try a scoped layout edit
+or a named product request. Installation does not grant browser access. ChatGPT upload
+and behavioral comparison against tools alone remain release checks; local package
+validation does not prove either. Run `plugin:pack` after `npm run build`, which clears `dist`.
+
 ---
 
 ## The two-minute film
@@ -39,7 +74,7 @@ shows an error and offers a backup download without overwriting that data.
 dimension, and draws the whole thing. After that it checks itself, buys a chair from another
 origin, gets a destructive call refused by a human, and walks the result.</em></p>
 
-I put the film together with [HyperFrames](https://hyperframes.heygen.com/) from a
+The original Alza demo film was put together with [HyperFrames](https://hyperframes.heygen.com/) from a
 storyboard, a script and HTML compositions. That authoring tree is not carried here; the
 finished film is on YouTube and its stills are in [`shots/showcase/`](shots/showcase/).
 

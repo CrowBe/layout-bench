@@ -1,0 +1,25 @@
+{
+  "name": "reno-layouts",
+  "version": "0.1.0",
+  "description": "Edit measured layouts and research product specifications using the open Reno Layouts site's WebMCP tools.",
+  "author": {
+    "name": "CrowBe",
+    "url": "https://github.com/CrowBe"
+  },
+  "repository": "https://github.com/CrowBe/layout-bench",
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Reno Layouts",
+    "shortDescription": "Edit measured plans and research fixture specifications.",
+    "longDescription": "Two lean skills for the open Reno Layouts site: apply measured layout changes and submit sourced product specifications for human review. Requires a browser surface exposing the site's WebMCP tools and an open project. Product research also needs browsing or document-reading tools.",
+    "developerName": "CrowBe",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": [
+      "Apply my measured changes to the open Reno Layouts plan.",
+      "Research my named Reno Layouts product request."
+    ],
+    "brandColor": "#E07B39"
+  }
+}
