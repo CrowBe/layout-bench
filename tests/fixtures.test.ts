@@ -3,7 +3,9 @@ import { actions, store } from "../src/model/store";
 import { emptyModel } from "../src/model/types";
 import { checkModel } from "../src/model/issues";
 import { clearances, roughIn } from "../src/model/fixtures";
-import { roughInPoints, categoryById, type FieldValue } from "../src/model/products";
+import { roughInPoints, categoryById, validateSubmission, type FieldValue } from "../src/model/products";
+import { itemPolygon, polygonsOverlap } from "../src/model/outline";
+import { catalogByKind } from "../src/model/catalog";
 import type { LibraryProduct } from "../src/model/productLibrary";
 import { buildPlan } from "../src/three/build";
 import { demoProject, parseImport } from "../src/model/projects";
@@ -231,29 +233,48 @@ describe("fixtures set out from wall faces (#5)", () => {
     });
   });
 
-  it("places a corner bath in the corner it sits nearer, with a quarter-round shell and its waste on the plan", () => {
-    const [back, east] = bathroom();
+  it("places a corner bath with its real outline, mirrored to its corner, and checks clashes by that outline", () => {
+    const [back] = bathroom();
     faceBackWall(back);
-    // numbers as on the Enflair Angie drawing: 1000 along each wall, 630 high, waste 368 from each wall edge
-    const src = [{ url: "https://example.com/angie.pdf", locator: "plan view" }];
+    // as printed on the Enflair Angie drawing: 1000 along each wall, 1178 across the front, 1090 from the corner
+    const src = [{ url: "https://example.com/angie", locator: "drawing" }];
     const pub = (value: number | string): FieldValue => ({ value, status: "published", sources: src });
     const fields: Record<string, FieldValue> = {
       length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
-      wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
       surround: { value: null, note: "Not on the drawing." },
     };
     const product: LibraryProduct = { id: "angie", category: "bath", manufacturer: "Enflair", model: "Angie 1000 Corner", fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0 };
-    // back wall runs A (x=0) → B (x=2.11); put the bath in the A-end corner, flush with the west wall body (50 mm)
+    // the back wall runs from A (x=0) to B (x=2.11); the bath goes in the A-end corner
     const placed = actions.placeProduct(product, { wallId: back, side: "right", face: "finished", distance: 0.55, status: "proposed" });
     expect(placed.ok).toBe(true);
     const bath = item(placed.id as string);
-    const kind = store.getState().kinds.find((k) => k.entry.kind === bath.kind)!;
-    expect(kind.parts!.map((p) => [p.shape, p.corner])).toEqual([["quadrant", "left"], ["quadrant", "left"]]);
+    const cat = catalogByKind(bath.kind)!;
+    expect(bath.kind).toBe("product_angie_left");
+    expect(cat.outline!.segments.some((s) => s.via)).toBe(true);
+    const poly = itemPolygon(bath)!;
+    // the curved front stays inside the box but is not the box: the box's front-right corner is outside it
+    const frontRight = { x: bath.x + 0.49, y: bath.y + 0.49 };
+    expect(polygonsOverlap(poly, [frontRight, { x: frontRight.x + 0.005, y: frontRight.y }, { x: frontRight.x, y: frontRight.y + 0.005 }])).toBe(false);
+    // a small cabinet tucked into that corner of the box clears the curve: no clash
+    actions.defineItemKind({ kind: "caddy", label: "Caddy", w: 0.12, d: 0.12, h: 0.5, category: "bath" });
+    actions.placeItem("caddy", bath.x + 0.43, bath.y + 0.43);
+    expect(codes()).not.toContain("items_overlap");
     const [waste] = roughIn(model(), bath);
     expect(waste.resolved).toBe(true);
-    // 368 from the west (corner) edge of the bath: 0.55 - 0.5 + 0.368
-    expect(waste.alongFromA).toBe(0.418);
-    expect(waste.fromFaces.find((f) => f.face === "finished")?.value).toBe(0.368);
-    void east;
+    expect(waste.alongFromA).toBe(0.418); // 368 from the corner end of the bath: 0.55 - 0.5 + 0.368
+  });
+
+  it("flags a corner bath whose circular front disagrees with its printed lengths", () => {
+    const src = [{ url: "https://example.com/angie", locator: "drawing" }];
+    const pub = (value: number | string): FieldValue => ({ value, status: "published", sources: src });
+    const sub = { manufacturer: "Enflair", model: "Angie", fields: {
+      length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+      surround: { value: null, note: "Not on the drawing." },
+    } };
+    const problems = validateSubmission(categoryById("bath")!, sub);
+    expect(problems.filter((p) => p.severity === "error")).toEqual([]);
+    expect(problems.find((p) => p.code === "outline_disagrees")?.message).toMatch(/945(\.\d)? × 945(\.\d)? mm along the walls, but the printed length and width are 1000 × 1000/);
   });
 });

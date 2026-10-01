@@ -32,7 +32,8 @@ import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
 import { sideNormal } from "./faces";
 import type { LibraryProduct } from "./productLibrary";
-import { categoryById, envelopeOf } from "./products";
+import { categoryById, cornerBathOutline, envelopeOf } from "./products";
+import { outlineExtents, outlineProblems, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
 import { SNAP, dist, formatMm, quantize, segLen, segPoint } from "./geometry";
@@ -561,19 +562,6 @@ function cornerSide(anchor: FixtureAnchor, wall: Wall): "left" | "right" {
   return cornerAtA === towardB ? "left" : "right";
 }
 
-/**
- * 3D for a corner bath: a quarter-round shell with its square corner at whichever end of the
- * wall the bath is set against (the nearer one), and a recessed basin. The plan footprint stays
- * the product's length × width box; the shape is a planning approximation, not the moulding.
- */
-function cornerBathParts(env: { w: number; d: number; h: number }, corner: "left" | "right"): PartSpec[] {
-  const rim = Math.min(0.06, env.w / 10, env.d / 10);
-  return [
-    { shape: "quadrant", corner, w: env.w, d: env.d, h: env.h, color: "#eef2f4", roughness: 0.25 },
-    { shape: "quadrant", corner, w: env.w - 2 * rim, d: env.d - 2 * rim, y: env.h - 0.02, h: 0.03, color: "#dfe9ee", roughness: 0.15 },
-  ];
-}
-
 /** Validate an anchor as a caller supplied it. Nothing changes until the caller applies it. */
 function buildAnchor(input: AnchorInput):
   | { ok: true; anchor: FixtureAnchor; r: ReturnType<typeof rounding>; wall: Wall }
@@ -1077,8 +1065,19 @@ export const actions = {
     const { anchor } = built;
     const label = `${product.manufacturer} ${product.model}`;
     const corner = product.category === "bath" && product.fields.shape?.value === "corner-round" ? cornerSide(anchor, built.wall) : null;
-    const parts = corner ? cornerBathParts(env, corner) : undefined;
-    const defined = this.defineItemKind({ kind: `product_${product.id}`, label, w: env.w, d: env.d, h: env.h, category: "bath", ...(parts ? { parts } : {}) });
+    // a corner bath gets its real outline, mirrored to the corner it sits in; the box is
+    // the larger of the printed sizes and the outline, so clearance is never understated
+    const outline = corner ? cornerBathOutline(product.fields, env.w, env.d, corner) : null;
+    let box = { ...env };
+    if (outline) {
+      const e = outlineExtents(outline);
+      box = { w: Math.max(env.w, e.maxX - e.minX), d: Math.max(env.d, e.maxY - e.minY), h: env.h };
+    }
+    const shaped = outline && (box.w !== env.w || box.d !== env.d) ? cornerBathOutline(product.fields, box.w, box.d, corner!) : outline;
+    const defined = this.defineItemKind({
+      kind: `product_${product.id}${corner ? `_${corner}` : ""}`, label, w: box.w, d: box.d, h: box.h, category: "bath",
+      ...(shaped ? { outline: shaped } : {}),
+    });
     if (!defined.ok) return defined;
     const source = `${label}, product library ${product.id} (published)`;
     const servicePoints: ServicePoint[] = (product.roughIn ?? []).map((rp) => {
@@ -1273,11 +1272,17 @@ export const actions = {
     color?: string;
     category?: string;
     parts?: PartSpec[];
+    outline?: Outline;
   }): ActionResult {
     const kind = spec.kind.trim().toLowerCase().replace(/[^a-z0-9_:-]+/g, "_");
     if (!kind) return fail("A kind id is required.");
     if (FURNITURE_BUILDERS[kind]) return fail(`"${kind}" is a built-in kind — pick another id or use place_item.`);
     if (!(spec.w > 0 && spec.d > 0 && spec.h > 0)) return fail("w, d and h must all be positive metres.");
+    if (spec.outline !== undefined) {
+      const problems = outlineProblems(spec.outline, spec.w, spec.d);
+      if (problems.length) return fail(`Outline rejected: ${problems.join("; ")}.`);
+    }
+    const outline = spec.outline ? { outline: structuredClone(spec.outline) } : {};
     const known: CatalogEntry["category"][] = ["living", "bedroom", "kitchen", "bath", "office", "decor"];
     const category = known.includes(spec.category as CatalogEntry["category"])
       ? (spec.category as CatalogEntry["category"])
@@ -1291,16 +1296,18 @@ export const actions = {
       existing.h = spec.h;
       existing.color = color;
       existing.category = category;
+      if (spec.outline) existing.outline = structuredClone(spec.outline);
+      else delete existing.outline;
     } else {
-      registerCatalogEntry({ kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category });
+      registerCatalogEntry({ kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category, ...outline });
     }
     if (spec.parts?.length) defineCustomKind(kind, spec.parts);
     store.setState((s) => ({ kinds: [...s.kinds.filter((k) => k.entry.kind !== kind),
-      { entry: { kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category },
+      { entry: { kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category, ...outline },
         ...(spec.parts?.length ? { parts: structuredClone(spec.parts) } : {}) }] }));
     bumpCatalog();
     return ok(
-      `"${spec.label}" defined as ${kind} (${spec.w} × ${spec.d} × ${spec.h} m${spec.parts?.length ? `, ${spec.parts.length} parts` : ", blocked out from its footprint"}). Place it with place_item.`,
+      `"${spec.label}" defined as ${kind} (${spec.w} × ${spec.d} × ${spec.h} m${spec.outline ? ", with its plan outline" : ""}${spec.parts?.length ? `, ${spec.parts.length} parts` : spec.outline ? ", extruded from its outline" : ", blocked out from its footprint"}). Place it with place_item.`,
       { kind },
     );
   },

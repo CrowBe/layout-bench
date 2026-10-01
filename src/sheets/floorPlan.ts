@@ -11,6 +11,7 @@ import { pointSegDist, rectCorners, segLen, type ORect, type Pt } from "../model
 import { openingSpan } from "../model/issues";
 import { resolveFace, sideFaces, sideNormal, layerLabel } from "../model/faces";
 import { anchorPose, roughIn, wallOccupied, wallOccupiedRect } from "../model/fixtures";
+import { itemPolygon } from "../model/outline";
 import { sheetById, type SheetFinding } from "./check";
 
 export const PAPER = { w: 420, h: 297 }; // A3 landscape, mm
@@ -168,7 +169,7 @@ export function renderFloorPlan(model: PlanModel, opts: RenderOptions): string {
   const fixtureNo = new Map(fixtures.map((it, i) => [it.id, `F${i + 1}`]));
   for (const it of fixtures) {
     const cat = catalogByKind(it.kind)!;
-    poly(rectCorners({ cx: it.x, cy: it.y, hw: cat.w / 2, hd: cat.d / 2, rot: (-it.rotation * Math.PI) / 180 }).map(P), `fill="#fff" stroke="#444" stroke-width="0.3" data-item="${esc(it.id)}"`);
+    poly(itemPolygon(it)!.map(P), `fill="#fff" stroke="#444" stroke-width="0.3" data-item="${esc(it.id)}"`);
     const c = P({ x: it.x, y: it.y });
     text(c.x, c.y, fixtureNo.get(it.id)!, 2.6, `text-anchor="middle" dominant-baseline="middle" font-weight="bold"`);
     const pose = anchorPose(model, it);

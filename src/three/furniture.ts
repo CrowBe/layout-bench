@@ -7,6 +7,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { catalogByKind } from "../model/catalog";
+import { kindPolygon } from "../model/outline";
 
 const mat = (color: string, roughness = 0.8, metalness = 0): THREE.MeshStandardMaterial =>
   new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -545,9 +546,7 @@ export const FURNITURE_BUILDERS: Record<string, Builder> = {
  * width along +x, depth along +z, y measured up from the floor, front facing +z.
  */
 export interface PartSpec {
-  shape?: "box" | "cylinder" | "sphere" | "quadrant";
-  /** quadrant only: which back corner is square (the walls meet there); the front is a quarter round */
-  corner?: "left" | "right";
+  shape?: "box" | "cylinder" | "sphere";
   x?: number;
   y?: number;
   z?: number;
@@ -587,17 +586,6 @@ function buildCustom(parts: PartSpec[], fallbackColor: string): THREE.Group {
     if (p.shape === "cylinder") {
       mesh = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, h, 24), m);
       mesh.scale.z = d / w; // an ellipse when depth differs from width
-    } else if (p.shape === "quadrant") {
-      // a quarter of an elliptical cylinder filling the part's w × d box: square back corner, round front
-      const left = p.corner !== "right";
-      mesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, h, 32, 1, false, left ? 0 : Math.PI * 1.5, Math.PI / 2), m);
-      mesh.scale.set(w, 1, d);
-      mesh.position.set((p.x ?? 0) + (left ? -w / 2 : w / 2), (p.y ?? 0) + h / 2, (p.z ?? 0) - d / 2);
-      mesh.rotation.y = ((p.rotation ?? 0) * Math.PI) / 180;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      g.add(mesh);
-      continue;
     } else if (p.shape === "sphere") {
       mesh = new THREE.Mesh(new THREE.SphereGeometry(w / 2, 20, 14), m);
       mesh.scale.set(1, h / w, d / w);
@@ -636,5 +624,31 @@ export function buildFurniture(kind: string): THREE.Group | null {
   if (custom) return buildCustom(custom, cat?.color ?? "#9a9186");
   const b = FURNITURE_BUILDERS[kind];
   if (b) return b();
+  if (cat?.outline) return outlinePiece(kindPolygon(cat), cat.h, cat.color);
   return cat ? genericPiece(cat.w, cat.d, cat.h, cat.color) : null;
+}
+
+/**
+ * A piece with a plan outline (#37) and no hand-built parts: its outline extruded to its
+ * height, with a lighter inset on top so a bath or basin reads as a recess. Plan local y is
+ * the piece's depth, which is +z (its front) in 3D.
+ */
+function outlinePiece(poly: { x: number; y: number }[], h: number, color: string): THREE.Group {
+  const g = new THREE.Group();
+  const extrude = (pts: { x: number; y: number }[], height: number, m: THREE.Material, y0: number) => {
+    const shape = new THREE.Shape(pts.map((p) => new THREE.Vector2(p.x, p.y)));
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
+    geo.rotateX(Math.PI / 2); // shape (x, y) → (x, z); extrusion runs downward from 0
+    geo.translate(0, y0 + height, 0);
+    const mesh = new THREE.Mesh(geo, m);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    g.add(mesh);
+  };
+  extrude(poly, h, mat(color, 0.35), 0);
+  // inset top: the outline pulled 12% toward its centroid, 2 cm proud of the rim
+  const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
+  const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
+  extrude(poly.map((p) => ({ x: cx + (p.x - cx) * 0.88, y: cy + (p.y - cy) * 0.88 })), 0.02, mat("#dfe9ee", 0.15), h - 0.01);
+  return g;
 }
