@@ -17,14 +17,14 @@ const run = (wall: Wall, side: WallSideName, patch: WallSidePatch) => {
   return r;
 };
 
-const toInput = (q: Quantity | undefined): QuantityInput | null =>
+export const toInput = (q: Quantity | undefined): QuantityInput | null =>
   q ? { value: q.value ?? null, ...(q.status ? { status: q.status } : {}), ...(q.source ? { source: q.source } : {}) } : null;
 
 const layerInputs = (s: WallSide | undefined): LayerInput[] =>
   (s?.layers ?? []).map((l) => ({ id: l.id, kind: l.kind, name: l.name, thickness: toInput(l.thickness) }));
 
 /** Millimetre value plus status. Blank means unknown. */
-function QuantityField({ label, q, onCommit }: {
+export function QuantityField({ label, q, onCommit }: {
   label: string;
   q: Quantity | undefined;
   onCommit: (next: QuantityInput | null) => { ok: boolean; summary: string };

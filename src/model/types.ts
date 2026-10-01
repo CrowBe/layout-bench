@@ -37,6 +37,29 @@ export interface BuildUpLayer {
   thickness: Quantity;
 }
 
+export type FloorLayerKind = "waterproofing" | "screed" | "adhesive" | "tile";
+
+export interface FloorLayer {
+  id: string;
+  kind: FloorLayerKind;
+  name: string; // e.g. "Sand/cement screed"
+  thickness: Quantity;
+}
+
+/**
+ * A room's proposed floor assembly (#6). Levels are metres, up positive, from a named datum
+ * (by default the existing floor surface, 0). `substrateTop` is the top of the stripped
+ * substrate as an offset from the datum (negative when the old finish is removed).
+ */
+export interface FloorAssembly {
+  datum: string;
+  /** What the substrate is, as found; free text, never assumed. */
+  substrate?: string;
+  substrateTop?: Quantity;
+  /** Ordered from the substrate upward. */
+  layers: FloorLayer[];
+}
+
 /** One side of a wall. Positions are offsets from the drawn line toward this side, in metres. */
 export interface WallSide {
   /** The existing surface as surveyed. Kept as a measured reference; never converted to a frame position. */
@@ -87,6 +110,8 @@ export interface Room {
   h: number;
   label: string;
   floor: string; // floor finish key, e.g. "oak" | "tile" | "concrete" | "carpet"
+  /** Proposed floor assembly and level datum (#6). Absent = nothing recorded. */
+  floorBuildUp?: FloorAssembly;
 }
 
 export interface Item {

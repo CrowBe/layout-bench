@@ -23,6 +23,7 @@ import {
 } from "./geometry";
 import { catalogByKind } from "./catalog";
 import { sideProblems } from "./faces";
+import { floorProblems } from "./floor";
 import { fixtureProblems, wallOccupiedRect } from "./fixtures";
 import { itemPolygon, polygonsOverlap } from "./outline";
 
@@ -224,6 +225,11 @@ export function checkModel(model: PlanModel): Issue[] {
 
   // ---- Rooms -----------------------------------------------------------------
   for (const r of rooms) {
+    if (r.floorBuildUp) {
+      for (const p of floorProblems(r.floorBuildUp)) {
+        issues.push({ severity: p.severity, code: p.code, message: `Room "${r.label}" floor: ${p.message}`, refs: [r.id] });
+      }
+    }
     if (r.w < 0.5 || r.h < 0.5) {
       issues.push({
         severity: "error",
