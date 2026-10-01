@@ -701,7 +701,7 @@ export const TOOLS: ToolDef[] = [
     description:
       "Create a piece of furniture that is NOT in the catalogue, then place it with place_item. Use this whenever the plan draws something the catalogue does not have, or draws it at a different size — a corner bath, an L-shaped sofa, a kitchen island, a piano. Do NOT approximate with the nearest stock item when the plan shows something specific: define the real thing. " +
       "Required: kind (a stable snake_case id), label, and the true footprint w × d and height h in METRES. " +
-      "Optional `parts` models it in 3D from primitives; without it the piece is blocked out from its footprint. Each part is { shape: \"box\" | \"cylinder\" | \"sphere\", x, y, z, w, h, d, color, rotation }, in the piece's OWN local frame: x runs along its width, z along its depth, y is height above the floor and is the part's BOTTOM (a 0.4 m tall seat resting on the floor is y:0, h:0.4). The piece faces +z, so a backrest sits at negative z and the front is positive z — that keeps it consistent with the rotation convention in place_item. For a cylinder, w is the diameter and d makes it an ellipse. Sizes are metres, colours are hex.",
+      "Optional `parts` models it in 3D from primitives; without it the piece is blocked out from its footprint. Each part is { shape: \"box\" | \"cylinder\" | \"sphere\", x, y, z, w, h, d, color, rotation }, in the piece's OWN local frame: x runs along its width, z along its depth, y is height above the floor and is the part's BOTTOM (a 0.4 m tall seat resting on the floor is y:0, h:0.4). The piece faces +z, so a backrest sits at negative z and the front is positive z — that keeps it consistent with the rotation convention in place_item. For a cylinder, w is the diameter and d makes it an ellipse. A quadrant fills its w × d box as a quarter round: square back corner on the `corner` side (left = -x, the default), curved front, as for a corner bath. Sizes are metres, colours are hex.",
     inputSchema: obj(
       {
         kind: str,
@@ -716,7 +716,8 @@ export const TOOLS: ToolDef[] = [
           items: {
             type: "object",
             properties: {
-              shape: { type: "string", enum: ["box", "cylinder", "sphere"] },
+              shape: { type: "string", enum: ["box", "cylinder", "sphere", "quadrant"] },
+              corner: { type: "string", enum: ["left", "right"] },
               x: num,
               y: num,
               z: num,

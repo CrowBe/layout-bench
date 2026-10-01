@@ -29,7 +29,8 @@ import type {
 import { emptyModel } from "./types";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
-import { anchorPose, applyAnchors, faceChoices } from "./fixtures";
+import { anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
+import { sideNormal } from "./faces";
 import type { LibraryProduct } from "./productLibrary";
 import { categoryById, envelopeOf } from "./products";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
@@ -549,6 +550,30 @@ const heightPrompt = (o: Opening): string =>
 // Shared actions (UI + WebMCP tools)
 // ---------------------------------------------------------------------------
 
+/** Which back corner of a placed corner bath is square: the end of the wall it sits nearer. */
+function cornerSide(anchor: FixtureAnchor, wall: Wall): "left" | "right" {
+  const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
+  const alongFromA = anchor.from === "b" ? len - anchor.distance : anchor.distance;
+  const cornerAtA = alongFromA <= len - alongFromA;
+  const n = sideNormal(wall, anchor.side);
+  const rot = (-facingRotation(n) * Math.PI) / 180;
+  const towardB = Math.cos(rot) * (wall.bx - wall.ax) + Math.sin(rot) * (wall.by - wall.ay) > 0;
+  return cornerAtA === towardB ? "left" : "right";
+}
+
+/**
+ * 3D for a corner bath: a quarter-round shell with its square corner at whichever end of the
+ * wall the bath is set against (the nearer one), and a recessed basin. The plan footprint stays
+ * the product's length × width box; the shape is a planning approximation, not the moulding.
+ */
+function cornerBathParts(env: { w: number; d: number; h: number }, corner: "left" | "right"): PartSpec[] {
+  const rim = Math.min(0.06, env.w / 10, env.d / 10);
+  return [
+    { shape: "quadrant", corner, w: env.w, d: env.d, h: env.h, color: "#eef2f4", roughness: 0.25 },
+    { shape: "quadrant", corner, w: env.w - 2 * rim, d: env.d - 2 * rim, y: env.h - 0.02, h: 0.03, color: "#dfe9ee", roughness: 0.15 },
+  ];
+}
+
 /** Validate an anchor as a caller supplied it. Nothing changes until the caller applies it. */
 function buildAnchor(input: AnchorInput):
   | { ok: true; anchor: FixtureAnchor; r: ReturnType<typeof rounding>; wall: Wall }
@@ -1051,11 +1076,19 @@ export const actions = {
     if (!built.ok) return built.result;
     const { anchor } = built;
     const label = `${product.manufacturer} ${product.model}`;
-    const defined = this.defineItemKind({ kind: `product_${product.id}`, label, w: env.w, d: env.d, h: env.h, category: "bath" });
+    const corner = product.category === "bath" && product.fields.shape?.value === "corner-round" ? cornerSide(anchor, built.wall) : null;
+    const parts = corner ? cornerBathParts(env, corner) : undefined;
+    const defined = this.defineItemKind({ kind: `product_${product.id}`, label, w: env.w, d: env.d, h: env.h, category: "bath", ...(parts ? { parts } : {}) });
     if (!defined.ok) return defined;
     const source = `${label}, product library ${product.id} (published)`;
     const servicePoints: ServicePoint[] = (product.roughIn ?? []).map((rp) => {
-      const across = rp.across?.from === "fixture-centreline" ? rp.across.value : undefined;
+      // from the fixture end: convert to the centreline only when the product says which end
+      // a corner bath's "end" is its back edge on the other wall: the corner it sits in
+      const end = corner ?? product.fields.wasteEnd?.value;
+      const across = rp.across?.from === "fixture-centreline" ? rp.across.value
+        : rp.across?.from === "fixture-end" && rp.across.value !== undefined && (end === "left" || end === "right")
+          ? quantize(end === "left" ? -env.w / 2 + rp.across.value : env.w / 2 - rp.across.value)
+          : undefined;
       let face = "finished";
       let out: number | undefined;
       let outMax: number | undefined;

@@ -84,7 +84,7 @@ describe("product spec validation (#30)", () => {
 
   it("asks an inset or back-to-wall bath for its hob or surround (review on #33)", () => {
     const bath = (installation: string): SpecSubmission => ({ manufacturer: "Example Co", model: "Test Bath", fields: {
-      length: pub(1.675), width: pub(0.75), height: pub(0.45), installation: pub(installation),
+      length: pub(1.675), width: pub(0.75), height: pub(0.45), installation: pub(installation), shape: pub("rectangular"),
       wasteFromEnd: pub(0.2), wasteFromSide: pub(0.375),
     } });
     const cat = categoryById("bath")!;

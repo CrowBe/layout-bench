@@ -230,4 +230,30 @@ describe("fixtures set out from wall faces (#5)", () => {
       expect(() => parseImport(JSON.stringify(gas))).toThrow();
     });
   });
+
+  it("places a corner bath in the corner it sits nearer, with a quarter-round shell and its waste on the plan", () => {
+    const [back, east] = bathroom();
+    faceBackWall(back);
+    // numbers as on the Enflair Angie drawing: 1000 along each wall, 630 high, waste 368 from each wall edge
+    const src = [{ url: "https://example.com/angie.pdf", locator: "plan view" }];
+    const pub = (value: number | string): FieldValue => ({ value, status: "published", sources: src });
+    const fields: Record<string, FieldValue> = {
+      length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+      surround: { value: null, note: "Not on the drawing." },
+    };
+    const product: LibraryProduct = { id: "angie", category: "bath", manufacturer: "Enflair", model: "Angie 1000 Corner", fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0 };
+    // back wall runs A (x=0) → B (x=2.11); put the bath in the A-end corner, flush with the west wall body (50 mm)
+    const placed = actions.placeProduct(product, { wallId: back, side: "right", face: "finished", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    const bath = item(placed.id as string);
+    const kind = store.getState().kinds.find((k) => k.entry.kind === bath.kind)!;
+    expect(kind.parts!.map((p) => [p.shape, p.corner])).toEqual([["quadrant", "left"], ["quadrant", "left"]]);
+    const [waste] = roughIn(model(), bath);
+    expect(waste.resolved).toBe(true);
+    // 368 from the west (corner) edge of the bath: 0.55 - 0.5 + 0.368
+    expect(waste.alongFromA).toBe(0.418);
+    expect(waste.fromFaces.find((f) => f.face === "finished")?.value).toBe(0.368);
+    void east;
+  });
 });

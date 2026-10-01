@@ -545,7 +545,9 @@ export const FURNITURE_BUILDERS: Record<string, Builder> = {
  * width along +x, depth along +z, y measured up from the floor, front facing +z.
  */
 export interface PartSpec {
-  shape?: "box" | "cylinder" | "sphere";
+  shape?: "box" | "cylinder" | "sphere" | "quadrant";
+  /** quadrant only: which back corner is square (the walls meet there); the front is a quarter round */
+  corner?: "left" | "right";
   x?: number;
   y?: number;
   z?: number;
@@ -585,6 +587,17 @@ function buildCustom(parts: PartSpec[], fallbackColor: string): THREE.Group {
     if (p.shape === "cylinder") {
       mesh = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, h, 24), m);
       mesh.scale.z = d / w; // an ellipse when depth differs from width
+    } else if (p.shape === "quadrant") {
+      // a quarter of an elliptical cylinder filling the part's w × d box: square back corner, round front
+      const left = p.corner !== "right";
+      mesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, h, 32, 1, false, left ? 0 : Math.PI * 1.5, Math.PI / 2), m);
+      mesh.scale.set(w, 1, d);
+      mesh.position.set((p.x ?? 0) + (left ? -w / 2 : w / 2), (p.y ?? 0) + h / 2, (p.z ?? 0) - d / 2);
+      mesh.rotation.y = ((p.rotation ?? 0) * Math.PI) / 180;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      g.add(mesh);
+      continue;
     } else if (p.shape === "sphere") {
       mesh = new THREE.Mesh(new THREE.SphereGeometry(w / 2, 20, 14), m);
       mesh.scale.set(1, h / w, d / w);
