@@ -16,7 +16,10 @@ const human = (tool: string, r: ActionResult) => {
   return r;
 };
 
-const mm = (v: string): number | undefined => (v.trim() === "" ? undefined : Number(v) / 1000);
+/** Millimetres typed into a field: blank is unknown; anything that is not a number is NaN, never silently unknown. */
+const mm = (v: string): number | undefined => (v.trim() === "" ? undefined : Number(v.trim()) / 1000);
+const badNumbers = (fields: Record<string, string>): string[] =>
+  Object.entries(fields).filter(([, v]) => v.trim() !== "" && !Number.isFinite(Number(v.trim()))).map(([k]) => k);
 
 function AnchorForm({ model, item }: { model: PlanModel; item: Item }) {
   const a = item.anchor;
@@ -30,6 +33,8 @@ function AnchorForm({ model, item }: { model: PlanModel; item: Item }) {
   const [error, setError] = useState("");
   const wall = model.walls.find((w) => w.id === wallId);
   const submit = () => {
+    const bad = badNumbers({ gap, distance });
+    if (bad.length) { setError(`Not a number in mm: ${bad.join(", ")}.`); return; }
     const d = mm(distance);
     if (d === undefined || !Number.isFinite(d)) { setError("Enter the distance from the wall end in mm."); return; }
     const r = human("anchor_fixture", actions.anchorFixture(item.id, { wallId, side, face, gap: mm(gap) ?? 0, from, distance: d, status }));
@@ -43,7 +48,11 @@ function AnchorForm({ model, item }: { model: PlanModel; item: Item }) {
         </select>
       </label>
       <label className="field inspector-field">Side (A→B)
-        <select aria-label="Anchor side" value={side} onChange={(e) => setSide(e.target.value as WallSideName)}>
+        <select aria-label="Anchor side" value={side} onChange={(e) => {
+          const next = e.target.value as WallSideName;
+          setSide(next);
+          if (wall && !faceChoices(wall, next).some((f) => f.face === face)) setFace("finished");
+        }}>
           <option value="left">left</option><option value="right">right</option>
         </select>
       </label>
@@ -78,6 +87,8 @@ function PointForm({ item }: { item: Item }) {
   const [error, setError] = useState("");
   const set = (k: keyof typeof p) => (e: { target: { value: string } }) => setP({ ...p, [k]: e.target.value });
   const submit = () => {
+    const bad = badNumbers({ out: p.out, "range max": p.outMax, across: p.across, up: p.up });
+    if (bad.length) { setError(`Not a number in mm: ${bad.join(", ")}. Leave a field blank if it is unknown.`); return; }
     const input: ServicePointInput = {
       label: p.label, service: p.service as ServicePointInput["service"], face: p.face, status: p.status as ValueStatus,
       out: mm(p.out) ?? null, outMax: mm(p.outMax) ?? null, across: mm(p.across) ?? null, up: mm(p.up) ?? null,
@@ -128,7 +139,8 @@ export function FixturePanel({ model, item }: { model: PlanModel; item: Item }) 
             : `Position unresolved: missing ${pose.missing.join(", ")}`}
         </span>
       )}
-      <AnchorForm key={`${item.id}:${item.anchor ? "a" : "-"}`} model={model} item={item} />
+      {/* keyed on the stored anchor, so an edit made elsewhere (the agent) resets the form */}
+      <AnchorForm key={`${item.id}:${JSON.stringify(item.anchor ?? null)}`} model={model} item={item} />
       {clear.length > 0 && (
         <span className="hint" data-role="clearances">
           Clearance: {clear.map((c) => `${c.direction} ${c.distance === null ? "—" : `${formatMm(c.distance)} mm`}${c.surface ? ` (${c.surface})` : ""}`).join(" · ")}

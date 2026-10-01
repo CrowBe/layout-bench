@@ -44,7 +44,9 @@ export function anchorPose(model: PlanModel, item: Item): AnchorPose {
   const missing = [...face.missing, ...(cat ? [] : [`footprint of kind ${item.kind}`])];
   if (!face.resolved || !cat) return { resolved: false, missing };
   const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
-  const alongFromA = a.from === "a" ? a.distance : len - a.distance;
+  // a wall shortened after set-out can leave the fixture beyond its end: do not place it in mid-air
+  if (a.distance > len + 1e-9) return { resolved: false, missing: [`anchor distance ${Math.round(a.distance * 1000)} mm, beyond the ${Math.round(len * 1000)} mm wall`] };
+  const alongFromA = a.from === "b" ? len - a.distance : a.distance;
   const d = dirOf(wall);
   const n = sideNormal(wall, a.side);
   const backOffset = face.offset! + a.gap;
@@ -238,10 +240,12 @@ export function clearances(model: PlanModel, item: Item): Clearance[] {
       if (Math.abs(dn) < 0.5) continue; // running along this wall, not toward its face
       const { zMin, zMax } = wallOccupied(w);
       const s0 = (o.x - w.ax) * nw.x + (o.y - w.ay) * nw.y;
-      if (s0 > zMin - 1e-9 && s0 < zMax + 1e-9) continue; // starts inside this wall
-      const plane = s0 >= zMax ? zMax : zMin;
+      // flush with a face, within the 0.1 mm storage precision, counts as touching it
+      const TOL = 2e-4;
+      if (s0 > zMin + TOL && s0 < zMax - TOL) continue; // starts inside this wall
+      const plane = s0 >= (zMin + zMax) / 2 ? zMax : zMin;
       const t = (plane - s0) / dn;
-      if (!(t >= -1e-9) || t > 10) continue;
+      if (!(t >= -TOL) || t > 10) continue;
       const hit = { x: o.x + u.x * t, y: o.y + u.y * t };
       const wd = dirOf(w);
       const along = (hit.x - w.ax) * wd.x + (hit.y - w.ay) * wd.y;
@@ -264,8 +268,11 @@ export function fixtureProblems(model: PlanModel): { severity: "error" | "warnin
     const label = catalogByKind(it.kind)?.label ?? it.kind;
     if (it.anchor) {
       const pose = anchorPose(model, it);
-      if (!model.walls.some((w) => w.id === it.anchor!.wallId)) {
+      const wall = model.walls.find((w) => w.id === it.anchor!.wallId);
+      if (!wall) {
         out.push({ severity: "error", code: "fixture_anchor_wall_missing", message: `${label} is set out from wall ${it.anchor.wallId}, which no longer exists.`, refs: [it.id] });
+      } else if (it.anchor.distance > segLen(wall.ax, wall.ay, wall.bx, wall.by) + 1e-9) {
+        out.push({ severity: "error", code: "fixture_anchor_off_wall", message: `${label} is set out ${Math.round(it.anchor.distance * 1000)} mm from end ${it.anchor.from.toUpperCase()} of ${wall.id}, which is now only ${Math.round(segLen(wall.ax, wall.ay, wall.bx, wall.by) * 1000)} mm long. Re-enter its set-out.`, refs: [it.id, wall.id] });
       } else if (!pose.resolved) {
         out.push({ severity: "warning", code: "fixture_anchor_unresolved", message: `${label}'s position is unresolved: missing ${pose.missing.join(", ")}. It stays where it was until they are entered.`, refs: [it.id, it.anchor.wallId] });
       }

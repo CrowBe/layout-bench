@@ -44,6 +44,7 @@ export const lampShadeMaterial = new THREE.MeshStandardMaterial({
   emissive: new THREE.Color("#ffe9bd"),
   emissiveIntensity: 0.9,
 });
+const serviceMarkerGeometry = new THREE.SphereGeometry(0.03, 12, 8);
 const serviceMaterials = {
   waste: new THREE.MeshStandardMaterial({ color: "#7a5230" }),
   water: new THREE.MeshStandardMaterial({ color: "#2f78b7" }),
@@ -522,7 +523,7 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
   for (const it of model.items) {
     for (const r of roughIn(model, it)) {
       if (r.x === undefined || r.y === undefined || r.up === undefined) continue;
-      const marker = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), serviceMaterials[r.service]);
+      const marker = new THREE.Mesh(serviceMarkerGeometry, serviceMaterials[r.service]);
       marker.position.set(r.x, r.up, r.y);
       group.add(named(marker, `${it.id}:service:${r.pointId}`));
     }

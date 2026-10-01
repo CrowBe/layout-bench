@@ -4,7 +4,7 @@
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
-import { actions, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch } from "../model/store";
+import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch } from "../model/store";
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
@@ -395,8 +395,12 @@ export const TOOLS: ToolDef[] = [
     annotations: { readOnlyHint: true },
     execute: (i) => {
       const model = store.getState().model;
-      const items = model.items.filter((it) => (i.itemId ? it.id === i.itemId : it.anchor || it.servicePoints?.length));
-      if (i.itemId && !items.length) return { ok: false, summary: `No item "${i.itemId}".` };
+      let items = model.items.filter((it) => it.anchor || it.servicePoints?.length);
+      if (i.itemId) {
+        const hit = lookupItem(i.itemId as string);
+        if (!hit.ok) return { ok: false, summary: hit.summary, candidates: hit.candidates };
+        items = [hit.entity];
+      }
       const fixtures = items.map((it) => {
         const pose = anchorPose(model, it);
         const points = roughIn(model, it);

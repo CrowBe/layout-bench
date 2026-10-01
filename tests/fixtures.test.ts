@@ -6,6 +6,7 @@ import { clearances, roughIn } from "../src/model/fixtures";
 import { roughInPoints, categoryById, type FieldValue } from "../src/model/products";
 import type { LibraryProduct } from "../src/model/productLibrary";
 import { buildPlan } from "../src/three/build";
+import { demoProject, parseImport } from "../src/model/projects";
 
 beforeEach(() => store.setState({ model: emptyModel(), undoStack: [], kinds: [] }));
 
@@ -149,5 +150,84 @@ describe("fixtures set out from wall faces (#5)", () => {
 
     const noSize = { ...product, id: "p2", fields: { ...fields, depth: { value: null, note: "n/a" } } };
     expect(actions.placeProduct(noSize, { wallId: back, side: "right", face: "finished", distance: 0.5, status: "proposed" }).ok).toBe(false);
+  });
+
+  describe("review on #35", () => {
+    const product = (): LibraryProduct => {
+      const src = [{ url: "https://example.com/pan.pdf", locator: "p. 2" }];
+      const pub = (value: number | string): FieldValue => ({ value, status: "published", sources: src });
+      const fields: Record<string, FieldValue> = {
+        width: pub(0.381), depth: pub(0.68), height: pub(0.807), panType: pub("back-to-wall"), cistern: pub("close-coupled"),
+        inletEntry: pub("bottom"), trap: pub("S"), sTrapSetoutMin: pub(0.14), sTrapSetoutMax: pub(0.26),
+        inletHeight: pub(0.18), inletOffset: pub(-0.18), power: pub("not-required"),
+      };
+      return { id: "p1", category: "toilet", manufacturer: "Example Co", model: "Test Pan", fields, roughIn: roughInPoints(categoryById("toilet")!, fields), requestId: "r1", acceptedAt: 0 };
+    };
+
+    it("places a product as one undo step, and a refused placement changes nothing", () => {
+      const [back] = bathroom();
+      faceBackWall(back);
+      const before = structuredClone(model());
+      const undoDepth = store.getState().undoStack.length;
+      expect(actions.placeProduct(product(), { wallId: back, side: "right", face: "no-such-face", distance: 0.5, status: "proposed" }).ok).toBe(false);
+      expect(model()).toEqual(before);
+      expect(store.getState().undoStack.length).toBe(undoDepth);
+      expect(actions.placeProduct(product(), { wallId: back, side: "right", face: "finished", distance: 0.5, status: "proposed" }).ok).toBe(true);
+      expect(store.getState().undoStack.length).toBe(undoDepth + 1);
+      actions.undo();
+      expect(model().items).toEqual(before.items);
+    });
+
+    it("keeps a caller's service point id, so a second call replaces it", () => {
+      const [back] = bathroom();
+      faceBackWall(back);
+      const v = vanity(back);
+      actions.setServicePoint(v, { id: "inlet", label: "Inlet", service: "water", face: "finished", out: 0, across: 0.1, status: "proposed" });
+      actions.setServicePoint(v, { id: "inlet", label: "Inlet", service: "water", face: "finished", out: 0.02, across: 0.1, status: "proposed" });
+      expect(item(v).servicePoints!.map((p) => [p.id, p.out])).toEqual([["inlet", 0.02]]);
+      expect(actions.removeServicePoint(v, "inlet").ok).toBe(true);
+    });
+
+    it("refuses a non-numeric value instead of storing it as unknown", () => {
+      const [back] = bathroom();
+      faceBackWall(back);
+      const v = vanity(back);
+      expect(actions.setServicePoint(v, { label: "Waste", service: "waste", face: "finished", out: 0, up: Number.NaN, status: "proposed" }).ok).toBe(false);
+      expect(item(v).servicePoints ?? []).toEqual([]);
+    });
+
+    it("flags a fixture left beyond the end of a shortened wall and does not move it", () => {
+      const [back] = bathroom();
+      faceBackWall(back);
+      const v = vanity(back);
+      const before = { ...item(v) };
+      expect(actions.editWall(back, { bx: 1.0 }).ok).toBe(true);
+      expect(item(v)).toMatchObject({ x: before.x, y: before.y });
+      expect(codes()).toContain("fixture_anchor_off_wall");
+    });
+
+    it("reads 0 mm clearance when a fixture is flush with a return wall", () => {
+      const [back] = bathroom();
+      faceBackWall(back);
+      const v = vanity(back);
+      // west wall body reaches 50 mm into the room; half the vanity is 455 mm
+      actions.anchorFixture(v, { wallId: back, side: "right", face: "finished", distance: 0.505, status: "proposed" });
+      expect(clearances(model(), item(v))[0]).toMatchObject({ direction: "left", distance: 0 });
+    });
+
+    it("refuses project JSON whose anchor or service point is incomplete", () => {
+      const [back] = bathroom();
+      faceBackWall(back);
+      const v = vanity(back);
+      actions.setServicePoint(v, { label: "Waste", service: "waste", face: "finished", out: 0, status: "proposed" });
+      const doc = { ...demoProject(), id: "bath", model: model() };
+      expect(() => parseImport(JSON.stringify(doc))).not.toThrow();
+      const noFrom = structuredClone(doc);
+      delete (noFrom.model.items[0].anchor as { from?: string }).from;
+      expect(() => parseImport(JSON.stringify(noFrom))).toThrow();
+      const gas = structuredClone(doc);
+      (gas.model.items[0].servicePoints![0] as { service: string }).service = "gas";
+      expect(() => parseImport(JSON.stringify(gas))).toThrow();
+    });
   });
 });

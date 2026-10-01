@@ -366,6 +366,10 @@ export function lookupWall(ref: string, forgiving = false): Resolved<Wall> {
   return resolveWall(ref, forgiving);
 }
 
+export function lookupItem(ref: string): Resolved<Item> {
+  return resolveItem(ref);
+}
+
 function resolveRoom(ref: string): Resolved<Room> {
   return resolveRef("Room", ref, store.getState().model.rooms, {
     id: (room) => room.id,
@@ -534,6 +538,31 @@ const heightPrompt = (o: Opening): string =>
 // ---------------------------------------------------------------------------
 // Shared actions (UI + WebMCP tools)
 // ---------------------------------------------------------------------------
+
+/** Validate an anchor as a caller supplied it. Nothing changes until the caller applies it. */
+function buildAnchor(input: AnchorInput):
+  | { ok: true; anchor: FixtureAnchor; r: ReturnType<typeof rounding>; wall: Wall }
+  | { ok: false; result: ActionResult } {
+  const no = (summary: string) => ({ ok: false as const, result: fail(summary) });
+  const w = resolveWall(input?.wallId ?? "");
+  if (!w.ok) return { ok: false, result: rejected(w) };
+  const wall = w.entity;
+  if (input.side !== "left" && input.side !== "right") return no(`Side must be "left" or "right" (walking from end A to end B).`);
+  const faces = faceChoices(wall, input.side).map((f) => f.face);
+  if (!faces.includes(input.face)) return no(`Face must be one of ${faces.join(", ")} for the ${input.side} side of ${wall.id}.`);
+  if (!VALUE_STATUSES.includes(input.status)) return no(`Anchor needs a status: ${VALUE_STATUSES.join(", ")}.`);
+  if (input.from !== undefined && input.from !== "a" && input.from !== "b") return no(`from must be "a" or "b".`);
+  if (input.gap !== undefined && (typeof input.gap !== "number" || !Number.isFinite(input.gap))) return no("Gap must be a number of metres.");
+  if (typeof input.distance !== "number" || !Number.isFinite(input.distance)) return no("Distance must be a number of metres.");
+  const r = rounding();
+  const gap = r.q(input.gap ?? 0, "gap");
+  if (!(gap >= 0)) return no("Gap cannot be negative: the fixture's back would be inside the face.");
+  const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
+  const distance = r.q(input.distance, "distance");
+  if (!(distance >= 0 && distance <= len)) return no(`Distance must be within the ${formatMm(len)} mm wall.`);
+  const anchor: FixtureAnchor = { wallId: wall.id, side: input.side, face: input.face, gap, from: input.from === "b" ? "b" : "a", distance, status: input.status, ...(input.source?.trim() ? { source: input.source.trim() } : {}) };
+  return { ok: true, anchor, r, wall };
+}
 
 export const actions = {
   // ---- structure ----
@@ -888,33 +917,21 @@ export const actions = {
       setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
       return ok(`${item.id} released; it stays at (${formatMm(item.x)}, ${formatMm(item.y)}) mm and moves freely.`, { id: item.id });
     }
-    const w = resolveWall(input.wallId);
-    if (!w.ok) return rejected(w);
-    const wall = w.entity;
-    if (input.side !== "left" && input.side !== "right") return fail(`Side must be "left" or "right" (walking from end A to end B).`);
-    const faces = faceChoices(wall, input.side).map((f) => f.face);
-    if (!faces.includes(input.face)) return fail(`Face must be one of ${faces.join(", ")} for the ${input.side} side of ${wall.id}.`);
-    if (!VALUE_STATUSES.includes(input.status)) return fail(`Anchor needs a status: ${VALUE_STATUSES.join(", ")}.`);
-    const r = rounding();
-    const gap = r.q(input.gap ?? 0, "gap");
-    if (!(gap >= 0)) return fail("Gap cannot be negative: the fixture's back would be inside the face.");
-    const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
-    const distance = r.q(input.distance, "distance");
-    if (!(distance >= 0 && distance <= len)) return fail(`Distance must be within the ${formatMm(len)} mm wall.`);
-    const anchor: FixtureAnchor = { wallId: wall.id, side: input.side, face: input.face, gap, from: input.from === "b" ? "b" : "a", distance, status: input.status, ...(input.source?.trim() ? { source: input.source.trim() } : {}) };
+    const built = buildAnchor(input);
+    if (!built.ok) return built.result;
+    const { anchor, r, wall } = built;
     const next: Item = { ...item, anchor };
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
     const pose = anchorPose(store.getState().model, next);
     return r.ok(
       pose.resolved
-        ? `${item.id} set ${formatMm(gap)} mm off the ${input.face} face of ${wall.id} (${input.side}), centre ${formatMm(distance)} mm from end ${anchor.from.toUpperCase()}.`
+        ? `${item.id} set ${formatMm(anchor.gap)} mm off the ${anchor.face} face of ${wall.id} (${anchor.side}), centre ${formatMm(anchor.distance)} mm from end ${anchor.from.toUpperCase()}.`
         : `${item.id} anchored, but its position is unresolved: missing ${pose.missing.join(", ")}. It stays where it was until those are entered.`,
       { id: item.id, resolved: pose.resolved, ...(pose.resolved ? { x: pose.x, y: pose.y, rotation: pose.rotation } : { missing: pose.missing }) },
     );
   },
 
-  /** Add or replace one service point on a fixture. */
   setServicePoint(itemRef: string, input: ServicePointInput): ActionResult {
     const hit = resolveItem(itemRef);
     if (!hit.ok) return rejected(hit);
@@ -926,14 +943,19 @@ export const actions = {
     }
     if (!VALUE_STATUSES.includes(input.status)) return fail(`Service point needs a status: ${VALUE_STATUSES.join(", ")}.`);
     const r = rounding();
-    const num = (v: number | null | undefined, label: string) => (typeof v === "number" && Number.isFinite(v) ? r.q(v, label) : undefined);
+    for (const k of ["out", "outMax", "across", "up"] as const) {
+      const v = input[k];
+      if (v !== undefined && v !== null && (typeof v !== "number" || !Number.isFinite(v))) return fail(`${k} must be a number of metres, or left out when unknown.`);
+    }
+    const num = (v: number | null | undefined, label: string) => (typeof v === "number" ? r.q(v, label) : undefined);
     const out = num(input.out, "out");
     const outMax = num(input.outMax, "outMax");
     if (out !== undefined && outMax !== undefined && outMax < out) return fail("outMax must not be less than out.");
     const up = num(input.up, "up");
     if (up !== undefined && up < 0) return fail("Up is measured above the finished floor and cannot be negative.");
     const existing = item.servicePoints ?? [];
-    const id = input.id && existing.some((p) => p.id === input.id) ? input.id : uid("sp");
+    if (input.id !== undefined && (typeof input.id !== "string" || !/^[A-Za-z0-9_:-]{1,40}$/.test(input.id))) return fail("id must be 1–40 letters, digits, _, : or -.");
+    const id = input.id ?? uid("sp");
     const point: ServicePoint = {
       id, label: input.label.trim(), service: input.service, face: input.face,
       ...(out !== undefined ? { out } : {}), ...(outMax !== undefined ? { outMax } : {}),
@@ -963,24 +985,19 @@ export const actions = {
    * published rough-in points are copied onto the fixture, each still naming its datum. A point
    * whose datum this plan cannot express is copied with that axis unknown.
    */
-  placeProduct(product: LibraryProduct, anchor: AnchorInput): ActionResult {
+  placeProduct(product: LibraryProduct, anchorInput: AnchorInput): ActionResult {
     const cat = categoryById(product.category);
     const env = cat ? envelopeOf(cat, product.fields) : null;
     if (!env) return fail(`${product.manufacturer} ${product.model} has no known overall size, so it cannot be placed without inventing one.`);
+    // validate everything before anything changes, then apply as one undo step
+    const built = buildAnchor(anchorInput);
+    if (!built.ok) return built.result;
+    const { anchor } = built;
     const label = `${product.manufacturer} ${product.model}`;
-    const kind = `product_${product.id}`;
-    const defined = this.defineItemKind({ kind, label, w: env.w, d: env.d, h: env.h, category: "bath" });
+    const defined = this.defineItemKind({ kind: `product_${product.id}`, label, w: env.w, d: env.d, h: env.h, category: "bath" });
     if (!defined.ok) return defined;
-    const placed = this.placeItem(defined.kind as string, 0, 0, 0);
-    if (!placed.ok) return placed;
-    const itemId = placed.id as string;
-    const anchored = this.anchorFixture(itemId, anchor);
-    if (!anchored.ok) {
-      this.removeItem(itemId);
-      return anchored;
-    }
     const source = `${label}, product library ${product.id} (published)`;
-    const points: ServicePoint[] = (product.roughIn ?? []).map((rp) => {
+    const servicePoints: ServicePoint[] = (product.roughIn ?? []).map((rp) => {
       const across = rp.across?.from === "fixture-centreline" ? rp.across.value : undefined;
       let face = "finished";
       let out: number | undefined;
@@ -991,21 +1008,26 @@ export const actions = {
       } else if (rp.out?.from === "fixture-side") {
         // measured from the fixture's back edge, which sits `gap` in front of the anchor face
         face = anchor.face;
-        out = rp.out.value !== undefined ? rp.out.value + (anchor.gap ?? 0) : undefined;
+        out = rp.out.value !== undefined ? quantize(rp.out.value + anchor.gap) : undefined;
       }
       const up = rp.up?.from === "finished-floor" ? rp.up.value : undefined;
       const unconverted = [rp.across && across === undefined ? `across from ${rp.across.from}` : "", rp.out && out === undefined ? `out from ${rp.out.from}` : ""].filter(Boolean);
       return {
-        id: `${rp.id}`, label: rp.label, service: rp.service, face,
+        id: rp.id, label: rp.label, service: rp.service, face,
         ...(out !== undefined ? { out } : {}), ...(outMax !== undefined ? { outMax } : {}),
         ...(across !== undefined ? { across } : {}), ...(up !== undefined ? { up } : {}),
         status: "published" as const,
         source: unconverted.length ? `${source}; not converted: ${unconverted.join(", ")}` : source,
       };
     });
-    const model = store.getState().model;
-    setModel({ ...model, items: model.items.map((i) => (i.id === itemId ? { ...i, productId: product.id, servicePoints: points } : i)) });
-    return ok(`${label} placed. ${anchored.summary} ${points.length} service point(s) copied from the library.`, { id: itemId, kind, resolved: anchored.resolved });
+    const item: Item = { id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, servicePoints };
+    pushUndo();
+    setModel({ ...store.getState().model, items: [...store.getState().model.items, item] });
+    const pose = anchorPose(store.getState().model, item);
+    return built.r.ok(
+      `${label} placed${pose.resolved ? ` ${formatMm(anchor.gap)} mm off the ${anchor.face} face of ${anchor.wallId} (${anchor.side}), centre ${formatMm(anchor.distance)} mm from end ${anchor.from.toUpperCase()}` : `, but its position is unresolved: missing ${pose.missing.join(", ")}`}. ${servicePoints.length} service point(s) copied from the library.`,
+      { id: item.id, kind: item.kind, resolved: pose.resolved },
+    );
   },
 
   removeItem(idOrKind: string): ActionResult {

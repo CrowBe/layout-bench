@@ -4,7 +4,7 @@
  * millimetre dimensions, configurable pointer snap, pan & zoom. Everything mutates the same store the agent uses.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sideFaces, sideNormal } from "../model/faces";
 import { roughIn } from "../model/fixtures";
 import { useAppStore, actions, logActivity } from "../model/store";
@@ -42,6 +42,11 @@ const FACE_STYLE: Record<string, { stroke: string; dash?: string }> = {
 
 export function Editor() {
   const model = useAppStore((s) => s.model);
+  // derived once per model change, not on every pointer move
+  const servicePoints = useMemo(
+    () => model.items.flatMap((it) => roughIn(model, it).filter((r) => r.x !== undefined && r.y !== undefined).map((r) => ({ it, r }))),
+    [model],
+  );
   const editor = useAppStore((s) => s.editor);
   const [view, setView] = useState<View>({ x: -1.5, y: -1.5, scale: 90 });
   const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
@@ -467,12 +472,12 @@ export function Editor() {
       })}
 
       {/* service points (#5): only resolved ones have a position */}
-      {model.items.flatMap((it) => roughIn(model, it).filter((r) => r.x !== undefined && r.y !== undefined).map((r) => (
+      {servicePoints.map(({ it, r }) => (
         <g key={`${it.id}:${r.pointId}`} data-sp={`${it.id}:${r.pointId}`} pointerEvents="none">
           <circle cx={r.x! * S} cy={r.y! * S} r={Math.max(3, 0.03 * S)} fill={SERVICE_COLOR[r.service]} stroke="#fff" strokeWidth={1} />
           {S > 80 && <text x={r.x! * S + 6} y={r.y! * S - 6} fontSize={planFontPx(S, 0.1, 8, 12)} fill={SERVICE_COLOR[r.service]} fontFamily={DIM_FONT_FAMILY}>{r.label}</text>}
         </g>
-      )))}
+      ))}
 
       {/* wall draw preview */}
       {editor.drawMode === "wall" && editor.pendingWallStart && mouse && (
