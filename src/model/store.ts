@@ -32,6 +32,10 @@ import type {
   Waste,
   FloorPlane,
   FloorControl,
+  WallTiling,
+  TileOrientation,
+  TileReferenceFace,
+  TileFloorReference,
 } from "./types";
 import { emptyModel } from "./types";
 import { checkModel } from "./issues";
@@ -39,6 +43,7 @@ import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
 import { sideNormal } from "./faces";
 import { drainageProblems, planeSurface } from "./drainage";
+import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
 import type { LibraryProduct } from "./productLibrary";
 import { categoryById, cornerBathOutline, envelopeOf } from "./products";
@@ -562,6 +567,26 @@ export interface DrainagePatch {
   planes?: PlaneInput[];
 }
 
+/**
+ * Wall tile set-out (#9) as a caller supplies it. Fields present replace what is stored;
+ * null clears one back to unknown. Lengths are metres and need a status.
+ */
+export interface TilingPatch {
+  tileLength?: QuantityInput | null;
+  tileWidth?: QuantityInput | null;
+  orientation?: TileOrientation | null;
+  joint?: QuantityInput | null;
+  reference?: TileReferenceFace | null;
+  floor?: TileFloorReference | null;
+  originFrom?: "a" | "b" | "centre" | null;
+  originAlong?: QuantityInput | null;
+  originUp?: QuantityInput | null;
+  tiledHeight?: QuantityInput | null;
+  note?: string | null;
+  /** true removes this side's tiling */
+  clear?: boolean;
+}
+
 /** Where an opening's centre sits: a 0..1 fraction of the wall, or a distance from a named end. */
 export interface OpeningPosition {
   t?: number;
@@ -789,6 +814,77 @@ export const actions = {
     return r.ok(
       `Wall ${wall.id} ${side} side: ${layerText}.${unresolved.length ? ` Unresolved: ${unresolved.join(", ")}.` : " All faces resolved."}`,
       { id: wall.id, side, faces },
+    );
+  },
+
+  // ---- wall tiling (#9) ----
+  /**
+   * Record a proposed tile set-out on one side of a wall. Every length needs a status; nothing
+   * is defaulted, and a missing input leaves the cuts unresolved and named. The set-out is
+   * always a proposal: it is never recorded as built.
+   */
+  setWallTiling(wallId: string, side: WallSideName, patch: TilingPatch): ActionResult {
+    const hit = resolveWall(wallId);
+    if (!hit.ok) return rejected(hit);
+    const wall = hit.entity;
+    if (side !== "left" && side !== "right") return fail(`Side must be "left" or "right" (walking from end A to end B), not "${side}".`);
+    const r = rounding();
+    const current: WallTiling = patch.clear ? {} : { ...(wall.tiling?.[side] ?? {}) };
+    const lengths: [keyof TilingPatch & keyof WallTiling, string, "positive" | "nonNegative" | "any"][] = [
+      ["tileLength", "Tile length", "positive"], ["tileWidth", "Tile width", "positive"], ["joint", "Grout joint", "nonNegative"],
+      ["originAlong", "Origin along", "any"], ["originUp", "Origin up", "any"], ["tiledHeight", "Tiled height", "positive"],
+    ];
+    for (const [key, label, rule] of lengths) {
+      const q = patch[key] as QuantityInput | null | undefined;
+      if (q === undefined) continue;
+      if (q === null) { delete current[key]; continue; }
+      if (typeof q !== "object") return fail(`Rejected: ${label} must be { value, status }.`);
+      const out: Quantity = {};
+      if (q.source) out.source = String(q.source);
+      if (q.value !== undefined && q.value !== null) {
+        if (typeof q.value !== "number" || !Number.isFinite(q.value)) return fail(`Rejected: ${label} must be a number of metres.`);
+        if (!q.status || !VALUE_STATUSES.includes(q.status)) return fail(`Rejected: ${label} needs a status: ${VALUE_STATUSES.join(", ")}.`);
+        if (rule === "positive" && !(q.value > 0)) return fail(`Rejected: ${label} must be greater than zero.`);
+        if (rule === "nonNegative" && q.value < 0) return fail(`Rejected: ${label} cannot be negative.`);
+        out.value = r.q(q.value, label);
+        out.status = q.status;
+      }
+      if (out.value === undefined && !out.source) delete current[key];
+      else (current as Record<string, unknown>)[key] = out;
+    }
+    const choice = <K extends "orientation" | "reference" | "floor" | "originFrom">(key: K, allowed: readonly string[], label: string): string | null => {
+      const v = patch[key];
+      if (v === undefined) return null;
+      if (v === null) { delete current[key]; return null; }
+      if (!allowed.includes(v as string)) return `Rejected: ${label} must be one of ${allowed.join(", ")}.`;
+      (current as Record<string, unknown>)[key] = v;
+      return null;
+    };
+    for (const err of [
+      choice("orientation", TILE_ORIENTATIONS, "orientation"),
+      choice("reference", TILE_REFERENCES, "reference face"),
+      choice("floor", TILE_FLOOR_REFERENCES, "floor reference"),
+      choice("originFrom", TILE_ORIGIN_FROM, "originFrom"),
+    ]) if (err) return fail(err);
+    if (patch.note !== undefined) {
+      if (patch.note === null || !String(patch.note).trim()) delete current.note; else current.note = String(patch.note).trim().slice(0, 500);
+    }
+    const tiling = { ...wall.tiling };
+    if (Object.keys(current).length === 0) delete tiling[side]; else tiling[side] = current;
+    const nextWall: Wall = { ...wall, tiling };
+    if (Object.keys(tiling).length === 0) delete nextWall.tiling;
+    pushUndo();
+    const model = { ...store.getState().model, walls: store.getState().model.walls.map((w) => (w.id === wall.id ? nextWall : w)) };
+    setModel(model);
+    if (!nextWall.tiling?.[side]) return r.ok(`Wall ${wall.id} ${side} side: tiling cleared.`, { id: wall.id, side });
+    const layout = tilingLayout(model, nextWall, side);
+    const c = layout.cuts;
+    const text = c
+      ? ` Proposed cuts: end A ${formatMm(c.a.size)}, end B ${formatMm(c.b.size)}, bottom ${formatMm(c.bottom.size)}, top ${formatMm(c.top.size)} mm.`
+      : "";
+    return r.ok(
+      `Wall ${wall.id} ${side} side tiling (proposed).${text}${layout.missing.length ? ` Unknown: ${layout.missing.join("; ")}.` : ""}`,
+      { id: wall.id, side, tiling: current, resolved: layout.resolved, missing: layout.missing, cuts: layout.cuts ?? null },
     );
   },
 
