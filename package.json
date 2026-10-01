@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "plugin:pack": "mkdir -p dist && cd plugins/reno-layouts && python3 -m zipfile -c ../../dist/reno-layouts-plugin.zip .codex-plugin skills",
     "preview": "vite preview",
     "test": "vitest run",
     "partner": "vite --port 5200 --strictPort",
