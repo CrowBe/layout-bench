@@ -174,7 +174,7 @@ document.modelContext.registerTool({
 | **Floor and drainage** | `set_room_floor` · `get_floor_levels` (readOnly) · `set_room_drainage` (point or linear wastes and sloped floor planes, each level and fall with a status) · `get_floor_heights` (readOnly: derived heights at points and along a section, checks for contradictory levels, gaps and unresolved falls, build-up and door-threshold references) |
 | **Trade sheets** | `set_sheet_info` · `list_sheets` (readOnly) · `check_sheets` (readOnly: blocking and advisory findings, each with a ref and a suggested fix) · `export_sheet` (issues an A3 SVG revision; blocking findings must be fixed or acknowledged with a reason that is printed on the sheet) |
 | **Fixtures** | `anchor_fixture` (set a fixture out from a wall face) · `set_service_point` · `remove_service_point` · `place_product` (a library product against a face, with its published rough-in) · `get_rough_in` (readOnly: every service point as distances from the existing, frame, board and finished faces, along from both wall ends and up from the floor, plus clearances) |
-| **Products** | `request_product` · `list_product_requests` (readOnly) · `get_product_brief` (readOnly: the fields to find, their definitions and datums, and the research protocol) · `submit_product_spec` · `get_product_library` (readOnly). Accepting a product is human-only, on the Products page. |
+| **Products** | `request_product` · `list_product_requests` (readOnly) · `get_product_brief` (readOnly: the fields to find, their definitions and datums, the research protocol, and the text of attached spec sheets page by page) · `submit_product_spec` · `get_product_library` (readOnly). Accepting a product is human-only, on the Products page. |
 | **Rooms** | `add_room` · `update_room` · `remove_room` |
 | **Furniture** | `place_item` · `move_item` · `remove_item` · `define_item_kind`, model a piece the catalogue lacks, from primitives |
 | **Model & view** | `set_plan_name` · `clear_model` · `build_3d` · `set_camera` (orbit/top/walk) · `set_doors` (swing the leaves open/shut) |
@@ -236,6 +236,15 @@ A few design notes:
   points (wastes, water inlet), each axis naming the datum it is measured from. Disagreeing sources and
   figures measured from a different datum are flagged. A person reviews each field and accepts
   the product; no tool can.
+
+- A spec sheet you already hold can be attached to a request (PDF or image, up to 10 MB). It
+  stays in this browser: the file in IndexedDB, its record with the library. A PDF's text is
+  read in the browser with pdf.js, page by page, and `get_product_brief` hands it to the agent,
+  which cites it as `attachment:<id>` with the page as locator. A citation to an attachment the
+  request does not have, or a page the PDF does not have, is refused. Images are for the
+  person's review only, and scanned pages are not OCR'd: the page says so, and an agent that
+  needs a photo's contents asks for it to be pasted into the conversation. Storage that is full
+  refuses the file whole with a clear message.
 
 - One store, two users. A vanilla zustand store powers both the React UI and the WebMCP
   tools, so actions, validation and undo history are identical for both.
