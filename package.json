@@ -16,6 +16,7 @@
     "deploy:partner": "npx netlify deploy --prod --dir dist"
   },
   "dependencies": {
+    "pdfjs-dist": "^5.7.284",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "three": "^0.178.0",
