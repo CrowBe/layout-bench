@@ -215,9 +215,25 @@ describe("wall tile set-out (#9)", () => {
     const { group } = buildPlan(model(), "planning");
     const tiles = group.getObjectByName(`${ids.north}:tiling:right`) as THREE.Object3D;
     expect(tiles).toBeTruthy();
-    let count = 0;
-    tiles.traverse((o) => { if ((o as THREE.Mesh).isMesh) count++; });
-    expect(count).toBe(layout().pieces.length);
+    const meshes: THREE.Mesh[] = [];
+    tiles.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
+    // merged: one mesh for full pieces, one for cut pieces, two triangles per piece
+    expect(meshes.map((m) => m.name).sort()).toEqual([`${ids.north}:tiling:right:cut`, `${ids.north}:tiling:right:full`]);
+    const pieces = layout().pieces;
+    expect(meshes.reduce((n, m) => n + m.geometry.getAttribute("position").count / 6, 0)).toBe(pieces.length);
+    const cutMesh = meshes.find((m) => m.name.endsWith(":cut"))!;
+    expect(cutMesh.geometry.getAttribute("position").count / 6).toBe(pieces.filter((p) => p.cut).length);
+    // every triangle faces into the room (+z for the north wall's right side) and sits just
+    // proud of the finished face, 25 mm off the frame line
+    const pos = cutMesh.geometry.getAttribute("position");
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+      const normal = b.clone().sub(a).cross(c.clone().sub(a)).normalize();
+      expect(normal.z).toBeCloseTo(1, 6);
+      expect(a.z).toBeGreaterThan(0.025);
+      expect(a.z).toBeLessThan(0.03);
+    }
   });
 
   it("prints a sheet that labels the board reference, the cuts and the proposal status", () => {
@@ -233,4 +249,29 @@ describe("wall tile set-out (#9)", () => {
     expect(svg).toContain('data-cut="b">274');
     expect(svg).not.toMatch(/as-built set-out/i);
   });
+
+  it("faces the 3D tiles toward a left-side set-out too", () => {
+    bathroom();
+    // the north wall's left side faces away from the bathroom (-y); give it a build-up and return walls on that side
+    actions.setWallSide(ids.north, "left", { frame: { value: 0, status: "measured" }, layers: [{ kind: "board", thickness: P(0.01) }] });
+    actions.addWall(0, 0, 0, -1, 0.1, 2.4);
+    actions.addWall(2.11, 0, 2.11, -1, 0.1, 2.4);
+    for (const w of model().walls.filter((x) => x.ay === 0 && x.by === -1)) for (const s of ["left", "right"] as const) {
+      actions.setWallSide(w.id, s, { frame: { value: 0, status: "measured" }, layers: [{ kind: "board", thickness: P(0.01) }] });
+    }
+    actions.setWallTiling(ids.north, "left", {
+      tileLength: P(0.6), tileWidth: P(0.3), orientation: "landscape", joint: P(0.002),
+      reference: "board", floor: "datum", originFrom: "a", originAlong: P(0), originUp: P(0), tiledHeight: P(1),
+    });
+    const l = tilingLayout(model(), north(), "left");
+    expect(l.missing).toEqual([]);
+    expect(l.cuts).toBeTruthy();
+    const { group } = buildPlan(model(), "planning");
+    const mesh = group.getObjectByName(`${ids.north}:tiling:left:full`) as THREE.Mesh;
+    const pos = mesh.geometry.getAttribute("position");
+    const a = new THREE.Vector3().fromBufferAttribute(pos, 0), b = new THREE.Vector3().fromBufferAttribute(pos, 1), c = new THREE.Vector3().fromBufferAttribute(pos, 2);
+    expect(b.sub(a).cross(c.sub(a)).normalize().z).toBeCloseTo(-1, 6);
+    expect(a.z).toBeLessThan(-0.01);
+  });
+
 });

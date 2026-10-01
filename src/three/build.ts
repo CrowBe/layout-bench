@@ -476,13 +476,12 @@ export const tileMaterials = {
   full: new THREE.MeshStandardMaterial({ color: "#e9e4d8", roughness: 0.35 }),
   cut: new THREE.MeshStandardMaterial({ color: "#e6b98f", roughness: 0.35 }),
 };
-const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
-
 /**
  * The proposed tile set-out (#9) on one wall side, from the same derivation the elevation and
- * sheet use: one thin box per piece just proud of the finished face (or of the chosen reference
- * face when the finished face is unresolved). Cut pieces are tinted. Nothing is drawn until the
- * set-out resolves, so an unresolved input is never shown as a pattern.
+ * sheet use: every piece as a quad just proud of the finished face (or of the chosen reference
+ * face when the finished face is unresolved), merged into one mesh for full pieces and one for
+ * cut pieces (tinted) so a mosaic stays two draw calls. Joints show as gaps. Nothing is drawn
+ * until the set-out resolves, so an unresolved input is never shown as a pattern.
  */
 function buildTiling(model: PlanModel, wall: Wall, side: "left" | "right"): THREE.Group | null {
   if (!wall.tiling?.[side]) return null;
@@ -494,18 +493,35 @@ function buildTiling(model: PlanModel, wall: Wall, side: "left" | "right"): THRE
   const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
   const d = { x: (wall.bx - wall.ax) / len, y: (wall.by - wall.ay) / len };
   const n = sideNormal(wall, side);
-  const angle = Math.atan2(wall.by - wall.ay, wall.bx - wall.ax);
+  const o = offset + 0.0015;
   const g = new THREE.Group();
   g.name = `${wall.id}:tiling:${side}`;
-  const T = 0.002;
-  for (const [i, p] of layout.pieces.entries()) {
-    const m = new THREE.Mesh(tileGeometry, p.cut ? tileMaterials.cut : tileMaterials.full);
-    const s = (p.s0 + p.s1) / 2;
-    const o = offset + T / 2 + 0.0005;
-    m.scale.set(p.s1 - p.s0, p.z1 - p.z0, T);
-    m.position.set(wall.ax + d.x * s + n.x * o, (p.z0 + p.z1) / 2, wall.ay + d.y * s + n.y * o);
-    m.rotation.y = -angle;
-    m.name = `${wall.id}:tiling:${side}:${i}`;
+  g.userData.pieces = layout.pieces.length;
+  for (const cut of [false, true]) {
+    const pieces = layout.pieces.filter((p) => p.cut === cut);
+    if (!pieces.length) continue;
+    const pos = new Float32Array(pieces.length * 18);
+    const at = (s: number, z: number, i: number) => {
+      pos[i] = wall.ax + d.x * s + n.x * o;
+      pos[i + 1] = z;
+      pos[i + 2] = wall.ay + d.y * s + n.y * o;
+    };
+    // wind each quad so its front faces the tiled side (+n in plan x/z, y up)
+    const flip = d.x * n.y - d.y * n.x < 0;
+    pieces.forEach((p, k) => {
+      const b = k * 18;
+      const [sA, sB] = flip ? [p.s1, p.s0] : [p.s0, p.s1];
+      at(sA, p.z0, b); at(sB, p.z0, b + 3); at(sB, p.z1, b + 6);
+      at(sA, p.z0, b + 9); at(sB, p.z1, b + 12); at(sA, p.z1, b + 15);
+    });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const normals = new Float32Array(pos.length);
+    for (let i = 0; i < normals.length; i += 3) { normals[i] = n.x; normals[i + 1] = 0; normals[i + 2] = n.y; }
+    geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+    const m = new THREE.Mesh(geo, cut ? tileMaterials.cut : tileMaterials.full);
+    m.name = `${wall.id}:tiling:${side}:${cut ? "cut" : "full"}`;
+    m.userData.pieces = pieces.length;
     m.receiveShadow = true;
     g.add(m);
   }
