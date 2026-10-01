@@ -7,7 +7,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { logActivity } from "../model/store";
 import { formatMm } from "../model/geometry";
-import { PRODUCT_CATEGORIES, REFERENCES, applies, attachmentIdOf, safeUrl, type AxisValue, categoryById, envelopeOf, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
+import { PRODUCT_CATEGORIES, REFERENCES, applies, attachmentIdOf, pageOfLocator, safeUrl, type AxisValue, categoryById, envelopeOf, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
 import { MAX_ATTACHMENT_BYTES, products, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
 
 const human = (tool: string, r: LibraryResult) => {
@@ -36,10 +36,11 @@ function Link({ url, children, locator }: { url: string; children?: ReactNode; l
   const att = useProductStore((s) => (attId ? s.requests.flatMap((r) => r.attachments ?? []).find((a) => a.id === attId) : undefined));
   if (attId !== null) {
     if (!att) return <span data-attachment={attId}>{children ?? `missing attachment ${attId}`}</span>;
-    const page = locator ? /\d+/.exec(locator)?.[0] : undefined;
+    // the page the validator read from the locator, not just any number in it ("fig. 2")
+    const page = att.kind === "pdf" ? pageOfLocator(locator) : null;
     return (
       <button type="button" className="linklike" data-attachment={attId} title={`Open ${att.name}${page ? ` at page ${page}` : ""}`}
-        onClick={() => void viewAttachment(att, page ? Number(page) : null)}>
+        onClick={() => void viewAttachment(att, page)}>
         {children ?? att.name}
       </button>
     );
