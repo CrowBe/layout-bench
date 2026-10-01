@@ -50,6 +50,13 @@ const wallSides = (v: unknown) => object(v) && Object.entries(v).every(([side, s
 const floorBuildUp = (v: unknown) => v === undefined || (object(v) && typeof v.datum === "string" && quantity(v.substrateTop) &&
   Array.isArray(v.layers) && v.layers.every((l) => object(l) && typeof l.id === "string" && typeof l.kind === "string" && quantity(l.thickness)));
 
+/** Drainage (#7): wastes with plan coordinates, planes with rectangles, controls with positions and levels. */
+const drainage = (v: unknown) => v === undefined || (object(v) && Array.isArray(v.wastes) && Array.isArray(v.planes) &&
+  v.wastes.every((w) => point(w, ["ax", "ay", "bx", "by"]) && (w.kind === "point" || w.kind === "linear") && typeof w.label === "string" && quantity(w.level)) &&
+  v.planes.every((p) => point(p, ["x", "y", "w", "h"]) && typeof p.label === "string" && quantity(p.fall) &&
+    (p.wasteId === undefined || typeof p.wasteId === "string") &&
+    Array.isArray(p.controls) && (p.controls as Record<string, unknown>[]).every((c) => point(c, ["x", "y"]) && typeof c.label === "string" && quantity(c.level))));
+
 /** Fixture set-out (#5): every field the derivation reads, with the values it allows. */
 const STATUS = ["site-confirmed", "measured", "published", "proposed", "estimated"];
 const optionalFinite = (v: unknown) => v === undefined || finite(v);
@@ -139,7 +146,7 @@ export function parseProject(value: unknown): ProjectDocument {
   }
   if (!model.walls.every((v) => point(v, ["ax", "ay", "bx", "by", "thickness", "height"]) && (v.sides === undefined || wallSides(v.sides))) ||
       !model.openings.every((v) => point(v, ["t", "width", "sill", "height"]) && typeof v.wallId === "string" && (v.kind === "door" || v.kind === "window")) ||
-      !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp)) ||
+      !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp) && drainage(v.drainage)) ||
       !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string" &&
         (v.anchor === undefined || validAnchor(v.anchor)) &&
         (v.corner === undefined || (object(v.corner) && typeof v.corner.left === "string" && typeof v.corner.right === "string" && (v.corner.side === "left" || v.corner.side === "right"))) &&

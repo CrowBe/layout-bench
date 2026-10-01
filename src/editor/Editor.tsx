@@ -4,6 +4,7 @@
  * millimetre dimensions, configurable pointer snap, pan & zoom. Everything mutates the same store the agent uses.
  */
 
+import { DrainageOverlay } from "../ui/DrainageOverlay";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sideFaces, sideNormal } from "../model/faces";
 import { roughIn } from "../model/fixtures";
@@ -359,6 +360,7 @@ export function Editor() {
               stroke={editor.selectedRoomId === r.id ? "#e07b39" : "#c9c2b2"}
               strokeWidth={editor.selectedRoomId === r.id ? 2.5 : 1}
             />
+            <DrainageOverlay room={r} S={S} />
             <text
               data-role="room-label"
               x={label.x}

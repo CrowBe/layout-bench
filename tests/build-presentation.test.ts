@@ -51,3 +51,31 @@ describe("3D planning presentation", () => {
     expect(names).not.toContain("room:planning-floor");
   });
 });
+
+describe("3D drainage falls (#7)", () => {
+  const p = (value: number) => ({ value, status: "proposed" as const });
+  const drained: PlanModel = {
+    ...smallRoom,
+    rooms: [{
+      ...smallRoom.rooms[0],
+      drainage: {
+        wastes: [{ id: "w", label: "Channel", kind: "linear", ax: 0.5, ay: 0.3, bx: 3.5, by: 0.3, level: p(0) }],
+        planes: [{ id: "pl", label: "Floor", x: 0.075, y: 0.075, w: 3.85, h: 2.85, wasteId: "w", fall: p(0.02), controls: [] }],
+      },
+    }],
+  };
+
+  it("draws a sloped surface that rises away from the waste", () => {
+    const fall = meshes(drained, "planning").find((m) => m.name === "room:fall:pl")!;
+    expect(fall).toBeDefined();
+    const box = new THREE.Box3().setFromObject(fall);
+    expect(box.min.y).toBeLessThan(0.002); // grid vertices straddle the waste line
+    expect(box.max.y).toBeCloseTo(0.02 * Math.hypot(0.5 - 0.075, 2.925 - 0.3), 3); // far corner, measured to the channel end
+  });
+
+  it("draws no surface for an unresolved plane", () => {
+    const open = structuredClone(drained);
+    delete open.rooms[0].drainage!.planes[0].fall;
+    expect(meshes(open, "planning").some((m) => m.name.includes(":fall:"))).toBe(false);
+  });
+});
