@@ -28,12 +28,17 @@ import type {
   FloorAssembly,
   FloorLayer,
   FloorLayerKind,
+  Drainage,
+  Waste,
+  FloorPlane,
+  FloorControl,
 } from "./types";
 import { emptyModel } from "./types";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
 import { sideNormal } from "./faces";
+import { drainageProblems, planeSurface } from "./drainage";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
 import type { LibraryProduct } from "./productLibrary";
 import { categoryById, cornerBathOutline, envelopeOf } from "./products";
@@ -515,6 +520,48 @@ export interface FloorPatch {
   layers?: FloorLayerInput[];
 }
 
+export interface WasteInput {
+  id?: string;
+  label?: string;
+  kind: "point" | "linear";
+  /** Point waste: its position. Linear waste: first end. Plan metres. */
+  x: number;
+  y: number;
+  /** Linear waste: second end. */
+  x2?: number;
+  y2?: number;
+  /** Finished floor level at the waste, metres above the datum. */
+  level?: QuantityInput | null;
+}
+
+export interface ControlInput {
+  id?: string;
+  label?: string;
+  x: number;
+  y: number;
+  level: QuantityInput | null;
+}
+
+export interface PlaneInput {
+  id?: string;
+  label?: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** A waste id or label the plane falls toward. */
+  waste?: string | null;
+  /** Rise per metre run away from the waste (0.0125 = 12.5 mm per m). */
+  fall?: QuantityInput | null;
+  controls?: ControlInput[];
+}
+
+/** Lists present replace what is stored. */
+export interface DrainagePatch {
+  wastes?: WasteInput[];
+  planes?: PlaneInput[];
+}
+
 /** Where an opening's centre sits: a 0..1 fraction of the wall, or a distance from a named end. */
 export interface OpeningPosition {
   t?: number;
@@ -968,6 +1015,115 @@ export const actions = {
     return r.ok(
       `Room "${room.label}" floor (datum: ${next.datum}): ${finished.resolved ? `finished level ${formatMm(finished.top!)} mm.` : `finished level unresolved (missing ${finished.missing.join(", ")}).`}`,
       { id: room.id, datum: next.datum, levels },
+    );
+  },
+
+  // ---- drainage (#7) ----
+  /**
+   * Record a room's proposed wastes and floor planes. Lists replace what is stored (send an id
+   * to keep one). A level or fall needs a status; a missing one stays unknown and the plane
+   * that needs it stays unresolved. Geometry and references are checked; levels are not
+   * judged here (get_issues reports contradictions).
+   */
+  setRoomDrainage(roomRef: string, patch: DrainagePatch): ActionResult {
+    const hit = resolveRoom(roomRef);
+    if (!hit.ok) return rejected(hit);
+    const room = hit.entity;
+    const r = rounding();
+    const num = (label: string, v: unknown): number | string =>
+      typeof v === "number" && Number.isFinite(v) ? r.q(v, label) : `${label} must be a number of metres.`;
+    const quantity = (label: string, q: QuantityInput | null | undefined): Quantity | string => {
+      if (!q) return {};
+      const out: Quantity = {};
+      if (q.source) out.source = String(q.source);
+      if (q.value === undefined || q.value === null) return out;
+      if (typeof q.value !== "number" || !Number.isFinite(q.value)) return `${label} must be a number.`;
+      if (!q.status || !VALUE_STATUSES.includes(q.status)) return `${label} needs a status: ${VALUE_STATUSES.join(", ")}.`;
+      out.value = r.q(q.value, label);
+      out.status = q.status;
+      return out;
+    };
+    const current: Drainage = room.drainage ?? { wastes: [], planes: [] };
+    const next: Drainage = { wastes: [...current.wastes], planes: [...current.planes] };
+    const used = new Set<string>();
+    /** ids as the caller wrote them -> stored ids, so a plane can name a waste sent in the same call */
+    const sent = new Map<string, string>();
+    const keepId = (id: string | undefined, _existing: { id: string }[], prefix: string) => {
+      const usable = id && /^[\w.-]{1,40}$/.test(id) && !used.has(id);
+      const out = usable ? id! : uid(prefix);
+      used.add(out);
+      return out;
+    };
+    if (patch.wastes !== undefined) {
+      if (!Array.isArray(patch.wastes)) return fail("Rejected: wastes must be a list.");
+      const wastes: Waste[] = [];
+      for (const [i, w] of patch.wastes.entries()) {
+        if (!w || (w.kind !== "point" && w.kind !== "linear")) return fail(`Rejected: waste ${i + 1} kind must be point or linear.`);
+        const label = (w.label ?? "").trim() || `${w.kind === "linear" ? "Linear waste" : "Waste"} ${i + 1}`;
+        const ax = num(`${label} x`, w.x), ay = num(`${label} y`, w.y);
+        const bx = w.kind === "linear" ? num(`${label} x2`, w.x2) : ax;
+        const by = w.kind === "linear" ? num(`${label} y2`, w.y2) : ay;
+        for (const v of [ax, ay, bx, by]) if (typeof v === "string") return fail(`Rejected: ${v}`);
+        if (w.kind === "linear" && Math.hypot((bx as number) - (ax as number), (by as number) - (ay as number)) < 0.01) return fail(`Rejected: ${label} needs two different ends.`);
+        const level = quantity(`${label} level`, w.level);
+        if (typeof level === "string") return fail(`Rejected: ${level}`);
+        const waste: Waste = { id: keepId(w.id, current.wastes, "waste"), label, kind: w.kind, ax: ax as number, ay: ay as number, bx: bx as number, by: by as number };
+        if (level.value !== undefined || level.source) waste.level = level;
+        if (w.id) sent.set(w.id, waste.id);
+        wastes.push(waste);
+      }
+      next.wastes = wastes;
+    }
+    if (patch.planes !== undefined) {
+      if (!Array.isArray(patch.planes)) return fail("Rejected: planes must be a list.");
+      const planes: FloorPlane[] = [];
+      for (const [i, p] of patch.planes.entries()) {
+        if (!p) return fail(`Rejected: plane ${i + 1} is empty.`);
+        const label = (p.label ?? "").trim() || `Plane ${i + 1}`;
+        const [x, y, w, h] = [num(`${label} x`, p.x), num(`${label} y`, p.y), num(`${label} width`, p.w), num(`${label} depth`, p.h)];
+        for (const v of [x, y, w, h]) if (typeof v === "string") return fail(`Rejected: ${v}`);
+        if ((w as number) <= 0 || (h as number) <= 0) return fail(`Rejected: ${label} needs a positive width and depth.`);
+        let wasteId: string | undefined;
+        if (p.waste) {
+          const ref = String(p.waste).toLowerCase();
+          const hits = next.wastes.filter((x2) => x2.id === (sent.get(String(p.waste)) ?? p.waste) || x2.label.toLowerCase() === ref);
+          if (hits.length !== 1) return fail(`Rejected: ${label} falls to "${p.waste}", which ${hits.length ? "is ambiguous; use its id" : "is not one of this room's wastes"}. Wastes: ${next.wastes.map((x2) => `${x2.id} (${x2.label})`).join(", ") || "none"}.`);
+          wasteId = hits[0].id;
+        }
+        const fall = quantity(`${label} fall`, p.fall);
+        if (typeof fall === "string") return fail(`Rejected: ${fall}`);
+        const controls: FloorControl[] = [];
+        for (const [j, c] of (p.controls ?? []).entries()) {
+          const cl = (c.label ?? "").trim() || `Level ${j + 1}`;
+          const cx = num(`${cl} x`, c.x), cy = num(`${cl} y`, c.y);
+          if (typeof cx === "string") return fail(`Rejected: ${cx}`);
+          if (typeof cy === "string") return fail(`Rejected: ${cy}`);
+          const lv = quantity(`${cl} level`, c.level);
+          if (typeof lv === "string") return fail(`Rejected: ${lv}`);
+          controls.push({ id: keepId(c.id, current.planes.flatMap((q) => q.controls), "ctl"), label: cl, x: cx, y: cy, level: lv });
+        }
+        const plane: FloorPlane = { id: keepId(p.id, current.planes, "plane"), label, x: x as number, y: y as number, w: w as number, h: h as number, controls };
+        if (wasteId) plane.wasteId = wasteId;
+        if (fall.value !== undefined || fall.source) plane.fall = fall;
+        planes.push(plane);
+      }
+      next.planes = planes;
+    }
+    // a waste removed while a plane still falls to it would leave a dangling reference
+    for (const p of next.planes) {
+      if (p.wasteId && !next.wastes.some((w) => w.id === p.wasteId)) {
+        if (patch.planes === undefined) return fail(`Rejected: plane "${p.label}" still falls to a waste that this change removes. Send planes too.`);
+      }
+    }
+    const nextRoom: Room = { ...room };
+    if (next.wastes.length === 0 && next.planes.length === 0) delete nextRoom.drainage; else nextRoom.drainage = next;
+    pushUndo();
+    setModel({ ...store.getState().model, rooms: store.getState().model.rooms.map((x) => (x.id === room.id ? nextRoom : x)) });
+    const resolved = next.planes.filter((p) => planeSurface(next, p).resolved).length;
+    const errors = drainageProblems(nextRoom).filter((p) => p.severity === "error").length;
+    return r.ok(
+      `Room "${room.label}" drainage: ${next.wastes.length} waste${next.wastes.length === 1 ? "" : "s"}, ${next.planes.length} plane${next.planes.length === 1 ? "" : "s"} (${resolved} resolved)${errors ? `; ${errors} error${errors === 1 ? "" : "s"} to fix, see get_floor_heights` : ""}.`,
+      { id: room.id, wastes: next.wastes, planes: next.planes },
     );
   },
 

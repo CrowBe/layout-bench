@@ -5,6 +5,7 @@
  */
 
 import * as THREE from "three";
+import { surfaces } from "../model/drainage";
 import type { Item, LayerKind, Opening, PlanModel, Room, Wall } from "../model/types";
 import { liningSlabs, wallBody } from "../model/faces";
 import { roughIn } from "../model/fixtures";
@@ -407,11 +408,74 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
   return g;
 }
 
+/**
+ * Where the flat floor slab sits. Rooms with derived falls (#7) draw the sloped surface on top
+ * of it, so the slab's top is dropped to the lowest derived level (or the datum, 0) to keep
+ * the falls visible.
+ */
+function slabTop(room: Room): number {
+  const d = room.drainage;
+  if (!d) return 0.04;
+  const levels: number[] = [0];
+  const map = surfaces(d);
+  for (const p of d.planes) {
+    const s = map.get(p.id)!;
+    if (s.resolved) for (const [x, y] of [[p.x, p.y], [p.x + p.w, p.y], [p.x, p.y + p.h], [p.x + p.w, p.y + p.h], [p.x + p.w / 2, p.y + p.h / 2]]) levels.push(s.level(x, y)!);
+  }
+  return levels.length > 1 ? Math.min(...levels) - 0.002 : 0.04;
+}
+
+/** The derived sloped surface of each resolved floor plane, as a subdivided grid (#7). */
+function buildFalls(room: Room, material: THREE.Material): THREE.Group | null {
+  const d = room.drainage;
+  if (!d) return null;
+  const g = new THREE.Group();
+  const map = surfaces(d);
+  for (const p of d.planes) {
+    const s = map.get(p.id)!;
+    if (!s.resolved) continue;
+    const N = 16;
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const idx: number[] = [];
+    for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+      const x = p.x + (p.w * i) / N, y = p.y + (p.h * j) / N;
+      pos.push(x, s.level(x, y)!, y);
+      uv.push((x - room.x) / room.w, 1 - (y - room.y) / room.h);
+    }
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const a = j * (N + 1) + i, b = a + 1, c = a + N + 1, e = c + 1;
+      idx.push(a, c, b, b, c, e);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, material);
+    m.name = `${room.id}:fall:${p.id}`;
+    m.receiveShadow = true;
+    g.add(m);
+  }
+  for (const w of d.wastes) {
+    const len = Math.hypot(w.bx - w.ax, w.by - w.ay);
+    const y = (w.level?.value ?? 0) + 0.003;
+    const mesh = w.kind === "linear"
+      ? new THREE.Mesh(new THREE.BoxGeometry(len, 0.006, 0.04), new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }))
+      : new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.006, 24), new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }));
+    mesh.position.set((w.ax + w.bx) / 2, y, (w.ay + w.by) / 2);
+    if (w.kind === "linear") mesh.rotation.y = -Math.atan2(w.by - w.ay, w.bx - w.ax);
+    mesh.name = `${room.id}:waste:${w.id}`;
+    if (w.level?.value !== undefined) g.add(mesh);
+  }
+  return g.children.length ? g : null;
+}
+
 function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh {
   if (presentation === "planning") {
     const m = new THREE.Mesh(new THREE.BoxGeometry(room.w, 0.04, room.h), new THREE.MeshStandardMaterial({ color: "#b8b8b3", roughness: 0.95 }));
     m.name = `${room.id}:planning-floor`;
-    m.position.set(room.x + room.w / 2, 0.02, room.y + room.h / 2);
+    m.position.set(room.x + room.w / 2, slabTop(room) - 0.02, room.y + room.h / 2);
     m.receiveShadow = true;
     return m;
   }
@@ -430,7 +494,7 @@ function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh
   const geo = new THREE.BoxGeometry(room.w, 0.04, room.h);
   const m = new THREE.Mesh(geo, mat);
   m.name = room.id;
-  m.position.set(room.x + room.w / 2, 0.02, room.y + room.h / 2);
+  m.position.set(room.x + room.w / 2, slabTop(room) - 0.02, room.y + room.h / 2);
   m.receiveShadow = true;
   return m;
 }
@@ -510,7 +574,10 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
     group.add(buildWall(w, openingsByWall.get(w.id) ?? [], model.walls, curtained, presentation));
   }
   for (const r of model.rooms) {
-    group.add(buildFloor(r, presentation));
+    const floor = buildFloor(r, presentation);
+    group.add(floor);
+    const falls = buildFalls(r, floor.material as THREE.Material);
+    if (falls) group.add(named(falls, `${r.id}:falls`));
   }
   const ceiling = model.walls[0]?.height ?? 2.7;
   if (presentation === "styled") for (const r of model.rooms) {

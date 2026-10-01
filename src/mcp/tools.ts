@@ -1,16 +1,18 @@
 /**
- * The 51 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
+ * The 53 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
  * Every tool calls THE SAME actions the UI buttons use — one store, human and agent co-edit.
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
-import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type FloorPatch } from "../model/store";
+import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type FloorPatch, type DrainagePatch } from "../model/store";
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { SHEETS, checkSheet, type AckInput } from "../sheets/check";
 import { recordIssued } from "../sheets/issued";
 import { catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
 import type { WallSideName } from "../model/types";
+import { drainageProblems, heightAt, planeSurface, sectionAlong, surfaces, thresholds } from "../model/drainage";
+import { finishedLevel } from "../model/floor";
 import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems } from "../model/floor";
 import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
 import { productStore, products } from "../model/productLibrary";
@@ -298,6 +300,64 @@ export const TOOLS: ToolDef[] = [
       const levels = floorLevels(spec);
       const summary = `Room "${room.label}" floor, datum ${spec?.datum ?? DEFAULT_DATUM}: ${spec ? `${levels.filter((l) => l.resolved).length}/${levels.length} levels resolved` : "nothing recorded"}.`;
       return { ok: true, summary, roomId: room.id, datum: spec?.datum ?? DEFAULT_DATUM, substrate: spec?.substrate, recorded: !!spec, layers: spec?.layers ?? [], levels, problems: spec ? floorProblems(spec) : [] };
+    },
+  },
+
+  // ------------------------------------------------------------------ drainage
+  {
+    name: "set_room_drainage",
+    title: "Record proposed wastes and sloped floor planes",
+    description:
+      "Record a room's proposed drainage: wastes (a point or a linear waste, in plan metres, with the finished floor level at the waste above the room's floor datum) and rectangular floor planes that fall toward a waste. A plane's heights derive from its waste level plus EITHER a fall (rise per metre run away from the waste: 0.0125 = 12.5 mm per m) OR one control level at a plan point (the fall is worked out), or from three control levels when it has no waste. Every level and fall needs a status (site-confirmed, measured, published, proposed, estimated); leave unknown ones out and the plane stays unresolved rather than getting a default slope. Drain positions and falls are usually unconfirmed: record them as proposed. Lists replace what is stored (send an id to keep an entry). Contradictions, gaps and overlaps are not rejected; read them with get_floor_heights or get_issues. This is a planning aid, not a drainage design or code-compliance verdict.",
+    inputSchema: obj({
+      room: str,
+      wastes: { type: "array", items: obj({ id: str, label: str, kind: { type: "string", enum: ["point", "linear"] }, x: num, y: num, x2: { type: "number", description: "linear only: second end x" }, y2: { type: "number", description: "linear only: second end y" }, level: quantitySchema }, ["kind", "x", "y"]) },
+      planes: { type: "array", items: obj({
+        id: str, label: str, x: num, y: num, w: num, h: num,
+        waste: { type: ["string", "null"], description: "id or label of a waste in this room" },
+        fall: quantitySchema,
+        controls: { type: "array", items: obj({ id: str, label: str, x: num, y: num, level: quantitySchema }, ["x", "y", "level"]) },
+      }, ["x", "y", "w", "h"]) },
+    }, ["room"]),
+    execute: (i) => actions.setRoomDrainage(i.room as string, i as DrainagePatch),
+  },
+  {
+    name: "get_floor_heights",
+    title: "Read derived floor heights, falls and drainage checks",
+    description:
+      "Read a room's drainage: wastes, each plane's derived surface (method, fall, resolved or what is missing), the checks (contradictory levels, overlaps, gaps, falls away from the waste, unresolved planes), the floor build-up reference (finished level) and the door thresholds with their step to it. Optionally pass `points` [{x,y}] for the level at each plan point, and/or `section` {from:{x,y}, to:{x,y}, samples} for a profile along a line. Levels are metres above the room's floor datum; a point with no level says why. Do not report a number for an unresolved level.",
+    inputSchema: obj({
+      room: str,
+      points: { type: "array", items: obj({ x: num, y: num }, ["x", "y"]) },
+      section: obj({ from: obj({ x: num, y: num }, ["x", "y"]), to: obj({ x: num, y: num }, ["x", "y"]), samples: num }, ["from", "to"]),
+    }, ["room"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const model = store.getState().model;
+      const ref = String(i.room).toLowerCase();
+      const hits = model.rooms.filter((r) => r.id === i.room || r.label.toLowerCase() === ref);
+      if (hits.length !== 1) return { ok: false, summary: hits.length ? `Room "${i.room}" is ambiguous; use its id.` : `No room "${i.room}". Rooms: ${model.rooms.map((r) => `${r.id} (${r.label})`).join(", ") || "none"}.` };
+      const room = hits[0];
+      const d = room.drainage;
+      const map = surfaces(d);
+      const planes = (d?.planes ?? []).map((p) => {
+        const { level: _level, ...s } = planeSurface(d!, p);
+        return { id: p.id, label: p.label, rect: { x: p.x, y: p.y, w: p.w, h: p.h }, ...s };
+      });
+      const problems = drainageProblems(room);
+      const pts = (i.points as { x: number; y: number }[] | undefined)?.map((p) => heightAt(d, p.x, p.y, map));
+      const sec = i.section as { from: { x: number; y: number }; to: { x: number; y: number }; samples?: number } | undefined;
+      const section = sec ? sectionAlong(d, sec.from, sec.to, sec.samples) : undefined;
+      const finished = finishedLevel(room.floorBuildUp);
+      const resolved = planes.filter((p) => p.resolved).length;
+      return {
+        ok: true,
+        summary: d ? `Room "${room.label}" drainage: ${d.wastes.length} wastes, ${planes.length} planes (${resolved} resolved), ${problems.filter((p) => p.severity === "error").length} errors, ${problems.filter((p) => p.severity === "warning").length} warnings.` : `Room "${room.label}" has no drainage recorded.`,
+        roomId: room.id, recorded: !!d, datum: room.floorBuildUp?.datum ?? DEFAULT_DATUM, wastes: d?.wastes ?? [], planes, problems,
+        buildUp: { finishedLevel: finished.resolved ? finished.top : null, resolved: finished.resolved, missing: finished.missing },
+        thresholds: thresholds(model, room),
+        ...(pts ? { points: pts } : {}), ...(section ? { section } : {}),
+      };
     },
   },
 

@@ -11,6 +11,7 @@ import { catalogByKind } from "../model/catalog";
 import { roomOnSide } from "../model/faces";
 import { WallFaces } from "./WallFaces";
 import { FloorBuildUp } from "./FloorBuildUp";
+import { Drainage } from "./Drainage";
 import { FixturePanel } from "./FixturePanel";
 
 /** A text field that shows a stored value and commits a new one on Enter or blur. */
@@ -132,6 +133,7 @@ export function Inspector() {
         <NumberField label="Width (mm)" unit="mm" value={room.w} onCommit={(v) => edit({ w: v })} />
         <NumberField label="Depth (mm)" unit="mm" value={room.h} onCommit={(v) => edit({ h: v })} />
         <FloorBuildUp room={room} />
+        <Drainage room={room} />
       </aside>
     );
   }

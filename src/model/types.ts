@@ -112,6 +112,54 @@ export interface Room {
   floor: string; // floor finish key, e.g. "oak" | "tile" | "concrete" | "carpet"
   /** Proposed floor assembly and level datum (#6). Absent = nothing recorded. */
   floorBuildUp?: FloorAssembly;
+  /** Proposed wastes and sloped floor planes (#7). Absent = nothing recorded. */
+  drainage?: Drainage;
+}
+
+/**
+ * A floor waste (#7), in plan metres. A point waste has a = b. `level` is the finished floor
+ * level at the waste, metres above the room's floor datum; unknown stays unknown.
+ */
+export interface Waste {
+  id: string;
+  label: string;
+  kind: "point" | "linear";
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  level?: Quantity;
+}
+
+/** A level entered at a plan position on a plane: metres above the datum. */
+export interface FloorControl {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  level: Quantity;
+}
+
+/**
+ * A rectangular region of floor with one explicit slope. `fall` is a ratio (metres of rise
+ * per metre run: 0.0125 = 12.5 mm per m), rising away from `wasteId`. Without a fall a plane
+ * can still be derived from its waste level plus one control level, or from three controls.
+ */
+export interface FloorPlane {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  wasteId?: string;
+  fall?: Quantity;
+  controls: FloorControl[];
+}
+
+export interface Drainage {
+  wastes: Waste[];
+  planes: FloorPlane[];
 }
 
 export interface Item {
