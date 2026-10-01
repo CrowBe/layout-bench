@@ -175,6 +175,13 @@ A few design notes:
   rough-in schedule, status tag on every value, unresolved list and title block; the Sheets
   tab previews it, issues revisions, downloads the SVG and prints to PDF.
 
+- Fixtures can have their real plan shape. A kind may carry an outline of straight edges and
+  arcs through a point (define_item_kind `outline`), and that one polygon is drawn in the plan
+  and on the trade sheet, extruded in 3D, and used for clash checks, clearances and face
+  measurements. A corner bath from the product library gets its outline from the width across
+  its curved front and its projection from the corner, mirrored to the corner it is placed in;
+  if that outline disagrees with the printed lengths along the walls, the brief flags it.
+
 - Fixtures are set out from wall faces. Anchor a vanity or toilet a gap in front of a named face
   (frame, board, finished) at a distance from a wall end, and its position follows that face:
   change the board and a tile-face fixture moves, a frame-set one does not. Service points
@@ -268,6 +275,7 @@ src/
             faces.ts (wall reference faces, build-ups, face-to-point distances)
             products.ts (spec brief templates, validation) · productLibrary.ts (requests, review, library)
             fixtures.ts (face-anchored fixtures, rough-in readings, clearances, occupied walls)
+            outline.ts (fixture plan outlines: arcs, polygons, convex SAT)
   sheets/   check.ts (sheet preflight findings, acknowledgements) · floorPlan.ts (A-01 SVG) · issued.ts
             catalog.ts (31 furniture kinds + runtime entries) · store.ts (shared actions, undo, activity) · seed.ts
   editor/   Editor.tsx — SVG: chained walls, rooms, openings with door arcs,

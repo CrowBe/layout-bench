@@ -12,6 +12,7 @@ import {
   dist,
   pointOnSeg,
   pointSegDist,
+  rectCorners,
   satRectRect,
   segLen,
   segPoint,
@@ -23,6 +24,7 @@ import {
 import { catalogByKind } from "./catalog";
 import { sideProblems } from "./faces";
 import { fixtureProblems, wallOccupiedRect } from "./fixtures";
+import { itemPolygon, polygonsOverlap } from "./outline";
 
 const MIN_WALL_LEN = 0.2; // 20 cm
 const ENDPOINT_SNAP = 0.08; // endpoints closer than this count as connected
@@ -288,11 +290,9 @@ export function checkModel(model: PlanModel): Issue[] {
   }
 
   // ---- Furniture ---------------------------------------------------------------
-  const itemRect = (it: { kind: string; x: number; y: number; rotation: number }): ORect | null => {
-    const c = catalogByKind(it.kind);
-    if (!c) return null;
-    return { cx: it.x, cy: it.y, hw: c.w / 2, hd: c.d / 2, rot: (-it.rotation * Math.PI) / 180 };
-  };
+  // every piece is checked by its real footprint: its outline (#37) or its w × d rectangle,
+  // built once per check rather than once per pair
+  const footprint = new Map(items.map((it) => [it.id, itemPolygon(it)]));
 
   for (const it of items) {
     const cat = catalogByKind(it.kind);
@@ -305,11 +305,11 @@ export function checkModel(model: PlanModel): Issue[] {
       });
       continue;
     }
-    const r = itemRect(it)!;
+    const r = footprint.get(it.id)!;
     // vs walls: touching (leaning) is legal, crossing through is an error
     for (const w of walls) {
       // the wall as built: its body plus any resolved build-up (#4), not the centred drawn thickness
-      if (satRectRect(r, wallOccupiedRect(w), 0.02)) {
+      if (polygonsOverlap(r, rectCorners(wallOccupiedRect(w)), 0.02)) {
         // tolerance 0.02: penetration up to 2 cm still counts as "leaning"
         issues.push({
           severity: "error",
@@ -331,7 +331,7 @@ export function checkModel(model: PlanModel): Issue[] {
         hd: wall.thickness / 2 + (o.kind === "door" ? 0.8 : 0.4),
         rot: Math.atan2(wall.by - wall.ay, wall.bx - wall.ax),
       };
-      if (satRectRect(r, clearance)) {
+      if (polygonsOverlap(r, rectCorners(clearance))) {
         if (o.kind === "door") {
           issues.push({
             severity: "error",
@@ -355,8 +355,8 @@ export function checkModel(model: PlanModel): Issue[] {
       const oc = catalogByKind(other.kind);
       if (!oc) continue;
       if (cat.isRug || oc.isRug) continue;
-      const or2 = itemRect(other)!;
-      if (satRectRect(r, or2, 0.01)) {
+      const or2 = footprint.get(other.id)!;
+      if (polygonsOverlap(r, or2, 0.01)) {
         issues.push({
           severity: "error",
           code: "items_overlap",

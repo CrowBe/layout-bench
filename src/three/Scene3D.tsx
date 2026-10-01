@@ -19,6 +19,7 @@ import { buildFurniture } from "./furniture";
 import { nameMeshes } from "./build";
 import { bus, EVENTS, type SetDoorsPayload } from "./exportBus";
 import { catalogByKind } from "../model/catalog";
+import { itemPolygon, pointNearPolygon } from "../model/outline";
 
 export function Scene3D() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -297,7 +298,8 @@ export function Scene3D() {
       const c = catalogByKind(it.kind);
       if (!c || c.isRug || c.h < STEP_OVER) return [];
       const th = (it.rotation * Math.PI) / 180;
-      return [{ cx: it.x, cy: it.y, hw: c.w / 2, hh: c.d / 2, cos: Math.cos(th), sin: Math.sin(th) }];
+      // an outlined piece (#37) blocks by its outline, so the open corner of a corner bath is walkable
+      return [{ cx: it.x, cy: it.y, hw: c.w / 2, hh: c.d / 2, cos: Math.cos(th), sin: Math.sin(th), poly: c.outline ? itemPolygon(it) : null }];
     });
 
     // how far each door leaf has swung, kept current by the animation loop
@@ -317,6 +319,10 @@ export function Scene3D() {
         return true;
       }
       for (const b of itemBlockers) {
+        if (b.poly) {
+          if (pointNearPolygon({ x, y: z }, b.poly, PERSON_R)) return true;
+          continue;
+        }
         const dx = x - b.cx;
         const dz = z - b.cy;
         const lx = dx * b.cos - dz * b.sin;

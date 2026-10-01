@@ -14,7 +14,8 @@
 
 import type { BuildUpLayer, LayerKind, Quantity, Room, ValueStatus, Wall, WallSide, WallSideName } from "./types";
 import { catalogByKind } from "./catalog";
-import { quantize, rectCorners, segLen, type Pt } from "./geometry";
+import { quantize, segLen, type Pt } from "./geometry";
+import { itemPolygon } from "./outline";
 
 export const VALUE_STATUSES: ValueStatus[] = ["site-confirmed", "measured", "published", "proposed", "estimated"];
 export const LAYER_KINDS: LayerKind[] = ["board", "waterproofing", "adhesive", "tile"];
@@ -158,9 +159,8 @@ export function distanceToFace(wall: Wall, side: WallSideName, face: string, p: 
 
 /** The footprint point of an item nearest the wall on the named side. */
 export function nearestFootprintPoint(wall: Wall, side: WallSideName, item: { kind: string; x: number; y: number; rotation: number }): Pt | null {
-  const c = catalogByKind(item.kind);
-  if (!c) return null;
-  const corners = rectCorners({ cx: item.x, cy: item.y, hw: c.w / 2, hd: c.d / 2, rot: (-item.rotation * Math.PI) / 180 });
+  const corners = itemPolygon(item);
+  if (!corners) return null;
   return corners.reduce((best, p) => (offsetFromLine(wall, side, p) < offsetFromLine(wall, side, best) ? p : best));
 }
 

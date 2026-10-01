@@ -1,3 +1,5 @@
+import type { Outline } from "./outline";
+
 /** Furniture catalog — footprints (meters) and display metadata. 3D builders live in three/furniture.ts. */
 
 export interface CatalogEntry {
@@ -10,6 +12,8 @@ export interface CatalogEntry {
   category: "living" | "bedroom" | "kitchen" | "bath" | "office" | "decor";
   /** rugs may overlap other furniture */
   isRug?: boolean;
+  /** plan outline in the piece's own frame (#37); absent means the w × d rectangle */
+  outline?: Outline;
 }
 
 export const CATALOG: CatalogEntry[] = [

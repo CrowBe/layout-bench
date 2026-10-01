@@ -9,7 +9,8 @@
  */
 
 import type { ValueStatus } from "./types";
-import { formatMm } from "./geometry";
+import { formatMm, quantize } from "./geometry";
+import { outlineExtents, type Outline } from "./outline";
 
 /** Datums a field can be measured from. A spec sheet that uses another one must say so. */
 export const REFERENCES = {
@@ -133,7 +134,11 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
       len({ key: "width", label: "Overall width", group: "envelope", required: true, min: 0.5, max: 1.2, definition: "Outside width." }),
       len({ key: "height", label: "Overall height", group: "envelope", required: true, reference: "finished-floor", min: 0.3, max: 0.8, definition: "To the rim." }),
       { type: "choice", key: "installation", label: "Installation", group: "installation", required: true, options: ["freestanding", "inset", "back-to-wall", "corner"], definition: "How the bath is installed." },
-      len({ key: "wasteFromEnd", label: "Waste from end", group: "rough-in", required: true, reference: "fixture-end", min: 0, max: 2.2, definition: "From the outside of the nearer end to the centre of the waste." }),
+      { type: "choice", key: "shape", label: "Plan shape", group: "envelope", required: true, options: ["rectangular", "corner-round", "other"], definition: "Rectangular, or a corner bath with two straight wall sides and a rounded front. For a corner bath, length and width are its extents along each wall." },
+      len({ key: "frontWidth", label: "Width across the curved front", group: "envelope", required: true, min: 0.5, max: 2.5, when: { field: "shape", in: ["corner-round"] }, definition: "Straight-line distance between the two ends of the curved front, where it meets the straight wall sides." }),
+      len({ key: "frontProjection", label: "Projection from the corner", group: "envelope", required: true, reference: "other", min: 0.5, max: 2.2, when: { field: "shape", in: ["corner-round"] }, definition: "From the corner where the walls meet to the front of the curve, along the line bisecting the corner." }),
+      len({ key: "wasteFromEnd", label: "Waste from end", group: "rough-in", required: true, reference: "fixture-end", min: 0, max: 2.2, definition: "From the outside of the end named in wasteEnd to the centre of the waste. For a corner bath, the end is the back edge on the other wall." }),
+      { type: "choice", key: "wasteEnd", label: "Waste measured from end", group: "rough-in", required: false, options: ["left", "right"], definition: "Which end wasteFromEnd is measured from, facing the bath. Needed to place the waste in the plan." },
       len({ key: "wasteFromSide", label: "Waste from side", group: "rough-in", required: true, reference: "fixture-side", min: 0, max: 1.2, definition: "From the outside of the back or wall-side edge to the centre of the waste." }),
       { type: "choice", key: "overflow", label: "Overflow", group: "rough-in", required: false, options: ["yes", "no"], definition: "Whether the bath has an overflow." },
       { type: "choice", key: "surround", label: "Hob or surround", group: "installation", required: true, options: ["hob", "apron", "tiled-frame", "none-required"], when: { field: "installation", in: ["inset", "back-to-wall", "corner"] }, definition: "What the bath needs built around or under its rim: a hob, a fitted apron or skirt, a tiled frame, or nothing." },
@@ -282,7 +287,60 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission)
       }
     }
   }
+  // a corner bath's outline must agree with the printed lengths along each wall
+  if (category.id === "bath" && fields.shape?.value === "corner-round") {
+    const L = fields.length?.value, W = fields.width?.value;
+    const fw = fields.frontWidth?.value, fp = fields.frontProjection?.value;
+    if (typeof fw === "number" && typeof fp === "number") {
+      if (fp <= fw / 2 + 0.001) {
+        err("frontProjection", "front_curves_inward", `The projection (${formatMm(fp)} mm) must reach past the middle of the front (${formatMm(fw / 2)} mm from the corner), or the front would curve inward. Check which dimension is which.`);
+      } else {
+        const e = outlineExtents(cornerBathOutline(fields, 10, 10, "left", true)!);
+        if (e.minX < -5 - 0.0005 || e.minY < -5 - 0.0005) {
+          err("frontProjection", "front_behind_corner", `A circular front through the ${formatMm(fw)} mm width and ${formatMm(fp)} mm projection swings behind the corner. Check the two dimensions.`);
+        }
+      }
+    }
+    if (typeof L === "number" && typeof W === "number" && Math.abs(L - W) > 0.005) {
+      warn("shape", "corner_asymmetric", `Length and width differ (${formatMm(L)} × ${formatMm(W)} mm): an offset corner bath. Its outline needs each straight side, which the brief does not ask for yet, so it is placed as its box.`);
+    }
+    const o = typeof L === "number" && typeof W === "number" ? cornerBathOutline(fields, L, W, "left") : null;
+    if (o && typeof L === "number" && typeof W === "number" && !out.some((p) => p.severity === "error" && p.field === "frontProjection")) {
+      const e = outlineExtents(o);
+      const along1 = e.maxX - e.minX, along2 = e.maxY - e.minY;
+      if (Math.abs(along1 - L) > 0.005 || Math.abs(along2 - W) > 0.005) {
+        warn("frontWidth", "outline_disagrees", `A circular front through the front width and projection reaches ${formatMm(along1)} × ${formatMm(along2)} mm along the walls, but the printed length and width are ${formatMm(L)} × ${formatMm(W)} mm. The front may not be a circular arc, or the printed sizes may include a rim. The plan uses the outline for shape and the larger of the two for clearance.`);
+      }
+    }
+  }
   return out;
+}
+
+/**
+ * The plan outline of a corner bath with two equal straight wall sides and a curved front,
+ * in its own frame, square corner at the back-left (or back-right). The sides are the front
+ * width over √2 (a right-angled corner); the front is the circular arc through both side ends
+ * and the front-most point on the corner's bisector. Null when either measure is unknown.
+ */
+export function cornerBathOutline(fields: Record<string, FieldValue>, w: number, d: number, corner: "left" | "right", ignoreSizes = false): Outline | null {
+  const fw = fields.frontWidth?.value, fp = fields.frontProjection?.value;
+  if (typeof fw !== "number" || typeof fp !== "number" || fp <= fw / 2) return null;
+  // equal straight sides only: an offset corner bath (length ≠ width) is left as its box
+  const L = fields.length?.value, W = fields.width?.value;
+  if (!ignoreSizes && typeof L === "number" && typeof W === "number" && Math.abs(L - W) > 0.005) return null;
+  const side = fw / Math.SQRT2;
+  const k = fp / Math.SQRT2;
+  const sx = corner === "left" ? 1 : -1;
+  const c = { x: (-w / 2) * sx, y: -d / 2 };
+  const at = (along: number, out: number) => ({ x: quantize(c.x + sx * along), y: quantize(c.y + out) });
+  return {
+    start: at(0, 0),
+    segments: [
+      { to: at(side, 0) },
+      { to: at(0, side), via: at(k, k) },
+      { to: at(0, 0) },
+    ],
+  };
 }
 
 /** The envelope for a 3D block, only when all three are known. */

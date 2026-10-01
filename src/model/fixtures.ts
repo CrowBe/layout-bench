@@ -9,6 +9,7 @@ import type { FixtureAnchor, Item, PlanModel, ServicePoint, ValueStatus, Wall, W
 import { catalogByKind } from "./catalog";
 import { quantize, segLen, type ORect, type Pt } from "./geometry";
 import { VALUE_STATUSES, layerLabel, resolveFace, sideFaces, sideNormal, wallBody } from "./faces";
+import { itemPolygon, support } from "./outline";
 
 const dirOf = (w: Wall): Pt => {
   const len = segLen(w.ax, w.ay, w.bx, w.by) || 1;
@@ -225,11 +226,13 @@ export function clearances(model: PlanModel, item: Item): Clearance[] {
   const n = sideNormal(wall, a.side);
   // facing the fixture, its right runs along +d on the right side, -d on the left side
   const right = a.side === "right" ? d : { x: -d.x, y: -d.y };
-  const centre = { x: pose.x!, y: pose.y! };
+  // rays start from the footprint's furthest point in each direction: its outline (#37) or box
+  const poly = itemPolygon({ ...item, x: pose.x!, y: pose.y!, rotation: pose.rotation! })!;
+  const left = { x: -right.x, y: -right.y };
   const rays: { direction: Clearance["direction"]; o: Pt; u: Pt }[] = [
-    { direction: "left", o: { x: centre.x - right.x * cat.w / 2, y: centre.y - right.y * cat.w / 2 }, u: { x: -right.x, y: -right.y } },
-    { direction: "right", o: { x: centre.x + right.x * cat.w / 2, y: centre.y + right.y * cat.w / 2 }, u: right },
-    { direction: "front", o: { x: centre.x + n.x * cat.d / 2, y: centre.y + n.y * cat.d / 2 }, u: n },
+    { direction: "left", o: support(poly, left), u: left },
+    { direction: "right", o: support(poly, right), u: right },
+    { direction: "front", o: support(poly, n), u: n },
   ];
   return rays.map(({ direction, o, u }) => {
     let best: Clearance = { direction, distance: null };

@@ -29,9 +29,11 @@ import type {
 import { emptyModel } from "./types";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
-import { anchorPose, applyAnchors, faceChoices } from "./fixtures";
+import { anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
+import { sideNormal } from "./faces";
 import type { LibraryProduct } from "./productLibrary";
-import { categoryById, envelopeOf } from "./products";
+import { categoryById, cornerBathOutline, envelopeOf } from "./products";
+import { outlineExtents, outlineProblems, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
 import { SNAP, dist, formatMm, quantize, segLen, segPoint } from "./geometry";
@@ -549,6 +551,17 @@ const heightPrompt = (o: Opening): string =>
 // Shared actions (UI + WebMCP tools)
 // ---------------------------------------------------------------------------
 
+/** Which back corner of a placed corner bath is square: the end of the wall it sits nearer. */
+function cornerSide(anchor: FixtureAnchor, wall: Wall): "left" | "right" {
+  const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
+  const alongFromA = anchor.from === "b" ? len - anchor.distance : anchor.distance;
+  const cornerAtA = alongFromA <= len - alongFromA;
+  const n = sideNormal(wall, anchor.side);
+  const rot = (-facingRotation(n) * Math.PI) / 180;
+  const towardB = Math.cos(rot) * (wall.bx - wall.ax) + Math.sin(rot) * (wall.by - wall.ay) > 0;
+  return cornerAtA === towardB ? "left" : "right";
+}
+
 /** Validate an anchor as a caller supplied it. Nothing changes until the caller applies it. */
 function buildAnchor(input: AnchorInput):
   | { ok: true; anchor: FixtureAnchor; r: ReturnType<typeof rounding>; wall: Wall }
@@ -977,7 +990,17 @@ export const actions = {
     const built = buildAnchor(input);
     if (!built.ok) return built.result;
     const { anchor, r, wall } = built;
-    const next: Item = { ...item, anchor };
+    let next: Item = { ...item, anchor };
+    // a handed corner fixture moved into the other corner swaps hands, and its points mirror
+    if (item.corner) {
+      const side = cornerSide(anchor, wall);
+      if (side !== item.corner.side) {
+        next = {
+          ...next, kind: item.corner[side], corner: { ...item.corner, side },
+          ...(item.servicePoints ? { servicePoints: item.servicePoints.map((p) => (p.across === undefined ? p : { ...p, across: quantize(-p.across) })) } : {}),
+        };
+      }
+    }
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
     const pose = anchorPose(store.getState().model, next);
@@ -1051,11 +1074,38 @@ export const actions = {
     if (!built.ok) return built.result;
     const { anchor } = built;
     const label = `${product.manufacturer} ${product.model}`;
-    const defined = this.defineItemKind({ kind: `product_${product.id}`, label, w: env.w, d: env.d, h: env.h, category: "bath" });
+    const corner = product.category === "bath" && product.fields.shape?.value === "corner-round" ? cornerSide(anchor, built.wall) : null;
+    // a corner bath gets its real outline, mirrored to the corner it sits in; the box is
+    // the larger of the printed sizes and the outline, so clearance is never understated
+    const outline = corner ? cornerBathOutline(product.fields, env.w, env.d, corner) : null;
+    let box = { ...env };
+    if (outline) {
+      const e = outlineExtents(outline);
+      box = { w: Math.max(env.w, e.maxX - e.minX), d: Math.max(env.d, e.maxY - e.minY), h: env.h };
+    }
+    // both hands are defined, so the bath can move to the other corner later (see anchorFixture)
+    const handed = (side: "left" | "right") => (box.w !== env.w || box.d !== env.d || side !== corner ? cornerBathOutline(product.fields, box.w, box.d, side) : outline);
+    const kindFor = (side: "left" | "right" | null) => `product_${product.id}${side ? `_${side}` : ""}`;
+    if (corner && outline) {
+      const other = corner === "left" ? "right" : "left";
+      const r = this.defineItemKind({ kind: kindFor(other), label, w: box.w, d: box.d, h: box.h, category: "bath", outline: handed(other)! });
+      if (!r.ok) return r;
+    }
+    const shaped = corner && outline ? handed(corner) : null;
+    const defined = this.defineItemKind({
+      kind: kindFor(corner && outline ? corner : null), label, w: box.w, d: box.d, h: box.h, category: "bath",
+      ...(shaped ? { outline: shaped } : {}),
+    });
     if (!defined.ok) return defined;
     const source = `${label}, product library ${product.id} (published)`;
     const servicePoints: ServicePoint[] = (product.roughIn ?? []).map((rp) => {
-      const across = rp.across?.from === "fixture-centreline" ? rp.across.value : undefined;
+      // from the fixture end: convert to the centreline only when the product says which end
+      // a corner bath's "end" is its back edge on the other wall: the corner it sits in
+      const end = corner ?? product.fields.wasteEnd?.value;
+      const across = rp.across?.from === "fixture-centreline" ? rp.across.value
+        : rp.across?.from === "fixture-end" && rp.across.value !== undefined && (end === "left" || end === "right")
+          ? quantize(end === "left" ? -box.w / 2 + rp.across.value : box.w / 2 - rp.across.value)
+          : undefined;
       let face = "finished";
       let out: number | undefined;
       let outMax: number | undefined;
@@ -1077,7 +1127,10 @@ export const actions = {
         source: unconverted.length ? `${source}; not converted: ${unconverted.join(", ")}` : source,
       };
     });
-    const item: Item = { id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, servicePoints };
+    const item: Item = {
+      id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, servicePoints,
+      ...(corner && outline ? { corner: { left: kindFor("left"), right: kindFor("right"), side: corner } } : {}),
+    };
     pushUndo();
     setModel({ ...store.getState().model, items: [...store.getState().model.items, item] });
     const pose = anchorPose(store.getState().model, item);
@@ -1240,11 +1293,17 @@ export const actions = {
     color?: string;
     category?: string;
     parts?: PartSpec[];
+    outline?: Outline;
   }): ActionResult {
     const kind = spec.kind.trim().toLowerCase().replace(/[^a-z0-9_:-]+/g, "_");
     if (!kind) return fail("A kind id is required.");
     if (FURNITURE_BUILDERS[kind]) return fail(`"${kind}" is a built-in kind — pick another id or use place_item.`);
     if (!(spec.w > 0 && spec.d > 0 && spec.h > 0)) return fail("w, d and h must all be positive metres.");
+    if (spec.outline !== undefined) {
+      const problems = outlineProblems(spec.outline, spec.w, spec.d);
+      if (problems.length) return fail(`Outline rejected: ${problems.join("; ")}.`);
+    }
+    const outline = spec.outline ? { outline: structuredClone(spec.outline) } : {};
     const known: CatalogEntry["category"][] = ["living", "bedroom", "kitchen", "bath", "office", "decor"];
     const category = known.includes(spec.category as CatalogEntry["category"])
       ? (spec.category as CatalogEntry["category"])
@@ -1258,16 +1317,18 @@ export const actions = {
       existing.h = spec.h;
       existing.color = color;
       existing.category = category;
+      if (spec.outline) existing.outline = structuredClone(spec.outline);
+      else delete existing.outline;
     } else {
-      registerCatalogEntry({ kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category });
+      registerCatalogEntry({ kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category, ...outline });
     }
     if (spec.parts?.length) defineCustomKind(kind, spec.parts);
     store.setState((s) => ({ kinds: [...s.kinds.filter((k) => k.entry.kind !== kind),
-      { entry: { kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category },
+      { entry: { kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category, ...outline },
         ...(spec.parts?.length ? { parts: structuredClone(spec.parts) } : {}) }] }));
     bumpCatalog();
     return ok(
-      `"${spec.label}" defined as ${kind} (${spec.w} × ${spec.d} × ${spec.h} m${spec.parts?.length ? `, ${spec.parts.length} parts` : ", blocked out from its footprint"}). Place it with place_item.`,
+      `"${spec.label}" defined as ${kind} (${spec.w} × ${spec.d} × ${spec.h} m${spec.outline ? ", with its plan outline" : ""}${spec.parts?.length ? `, ${spec.parts.length} parts` : spec.outline ? ", extruded from its outline" : ", blocked out from its footprint"}). Place it with place_item.`,
       { kind },
     );
   },

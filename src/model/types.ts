@@ -101,6 +101,11 @@ export interface Item {
   servicePoints?: ServicePoint[];
   /** The product-library entry this fixture was placed from. */
   productId?: string;
+  /**
+   * A corner fixture that comes in a left and a right hand (#37): the kind for each, and which
+   * one is in use. Re-anchoring into the other corner swaps the kind and mirrors the service points.
+   */
+  corner?: { left: string; right: string; side: "left" | "right" };
 }
 
 /**

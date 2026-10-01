@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sideFaces, sideNormal } from "../model/faces";
 import { roughIn } from "../model/fixtures";
+import { kindPolygon } from "../model/outline";
 import { useAppStore, actions, logActivity } from "../model/store";
 import type { Opening, Wall } from "../model/types";
 import { formatMm, snap as snapTo, segLen, segPoint } from "../model/geometry";
@@ -444,17 +445,29 @@ export function Editor() {
             onPointerDown={(e) => onItemDown(it.id, e)}
             style={{ cursor: it.anchor ? "pointer" : "move" }}
           >
-            <rect
-              x={(-cat.w / 2) * S}
-              y={(-cat.d / 2) * S}
-              width={cat.w * S}
-              height={cat.d * S}
-              rx={0.04 * S}
-              fill={cat.color}
-              fillOpacity={0.85}
-              stroke={selected ? "#e07b39" : "#5a5248"}
-              strokeWidth={selected ? 2.5 : 1}
-            />
+            {cat.outline ? (
+              // a real outline (#37): the same polygon the checks and the sheet use
+              <polygon
+                data-outline="true"
+                points={kindPolygon(cat).map((p) => `${p.x * S},${p.y * S}`).join(" ")}
+                fill={cat.color}
+                fillOpacity={0.85}
+                stroke={selected ? "#e07b39" : "#5a5248"}
+                strokeWidth={selected ? 2.5 : 1}
+              />
+            ) : (
+              <rect
+                x={(-cat.w / 2) * S}
+                y={(-cat.d / 2) * S}
+                width={cat.w * S}
+                height={cat.d * S}
+                rx={0.04 * S}
+                fill={cat.color}
+                fillOpacity={0.85}
+                stroke={selected ? "#e07b39" : "#5a5248"}
+                strokeWidth={selected ? 2.5 : 1}
+              />
+            )}
             <text
               x={0}
               y={0}
