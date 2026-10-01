@@ -13,7 +13,6 @@ import {
   pointOnSeg,
   pointSegDist,
   satRectRect,
-  satRectWall,
   segLen,
   segPoint,
   segmentsCross,
@@ -23,6 +22,7 @@ import {
 } from "./geometry";
 import { catalogByKind } from "./catalog";
 import { sideProblems } from "./faces";
+import { fixtureProblems, wallOccupiedRect } from "./fixtures";
 
 const MIN_WALL_LEN = 0.2; // 20 cm
 const ENDPOINT_SNAP = 0.08; // endpoints closer than this count as connected
@@ -308,7 +308,8 @@ export function checkModel(model: PlanModel): Issue[] {
     const r = itemRect(it)!;
     // vs walls: touching (leaning) is legal, crossing through is an error
     for (const w of walls) {
-      if (satRectWall(r, w, 0.02)) {
+      // the wall as built: its body plus any resolved build-up (#4), not the centred drawn thickness
+      if (satRectRect(r, wallOccupiedRect(w), 0.02)) {
         // tolerance 0.02: penetration up to 2 cm still counts as "leaning"
         issues.push({
           severity: "error",
@@ -380,5 +381,6 @@ export function checkModel(model: PlanModel): Issue[] {
     }
   }
 
+  issues.push(...fixtureProblems(model));
   return issues;
 }

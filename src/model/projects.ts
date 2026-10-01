@@ -45,6 +45,16 @@ const wallSides = (v: unknown) => object(v) && Object.entries(v).every(([side, s
   (side === "left" || side === "right") && object(spec) && quantity(spec.existing) && quantity(spec.frame) &&
   Array.isArray(spec.layers) && spec.layers.every((l) => object(l) && typeof l.id === "string" && typeof l.kind === "string" && quantity(l.thickness)));
 
+/** Fixture set-out (#5): every field the derivation reads, with the values it allows. */
+const STATUS = ["site-confirmed", "measured", "published", "proposed", "estimated"];
+const optionalFinite = (v: unknown) => v === undefined || finite(v);
+const validAnchor = (v: unknown) => object(v) && typeof v.wallId === "string" && typeof v.face === "string" &&
+  (v.side === "left" || v.side === "right") && (v.from === "a" || v.from === "b") && typeof v.status === "string" && STATUS.includes(v.status) &&
+  finite(v.gap) && finite(v.distance);
+const validServicePoint = (v: unknown) => object(v) && typeof v.id === "string" && typeof v.label === "string" && typeof v.face === "string" &&
+  (v.service === "waste" || v.service === "water" || v.service === "power") && typeof v.status === "string" && STATUS.includes(v.status) &&
+  optionalFinite(v.out) && optionalFinite(v.outMax) && optionalFinite(v.across) && optionalFinite(v.up);
+
 type Migration = (doc: Record<string, unknown>) => Record<string, unknown>;
 
 /**
@@ -106,7 +116,9 @@ export function parseProject(value: unknown): ProjectDocument {
   if (!model.walls.every((v) => point(v, ["ax", "ay", "bx", "by", "thickness", "height"]) && (v.sides === undefined || wallSides(v.sides))) ||
       !model.openings.every((v) => point(v, ["t", "width", "sill", "height"]) && typeof v.wallId === "string" && (v.kind === "door" || v.kind === "window")) ||
       !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string") ||
-      !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string") ||
+      !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string" &&
+        (v.anchor === undefined || validAnchor(v.anchor)) &&
+        (v.servicePoints === undefined || (Array.isArray(v.servicePoints) && v.servicePoints.every(validServicePoint)))) ||
       !notes.every((v) => object(v) && typeof v.id === "string" && typeof v.text === "string" && finite(v.at) && (v.author === "human" || v.author === "agent")) ||
       !kinds.every((v) => object(v) && object(v.entry) && typeof v.entry.kind === "string" && typeof v.entry.label === "string" && ["w", "d", "h"].every((k) => finite((v.entry as Record<string, unknown>)[k])) && (v.parts === undefined || Array.isArray(v.parts))) ||
       !(model.underlay === null || (object(model.underlay) && typeof model.underlay.dataUrl === "string" && ["opacity", "x", "y", "w", "h"].every((k) => finite((model.underlay as Record<string, unknown>)[k]))))) {

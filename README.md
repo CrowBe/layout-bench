@@ -88,13 +88,13 @@ More stills in [`shots/showcase/`](shots/showcase/).
 1. Open the live app (link at the top of this repo).
 2. **In ChatGPT desktop:** open the URL in the in-app browser. WebMCP works out of the box.
    **In Google Chrome 149+:** enable `chrome://flags/#enable-webmcp-testing` and restart.
-   The pill in the header turns green: **● Site tools live** (40 tools registered).
+   The pill in the header turns green: **● Site tools live** (45 tools registered).
 3. Ask your agent, for example:
    - *"Add a 3 × 2.5 m study next to the bedroom, with a door and a window."*
    - *"The sofa placement feels off. Check the plan and fix any issues."*
    - *"Build the 3D and give me a walkthrough."*
 4. No WebMCP runtime? The app is still complete. Open the **Tools** tab and run the exact
-   same 40 tools manually; every call is logged in the activity feed at the bottom.
+   same 45 tools manually; every call is logged in the activity feed at the bottom.
 
 ## Trace your own plan with the agent
 
@@ -127,7 +127,7 @@ document.modelContext.registerTool({
 });
 ```
 
-## The 40 tools (+ 1 dynamic)
+## The 45 tools (+ 1 dynamic)
 
 | Group | Tools |
 |---|---|
@@ -136,6 +136,7 @@ document.modelContext.registerTool({
 | **Structure** | `add_wall` · `edit_wall` · `remove_wall` |
 | **Openings** | `add_door` · `add_window` · `edit_opening` (exact position from a named wall end, width, sill, height) · `move_opening` · `remove_opening` · `set_door_swing` (hinge side + swing direction) |
 | **Wall faces** | `set_wall_side` (existing surface, frame face and proposed build-up per wall side, each value with a status) · `get_wall_faces` (readOnly) · `measure_to_face` (readOnly: distance from the existing, frame, board or finished face, or unresolved) |
+| **Fixtures** | `anchor_fixture` (set a fixture out from a wall face) · `set_service_point` · `remove_service_point` · `place_product` (a library product against a face, with its published rough-in) · `get_rough_in` (readOnly: every service point as distances from the existing, frame, board and finished faces, along from both wall ends and up from the floor, plus clearances) |
 | **Products** | `request_product` · `list_product_requests` (readOnly) · `get_product_brief` (readOnly: the fields to find, their definitions and datums, and the research protocol) · `submit_product_spec` · `get_product_library` (readOnly). Accepting a product is human-only, on the Products page. |
 | **Rooms** | `add_room` · `update_room` · `remove_room` |
 | **Furniture** | `place_item` · `move_item` · `remove_item` · `define_item_kind`, model a piece the catalogue lacks, from primitives |
@@ -162,6 +163,13 @@ A few design notes:
   *unresolved* and names what is missing; no default thickness is substituted, and a surveyed
   surface is never converted into a frame position. Select a wall to edit its sides, see a
   section, and read every face's offset from a chosen reference face.
+
+- Fixtures are set out from wall faces. Anchor a vanity or toilet a gap in front of a named face
+  (frame, board, finished) at a distance from a wall end, and its position follows that face:
+  change the board and a tile-face fixture moves, a frame-set one does not. Service points
+  (waste, water, power) are entered against a face or copied from a library product, and the
+  rough-in reads each one from every face so the plumber gets frame and Villaboard figures.
+  Clash checks use the wall as built: its body and recorded build-up, not a centred thickness.
 
 - The page sets the brief; the agent does the research. **Products** opens a library shared by
   every project in this browser. A request names a fixture (toilet, vanity, bath) and the page
@@ -248,13 +256,14 @@ src/
   model/    types.ts · geometry.ts (snap, SAT, segment math) · issues.ts (checker)
             faces.ts (wall reference faces, build-ups, face-to-point distances)
             products.ts (spec brief templates, validation) · productLibrary.ts (requests, review, library)
+            fixtures.ts (face-anchored fixtures, rough-in readings, clearances, occupied walls)
             catalog.ts (31 furniture kinds + runtime entries) · store.ts (shared actions, undo, activity) · seed.ts
   editor/   Editor.tsx — SVG: chained walls, rooms, openings with door arcs,
             furniture drag, blueprint underlay, millimetre dimensions, configurable pointer snap, pan/zoom
   three/    build.ts (extrusion with real openings, resolved joints, floors)
             furniture.ts (composite pieces + generic builder for imported products) · Scene3D.tsx (orbit/top/walk + WASD,
             click-to-place, OBJ/PNG export) · exportBus.ts
-  mcp/      registry.ts (registration + uniform logging) · tools.ts (40 + 1 dynamic)
+  mcp/      registry.ts (registration + uniform logging) · tools.ts (45 + 1 dynamic)
             bootstrap.ts (runtime detection, dynamic tool lifecycle, toolchange)
   ui/       App · Sidebar (Model/Check/Catalog/Supplier/Notes/Tools) · ToolRunner
             ActivityFeed · ApprovalBar (human-in-the-loop gate) · SupplierPanel (cross-origin)

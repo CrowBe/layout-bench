@@ -10,6 +10,7 @@ import { formatMm, segLen } from "../model/geometry";
 import { catalogByKind } from "../model/catalog";
 import { roomOnSide } from "../model/faces";
 import { WallFaces } from "./WallFaces";
+import { FixturePanel } from "./FixturePanel";
 
 /** A text field that shows a stored value and commits a new one on Enter or blur. */
 function NumberField({ label, value, unit, onCommit }: {
@@ -140,9 +141,14 @@ export function Inspector() {
       <aside className="inspector" aria-label="Selected item">
         <strong>{cat?.label ?? item.kind}</strong>
         {cat && <span className="hint">{formatMm(cat.w)} × {formatMm(cat.d)} mm footprint</span>}
-        <NumberField label="Centre x (mm)" unit="mm" value={item.x} onCommit={(v) => move(v)} />
-        <NumberField label="Centre y (mm)" unit="mm" value={item.y} onCommit={(v) => move(undefined, v)} />
-        <NumberField label="Rotation (°)" unit="°" value={item.rotation} onCommit={(v) => move(undefined, undefined, v)} />
+        {item.anchor
+          ? <span className="hint">Centre ({formatMm(item.x)}, {formatMm(item.y)}) mm, facing {item.rotation}°, derived from its set-out.</span>
+          : <>
+            <NumberField label="Centre x (mm)" unit="mm" value={item.x} onCommit={(v) => move(v)} />
+            <NumberField label="Centre y (mm)" unit="mm" value={item.y} onCommit={(v) => move(undefined, v)} />
+            <NumberField label="Rotation (°)" unit="°" value={item.rotation} onCommit={(v) => move(undefined, undefined, v)} />
+          </>}
+        <FixturePanel model={model} item={item} />
       </aside>
     );
   }

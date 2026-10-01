@@ -4,8 +4,9 @@
  * millimetre dimensions, configurable pointer snap, pan & zoom. Everything mutates the same store the agent uses.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sideFaces, sideNormal } from "../model/faces";
+import { roughIn } from "../model/fixtures";
 import { useAppStore, actions, logActivity } from "../model/store";
 import type { Opening, Wall } from "../model/types";
 import { formatMm, snap as snapTo, segLen, segPoint } from "../model/geometry";
@@ -26,6 +27,9 @@ const FLOOR_FILL: Record<string, string> = {
   concrete: "#d4d4d0",
 };
 
+/** Service point colours: waste, water, power. */
+const SERVICE_COLOR = { waste: "#7a5230", water: "#2f78b7", power: "#c0392b" } as const;
+
 /** How each reference face is drawn on the plan. */
 const FACE_STYLE: Record<string, { stroke: string; dash?: string }> = {
   existing: { stroke: "#4f86b0", dash: "5 3" },
@@ -38,6 +42,11 @@ const FACE_STYLE: Record<string, { stroke: string; dash?: string }> = {
 
 export function Editor() {
   const model = useAppStore((s) => s.model);
+  // derived once per model change, not on every pointer move
+  const servicePoints = useMemo(
+    () => model.items.flatMap((it) => roughIn(model, it).filter((r) => r.x !== undefined && r.y !== undefined).map((r) => ({ it, r }))),
+    [model],
+  );
   const editor = useAppStore((s) => s.editor);
   const [view, setView] = useState<View>({ x: -1.5, y: -1.5, scale: 90 });
   const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
@@ -234,6 +243,8 @@ export function Editor() {
     actions.selectItem(id);
     const p = toWorld(e.clientX, e.clientY);
     const it = model.items.find((i) => i.id === id)!;
+    // a fixture set out from a wall face (#5) moves only by changing its set-out
+    if (it.anchor) return;
     setDragItem({ id, dx: p.x - it.x, dy: p.y - it.y });
   };
 
@@ -431,7 +442,7 @@ export function Editor() {
             data-id={it.id}
             transform={`translate(${it.x * S} ${it.y * S}) rotate(${-it.rotation})`}
             onPointerDown={(e) => onItemDown(it.id, e)}
-            style={{ cursor: "move" }}
+            style={{ cursor: it.anchor ? "pointer" : "move" }}
           >
             <rect
               x={(-cat.w / 2) * S}
@@ -459,6 +470,14 @@ export function Editor() {
           </g>
         );
       })}
+
+      {/* service points (#5): only resolved ones have a position */}
+      {servicePoints.map(({ it, r }) => (
+        <g key={`${it.id}:${r.pointId}`} data-sp={`${it.id}:${r.pointId}`} pointerEvents="none">
+          <circle cx={r.x! * S} cy={r.y! * S} r={Math.max(3, 0.03 * S)} fill={SERVICE_COLOR[r.service]} stroke="#fff" strokeWidth={1} />
+          {S > 80 && <text x={r.x! * S + 6} y={r.y! * S - 6} fontSize={planFontPx(S, 0.1, 8, 12)} fill={SERVICE_COLOR[r.service]} fontFamily={DIM_FONT_FAMILY}>{r.label}</text>}
+        </g>
+      ))}
 
       {/* wall draw preview */}
       {editor.drawMode === "wall" && editor.pendingWallStart && mouse && (
