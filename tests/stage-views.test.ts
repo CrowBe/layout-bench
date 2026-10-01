@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { actions, store } from "../src/model/store";
 import { emptyModel, type PlanModel } from "../src/model/types";
-import { catalogue, renderStageDiagram, renderStageSpec, resolveVisible, viewFindings, NOT_MODELLED } from "../src/sheets/stageView";
+import { catalogue, renderStageDiagram, renderStageSpec, resolveVisible, specRows, viewFindings, NOT_MODELLED } from "../src/sheets/stageView";
 import { applyView, composeView, currentView, resetViews, savedViews } from "../src/sheets/viewState";
 import { reconcile } from "../src/sheets/check";
 
@@ -262,4 +262,35 @@ describe("stage diagram views (#41)", () => {
     expect(resolveVisible(model(), stages[2][1]).elements).toEqual(again.resolution.elements);
     expect(viewFindings(model(), again.resolution).some((f) => f.severity === "blocking")).toBe(false);
   });
+
+  it("resolves service points whose ids contain a colon", () => {
+    const { vanity } = bathroom();
+    expect(actions.setServicePoint(vanity, { id: "cw:1", label: "Cold water", service: "water", face: "frame", out: 0, across: 0, up: 0.5, status: "proposed" }).ok).toBe(true);
+    expect(apply("Water", ["services-water"]).ok).toBe(true);
+    const c = composeView(model(), currentView(PID)!);
+    const { rows } = renderStageSpec(model(), c.resolution.elements, { label: "Water", findings: c.findings });
+    expect(rows.find((r) => r.element === `item:${vanity}:sp:cw:1` && r.property.startsWith("up"))).toMatchObject({ value: "500", status: "proposed" });
+  });
+
+  it("does not present a built-in catalogue footprint as an entered size", () => {
+    bathroom();
+    const toilet = actions.placeItem("toilet", 0.5, 2.5).id as string;
+    const rows = specRows(model(), catalogue(model()).elements.find((e) => e.id === `item:${toilet}`)!);
+    expect(rows.find((r) => r.property.startsWith("footprint"))).toMatchObject({ status: "defaulted" });
+  });
+
+  it("prints product counts as counts, not millimetres", () => {
+    const { walls } = bathroom();
+    const product = { id: "prod_v", category: "vanity", manufacturer: "Acme", model: "V1", requestId: "r", acceptedAt: 0, roughIn: [],
+      fields: { width: { value: 0.9, status: "published" as const }, depth: { value: 0.46, status: "published" as const }, height: { value: 0.85, status: "published" as const }, tapHoles: { value: 1, status: "published" as const } } };
+    expect(actions.placeProduct(product, { wallId: walls[3], side: "right", face: "existing", distance: 1, status: "proposed" } as never).ok).toBe(true);
+    const el = catalogue(model()).elements.find((e) => e.type === "fixture" && model().items.find((i) => i.id === e.ref)?.productId === "prod_v")!;
+    const rows = specRows(model(), el, [product]);
+    expect(rows.find((r) => r.property === "tapHoles")!.value).toBe("1");
+    expect(rows.find((r) => r.property === "width")!.value).toBe("900");
+    // with the library loaded, the product is not reported as unresolved
+    const findings = viewFindings(model(), resolveVisible(model(), [el.id]), [product]);
+    expect(findings.some((f) => /product not in this browser/.test(f.message))).toBe(false);
+  });
 });
+
