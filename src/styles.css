@@ -294,6 +294,12 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 .wall-faces { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
 .wall-faces select, .wall-faces button, .face-layer > input { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
 .face-sides { display: flex; gap: 4px; }
+.wall-tiling { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.wall-tiling select, .wall-tiling button { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+.wall-tiling .face-sides button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tile-elevation { background: #fff; border: 1px solid var(--line); border-radius: 6px; user-select: none; }
+.tile-nudge { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.tile-missing { margin: 0; padding-left: 16px; font-size: 12px; }
 .face-sides button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .face-field { display: grid; grid-template-columns: 1fr 118px; gap: 4px 6px; align-items: end; }
 .face-field .inspector-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
