@@ -290,8 +290,22 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission)
   // a corner bath's outline must agree with the printed lengths along each wall
   if (category.id === "bath" && fields.shape?.value === "corner-round") {
     const L = fields.length?.value, W = fields.width?.value;
+    const fw = fields.frontWidth?.value, fp = fields.frontProjection?.value;
+    if (typeof fw === "number" && typeof fp === "number") {
+      if (fp <= fw / 2 + 0.001) {
+        err("frontProjection", "front_curves_inward", `The projection (${formatMm(fp)} mm) must reach past the middle of the front (${formatMm(fw / 2)} mm from the corner), or the front would curve inward. Check which dimension is which.`);
+      } else {
+        const e = outlineExtents(cornerBathOutline(fields, 10, 10, "left", true)!);
+        if (e.minX < -5 - 0.0005 || e.minY < -5 - 0.0005) {
+          err("frontProjection", "front_behind_corner", `A circular front through the ${formatMm(fw)} mm width and ${formatMm(fp)} mm projection swings behind the corner. Check the two dimensions.`);
+        }
+      }
+    }
+    if (typeof L === "number" && typeof W === "number" && Math.abs(L - W) > 0.005) {
+      warn("shape", "corner_asymmetric", `Length and width differ (${formatMm(L)} × ${formatMm(W)} mm): an offset corner bath. Its outline needs each straight side, which the brief does not ask for yet, so it is placed as its box.`);
+    }
     const o = typeof L === "number" && typeof W === "number" ? cornerBathOutline(fields, L, W, "left") : null;
-    if (o && typeof L === "number" && typeof W === "number") {
+    if (o && typeof L === "number" && typeof W === "number" && !out.some((p) => p.severity === "error" && p.field === "frontProjection")) {
       const e = outlineExtents(o);
       const along1 = e.maxX - e.minX, along2 = e.maxY - e.minY;
       if (Math.abs(along1 - L) > 0.005 || Math.abs(along2 - W) > 0.005) {
@@ -308,9 +322,12 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission)
  * width over √2 (a right-angled corner); the front is the circular arc through both side ends
  * and the front-most point on the corner's bisector. Null when either measure is unknown.
  */
-export function cornerBathOutline(fields: Record<string, FieldValue>, w: number, d: number, corner: "left" | "right"): Outline | null {
+export function cornerBathOutline(fields: Record<string, FieldValue>, w: number, d: number, corner: "left" | "right", ignoreSizes = false): Outline | null {
   const fw = fields.frontWidth?.value, fp = fields.frontProjection?.value;
-  if (typeof fw !== "number" || typeof fp !== "number") return null;
+  if (typeof fw !== "number" || typeof fp !== "number" || fp <= fw / 2) return null;
+  // equal straight sides only: an offset corner bath (length ≠ width) is left as its box
+  const L = fields.length?.value, W = fields.width?.value;
+  if (!ignoreSizes && typeof L === "number" && typeof W === "number" && Math.abs(L - W) > 0.005) return null;
   const side = fw / Math.SQRT2;
   const k = fp / Math.SQRT2;
   const sx = corner === "left" ? 1 : -1;

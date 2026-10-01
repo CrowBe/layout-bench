@@ -290,7 +290,9 @@ export function checkModel(model: PlanModel): Issue[] {
   }
 
   // ---- Furniture ---------------------------------------------------------------
-  // every piece is checked by its real footprint: its outline (#37) or its w × d rectangle
+  // every piece is checked by its real footprint: its outline (#37) or its w × d rectangle,
+  // built once per check rather than once per pair
+  const footprint = new Map(items.map((it) => [it.id, itemPolygon(it)]));
 
   for (const it of items) {
     const cat = catalogByKind(it.kind);
@@ -303,7 +305,7 @@ export function checkModel(model: PlanModel): Issue[] {
       });
       continue;
     }
-    const r = itemPolygon(it)!;
+    const r = footprint.get(it.id)!;
     // vs walls: touching (leaning) is legal, crossing through is an error
     for (const w of walls) {
       // the wall as built: its body plus any resolved build-up (#4), not the centred drawn thickness
@@ -353,7 +355,7 @@ export function checkModel(model: PlanModel): Issue[] {
       const oc = catalogByKind(other.kind);
       if (!oc) continue;
       if (cat.isRug || oc.isRug) continue;
-      const or2 = itemPolygon(other)!;
+      const or2 = footprint.get(other.id)!;
       if (polygonsOverlap(r, or2, 0.01)) {
         issues.push({
           severity: "error",

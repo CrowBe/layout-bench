@@ -3,6 +3,7 @@ import type { PartSpec } from "../three/furniture";
 import type { Note, PlanModel } from "./types";
 import { seedBathroom, bathroomKinds, bathroomNotes } from "./seed-bathroom";
 import { quantize } from "./geometry";
+import { outlineProblems, type Outline } from "./outline";
 
 export const STORAGE_KEY = "alza.projects.v1";
 export const DOCUMENT_VERSION = 2;
@@ -65,8 +66,14 @@ const validSheetSet = (v: unknown) => object(v) && object(v.titleBlock) &&
 
 /** Fixture outlines (#37): points the renderer and checks read. */
 const pointXY = (p: unknown) => object(p) && finite(p.x) && finite(p.y);
-const validOutline = (o: unknown) => o === undefined || (object(o) && pointXY(o.start) && Array.isArray(o.segments) &&
-  o.segments.every((s: unknown) => object(s) && pointXY(s.to) && (s.via === undefined || pointXY(s.via))));
+const validOutline = (entry: Record<string, unknown>) => {
+  const o = entry.outline;
+  if (o === undefined) return true;
+  if (!(object(o) && pointXY(o.start) && Array.isArray(o.segments) &&
+    o.segments.every((s: unknown) => object(s) && pointXY(s.to) && (s.via === undefined || pointXY(s.via))))) return false;
+  // the same rules define_item_kind applies: inside its box, touching its back, enclosing area
+  return outlineProblems(o as unknown as Outline, entry.w as number, entry.d as number).length === 0;
+};
 
 type Migration = (doc: Record<string, unknown>) => Record<string, unknown>;
 
@@ -131,9 +138,10 @@ export function parseProject(value: unknown): ProjectDocument {
       !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string") ||
       !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string" &&
         (v.anchor === undefined || validAnchor(v.anchor)) &&
+        (v.corner === undefined || (object(v.corner) && typeof v.corner.left === "string" && typeof v.corner.right === "string" && (v.corner.side === "left" || v.corner.side === "right"))) &&
         (v.servicePoints === undefined || (Array.isArray(v.servicePoints) && v.servicePoints.every(validServicePoint)))) ||
       !notes.every((v) => object(v) && typeof v.id === "string" && typeof v.text === "string" && finite(v.at) && (v.author === "human" || v.author === "agent")) ||
-      !kinds.every((v) => object(v) && object(v.entry) && typeof v.entry.kind === "string" && typeof v.entry.label === "string" && ["w", "d", "h"].every((k) => finite((v.entry as Record<string, unknown>)[k])) && (v.parts === undefined || Array.isArray(v.parts)) && validOutline((v.entry as Record<string, unknown>).outline)) ||
+      !kinds.every((v) => object(v) && object(v.entry) && typeof v.entry.kind === "string" && typeof v.entry.label === "string" && ["w", "d", "h"].every((k) => finite((v.entry as Record<string, unknown>)[k])) && (v.parts === undefined || Array.isArray(v.parts)) && validOutline(v.entry as Record<string, unknown>)) ||
       !(model.sheetSet === undefined || validSheetSet(model.sheetSet)) ||
       !(model.underlay === null || (object(model.underlay) && typeof model.underlay.dataUrl === "string" && ["opacity", "x", "y", "w", "h"].every((k) => finite((model.underlay as Record<string, unknown>)[k]))))) {
     throw new Error("Project document contains invalid model data.");

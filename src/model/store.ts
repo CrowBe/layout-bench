@@ -990,7 +990,17 @@ export const actions = {
     const built = buildAnchor(input);
     if (!built.ok) return built.result;
     const { anchor, r, wall } = built;
-    const next: Item = { ...item, anchor };
+    let next: Item = { ...item, anchor };
+    // a handed corner fixture moved into the other corner swaps hands, and its points mirror
+    if (item.corner) {
+      const side = cornerSide(anchor, wall);
+      if (side !== item.corner.side) {
+        next = {
+          ...next, kind: item.corner[side], corner: { ...item.corner, side },
+          ...(item.servicePoints ? { servicePoints: item.servicePoints.map((p) => (p.across === undefined ? p : { ...p, across: quantize(-p.across) })) } : {}),
+        };
+      }
+    }
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
     const pose = anchorPose(store.getState().model, next);
@@ -1073,9 +1083,17 @@ export const actions = {
       const e = outlineExtents(outline);
       box = { w: Math.max(env.w, e.maxX - e.minX), d: Math.max(env.d, e.maxY - e.minY), h: env.h };
     }
-    const shaped = outline && (box.w !== env.w || box.d !== env.d) ? cornerBathOutline(product.fields, box.w, box.d, corner!) : outline;
+    // both hands are defined, so the bath can move to the other corner later (see anchorFixture)
+    const handed = (side: "left" | "right") => (box.w !== env.w || box.d !== env.d || side !== corner ? cornerBathOutline(product.fields, box.w, box.d, side) : outline);
+    const kindFor = (side: "left" | "right" | null) => `product_${product.id}${side ? `_${side}` : ""}`;
+    if (corner && outline) {
+      const other = corner === "left" ? "right" : "left";
+      const r = this.defineItemKind({ kind: kindFor(other), label, w: box.w, d: box.d, h: box.h, category: "bath", outline: handed(other)! });
+      if (!r.ok) return r;
+    }
+    const shaped = corner && outline ? handed(corner) : null;
     const defined = this.defineItemKind({
-      kind: `product_${product.id}${corner ? `_${corner}` : ""}`, label, w: box.w, d: box.d, h: box.h, category: "bath",
+      kind: kindFor(corner && outline ? corner : null), label, w: box.w, d: box.d, h: box.h, category: "bath",
       ...(shaped ? { outline: shaped } : {}),
     });
     if (!defined.ok) return defined;
@@ -1086,7 +1104,7 @@ export const actions = {
       const end = corner ?? product.fields.wasteEnd?.value;
       const across = rp.across?.from === "fixture-centreline" ? rp.across.value
         : rp.across?.from === "fixture-end" && rp.across.value !== undefined && (end === "left" || end === "right")
-          ? quantize(end === "left" ? -env.w / 2 + rp.across.value : env.w / 2 - rp.across.value)
+          ? quantize(end === "left" ? -box.w / 2 + rp.across.value : box.w / 2 - rp.across.value)
           : undefined;
       let face = "finished";
       let out: number | undefined;
@@ -1109,7 +1127,10 @@ export const actions = {
         source: unconverted.length ? `${source}; not converted: ${unconverted.join(", ")}` : source,
       };
     });
-    const item: Item = { id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, servicePoints };
+    const item: Item = {
+      id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, servicePoints,
+      ...(corner && outline ? { corner: { left: kindFor("left"), right: kindFor("right"), side: corner } } : {}),
+    };
     pushUndo();
     setModel({ ...store.getState().model, items: [...store.getState().model.items, item] });
     const pose = anchorPose(store.getState().model, item);

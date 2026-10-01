@@ -277,4 +277,76 @@ describe("fixtures set out from wall faces (#5)", () => {
     expect(problems.filter((p) => p.severity === "error")).toEqual([]);
     expect(problems.find((p) => p.code === "outline_disagrees")?.message).toMatch(/945(\.\d)? × 945(\.\d)? mm along the walls, but the printed length and width are 1000 × 1000/);
   });
+
+  describe("review on #38", () => {
+    const src = [{ url: "https://example.com/bath", locator: "drawing" }];
+    const pub = (value: number | string): FieldValue => ({ value, status: "published", sources: src });
+    const cornerBath = (over: Record<string, FieldValue> = {}): LibraryProduct => {
+      const fields: Record<string, FieldValue> = {
+        length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+        frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+        surround: { value: null, note: "n/a" }, ...over,
+      };
+      return { id: "cb", category: "bath", manufacturer: "Example", model: "Corner", fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0 };
+    };
+
+    it("measures the waste from the bath's real box when the outline outgrows the printed size", () => {
+      const [back] = bathroom();
+      faceBackWall(back);
+      const placed = actions.placeProduct(cornerBath({ frontWidth: pub(1.3), frontProjection: pub(1.2) }), { wallId: back, side: "right", face: "finished", distance: 0.6, status: "proposed" });
+      expect(placed.ok).toBe(true);
+      const bath = item(placed.id as string);
+      const box = catalogByKind(bath.kind)!.w;
+      expect(box).toBeGreaterThan(1.0);
+      const [waste] = roughIn(model(), bath);
+      expect(waste.alongFromA! - (0.6 - box / 2)).toBeCloseTo(0.368, 4);
+    });
+
+    it("swaps hands and mirrors its points when moved into the other corner", () => {
+      const [back] = bathroom();
+      faceBackWall(back);
+      const placed = actions.placeProduct(cornerBath(), { wallId: back, side: "right", face: "finished", distance: 0.55, status: "proposed" });
+      const id = placed.id as string;
+      expect(item(id).kind).toBe("product_cb_left");
+      expect(actions.anchorFixture(id, { wallId: back, side: "right", face: "finished", from: "b", distance: 0.55, status: "proposed" }).ok).toBe(true);
+      expect(item(id).kind).toBe("product_cb_right");
+      const [waste] = roughIn(model(), item(id));
+      expect(waste.alongFromB).toBe(0.418); // 368 from the B-end corner
+      expect(codes()).not.toContain("item_through_wall");
+    });
+
+    it("keeps the inside of a concave outline free", () => {
+      bathroom();
+      const L = { start: { x: -0.5, y: -0.5 }, segments: [{ to: { x: 0.5, y: -0.5 } }, { to: { x: 0.5, y: -0.1 } }, { to: { x: -0.1, y: -0.1 } }, { to: { x: -0.1, y: 0.5 } }, { to: { x: -0.5, y: 0.5 } }] };
+      expect(actions.defineItemKind({ kind: "l_unit", label: "L unit", w: 1, d: 1, h: 0.9, outline: L }).ok).toBe(true);
+      actions.defineItemKind({ kind: "stool", label: "Stool", w: 0.3, d: 0.3, h: 0.45 });
+      actions.placeItem("l_unit", 1.0, 1.5);
+      actions.placeItem("stool", 1.25, 1.75); // in the notch of the L
+      expect(codes()).not.toContain("items_overlap");
+      actions.placeItem("stool", 0.75, 1.25); // on the L itself
+      expect(codes()).toContain("items_overlap");
+    });
+
+    it("refuses a front that curves inward or behind the corner, and leaves an offset corner bath as its box", () => {
+      const cat = categoryById("bath")!;
+      const sub = (over: Record<string, FieldValue>) => ({ manufacturer: "E", model: "M", fields: { ...cornerBath(over).fields } });
+      expect(validateSubmission(cat, sub({ frontProjection: pub(0.55) })).map((p) => p.code)).toContain("front_curves_inward");
+      expect(validateSubmission(cat, sub({ frontWidth: pub(0.6), frontProjection: pub(1.2) })).map((p) => p.code)).toContain("front_behind_corner");
+      expect(validateSubmission(cat, sub({ length: pub(1.5), width: pub(0.9) })).map((p) => p.code)).toContain("corner_asymmetric");
+      const [back] = bathroom();
+      faceBackWall(back);
+      const placed = actions.placeProduct(cornerBath({ length: pub(1.5), width: pub(0.9) }), { wallId: back, side: "right", face: "finished", distance: 0.8, status: "proposed" });
+      expect(catalogByKind(item(placed.id as string).kind)!.outline).toBeUndefined();
+    });
+
+    it("refuses project JSON whose outline breaks the define_item_kind rules", () => {
+      bathroom();
+      actions.defineItemKind({ kind: "tri", label: "Tri", w: 1, d: 1, h: 0.5, outline: { start: { x: -0.5, y: -0.5 }, segments: [{ to: { x: 0.5, y: -0.5 } }, { to: { x: 0, y: 0.5 } }] } });
+      const doc = { ...demoProject(), id: "b", model: model(), kinds: store.getState().kinds };
+      expect(() => parseImport(JSON.stringify(doc))).not.toThrow();
+      const bad = structuredClone(doc);
+      bad.kinds.find((k) => k.entry.kind === "tri")!.entry.outline = { start: { x: 0, y: 0 }, segments: [] };
+      expect(() => parseImport(JSON.stringify(bad))).toThrow();
+    });
+  });
 });

@@ -7,7 +7,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { catalogByKind } from "../model/catalog";
-import { kindPolygon } from "../model/outline";
+import { centroid, isConvex, kindPolygon } from "../model/outline";
 
 const mat = (color: string, roughness = 0.8, metalness = 0): THREE.MeshStandardMaterial =>
   new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -630,13 +630,13 @@ export function buildFurniture(kind: string): THREE.Group | null {
 
 /**
  * A piece with a plan outline (#37) and no hand-built parts: its outline extruded to its
- * height, with a lighter inset on top so a bath or basin reads as a recess. Plan local y is
- * the piece's depth, which is +z (its front) in 3D.
+ * height. A convex outline also gets a 4 cm recess inside an 88% rim (pulled toward its area
+ * centroid), so a bath or basin reads as a basin, not a lid. Plan local y is the piece's depth,
+ * which is +z (its front) in 3D.
  */
 function outlinePiece(poly: { x: number; y: number }[], h: number, color: string): THREE.Group {
   const g = new THREE.Group();
-  const extrude = (pts: { x: number; y: number }[], height: number, m: THREE.Material, y0: number) => {
-    const shape = new THREE.Shape(pts.map((p) => new THREE.Vector2(p.x, p.y)));
+  const extrude = (shape: THREE.Shape, height: number, m: THREE.Material, y0: number) => {
     const geo = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
     geo.rotateX(Math.PI / 2); // shape (x, y) → (x, z); extrusion runs downward from 0
     geo.translate(0, y0 + height, 0);
@@ -645,10 +645,19 @@ function outlinePiece(poly: { x: number; y: number }[], h: number, color: string
     mesh.receiveShadow = true;
     g.add(mesh);
   };
-  extrude(poly, h, mat(color, 0.35), 0);
-  // inset top: the outline pulled 12% toward its centroid, 2 cm proud of the rim
-  const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
-  const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
-  extrude(poly.map((p) => ({ x: cx + (p.x - cx) * 0.88, y: cy + (p.y - cy) * 0.88 })), 0.02, mat("#dfe9ee", 0.15), h - 0.01);
+  const shapeOf = (pts: { x: number; y: number }[]) => new THREE.Shape(pts.map((p) => new THREE.Vector2(p.x, p.y)));
+  const body = mat(color, 0.35);
+  const recess = Math.min(0.04, h / 3);
+  if (!isConvex(poly) || h < 0.1) {
+    extrude(shapeOf(poly), h, body, 0);
+    return g;
+  }
+  const c = centroid(poly);
+  const inner = poly.map((p) => ({ x: c.x + (p.x - c.x) * 0.88, y: c.y + (p.y - c.y) * 0.88 }));
+  extrude(shapeOf(poly), h - recess, body, 0);
+  extrude(shapeOf(inner), 0.005, mat("#dfe9ee", 0.15), h - recess); // the basin floor, lighter
+  const rim = shapeOf(poly);
+  rim.holes.push(new THREE.Path(inner.map((p) => new THREE.Vector2(p.x, p.y))));
+  extrude(rim, recess, body, h - recess);
   return g;
 }

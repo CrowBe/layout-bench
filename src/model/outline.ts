@@ -52,8 +52,18 @@ function arcPoints(p0: Pt, via: Pt, p1: Pt): Pt[] {
   return out;
 }
 
-/** The outline as a closed polygon (no repeated closing point), in the piece's frame. */
+const sampled = new WeakMap<Outline, Pt[]>();
+
+/** The outline as a closed polygon (no repeated closing point), in the piece's frame. Cached per outline. */
 export function outlinePolygon(o: Outline): Pt[] {
+  const hit = sampled.get(o);
+  if (hit) return hit;
+  const pts = sampleOutline(o);
+  sampled.set(o, pts);
+  return pts;
+}
+
+function sampleOutline(o: Outline): Pt[] {
   const pts: Pt[] = [o.start];
   let prev = o.start;
   for (const s of o.segments) {
@@ -97,12 +107,7 @@ export function convexHull(points: Pt[]): Pt[] {
   return [...lower.slice(0, -1), ...upper.slice(0, -1)];
 }
 
-/**
- * Separating-axis test for two polygons (their convex hulls). They overlap only if they
- * overlap by more than `eps` on every axis, so touching, or leaning up to eps, is not a clash.
- */
-export function polygonsOverlap(a: Pt[], b: Pt[], eps = 1e-9): boolean {
-  const ha = convexHull(a), hb = convexHull(b);
+function convexOverlap(ha: Pt[], hb: Pt[], eps: number): boolean {
   for (const poly of [ha, hb]) {
     for (let i = 0; i < poly.length; i++) {
       const p = poly[i], q = poly[(i + 1) % poly.length];
@@ -122,9 +127,107 @@ export function polygonsOverlap(a: Pt[], b: Pt[], eps = 1e-9): boolean {
   return true;
 }
 
-/** The point of a polygon furthest along a direction. */
+const signedArea = (poly: Pt[]) => {
+  let a = 0;
+  for (let i = 0; i < poly.length; i++) { const p = poly[i], q = poly[(i + 1) % poly.length]; a += p.x * q.y - q.x * p.y; }
+  return a / 2;
+};
+
+/** Whether a polygon is convex (all turns the same way). */
+export function isConvex(poly: Pt[]): boolean {
+  let sign = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length], c = poly[(i + 2) % poly.length];
+    const cr = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (Math.abs(cr) < 1e-12) continue;
+    const sg = Math.sign(cr);
+    if (sign && sg !== sign) return false;
+    sign = sg;
+  }
+  return true;
+}
+
+/** Ear-clipping triangulation of a simple polygon. */
+export function triangulate(poly: Pt[]): Pt[][] {
+  const pts = signedArea(poly) < 0 ? [...poly].reverse() : [...poly];
+  const idx = pts.map((_, i) => i);
+  const tris: Pt[][] = [];
+  const cross = (o: Pt, a: Pt, b: Pt) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const inside = (p: Pt, a: Pt, b: Pt, c: Pt) => cross(a, b, p) >= 0 && cross(b, c, p) >= 0 && cross(c, a, p) >= 0;
+  let guard = 0;
+  while (idx.length > 3 && guard++ < 10000) {
+    let clipped = false;
+    for (let i = 0; i < idx.length; i++) {
+      const ia = idx[(i + idx.length - 1) % idx.length], ib = idx[i], ic = idx[(i + 1) % idx.length];
+      const a = pts[ia], b = pts[ib], c = pts[ic];
+      if (cross(a, b, c) <= 1e-12) continue; // reflex or flat
+      if (idx.some((j) => j !== ia && j !== ib && j !== ic && inside(pts[j], a, b, c))) continue;
+      tris.push([a, b, c]);
+      idx.splice(i, 1);
+      clipped = true;
+      break;
+    }
+    if (!clipped) break; // degenerate: fall back below
+  }
+  if (idx.length === 3) tris.push(idx.map((j) => pts[j]));
+  return tris.length ? tris : [convexHull(poly)];
+}
+
+const pieces = new WeakMap<Pt[], Pt[][]>();
+/** Convex pieces of a polygon: itself when convex, else its triangles. Cached per polygon array. */
+function convexPieces(poly: Pt[]): Pt[][] {
+  const hit = pieces.get(poly);
+  if (hit) return hit;
+  const out = isConvex(poly) ? [poly] : triangulate(poly);
+  pieces.set(poly, out);
+  return out;
+}
+
+/**
+ * Whether two footprints overlap by more than `eps` (so touching, or leaning up to eps, is not
+ * a clash). Concave outlines are split into triangles, so the inside of an L stays free.
+ */
+export function polygonsOverlap(a: Pt[], b: Pt[], eps = 1e-9): boolean {
+  for (const pa of convexPieces(a)) for (const pb of convexPieces(b)) if (convexOverlap(pa, pb, eps)) return true;
+  return false;
+}
+
+/** Area centroid of a polygon. */
+export function centroid(poly: Pt[]): Pt {
+  const A = signedArea(poly);
+  if (Math.abs(A) < 1e-12) return { x: poly.reduce((s, p) => s + p.x, 0) / poly.length, y: poly.reduce((s, p) => s + p.y, 0) / poly.length };
+  let cx = 0, cy = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length];
+    const f = p.x * q.y - q.x * p.y;
+    cx += (p.x + q.x) * f;
+    cy += (p.y + q.y) * f;
+  }
+  return { x: cx / (6 * A), y: cy / (6 * A) };
+}
+
+/** Whether a point is inside a polygon, or within r of its edge. */
+export function pointNearPolygon(p: Pt, poly: Pt[], r: number): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+    const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
+    if (Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)) < r) return true;
+  }
+  return inside;
+}
+
+/**
+ * Where a polygon reaches furthest along a direction: the middle of that extreme face when it
+ * is flat (a rectangle's front edge), or the single furthest point (the apex of a curve).
+ */
 export function support(poly: Pt[], u: Pt): Pt {
-  return poly.reduce((best, p) => (p.x * u.x + p.y * u.y > best.x * u.x + best.y * u.y ? p : best));
+  const d = (p: Pt) => p.x * u.x + p.y * u.y;
+  const max = Math.max(...poly.map(d));
+  const extreme = poly.filter((p) => d(p) > max - 1e-4);
+  return { x: extreme.reduce((s, p) => s + p.x, 0) / extreme.length, y: extreme.reduce((s, p) => s + p.y, 0) / extreme.length };
 }
 
 /** Problems with an outline for a w × d piece; empty when it is usable. */
