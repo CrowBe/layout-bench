@@ -336,6 +336,11 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 .review-actions input { width: 130px; }
 .products-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .products-actions input { flex: 1; min-width: 160px; }
+.products-attachments { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.products-attachment { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+.products-attachment-image { max-width: 100%; max-height: 480px; object-fit: contain; border: 1px solid var(--line); border-radius: 6px; }
+.products-page-text { white-space: pre-wrap; max-height: 220px; overflow: auto; margin: 2px 0 6px; padding: 6px; font-size: 12px; background: var(--bg); border-radius: 6px; }
+button.linklike { padding: 0; border: 0; background: none; color: var(--agent); text-decoration: underline; cursor: pointer; font: inherit; }
 .products-product summary { cursor: pointer; }
 @media (max-width: 760px) { .products-body { grid-template-columns: 1fr; } }
 .products-card > button { align-self: flex-start; }

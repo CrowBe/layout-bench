@@ -4,11 +4,11 @@
  * product is only possible here: it is not a tool.
  */
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { logActivity } from "../model/store";
 import { formatMm } from "../model/geometry";
-import { PRODUCT_CATEGORIES, REFERENCES, applies, safeUrl, type AxisValue, categoryById, envelopeOf, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
-import { products, useProductStore, type LibraryProduct, type LibraryResult, type ProductRequest } from "../model/productLibrary";
+import { PRODUCT_CATEGORIES, REFERENCES, applies, attachmentIdOf, safeUrl, type AxisValue, categoryById, envelopeOf, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
+import { MAX_ATTACHMENT_BYTES, products, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
 
 const human = (tool: string, r: LibraryResult) => {
   logActivity("human", tool, r.summary, r.ok);
@@ -20,11 +20,122 @@ function shown(f: FieldSpec, v: FieldValue | undefined): string {
   return f.type === "length" && typeof v.value === "number" ? `${formatMm(v.value)} mm` : String(v.value);
 }
 
-/** An external link, only when it is http(s); otherwise plain text. */
-function Link({ url, children }: { url: string; children?: ReactNode }) {
+/** Open an attached file in a new tab, from this browser's own storage. */
+async function viewAttachment(att: Pick<ProductAttachment, "id" | "kind">, page?: number | null): Promise<string | null> {
+  const blob = await products.file(att.id);
+  if (!blob) return "This browser no longer has the file (site data cleared?). Its extracted text is still kept.";
+  const url = URL.createObjectURL(blob);
+  window.open(att.kind === "pdf" && page ? `${url}#page=${page}` : url, "_blank", "noopener");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return null;
+}
+
+/** A source: an attached spec sheet (opens at its page), an external link, or plain text. */
+function Link({ url, children, locator }: { url: string; children?: ReactNode; locator?: string }) {
+  const attId = attachmentIdOf(url);
+  const att = useProductStore((s) => (attId ? s.requests.flatMap((r) => r.attachments ?? []).find((a) => a.id === attId) : undefined));
+  if (attId !== null) {
+    if (!att) return <span data-attachment={attId}>{children ?? `missing attachment ${attId}`}</span>;
+    const page = locator ? /\d+/.exec(locator)?.[0] : undefined;
+    return (
+      <button type="button" className="linklike" data-attachment={attId} title={`Open ${att.name}${page ? ` at page ${page}` : ""}`}
+        onClick={() => void viewAttachment(att, page ? Number(page) : null)}>
+        {children ?? att.name}
+      </button>
+    );
+  }
   const href = safeUrl(url);
   const text = children ?? (href ? new URL(href).hostname : url);
   return href ? <a href={href} target="_blank" rel="noreferrer noopener">{text}</a> : <span>{text}</span>;
+}
+
+const sizeText = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+/** Spec sheets attached to a request (#34): upload while open, view and read their text at any time. */
+function Attachments({ req }: { req: ProductRequest }) {
+  const list = req.attachments ?? [];
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [note, setNote] = useState("");
+  const [preview, setPreview] = useState<{ id: string; url: string } | null>(null);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
+  const open = req.status === "open";
+  const showImage = async (a: ProductAttachment) => {
+    if (preview?.id === a.id) { setPreview(null); return; }
+    const blob = await products.file(a.id);
+    if (!blob) { setError("This browser no longer has the file (site data cleared?)."); return; }
+    setPreview({ id: a.id, url: URL.createObjectURL(blob) });
+  };
+  if (!open && !list.length) return null;
+  return (
+    <section className="products-attachments" aria-label="Attachments">
+      <strong>Spec sheets</strong>
+      {open && (
+        <span className="hint">
+          Attach the spec sheet you already have (PDF or image, up to {MAX_ATTACHMENT_BYTES / 1048576} MB). It stays in this browser.
+          A PDF's text is read page by page for the agent, which cites it by page. An image is for your review only: it has no text for the agent.
+          Scanned PDFs are not OCR'd.
+        </span>
+      )}
+      {list.map((a) => {
+        const withText = a.pages?.filter((p) => p.text.trim()).length ?? 0;
+        return (
+          <div key={a.id} className="products-attachment" data-attachment={a.id}>
+            <div>
+              <b>{a.kind === "pdf" ? "PDF" : "Image"}</b> {a.name} <span className="hint">· {sizeText(a.size)} · <code>attachment:{a.id}</code></span>
+            </div>
+            <div className="hint" data-text-status>
+              {a.kind === "image"
+                ? "Image: no text for the agent. If it needs what this shows, it will ask you to paste it into the conversation."
+                : withText === 0
+                  ? `${a.pages?.length ?? 0} page(s), no text found (a scan?). Not OCR'd, so the agent cannot read it.`
+                  : `${a.pages!.length} page(s), text on ${withText}; the agent reads this text.`}
+            </div>
+            <div className="products-actions">
+              {a.kind === "image"
+                ? <button type="button" onClick={() => void showImage(a)}>{preview?.id === a.id ? "Hide" : "View"}</button>
+                : <button type="button" onClick={() => void viewAttachment(a).then((e) => setError(e ?? ""))}>View</button>}
+              {open && (
+                <button type="button" onClick={() => void products.detach(req.id, a.id).then((r) => { human("detach_product_attachment", r); setError(r.ok ? "" : r.summary); })}>Remove</button>
+              )}
+            </div>
+            {preview?.id === a.id && <img className="products-attachment-image" src={preview.url} alt={a.name} />}
+            {a.kind === "pdf" && (a.pages?.length ?? 0) > 0 && (
+              <details>
+                <summary>Text the agent reads</summary>
+                {a.pages!.map((p) => (
+                  <div key={p.page} data-page={p.page}>
+                    <div className="hint">Page {p.page}</div>
+                    <pre className="products-page-text">{p.text || "(no text on this page)"}</pre>
+                  </div>
+                ))}
+              </details>
+            )}
+          </div>
+        );
+      })}
+      {open && (
+        <label className="field">
+          Attach spec sheet
+          <input type="file" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/gif" disabled={busy}
+            onChange={async (e) => {
+              const input = e.currentTarget;
+              const file = input.files?.[0];
+              if (!file) return;
+              setBusy(true);
+              setNote("Reading…");
+              const r = human("attach_product_spec_sheet", await products.attach(req.id, file));
+              setBusy(false);
+              input.value = "";
+              setError(r.ok ? "" : r.summary);
+              setNote(r.ok ? r.summary : "");
+            }} />
+        </label>
+      )}
+      {note && <span className="hint" role="status">{note}</span>}
+      {error && <span className="inspector-error" role="alert">{error}</span>}
+    </section>
+  );
 }
 
 /** One rough-in axis: its value or range and the datum it is measured from. */
@@ -123,7 +234,7 @@ function ReviewRow({ req, f }: { req: ProductRequest; f: FieldSpec }) {
       <td>{v.value === null ? "—" : v.status}</td>
       <td>
         {(v.sources ?? []).map((s, i) => (
-          <div key={i}><Link url={s.url} />{s.locator ? `, ${s.locator}` : ""}</div>
+          <div key={i}><Link url={s.url} locator={s.locator} />{s.locator ? `, ${s.locator}` : ""}</div>
         ))}
         {v.note && <div className="hint">{v.note}</div>}
         {flags.map((w, i) => <div key={i} className="inspector-warn">⚠ {w.message}</div>)}
@@ -155,6 +266,7 @@ function RequestDetail({ req }: { req: ProductRequest }) {
       <span className="hint">Request <code>{req.id}</code> · status <b data-status={req.status}>{req.status}</b></span>
       {Object.entries(req.known).map(([k, v]) => <span key={k} className="hint">{k}: {k === "link" ? <Link url={v}>{v}</Link> : v}</span>)}
       {req.feedback && <div className="inspector-warn">Returned to the agent: {req.feedback}</div>}
+      <Attachments req={req} />
       {req.status === "submitted" && req.submission ? (
         <>
           <span>Submitted: <b>{req.submission.manufacturer} {req.submission.model}</b>{req.submission.code ? ` (${req.submission.code})` : ""}</span>
@@ -194,7 +306,7 @@ function ProductCard({ p }: { p: LibraryProduct }) {
                 <td>{f.label}</td>
                 <td className={p.fields[f.key].value === null ? "unknown" : ""}>{shown(f, p.fields[f.key])}</td>
                 <td>{p.fields[f.key].value === null ? "—" : p.fields[f.key].status}</td>
-                <td>{(p.fields[f.key].sources ?? []).map((s, i) => <span key={i}><Link url={s.url}>{s.locator ?? "source"}</Link> </span>)}</td>
+                <td>{(p.fields[f.key].sources ?? []).map((s, i) => <span key={i}><Link url={s.url} locator={s.locator}>{s.locator ?? "source"}</Link> </span>)}</td>
               </tr>
             ))}
           </tbody>
