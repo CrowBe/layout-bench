@@ -55,6 +55,14 @@ const validServicePoint = (v: unknown) => object(v) && typeof v.id === "string" 
   (v.service === "waste" || v.service === "water" || v.service === "power") && typeof v.status === "string" && STATUS.includes(v.status) &&
   optionalFinite(v.out) && optionalFinite(v.outMax) && optionalFinite(v.across) && optionalFinite(v.up);
 
+/** Trade sheets (#29): every field the checker and renderer read. */
+const optionalString = (v: unknown) => v === undefined || typeof v === "string";
+const validSheetSet = (v: unknown) => object(v) && object(v.titleBlock) &&
+  ["project", "site", "preparedBy"].every((k) => optionalString((v.titleBlock as Record<string, unknown>)[k])) &&
+  Array.isArray(v.revisions) && v.revisions.every((r: unknown) => object(r) && typeof r.rev === "string" && typeof r.sheet === "string" &&
+    typeof r.date === "string" && optionalString(r.note) && Array.isArray(r.acknowledged) &&
+    r.acknowledged.every((a: unknown) => object(a) && typeof a.code === "string" && typeof a.ref === "string" && typeof a.reason === "string" && (a.by === "human" || a.by === "agent")));
+
 type Migration = (doc: Record<string, unknown>) => Record<string, unknown>;
 
 /**
@@ -121,8 +129,7 @@ export function parseProject(value: unknown): ProjectDocument {
         (v.servicePoints === undefined || (Array.isArray(v.servicePoints) && v.servicePoints.every(validServicePoint)))) ||
       !notes.every((v) => object(v) && typeof v.id === "string" && typeof v.text === "string" && finite(v.at) && (v.author === "human" || v.author === "agent")) ||
       !kinds.every((v) => object(v) && object(v.entry) && typeof v.entry.kind === "string" && typeof v.entry.label === "string" && ["w", "d", "h"].every((k) => finite((v.entry as Record<string, unknown>)[k])) && (v.parts === undefined || Array.isArray(v.parts))) ||
-      !(model.sheetSet === undefined || (object(model.sheetSet) && object(model.sheetSet.titleBlock) && Array.isArray(model.sheetSet.revisions) &&
-        model.sheetSet.revisions.every((r: unknown) => object(r) && typeof r.rev === "string" && typeof r.sheet === "string" && Array.isArray(r.acknowledged)))) ||
+      !(model.sheetSet === undefined || validSheetSet(model.sheetSet)) ||
       !(model.underlay === null || (object(model.underlay) && typeof model.underlay.dataUrl === "string" && ["opacity", "x", "y", "w", "h"].every((k) => finite((model.underlay as Record<string, unknown>)[k]))))) {
     throw new Error("Project document contains invalid model data.");
   }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { actions, store } from "../src/model/store";
 import { emptyModel } from "../src/model/types";
-import { checkSheet } from "../src/sheets/check";
+import { checkSheet, revisionLetter } from "../src/sheets/check";
 import { renderFloorPlan } from "../src/sheets/floorPlan";
 import { demoProject, parseImport } from "../src/model/projects";
 
@@ -94,5 +94,65 @@ describe("trade sheet preflight and issue (#29)", () => {
     actions.exportSheet("floor-plan");
     const loaded = parseImport(JSON.stringify({ ...demoProject(), id: "b", model: model() }));
     expect(loaded.model.sheetSet!.revisions.map((r) => r.rev)).toEqual(["A"]);
+  });
+
+  describe("review on #36", () => {
+    const issuable = () => {
+      const { door } = bathroom();
+      actions.editOpening(door, { width: 0.8 });
+      actions.setSheetInfo({ project: "Bathroom renovation", site: "Main bathroom" });
+    };
+
+    it("keeps issued revisions through undo and clear, and never reuses a letter", () => {
+      issuable();
+      expect(actions.exportSheet("floor-plan").rev).toBe("A");
+      actions.addRoom(5, 5, 1, 1, "Extra", "tile");
+      actions.undo();
+      actions.undo();
+      expect(model().sheetSet!.revisions.map((r) => r.rev)).toEqual(["A"]);
+      actions.clearModel();
+      expect(model().sheetSet!.revisions.map((r) => r.rev)).toEqual(["A"]);
+      expect(revisionLetter(25)).toBe("Z");
+      expect(revisionLetter(26)).toBe("AA");
+      expect(revisionLetter(27)).toBe("AB");
+    });
+
+    it("refuses a duplicate or over-long acknowledgement", () => {
+      bathroom();
+      actions.setSheetInfo({ project: "Bathroom renovation", site: "Main bathroom" });
+      const ref = checkSheet(model(), "floor-plan").find((f) => f.code === "default:opening_width_default")!.ref;
+      const ack = { code: "default:opening_width_default", ref, reason: "Door width set on site by the joiner" };
+      expect(actions.exportSheet("floor-plan", { acknowledge: [ack, ack] }).ok).toBe(false);
+      expect(actions.exportSheet("floor-plan", { acknowledge: [{ ...ack, reason: "x".repeat(301) }] }).ok).toBe(false);
+      expect(actions.exportSheet("floor-plan", { acknowledge: [ack] }).ok).toBe(true);
+    });
+
+    it("fits a plan drawn away from the origin at its own scale", () => {
+      const corners = [[10, 10], [12.11, 10], [12.11, 13.02], [10, 13.02]];
+      for (let i = 0; i < 4; i++) {
+        const [ax, ay] = corners[i];
+        const [bx, by] = corners[(i + 1) % 4];
+        actions.addWall(ax, ay, bx, by, 0.1, 2.4);
+      }
+      const svg = renderFloorPlan(model(), { sheet: "floor-plan", findings: [], revision: null });
+      expect(svg).toContain('data-scale="20"');
+    });
+
+    it("labels a wall length by what it runs along", () => {
+      const { ids } = bathroom();
+      actions.setWallSide(ids[0], "right", { existing: { value: 0, status: "measured" } });
+      actions.setWallSide(ids[1], "right", { existing: { value: 0.05, status: "measured" } });
+      const svg = renderFloorPlan(model(), { sheet: "floor-plan", findings: [], revision: null });
+      expect(svg).toMatch(new RegExp(`data-dim="${ids[0]}">[^<]*\\(existing surface\\)<`));
+      expect(svg).toMatch(new RegExp(`data-dim="${ids[1]}">[^<]*\\(drawn line\\)<`));
+    });
+
+    it("refuses project JSON whose title block is not text", () => {
+      issuable();
+      const doc = { ...demoProject(), id: "b", model: model() };
+      const bad = structuredClone(doc);
+      (bad.model.sheetSet!.titleBlock as Record<string, unknown>).project = 5;
+      expect(() => parseImport(JSON.stringify(bad))).toThrow();
+    });
   });
 });

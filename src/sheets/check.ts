@@ -94,6 +94,16 @@ export function checkSheet(model: PlanModel, sheet: string): SheetFinding[] {
   return out;
 }
 
+/** Revision letters: A…Z, then AA, AB… */
+export function revisionLetter(n: number): string {
+  let out = "";
+  let i = n;
+  do { out = String.fromCharCode(65 + (i % 26)) + out; i = Math.floor(i / 26) - 1; } while (i >= 0);
+  return out;
+}
+
+export const MAX_REASON = 300;
+
 export interface AckInput {
   code: string;
   ref: string;
@@ -113,6 +123,8 @@ export function reconcile(findings: SheetFinding[], acks: AckInput[] = [], by: A
     const hit = blocking.find((f) => f.code === a?.code && f.ref === a?.ref);
     if (!hit) { problems.push(`No blocking finding ${a?.code} on ${a?.ref} to acknowledge.`); continue; }
     if (typeof a.reason !== "string" || a.reason.trim().length < 10) { problems.push(`${a.code} on ${a.ref}: give a reason of at least 10 characters; it is printed on the sheet.`); continue; }
+    if (a.reason.trim().length > MAX_REASON) { problems.push(`${a.code} on ${a.ref}: keep the reason under ${MAX_REASON} characters so it prints in full.`); continue; }
+    if (used.some((u) => u.code === a.code && u.ref === a.ref)) { problems.push(`${a.code} on ${a.ref} is acknowledged twice.`); continue; }
     used.push({ code: a.code, ref: a.ref, reason: a.reason.trim(), by });
   }
   const open = blocking.filter((f) => !used.some((u) => u.code === f.code && u.ref === f.ref));

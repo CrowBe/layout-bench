@@ -25,6 +25,11 @@ try {
   await page.getByRole("button", { name: "Create blank" }).click();
   const run = (name, args = {}) => page.evaluate(([tool, input]) => window.__alza.runTool(tool, input), [name, args]);
 
+  // A fresh project has no title block: the Sheets tab must still open (review on #36)
+  await page.getByRole("button", { name: "Sheets", exact: true }).click();
+  assert.equal(await page.locator(".sheets-panel").count(), 1);
+  assert.match(await page.locator(".sheets-panel").textContent(), /title block needs a project name/);
+
   const corners = [[0, 0], [2.11, 0], [2.11, 3.02], [0, 3.02]];
   const walls = [];
   for (let i = 0; i < 4; i++) {
@@ -55,7 +60,7 @@ try {
   assert.equal(revA.ok, true, revA.summary);
   assert.equal(revA.rev, "A");
   assert.match(revA.svg, /window [^<]*default height/i);
-  assert.match(revA.svg, /2110 ENT · [^<]*A→B</); // existing surface recorded: not "(drawn line)"
+  assert.match(revA.svg, /2110 ENT · [^<]*A→B \(existing surface\)</); // walls drawn on the surveyed existing surfaces
   assert.match(revA.svg, /D 800 ENT/);
   assert.match(revA.svg, /W 1755 ENT/);
 

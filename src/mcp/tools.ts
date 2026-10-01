@@ -405,7 +405,7 @@ export const TOOLS: ToolDef[] = [
     execute: (i) => {
       const r = actions.exportSheet(i.sheet as string, { acknowledge: i.acknowledge as AckInput[] | undefined, note: i.note as string | undefined, by: "agent" });
       if (!r.ok) return r;
-      recordIssued(i.sheet as string, r.rev as string, r.svg as string);
+      recordIssued(store.getState().activeProjectId, i.sheet as string, r.rev as string, r.svg as string);
       const { svg, ...rest } = r;
       return i.includeSvg ? r : { ...rest, svgBytes: (svg as string).length };
     },

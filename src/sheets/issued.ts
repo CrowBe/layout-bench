@@ -4,6 +4,7 @@ import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 
 export interface IssuedSheet {
+  projectId: string | null;
   sheet: string;
   rev: string;
   svg: string;
@@ -12,5 +13,5 @@ export interface IssuedSheet {
 
 export const issuedStore = createStore<{ last: IssuedSheet | null }>(() => ({ last: null }));
 export const useIssued = () => useStore(issuedStore, (s) => s.last);
-export const recordIssued = (sheet: string, rev: string, svg: string) =>
-  issuedStore.setState({ last: { sheet, rev, svg, at: Date.now() } });
+export const recordIssued = (projectId: string | null, sheet: string, rev: string, svg: string) =>
+  issuedStore.setState({ last: { projectId, sheet, rev, svg, at: Date.now() } });

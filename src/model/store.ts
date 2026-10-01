@@ -32,7 +32,7 @@ import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { anchorPose, applyAnchors, faceChoices } from "./fixtures";
 import type { LibraryProduct } from "./productLibrary";
 import { categoryById, envelopeOf } from "./products";
-import { checkSheet, reconcile, sheetById, type AckInput } from "../sheets/check";
+import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
 import { SNAP, dist, formatMm, quantize, segLen, segPoint } from "./geometry";
 import { catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogEntry } from "./catalog";
@@ -285,6 +285,13 @@ export function logActivity(source: ActivityEntry["source"], tool: string, summa
 
 function pushUndo() {
   store.setState((s) => ({ undoStack: [...s.undoStack.slice(-49), structuredClone(s.model)] }));
+}
+
+/** Carry issued sheet revisions into a model being restored or cleared: issued sheets cannot be un-issued. */
+function withIssued(next: PlanModel, current: PlanModel): PlanModel {
+  const revisions = current.sheetSet?.revisions ?? [];
+  if (!revisions.length) return next;
+  return { ...next, sheetSet: { titleBlock: next.sheetSet?.titleBlock ?? current.sheetSet!.titleBlock, revisions } };
 }
 
 function setModel(model: PlanModel) {
@@ -934,15 +941,14 @@ export const actions = {
       );
     }
     const current = model.sheetSet ?? { titleBlock: {}, revisions: [] };
-    const n = current.revisions.length;
-    const rev = n < 26 ? String.fromCharCode(65 + n) : `${String.fromCharCode(64 + Math.floor(n / 26))}${String.fromCharCode(65 + (n % 26))}`;
+    const rev = revisionLetter(current.revisions.length);
     const revision: SheetRevision = {
       rev, date: new Date().toISOString().slice(0, 10), sheet,
       ...(opts.note?.trim() ? { note: opts.note.trim().slice(0, 160) } : {}),
       acknowledged: result.acknowledged,
     };
     const svg = renderFloorPlan(model, { sheet, findings, revision });
-    pushUndo();
+    // an issued revision has left the building: it is not undoable, and undo keeps it (see withIssued)
     setModel({ ...model, sheetSet: { ...current, revisions: [...current.revisions, revision] } });
     const advisory = findings.filter((f) => f.severity === "advisory").length;
     return ok(
@@ -1099,7 +1105,7 @@ export const actions = {
 
   clearModel(): ActionResult {
     pushUndo();
-    setModel(emptyModel());
+    setModel(withIssued(emptyModel(), store.getState().model));
     store.setState({ notes: [] });
     return ok("Model cleared. Blank canvas ready.");
   },
@@ -1301,7 +1307,7 @@ export const actions = {
     if (undoStack.length === 0) return fail("Nothing to undo.");
     const prev = undoStack[undoStack.length - 1];
     store.setState({ undoStack: undoStack.slice(0, -1) });
-    setModel(prev);
+    setModel(withIssued(prev, store.getState().model));
     return ok("Undone.");
   },
 

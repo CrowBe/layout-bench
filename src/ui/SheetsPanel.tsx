@@ -6,18 +6,10 @@
 
 import { useMemo, useState } from "react";
 import { actions, logActivity, useAppStore } from "../model/store";
-import { SHEETS, checkSheet, type SheetFinding } from "../sheets/check";
+import { SHEETS, checkSheet, revisionLetter, type SheetFinding } from "../sheets/check";
+import { download } from "./download";
 import { renderFloorPlan } from "../sheets/floorPlan";
 import { recordIssued, useIssued } from "../sheets/issued";
-
-function download(name: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: "image/svg+xml" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 /** Open the sheet alone, sized to A3 landscape, and hand it to the browser's print-to-PDF. */
 function printSheet(svg: string) {
@@ -29,8 +21,7 @@ function printSheet(svg: string) {
   w.print();
 }
 
-function TitleBlock() {
-  const tb = useAppStore((s) => s.model.sheetSet?.titleBlock ?? {});
+function TitleBlock({ tb }: { tb: { project?: string; site?: string; preparedBy?: string } }) {
   const [draft, setDraft] = useState({ project: tb.project ?? "", site: tb.site ?? "", preparedBy: tb.preparedBy ?? "" });
   const field = (k: keyof typeof draft, label: string) => (
     <label className="field">{label}<input aria-label={label} value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} /></label>
@@ -60,7 +51,11 @@ function Finding({ f, reason, onReason }: { f: SheetFinding; reason: string; onR
 
 export function SheetsPanel() {
   const model = useAppStore((s) => s.model);
-  const issued = useIssued();
+  // select the stored object itself (stable between renders), never a fresh `?? {}`
+  const titleBlock = useAppStore((s) => s.model.sheetSet?.titleBlock);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const lastIssued = useIssued();
+  const issued = lastIssued && lastIssued.projectId === activeProjectId ? lastIssued : null;
   const [sheet] = useState<string>(SHEETS[0].id);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
@@ -77,7 +72,7 @@ export function SheetsPanel() {
     logActivity("human", "export_sheet", r.summary, r.ok);
     setMessage(r.summary);
     if (r.ok) {
-      recordIssued(sheet, r.rev as string, r.svg as string);
+      recordIssued(activeProjectId, sheet, r.rev as string, r.svg as string);
       setReasons({});
       setNote("");
     }
@@ -85,7 +80,8 @@ export function SheetsPanel() {
 
   return (
     <div className="sheets-panel" aria-label="Sheets">
-      <TitleBlock />
+      {/* keyed on the stored values, so an agent edit, undo or project switch refreshes the form */}
+      <TitleBlock key={`${activeProjectId}:${JSON.stringify(titleBlock ?? null)}`} tb={titleBlock ?? {}} />
       <div className="sheets-card">
         <strong>{SHEETS[0].number} {SHEETS[0].title}</strong>
         <span className={blocking.length ? "inspector-warn" : "hint"}>
@@ -95,7 +91,7 @@ export function SheetsPanel() {
           {findings.map((f) => <Finding key={key(f)} f={f} reason={reasons[key(f)] ?? ""} onReason={(v) => setReasons({ ...reasons, [key(f)]: v })} />)}
         </ul>
         <label className="field">Revision note<input aria-label="Revision note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. for plumber's quote" /></label>
-        <button type="button" className="primary" onClick={issue}>Issue rev {String.fromCharCode(65 + Math.min(25, revisions.length))}</button>
+        <button type="button" className="primary" onClick={issue}>Issue rev {revisionLetter(revisions.length)}</button>
         {message && <span role="status" className="hint">{message}</span>}
       </div>
       <div className="sheets-card">
@@ -111,7 +107,7 @@ export function SheetsPanel() {
         ))}
         {issued && (
           <div className="sheets-actions">
-            <button type="button" onClick={() => download(`${model.name.replace(/[^\w-]+/g, "-")}-${issued.sheet}-rev-${issued.rev}.svg`, issued.svg)}>Download rev {issued.rev} (SVG)</button>
+            <button type="button" onClick={() => download(`${model.name.replace(/[^\w-]+/g, "-")}-${issued.sheet}-rev-${issued.rev}.svg`, issued.svg, "image/svg+xml")}>Download rev {issued.rev} (SVG)</button>
             <button type="button" onClick={() => printSheet(issued.svg)}>Print / save as PDF</button>
           </div>
         )}

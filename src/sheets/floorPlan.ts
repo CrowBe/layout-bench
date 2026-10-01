@@ -77,7 +77,9 @@ export function renderFloorPlan(model: PlanModel, opts: RenderOptions): string {
   const ys: number[] = [];
   for (const w of model.walls) for (const c of rectCorners(joinedRect(model, w))) { xs.push(c.x); ys.push(c.y); }
   for (const r of model.rooms) { xs.push(r.x, r.x + r.w); ys.push(r.y, r.y + r.h); }
-  const minX = Math.min(...xs, 0), maxX = Math.max(...xs, 1), minY = Math.min(...ys, 0), maxY = Math.max(...ys, 1);
+  // fit the plan itself, wherever it was drawn; an empty plan gets a 1 m frame
+  if (!xs.length) { xs.push(0, 1); ys.push(0, 1); }
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
   const margin = 24; // paper mm kept for dimensions
   const N = SCALES.find((n) => ((maxX - minX) * 1000) / n <= DRAW.w - 2 * margin && ((maxY - minY) * 1000) / n <= DRAW.h - 2 * margin) ?? SCALES[SCALES.length - 1];
   const k = 1000 / N;
@@ -153,8 +155,12 @@ export function renderFloorPlan(model: PlanModel, opts: RenderOptions): string {
     const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
     const upright = angle > 90 || angle < -90 ? angle + 180 : angle;
     const m = { x: (a.x + b.x) / 2 + outward.x * 1.8, y: (a.y + b.y) / 2 + outward.y * 1.8 };
-    const existing = resolveFace(w.sides?.right, "existing").resolved || resolveFace(w.sides?.left, "existing").resolved;
-    parts.push(`<text x="${f1(m.x)}" y="${f1(m.y)}" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(${f1(upright)} ${f1(m.x)} ${f1(m.y)})" data-dim="${esc(w.id)}">${esc(`${mm(len)} ENT · ${w.id.replace(/^wall_/, "")} A→B${existing ? "" : " (drawn line)"}`)}</text>`);
+    // the printed length is along the drawn line; say so unless that line is an existing surface
+    const onLine = (["left", "right"] as const).some((side) => {
+      const f = resolveFace(w.sides?.[side], "existing");
+      return f.resolved && Math.abs(f.offset!) < 1e-4;
+    });
+    parts.push(`<text x="${f1(m.x)}" y="${f1(m.y)}" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(${f1(upright)} ${f1(m.x)} ${f1(m.y)})" data-dim="${esc(w.id)}">${esc(`${mm(len)} ENT · ${w.id.replace(/^wall_/, "")} A→B ${onLine ? "(existing surface)" : "(drawn line)"}`)}</text>`);
   }
 
   // ---- fixtures, set-out, service points ----
@@ -189,9 +195,28 @@ export function renderFloorPlan(model: PlanModel, opts: RenderOptions): string {
 
   // ---- right panel: legend, build-up, rough-in, unresolved, acknowledgements, title block ----
   let y = 14;
+  let overflowed = false;
+  const PANEL_BOTTOM = 228; // the title block starts at 236
   const x0 = PANEL.x;
-  const heading = (s: string) => { text(x0, y, s, 2.8, `font-weight="bold"`); y += 4; };
-  const row = (s: string, size = 2.1, extra = "") => { text(x0, y, s, size, extra); y += size + 1; };
+  const heading = (s: string) => { if (y > PANEL_BOTTOM) return; text(x0, y, s, 2.8, `font-weight="bold"`); y += 4; };
+  // wrap to the panel width: about 0.52 × font size per character in Helvetica
+  const row = (s: string, size = 2.1, extra = "") => {
+    const max = Math.floor((PANEL.w - 4) / (size * 0.52));
+    const lines: string[] = [];
+    let cur = "";
+    for (const word of s.split(" ")) {
+      if ((cur + " " + word).trim().length > max && cur) { lines.push(cur); cur = word; } else cur = (cur + " " + word).trim();
+    }
+    if (cur) lines.push(cur);
+    for (const [i, l] of lines.entries()) {
+      if (y > PANEL_BOTTOM) {
+        if (!overflowed) { text(x0, y, "… more: see check_sheets / get_rough_in", 2, `fill="#666"`); overflowed = true; }
+        return;
+      }
+      text(x0 + (i ? 3 : 0), y, l, size, extra);
+      y += size + 1;
+    }
+  };
   const limitRows = (rows: string[], max: number, extra = "") => {
     rows.slice(0, max).forEach((r) => row(r, 2.1, extra));
     if (rows.length > max) row(`… ${rows.length - max} more: see get_rough_in / check_sheets`, 2, `fill="#666"`);
