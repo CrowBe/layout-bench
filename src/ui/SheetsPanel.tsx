@@ -12,6 +12,7 @@ import { renderFloorPlan } from "../sheets/floorPlan";
 import { recordIssued, useIssued } from "../sheets/issued";
 import { composeView, useDiagramView, useLastExport } from "../sheets/viewState";
 import { renderStageDiagram } from "../sheets/stageView";
+import { useProductStore } from "../model/productLibrary";
 
 /**
  * The stage view an agent composed (#41): what it shows, a preview, and the last exported
@@ -22,8 +23,9 @@ function StageViewCard({ projectId, fileBase }: { projectId: string | null; file
   const view = useDiagramView(projectId);
   const last = useLastExport();
   const exported = last && last.projectId === projectId ? last : null;
-  const composed = useMemo(() => (view ? composeView(model, view) : null), [model, view]);
-  const preview = useMemo(() => (view && composed ? renderStageDiagram(model, composed.resolution.elements, { label: view.label, findings: composed.findings }) : ""), [model, view, composed]);
+  const products = useProductStore((s) => s.products);
+  const composed = useMemo(() => (view ? composeView(model, view, products) : null), [model, view, products]);
+  const preview = useMemo(() => (view && composed ? renderStageDiagram(model, composed.resolution.elements, { label: view.label, findings: composed.findings, products }) : ""), [model, view, composed, products]);
   const slug = (s: string) => s.replace(/[^\w-]+/g, "-");
   return (
     <div className="sheets-card stage-view-card" aria-label="Stage view">

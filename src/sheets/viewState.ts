@@ -10,6 +10,7 @@ import { useStore } from "zustand";
 import type { PlanModel } from "../model/types";
 import { catalogue, resolveVisible, suggest, viewFindings, type Catalogue, type Resolution } from "./stageView";
 import type { SheetFinding } from "./check";
+import type { LibraryProduct } from "../model/productLibrary";
 
 export interface DiagramView {
   label: string;
@@ -92,7 +93,7 @@ export interface ComposedView {
 }
 
 /** Resolve a stored view against the model as it is now, with its scoped preflight findings. */
-export function composeView(model: PlanModel, view: DiagramView): ComposedView {
+export function composeView(model: PlanModel, view: DiagramView, products: LibraryProduct[] = []): ComposedView {
   const resolution = resolveVisible(model, view.visible);
-  return { view, resolution, findings: viewFindings(model, resolution) };
+  return { view, resolution, findings: viewFindings(model, resolution, products) };
 }

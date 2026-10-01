@@ -563,8 +563,8 @@ export const TOOLS: ToolDef[] = [
       const s = store.getState();
       const view = currentView(s.activeProjectId);
       if (!view) return { ok: false, summary: "No stage view is set. Call list_diagram_content, then set_diagram_view." };
-      const c = composeView(s.model, view);
       const products = productStore.getState().products;
+      const c = composeView(s.model, view, products);
       const { rows } = renderStageSpec(s.model, c.resolution.elements, { label: view.label, findings: c.findings, products });
       const blocking = c.findings.filter((f) => f.severity === "blocking");
       return {
@@ -594,12 +594,16 @@ export const TOOLS: ToolDef[] = [
       const s = store.getState();
       const view = currentView(s.activeProjectId);
       if (!view) return { ok: false, summary: "No stage view is set. Call set_diagram_view first." };
-      const c = composeView(s.model, view);
+      const products = productStore.getState().products;
+      const c = composeView(s.model, view, products);
+      // a view naming ids the model no longer has, or showing nothing, is not a stage: no acknowledgement exports it
+      if (c.resolution.unknown.length || !c.resolution.elements.length) {
+        return { ok: false, summary: `Not exported. ${c.resolution.unknown.length ? `The view names id(s) the model no longer has: ${c.resolution.unknown.join(", ")}.` : "Nothing is visible in this view."} Compose it again with set_diagram_view using ids from list_diagram_content.`, staleIds: c.resolution.unknown };
+      }
       const result = reconcile(c.findings, Array.isArray(i.acknowledge) ? (i.acknowledge as AckInput[]) : [], "agent");
       if (!result.ok) {
         return { ok: false, summary: `Not exported. ${result.open.length} blocking finding(s) open${result.problems.length ? `; ${result.problems.join(" ")}` : ""}. Fix each one (see fix) or acknowledge it with a reason that is printed on the outputs.`, open: result.open, problems: result.problems };
       }
-      const products = productStore.getState().products;
       const rawNote = i.note as unknown;
       const note = typeof rawNote === "string" && rawNote.trim() ? rawNote.trim().slice(0, 160) : undefined;
       const opts = { label: view.label, findings: c.findings, acknowledged: result.acknowledged, date: new Date().toISOString().slice(0, 10), note, products };

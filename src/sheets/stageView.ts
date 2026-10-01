@@ -11,14 +11,15 @@
 
 import type { Acknowledgement, PlanModel, Quantity, Room, Wall, WallSideName } from "../model/types";
 import type { LibraryProduct } from "../model/productLibrary";
-import { catalogByKind } from "../model/catalog";
+import { catalogByKind, isBuiltInKind } from "../model/catalog";
 import { rectCorners, segLen, type Pt } from "../model/geometry";
 import { openingSpan } from "../model/issues";
-import { known, layerLabel, resolveFace, sideFaces, sideNormal, wallBody } from "../model/faces";
+import { input, known, layerLabel, resolveFace, sideFaces, sideNormal, wallBody, weakest } from "../model/faces";
 import { DEFAULT_DATUM, floorLayerLabel, floorLevels } from "../model/floor";
 import { planeSurface } from "../model/drainage";
 import { anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
+import { categoryById } from "../model/products";
 import { checkSheet, type SheetFinding } from "./check";
 import { PAPER, TAGS, esc, f1, joinedRect, mm, tag } from "./floorPlan";
 
@@ -64,6 +65,13 @@ export interface ViewElement {
   label: string;
   /** the canonical model entity it is drawn from */
   ref: string;
+  /** the wall side, for faces and wall layers */
+  side?: WallSideName;
+  /**
+   * the sub-entity within ref (face name, layer, waste, plane or service point id). Kept here
+   * rather than parsed back out of `id`, because some model ids may contain ":".
+   */
+  sub?: string;
 }
 
 export interface Catalogue {
@@ -87,9 +95,9 @@ export function catalogue(model: PlanModel): Catalogue {
     for (const side of ["left", "right"] as WallSideName[]) {
       const spec = w.sides?.[side];
       if (!spec) continue;
-      if (spec.existing) add({ id: `wall:${w.id}:${side}:existing`, layer: "wall-existing", type: "face", label: `Wall ${wallName(w)} ${side}: existing surface`, ref: w.id });
-      if (spec.frame) add({ id: `wall:${w.id}:${side}:frame`, layer: "wall-frame", type: "face", label: `Wall ${wallName(w)} ${side}: frame face`, ref: w.id });
-      for (const l of spec.layers) add({ id: `wall:${w.id}:${side}:${l.id}`, layer: `wall-${l.kind}` as LayerId, type: "wall-layer", label: `Wall ${wallName(w)} ${side}: ${layerLabel(l)}`, ref: w.id });
+      if (spec.existing) add({ id: `wall:${w.id}:${side}:existing`, layer: "wall-existing", type: "face", label: `Wall ${wallName(w)} ${side}: existing surface`, ref: w.id, side, sub: "existing" });
+      if (spec.frame) add({ id: `wall:${w.id}:${side}:frame`, layer: "wall-frame", type: "face", label: `Wall ${wallName(w)} ${side}: frame face`, ref: w.id, side, sub: "frame" });
+      for (const l of spec.layers) add({ id: `wall:${w.id}:${side}:${l.id}`, layer: `wall-${l.kind}` as LayerId, type: "wall-layer", label: `Wall ${wallName(w)} ${side}: ${layerLabel(l)}`, ref: w.id, side, sub: l.id });
     }
   }
   for (const o of model.openings) {
@@ -100,15 +108,15 @@ export function catalogue(model: PlanModel): Catalogue {
     const fb = r.floorBuildUp;
     if (fb) {
       add({ id: `room:${r.id}:substrate`, layer: "floor-substrate", type: "floor-substrate", label: `${r.label} floor: substrate`, ref: r.id });
-      for (const l of fb.layers) add({ id: `room:${r.id}:floor:${l.id}`, layer: `floor-${l.kind}` as LayerId, type: "floor-layer", label: `${r.label} floor: ${floorLayerLabel(l)}`, ref: r.id });
+      for (const l of fb.layers) add({ id: `room:${r.id}:floor:${l.id}`, layer: `floor-${l.kind}` as LayerId, type: "floor-layer", label: `${r.label} floor: ${floorLayerLabel(l)}`, ref: r.id, sub: l.id });
     }
-    for (const wst of r.drainage?.wastes ?? []) add({ id: `room:${r.id}:waste:${wst.id}`, layer: "drainage-wastes", type: "waste", label: `${r.label}: ${wst.label}`, ref: r.id });
-    for (const p of r.drainage?.planes ?? []) add({ id: `room:${r.id}:plane:${p.id}`, layer: "drainage-planes", type: "floor-plane", label: `${r.label}: ${p.label}`, ref: r.id });
+    for (const wst of r.drainage?.wastes ?? []) add({ id: `room:${r.id}:waste:${wst.id}`, layer: "drainage-wastes", type: "waste", label: `${r.label}: ${wst.label}`, ref: r.id, sub: wst.id });
+    for (const p of r.drainage?.planes ?? []) add({ id: `room:${r.id}:plane:${p.id}`, layer: "drainage-planes", type: "floor-plane", label: `${r.label}: ${p.label}`, ref: r.id, sub: p.id });
   }
   for (const it of model.items) {
     const label = catalogByKind(it.kind)?.label ?? it.kind;
     add({ id: `item:${it.id}`, layer: "fixtures", type: "fixture", label: `${label} (${it.id})`, ref: it.id });
-    for (const sp of it.servicePoints ?? []) add({ id: `item:${it.id}:sp:${sp.id}`, layer: `services-${sp.service}` as LayerId, type: "service-point", label: `${label}: ${sp.label}`, ref: it.id });
+    for (const sp of it.servicePoints ?? []) add({ id: `item:${it.id}:sp:${sp.id}`, layer: `services-${sp.service}` as LayerId, type: "service-point", label: `${label}: ${sp.label}`, ref: it.id, sub: sp.id });
   }
   const layers = LAYERS.map((l) => ({ id: l.id, label: l.label, elements: els.filter((e) => e.layer === l.id).map((e) => e.id) })).filter((l) => l.elements.length);
   return { layers, emptyLayers: LAYERS.filter((l) => !layers.some((x) => x.id === l.id)).map((l) => l.id), elements: els, notModelled: NOT_MODELLED };
@@ -171,7 +179,6 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   const rows: SpecRow[] = [];
   const row = (property: string, r: Omit<SpecRow, "element" | "layer" | "label" | "property">) =>
     rows.push({ element: el.id, layer: el.layer, label: el.label, property, ...r, ...(r.value === "?" && !r.missing ? { missing: [property] } : {}) });
-  const parts = el.id.split(":");
 
   if (el.type === "wall" || el.type === "face" || el.type === "wall-layer") {
     const w = model.walls.find((x) => x.id === el.ref)!;
@@ -181,16 +188,16 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
       row("height (mm)", { value: mm(w.height), status: dimStatus(w.heightDefaulted) });
       return rows;
     }
-    const side = parts[2] as WallSideName;
+    const side = el.side!;
     const spec = w.sides?.[side];
     const datum = `drawn line of ${w.id}, toward ${side} side`;
     if (el.type === "face") {
-      const name = parts[3] as "existing" | "frame";
+      const name = el.sub as "existing" | "frame";
       const r = qRow(spec?.[name]);
       row(`${name === "existing" ? "existing surface" : "frame face"} position (mm)`, { ...r, datum });
       return rows;
     }
-    const layer = spec!.layers.find((l) => l.id === parts[3])!;
+    const layer = spec!.layers.find((l) => l.id === el.sub)!;
     row("kind", { value: layer.kind, status: "entered" });
     row("thickness (mm)", qRow(layer.thickness));
     const face = sideFaces(spec).find((f) => f.face === layer.id)!;
@@ -224,7 +231,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
       row("substrate top level (mm)", lv.resolved ? { value: mm(lv.top!), status: lv.basis as RowStatus, datum, ...(fb.substrateTop?.source ? { source: fb.substrateTop.source } : {}) } : { value: "?", status: "unknown", datum, missing: lv.missing });
       return rows;
     }
-    const layer = fb.layers.find((l) => l.id === parts[3])!;
+    const layer = fb.layers.find((l) => l.id === el.sub)!;
     row("kind", { value: layer.kind, status: "entered" });
     row("thickness (mm)", qRow(layer.thickness));
     const lv = levels.find((l) => l.level === layer.id)!;
@@ -233,7 +240,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   }
   if (el.type === "waste") {
     const r = room();
-    const wst = r.drainage!.wastes.find((x) => x.id === parts[3])!;
+    const wst = r.drainage!.wastes.find((x) => x.id === el.sub)!;
     row("kind", { value: wst.kind, status: "entered" });
     row("finished level at waste (mm)", { ...qRow(wst.level), datum: r.floorBuildUp?.datum || DEFAULT_DATUM });
     return rows;
@@ -241,7 +248,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   if (el.type === "floor-plane") {
     const r = room();
     const d = r.drainage!;
-    const p = d.planes.find((x) => x.id === parts[3])!;
+    const p = d.planes.find((x) => x.id === el.sub)!;
     const s = planeSurface(d, p);
     row("fall (mm per m)", s.resolved && s.fall !== undefined
       ? { value: f1(s.fall * 1000), status: s.basis as RowStatus, ...(p.fall?.source ? { source: p.fall.source } : {}) }
@@ -253,7 +260,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   const it = model.items.find((x) => x.id === el.ref)!;
   if (el.type === "fixture") {
     const cat = catalogByKind(it.kind);
-    row("footprint w × d (mm)", cat ? { value: `${mm(cat.w)} × ${mm(cat.d)}`, status: it.productId ? "published" : "entered" } : { value: "?", status: "unknown", missing: [`kind ${it.kind}`] });
+    row("footprint w × d (mm)", cat ? { value: `${mm(cat.w)} × ${mm(cat.d)}`, status: it.productId ? "published" : isBuiltInKind(it.kind) ? "defaulted" : "entered" } : { value: "?", status: "unknown", missing: [`kind ${it.kind}`] });
     if (it.anchor) {
       const pose = anchorPose(model, it);
       row("set-out", {
@@ -268,11 +275,13 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     const product = it.productId ? products.find((p) => p.id === it.productId) : undefined;
     if (it.productId && !product) row("product", { value: it.productId, status: "unknown", missing: ["product not in this browser's library"] });
     if (product) {
+      const lengthKeys = new Set((categoryById(product.category)?.fields ?? []).filter((f) => f.type === "length").map((f) => f.key));
       row("product", { value: [product.manufacturer, product.model, product.code].filter(Boolean).join(" "), status: "published" });
       for (const [key, fv] of Object.entries(product.fields)) {
         if (fv.value === null || fv.value === undefined) { row(key, { value: "?", status: "unknown", missing: [fv.note ?? key] }); continue; }
         row(key, {
-          value: typeof fv.value === "number" ? mm(fv.value) : String(fv.value),
+          // only length fields are metres; a count (tap holes) or text prints as given
+          value: typeof fv.value === "number" && lengthKeys.has(key) ? mm(fv.value) : String(fv.value),
           status: (fv.status ?? "unknown") as RowStatus,
           ...(fv.reference ? { datum: fv.reference } : {}),
           ...(fv.sources?.length ? { source: fv.sources.map((s) => `${s.url}${s.locator ? ` (${s.locator})` : ""}`).join("; ") } : {}),
@@ -281,14 +290,16 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     }
     return rows;
   }
-  const sp = it.servicePoints!.find((x) => x.id === parts[3])!;
+  const sp = it.servicePoints!.find((x) => x.id === el.sub)!;
   const reading = roughIn(model, it).find((r) => r.pointId === sp.id)!;
   const src = sp.source ? { source: sp.source } : {};
   row("service", { value: sp.service, status: "entered" });
   row(`out from ${sp.face} face (mm)`, sp.out !== undefined ? { value: `${mm(sp.out)}${sp.outMax !== undefined ? `–${mm(sp.outMax)}` : ""}`, status: sp.status, datum: `${sp.face} face`, ...src } : { value: "?", status: "unknown", missing: ["out distance"] });
   row("across from fixture centreline (mm)", sp.across !== undefined ? { value: mm(sp.across), status: sp.status, ...src } : { value: "?", status: "unknown", missing: ["across offset"] });
   row("up from finished floor (mm)", sp.up !== undefined ? { value: mm(sp.up), status: sp.status, datum: "finished floor", ...src } : { value: "?", status: "unknown", missing: ["up height"] });
-  row("along from end A (mm)", reading.alongFromA !== undefined ? { value: mm(reading.alongFromA), status: sp.status, datum: it.anchor ? `${it.anchor.wallId} end A` : undefined } : { value: "?", status: "unknown", missing: reading.missing.length ? reading.missing : ["position along the wall"] });
+  // along depends on the fixture's set-out as well as the point's own offset: the weaker status
+  const alongStatus = it.anchor ? weakest([input("point", { value: 0, status: sp.status }), input("set-out", { value: 0, status: it.anchor.status })]) : sp.status;
+  row("along from end A (mm)", reading.alongFromA !== undefined ? { value: mm(reading.alongFromA), status: alongStatus as RowStatus, datum: it.anchor ? `${it.anchor.wallId} end A` : undefined } : { value: "?", status: "unknown", missing: reading.missing.length ? reading.missing : ["position along the wall"] });
   return rows;
 }
 
@@ -299,7 +310,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
  * kept for the entities this view shows, plus the view's own checks. Nothing is relaxed: a
  * defaulted width on a visible door blocks here as it does on A-01.
  */
-export function viewFindings(model: PlanModel, res: Resolution): SheetFinding[] {
+export function viewFindings(model: PlanModel, res: Resolution, products: LibraryProduct[] = []): SheetFinding[] {
   const out: SheetFinding[] = [];
   if (res.unknown.length) {
     out.push({ code: "view_stale_ids", severity: "blocking", ref: res.unknown.join(","), message: `This view names ${res.unknown.length} id(s) the model no longer has: ${res.unknown.join(", ")}. Compose it again.`, fix: { tool: "set_diagram_view", args: { label: "<stage>", visible: "<ids from list_diagram_content>" }, hint: "Re-apply the view with current ids." } });
@@ -318,7 +329,7 @@ export function viewFindings(model: PlanModel, res: Resolution): SheetFinding[] 
     out.push(f);
   }
   for (const el of res.elements) {
-    for (const r of specRows(model, el)) {
+    for (const r of specRows(model, el, products)) {
       if (r.value === "?" || r.missing?.length) {
         out.push({ code: "unresolved_in_view", severity: "advisory", ref: el.id, message: `${el.label}: ${r.property} ${r.value === "?" ? "unknown; printed as \"?\"" : "unresolved"}${r.missing?.length ? ` (missing ${r.missing.join(", ")})` : ""}.` });
       } else if (r.status === "defaulted") {
