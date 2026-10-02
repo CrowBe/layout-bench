@@ -383,3 +383,12 @@ button.linklike { padding: 0; border: 0; background: none; color: var(--agent); 
 .heating-zone {display:flex;gap:8px;align-items:center}
 .heating-zone input {width:auto}
 .heating-section svg {width:100%;height:auto}
+/* Exact variant evidence stays readable in both library and narrow fixture panels. */
+.product-identity { min-width: 0; overflow-wrap: anywhere; }
+.product-identity .products-table { table-layout: fixed; }
+.product-identity td, .product-identity th { overflow-wrap: anywhere; }
+.product-identity .review-actions input { max-width: 100%; min-width: 0; }
+.products-card fieldset { min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+.products-card fieldset .field { margin-bottom: 6px; }
+.products-request span { min-width: 0; overflow-wrap: anywhere; }
+.products-request .badge { flex-shrink: 0; white-space: nowrap; overflow-wrap: normal; }

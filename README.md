@@ -176,6 +176,7 @@ document.modelContext.registerTool({
 | **Openings** | `add_door` · `add_window` · `edit_opening` (exact position from a named wall end, width, sill, height) · `move_opening` · `remove_opening` · `set_door_swing` (hinge side + swing direction) |
 | **Wall faces** | `set_wall_side` (existing surface, frame face and proposed build-up per wall side, each value with a status) · `get_wall_faces` (readOnly) · `measure_to_face` (readOnly: distance from the existing, frame, board or finished face, or unresolved) |
 | **Wall tiling** | `set_wall_tiling` (a proposed tile set-out on one wall side: tile size, orientation, joint, the face each end is cut to, floor reference, origin and tiled height, each length with a status) · `get_wall_tiling` (readOnly: run limits, floor level, origin, edge cuts at both ends, bottom and top, cuts around openings, pieces, and every unresolved input) · `export_wall_tiling` (readOnly: the printable A3 SVG elevation, stamped proposed, not as-built) |
+| **Floor tiling** | `set_floor_tiling` (proposed rectangular room or drainage-plane pattern, tile format, joint, plan X/Y axis, origin from finished west/north faces, notes and per-value provenance) · `get_floor_tiling` (readOnly: pieces, perimeter cuts, waste-grid relationships, door transitions, floor-plane boundaries and unresolved fields) · `export_floor_tiling` (readOnly: proposed SVG plan with dimensions and field notes; print to A3 PDF from the room Inspector) |
 | **Floor and drainage** | `set_room_floor` · `get_floor_levels` (readOnly) · `set_room_drainage` (point or linear wastes and sloped floor planes, each level and fall with a status) · `get_floor_heights` (readOnly: derived heights at points and along a section, checks for contradictory levels, gaps and unresolved falls, build-up and door-threshold references) |
 | **Trade sheets** | `set_sheet_info` · `list_sheets` (readOnly) · `check_sheets` (readOnly: blocking and advisory findings, each with a ref and a suggested fix) · `export_sheet` (issues an A3 SVG revision; blocking findings must be fixed or acknowledged with a reason that is printed on the sheet) |
 | **Stage diagrams** | `list_diagram_content` (readOnly: the layer and object ids the model really has, empty layer kinds, and what is not modelled) · `set_diagram_view` (an explicit visible set for a labelled stage; any unknown id is refused) · `get_diagram_view` (readOnly: the visible elements, the spec rows with status and datum, and scoped findings) · `export_diagram_view` (the dimensioned A3 diagram SVG and the matching specification sheet HTML) |
@@ -228,6 +229,13 @@ A few design notes:
   rough-in schedule, status tag on every value, unresolved list and title block; the Sheets
   tab previews it, issues revisions, downloads the SVG and prints to PDF.
 
+- Select a room to propose floor tile set-out at its finished wall faces. Choose the whole
+  room or one existing drainage plane, enter tile format, grout, X/Y axis and origin, then
+  nudge the origin 10 mm to compare visible cuts and the exported plan. Blank or ambiguous
+  wall faces stay unresolved. The diagram shows doorway transitions, wastes and fall-plane
+  boundaries and flags narrow pieces or tiles crossing slope breaks. Waste aperture sizes
+  are not yet recorded: centre lines and grid relationships remain proposals for tiler
+  review, with aperture cuts explicitly unresolved. No purchase quantity or trade approval.
 - One renovation, many stage drawings. Post-demolition, rough-in, waterproofing, screed, tiles
   and fit-out are views of the same project, not copies of it. An agent lists what the model
   holds (`list_diagram_content`: wall faces and each build-up layer, floor layers, wastes and

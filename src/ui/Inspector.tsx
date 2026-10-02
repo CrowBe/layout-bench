@@ -11,6 +11,7 @@ import { catalogByKind } from "../model/catalog";
 import { roomOnSide } from "../model/faces";
 import { WallFaces } from "./WallFaces";
 import { WallTiling } from "./WallTiling";
+import { FloorTiling } from "./FloorTiling";
 import { FloorBuildUp } from "./FloorBuildUp";
 import { Heating } from "./Heating";
 import { Drainage } from "./Drainage";
@@ -138,6 +139,7 @@ export function Inspector() {
         <FloorBuildUp room={room} />
         <Drainage room={room} />
         <Heating room={room} />
+        <FloorTiling room={room} />
       </aside>
     );
   }

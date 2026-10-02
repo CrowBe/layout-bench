@@ -4,10 +4,13 @@
  * product is only possible here: it is not a tool.
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Link, viewAttachment } from "./ProductSource";
+import { ExactIdentity, IdentityEditor } from "./ProductIdentity";
+import { unknownIdentity, identityOf, identityText, type ProductComponent } from "../model/productIdentity";
+import { useEffect, useState } from "react";
 import { logActivity } from "../model/store";
 import { formatMm } from "../model/geometry";
-import { PRODUCT_CATEGORIES, REFERENCES, applies, attachmentIdOf, pageOfLocator, safeUrl, type AxisValue, categoryById, envelopeOf, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
+import { PRODUCT_CATEGORIES, REFERENCES, applies, type AxisValue, categoryById, envelopeOf, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
 import { MAX_ATTACHMENT_BYTES, products, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
 
 const human = (tool: string, r: LibraryResult) => {
@@ -18,36 +21,6 @@ const human = (tool: string, r: LibraryResult) => {
 function shown(f: FieldSpec, v: FieldValue | undefined): string {
   if (!v || v.value === null || v.value === undefined) return "unknown";
   return f.type === "length" && typeof v.value === "number" ? `${formatMm(v.value)} mm` : String(v.value);
-}
-
-/** Open an attached file in a new tab, from this browser's own storage. */
-async function viewAttachment(att: Pick<ProductAttachment, "id" | "kind">, page?: number | null): Promise<string | null> {
-  const blob = await products.file(att.id);
-  if (!blob) return "This browser no longer has the file (site data cleared?). Its extracted text is still kept.";
-  const url = URL.createObjectURL(blob);
-  window.open(att.kind === "pdf" && page ? `${url}#page=${page}` : url, "_blank", "noopener");
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  return null;
-}
-
-/** A source: an attached spec sheet (opens at its page), an external link, or plain text. */
-function Link({ url, children, locator }: { url: string; children?: ReactNode; locator?: string }) {
-  const attId = attachmentIdOf(url);
-  const att = useProductStore((s) => (attId ? s.requests.flatMap((r) => r.attachments ?? []).find((a) => a.id === attId) : undefined));
-  if (attId !== null) {
-    if (!att) return <span data-attachment={attId}>{children ?? `missing attachment ${attId}`}</span>;
-    // the page the validator read from the locator, not just any number in it ("fig. 2")
-    const page = att.kind === "pdf" ? pageOfLocator(locator) : null;
-    return (
-      <button type="button" className="linklike" data-attachment={attId} title={`Open ${att.name}${page ? ` at page ${page}` : ""}`}
-        onClick={() => void viewAttachment(att, page)}>
-        {children ?? att.name}
-      </button>
-    );
-  }
-  const href = safeUrl(url);
-  const text = children ?? (href ? new URL(href).hostname : url);
-  return href ? <a href={href} target="_blank" rel="noreferrer noopener">{text}</a> : <span>{text}</span>;
 }
 
 const sizeText = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -149,7 +122,7 @@ function axisText(a: AxisValue | undefined): string {
 }
 
 const identity = (r: ProductRequest) =>
-  [r.known.brand, r.known.model].filter(Boolean).join(" ") || r.known.reference || r.known.link || r.id;
+  ([r.known.brand, r.known.model].filter(Boolean).join(" ") || r.known.reference || r.known.link || r.id) + Object.values(identityOf(r.known)).filter(v => v.state === "known").map(v => ` · ${identityText(v)}`).join("");
 
 function unit(f: FieldSpec): string {
   if (f.type === "length") return `mm, ${formatMm(f.min)}–${formatMm(f.max)}`;
@@ -161,6 +134,9 @@ function unit(f: FieldSpec): string {
 function NewRequest() {
   const [category, setCategory] = useState(PRODUCT_CATEGORIES[0].id);
   const [known, setKnown] = useState({ brand: "", model: "", reference: "", link: "", notes: "" });
+  const [variant, setVariant] = useState(unknownIdentity);
+  const [components, setComponents] = useState<ProductComponent[]>([]);
+  const [component, setComponent] = useState({ name: "", code: "", quantity: "", provision: "unresolved", url: "", locator: "" });
   const [error, setError] = useState("");
   const field = (k: keyof typeof known, label: string) => (
     <label className="field">
@@ -171,9 +147,9 @@ function NewRequest() {
   return (
     <form className="products-card" aria-label="New product request" onSubmit={(e) => {
       e.preventDefault();
-      const r = human("request_product", products.request(category, known));
+      const r = human("request_product", products.request(category, { ...known, identity: variant, ...(components.length ? { components, componentsStatus: "documented" as const } : {}) }));
       setError(r.ok ? "" : r.summary);
-      if (r.ok) setKnown({ brand: "", model: "", reference: "", link: "", notes: "" });
+      if (r.ok) { setKnown({ brand: "", model: "", reference: "", link: "", notes: "" }); setVariant(unknownIdentity()); setComponents([]); }
     }}>
       <strong>New request</strong>
       <label className="field">
@@ -187,6 +163,13 @@ function NewRequest() {
       {field("reference", "Quote line or product code")}
       {field("link", "Link")}
       {field("notes", "Notes")}
+      <IdentityEditor identity={variant} onChange={setVariant} />
+      <details><summary>Record component evidence</summary>
+        {Object.entries({ name: "Component name", code: "Component code", quantity: "Component quantity", url: "Component source URL", locator: "Component source locator" }).map(([key, label]) => <label className="field" key={key}>{label}<input value={component[key as keyof typeof component]} onChange={e => setComponent({ ...component, [key]: e.target.value })} /></label>)}
+        <label className="field">Component provision<select value={component.provision} onChange={e => setComponent({ ...component, provision: e.target.value })}><option>unresolved</option><option>included</option><option>separately-required</option></select></label>
+        <button type="button" onClick={() => { setComponents([...components, { name: component.name, code: { state: component.code ? "known" : "unknown", value: component.code || null, ...(component.code ? { sources: [{ url: component.url, locator: component.locator }] } : {}) }, quantity: component.quantity.trim() ? Number(component.quantity) : null, provision: component.provision as ProductComponent["provision"], sources: [{ url: component.url, locator: component.locator }] }]); setComponent({ name: "", code: "", quantity: "", provision: "unresolved", url: "", locator: "" }); }}>Add component evidence</button>
+        {components.map((c, i) => <div key={i}>{c.name} · {c.code.value ?? "unknown"} · {c.provision}<button type="button" onClick={() => setComponents(components.filter((_, n) => n !== i))}>Remove component</button></div>)}
+      </details>
       {error && <span className="inspector-error" role="alert">{error}</span>}
       <button className="primary" type="submit">Open request</button>
     </form>
@@ -265,12 +248,16 @@ function RequestDetail({ req }: { req: ProductRequest }) {
     <section className="products-card" aria-label="Selected request">
       <strong>{cat.label}: {identity(req)}</strong>
       <span className="hint">Request <code>{req.id}</code> · status <b data-status={req.status}>{req.status}</b></span>
-      {Object.entries(req.known).map(([k, v]) => <span key={k} className="hint">{k}: {k === "link" ? <Link url={v}>{v}</Link> : v}</span>)}
+      {Object.entries(req.known).filter(([k]) => !["identity", "components", "componentsStatus"].includes(k)).map(([k, v]) => <span key={k} className="hint">{k}: {k === "link" ? <Link url={String(v)}>{String(v)}</Link> : String(v)}</span>)}
       {req.feedback && <div className="inspector-warn">Returned to the agent: {req.feedback}</div>}
+      <span>Request evidence</span>
+      <ExactIdentity product={{ manufacturer: req.known.brand ?? "", model: req.known.model ?? "", identity: req.known.identity, components: req.known.components, componentsStatus: req.known.componentsStatus }} />
       <Attachments req={req} />
+      {req.status === "accepted" && req.submission && <><span>Accepted research</span><ExactIdentity product={req.submission} request={req} /></>}
       {req.status === "submitted" && req.submission ? (
         <>
           <span>Submitted: <b>{req.submission.manufacturer} {req.submission.model}</b>{req.submission.code ? ` (${req.submission.code})` : ""}</span>
+          <ExactIdentity product={req.submission} request={req} />
           <table className="products-table" aria-label="Submitted values">
             <thead><tr><th>Field</th><th>Value</th><th>Status</th><th>Source</th><th>Review</th></tr></thead>
             <tbody>{cat.fields.map((f) => <ReviewRow key={f.key} req={req} f={f} />)}</tbody>
@@ -299,6 +286,8 @@ function ProductCard({ p }: { p: LibraryProduct }) {
         <b>{p.manufacturer} {p.model}</b> · {cat?.label ?? p.category}
         {env ? ` · ${formatMm(env.w)} × ${formatMm(env.d)} × ${formatMm(env.h)} mm` : " · envelope unknown"}
       </summary>
+      <span className="hint">{Object.entries(identityOf(p)).map(([key, value]) => `${key}: ${identityText(value)}`).join(" · ")}</span>
+      <ExactIdentity product={p} />
       {cat && (
         <table className="products-table">
           <tbody>

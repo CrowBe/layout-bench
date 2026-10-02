@@ -1,3 +1,5 @@
+import type { ExactProduct, SelectionStatus } from "./productIdentity";
+
 /** Domain model — all units are meters, plan lives on the XY plane (y grows downward in 2D view). */
 
 export interface Wall {
@@ -169,6 +171,23 @@ export interface Room {
   /** Proposed wastes and sloped floor planes (#7). Absent = nothing recorded. */
   drainage?: Drainage;
   heating?: Heating;
+  /** Proposed floor tile pattern, always derived at finished wall faces (#10). */
+  floorTiling?: FloorTiling;
+}
+
+/** One rectangular room floor or an explicit drainage plane, clipped at finished faces.
+ * originX/Y locate a tile's upper-left edge from the finished west/north faces.
+ * axis x lays the long edge along plan X, axis y along plan Y. Missing stays unknown.
+ */
+export interface FloorTiling {
+  tileLength?: Quantity;
+  tileWidth?: Quantity;
+  joint?: Quantity;
+  axis?: "x" | "y";
+  zone?: "room" | string;
+  originX?: Quantity;
+  originY?: Quantity;
+  note?: string;
 }
 
 /**
@@ -229,6 +248,10 @@ export interface Item {
   servicePoints?: ServicePoint[];
   /** The product-library entry this fixture was placed from. */
   productId?: string;
+  /** Exact identity evidence at placement; travels with project export/import. */
+  productIdentity?: ExactProduct;
+  /** Project decision, independent of research acceptance. Missing legacy state is unknown. */
+  selectionStatus?: SelectionStatus;
   /**
    * A corner fixture that comes in a left and a right hand (#37): the kind for each, and which
    * one is in use. Re-anchoring into the other corner swaps the kind and mirrors the service points.

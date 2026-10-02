@@ -7,6 +7,8 @@
  * Products page and is not published as a tool.
  */
 
+import { identityOf, identityReviewKeys, validateIdentity, isExactProduct, type ProductIdentity, type ProductComponent, type ExactProduct } from "./productIdentity";
+import { safeUrl } from "./products";
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 import { ATTACHMENT_PREFIX, categoryById, roughInPoints, validateSubmission, type FieldValue, type RoughInPoint, type SpecProblem, type SpecSubmission } from "./products";
@@ -21,6 +23,9 @@ export interface KnownDetails {
   reference?: string; // quote line, product code
   link?: string;
   notes?: string;
+  identity?: ProductIdentity;
+  components?: ProductComponent[];
+  componentsStatus?: ExactProduct["componentsStatus"];
 }
 
 export type RequestStatus = "open" | "submitted" | "accepted" | "withdrawn";
@@ -64,7 +69,7 @@ export interface ProductRequest {
   attachments?: ProductAttachment[];
 }
 
-export interface LibraryProduct {
+export interface LibraryProduct extends ExactProduct {
   id: string;
   category: string;
   manufacturer: string;
@@ -75,6 +80,31 @@ export interface LibraryProduct {
   roughIn: RoughInPoint[];
   requestId: string;
   acceptedAt: number;
+}
+
+/** Compare evidence records, including omissions. Persisted warning lists are only a cache. */
+function requestEvidenceWarnings(knownDetails: KnownDetails, submission: SpecSubmission): SpecProblem[] {
+  const identity = identityOf(submission);
+  const identityWarnings = Object.entries(knownDetails.identity ?? {}).flatMap(([key, known]) => {
+    const found = identity[key as keyof ProductIdentity];
+    return known.state !== "unknown" && (known.state !== found.state || known.value !== found.value) ? [{ field: `identity.${key}`, severity: "warning" as const, code: "identity_conflict", message: `identity.${key}: request says ${known.value ?? known.state}; research says ${found.value ?? found.state}. Human review required.` }] : [];
+  });
+  const componentWarnings = (knownDetails.components ?? []).flatMap(known => {
+    const found = submission.components?.find(c => c.name === known.name);
+    if (!found) return [{ field: "components", severity: "warning" as const, code: "identity_conflict", message: `${known.name}: request documents code ${known.code.value ?? known.code.state}, quantity ${known.quantity ?? "unknown"}, ${known.provision}; research omits this component. Human review required.` }];
+    const differs = known.code.state !== "unknown" && (known.code.state !== found.code.state || known.code.value !== found.code.value) || known.quantity !== null && known.quantity !== found.quantity || known.provision !== "unresolved" && known.provision !== found.provision;
+    return differs ? [{ field: "components", severity: "warning" as const, code: "identity_conflict", message: `${known.name}: component code, quantity or provision conflicts with the request. Human review required.` }] : [];
+  });
+  const knownStatus = knownDetails.componentsStatus ?? "unknown", submittedStatus = submission.componentsStatus ?? "unknown";
+  if (knownStatus !== "unknown" && knownStatus !== submittedStatus) componentWarnings.unshift({ field: "components", severity: "warning", code: "identity_conflict", message: `Component status: request says ${knownStatus}; research says ${submittedStatus}. Human review required.` });
+  return [...identityWarnings, ...componentWarnings];
+}
+
+/** Pending review always derives conflicts anew; accepted history keeps its recorded warnings. */
+export function productReviewWarnings(request: ProductRequest): SpecProblem[] {
+  if (!request.submission) return [];
+  const warnings = [...request.submission.warnings, ...(request.status === "submitted" ? requestEvidenceWarnings(request.known, request.submission) : [])];
+  return [...new Map(warnings.map(w => [`${w.field}:${w.code}:${w.message}`, w])).values()];
 }
 
 interface LibraryDoc {
@@ -145,7 +175,10 @@ export function initializeProductLibrary(force = false): void {
       if (doc.version !== 1 || !Array.isArray(doc.requests) || !Array.isArray(doc.products)) {
         throw new Error("Unsupported or unreadable product library. Original browser data was kept.");
       }
-      productStore.setState({ requests: doc.requests, products: doc.products });
+      if (!doc.products.every(isExactProduct) || !doc.requests.every(r => r && r.known
+        && isExactProduct({ manufacturer: "", model: "", identity: r.known.identity, components: r.known.components, componentsStatus: r.known.componentsStatus })
+        && (r.submission === undefined || isExactProduct(r.submission)))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
+      productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r) } } : {}) })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
     }
     ready = true;
   } catch (error) {
@@ -182,6 +215,13 @@ export const products = {
     if (!clean.brand && !clean.model && !clean.reference && !clean.link) {
       return fail("Say something that identifies the product: brand, model, a quote reference or a link.");
     }
+    if (known.identity !== undefined || known.components !== undefined || known.componentsStatus !== undefined) {
+      const problems = validateIdentity({ manufacturer: "", model: "", identity: known.identity, components: known.components, componentsStatus: known.componentsStatus }, (sources) => sources.length > 0 && sources.every((s) => s && typeof s === "object" && safeUrl((s as {url?: unknown}).url) && typeof (s as {locator?: unknown}).locator === "string" && (s as {locator: string}).locator.trim()) ? null : "Give an http(s) source and locator.");
+      if (problems.some(p => p.severity === "error")) return fail(problems.map(p => p.message).join(" "));
+    }
+    clean.identity = structuredClone(identityOf(known));
+    if (known.components !== undefined) clean.components = structuredClone(known.components);
+    if (known.componentsStatus !== undefined) clean.componentsStatus = known.componentsStatus;
     const req: ProductRequest = { id: uid("preq"), category: cat.id, known: clean, status: "open", createdAt: Date.now(), reviews: {} };
     productStore.setState((s) => ({ requests: [...s.requests, req], selectedRequestId: req.id }));
     return ok(`${cat.label} request ${req.id} opened. Read its brief with get_product_brief.`, { requestId: req.id });
@@ -198,10 +238,11 @@ export const products = {
     if (errors.length) {
       return fail(`Submission rejected, nothing stored: ${errors.map((e) => e.message).join(" ")}`, { problems: errors });
     }
-    const warnings = problems.filter((p) => p.severity === "warning");
+    const identity = identityOf(submission);
+    const warnings = [...problems, ...requestEvidenceWarnings(req.known, submission)].filter((p) => p.severity === "warning");
     updateRequest(req.id, {
       status: "submitted",
-      submission: { ...structuredClone(submission), at: Date.now(), warnings },
+      submission: { ...structuredClone(submission), ...(submission.identity ? { identity: structuredClone(identity) } : {}), at: Date.now(), warnings },
       reviews: {},
       feedback: undefined,
     });
@@ -234,7 +275,8 @@ export const products = {
   accept(requestId: string): LibraryResult {
     const req = findRequest(requestId);
     if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be accepted.");
-    const keys = Object.keys(req.submission.fields);
+    const flaggedIdentity = productReviewWarnings(req).flatMap(w => w.field === "components" || w.field?.startsWith("identity.") ? [w.field] : []);
+    const keys = [...new Set([...Object.keys(req.submission.fields), ...identityReviewKeys(req.submission), ...flaggedIdentity])];
     const pending = keys.filter((k) => req.reviews[k]?.decision !== "accepted");
     if (pending.length) return fail(`Review every field first. Not accepted: ${pending.join(", ")}.`);
     const product: LibraryProduct = {
@@ -242,7 +284,10 @@ export const products = {
       category: req.category,
       manufacturer: req.submission.manufacturer.trim(),
       model: req.submission.model.trim(),
-      ...(req.submission.code?.trim() ? { code: req.submission.code.trim() } : {}),
+      ...(req.submission.identity?.code?.state === "known" ? { code: req.submission.identity.code.value!.trim() } : req.submission.code?.trim() ? { code: req.submission.code.trim() } : {}),
+      identity: structuredClone(identityOf(req.submission)),
+      components: structuredClone(req.submission.components ?? []),
+      componentsStatus: req.submission.componentsStatus ?? "unknown",
       fields: structuredClone(req.submission.fields),
       roughIn: roughInPoints(categoryById(req.category)!, req.submission.fields),
       requestId: req.id,

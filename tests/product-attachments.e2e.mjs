@@ -34,7 +34,7 @@ function makePdf(pages) {
 }
 
 const sheet = makePdf([
-  ["Example Co Test Pan - Specification", "Overall width 380 mm", "Overall height 800 mm"],
+  ["Example Co Test Pan - Specification", "Overall width 380 mm", "Overall height 800 mm", "Product code SYNTH-PAN, finish white", "Waste WASTE-32 required separately, quantity 1"],
   ["Installation", "Projection from finished wall 640 mm", "S-trap set-out 140 to 200 mm", "Back-to-wall pan, close-coupled cistern, bottom inlet"],
 ]);
 // 1×1 PNG
@@ -106,7 +106,9 @@ try {
     trap: pub("S", "p. 2"), sTrapSetoutMin: pub(0.14, "p. 2"), sTrapSetoutMax: pub(0.2, "p. 2"),
     inletHeight: { value: null, note: "Not on the attached sheet (2 pages)." },
   };
-  const submit = (f) => run("submit_product_spec", { requestId: id, manufacturer: "Example Co", model: "Test Pan", fields: f });
+  const identity = { code: { state: "known", value: "SYNTH-PAN", sources: [at("p. 1")] }, finish: { state: "known", value: "white", sources: [at("p. 1")] }, configuration: { state: "unknown", value: null }, handedness: { state: "unknown", value: null } };
+  const components = [{ name: "Waste", code: { state: "known", value: "WASTE-32", sources: [at("p. 1")] }, quantity: 1, provision: "separately-required", sources: [at("p. 1")] }];
+  const submit = (f) => run("submit_product_spec", { requestId: id, manufacturer: "Example Co", model: "Test Pan", identity, components, componentsStatus: "documented", fields: f });
   const missingAtt = await submit({ ...fields, width: { ...fields.width, sources: [at("p. 1", "att_nope")] } });
   assert.equal(missingAtt.ok, false);
   assert.match(missingAtt.summary, /attachment:att_nope is not attached to this request/);
@@ -123,6 +125,16 @@ try {
   const depthRow = detail.locator('tr[data-field="depth"]');
   assert.match(await depthRow.textContent(), /test-pan-spec\.pdf, p\. 2/);
   assert.equal(await files.getByLabel("Attach spec sheet").count(), 0);
+  const identityRow = detail.locator('tr[data-field="identity.code"]');
+  assert.match(await identityRow.textContent(), /SYNTH-PAN.*test-pan-spec\.pdf.*p\. 1/);
+  const [identityPopup] = await Promise.all([context.waitForEvent("page"), identityRow.getByRole("button", { name: "test-pan-spec.pdf" }).click()]);
+  await identityPopup.waitForURL(/^blob:.*#page=1$/);
+  await identityPopup.close();
+  const componentRow = detail.locator('tr[data-field="components"]');
+  assert.match(await componentRow.textContent(), /WASTE-32.*separately-required/);
+  const [componentPopup] = await Promise.all([context.waitForEvent("page"), componentRow.getByRole("button", { name: "test-pan-spec.pdf" }).first().click()]);
+  await componentPopup.waitForURL(/^blob:.*#page=1$/);
+  await componentPopup.close();
   const rows = detail.locator("tbody tr[data-field]");
   for (let i = 0; i < await rows.count(); i++) await rows.nth(i).getByRole("button", { name: "Accept" }).click();
   await detail.getByRole("button", { name: "Accept product" }).click();

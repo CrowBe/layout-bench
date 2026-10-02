@@ -26,6 +26,7 @@ import { sideProblems } from "./faces";
 import { floorProblems } from "./floor";
 import { heatingProblems } from "./heating";
 import { drainageProblems } from "./drainage";
+import { floorTilingProblems } from "./floorTiling";
 import { tilingProblems } from "./tiling";
 import { fixtureProblems, wallOccupiedRect } from "./fixtures";
 import { itemPolygon, polygonsOverlap } from "./outline";
@@ -227,7 +228,7 @@ export function checkModel(model: PlanModel): Issue[] {
   }
 
   // ---- Wall tiling (#9) -------------------------------------------------------
-  issues.push(...tilingProblems(model));
+  issues.push(...tilingProblems(model), ...floorTilingProblems(model));
 
   // ---- Rooms -----------------------------------------------------------------
   for (const r of rooms) {

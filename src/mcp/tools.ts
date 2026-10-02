@@ -4,12 +4,14 @@
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
-import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type HeatingPatch, type FloorPatch, type DrainagePatch, type TilingPatch } from "../model/store";
+import { actions, lookupItem, lookupWall, lookupRoom, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type HeatingPatch, type FloorPatch, type DrainagePatch, type TilingPatch, type FloorTilingPatch } from "../model/store";
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { SHEETS, checkSheet, reconcile, type AckInput } from "../sheets/check";
 import { catalogue, renderStageDiagram, renderStageSpec } from "../sheets/stageView";
 import { applyView, composeView, currentView, recordExport, savedViews } from "../sheets/viewState";
 import { recordIssued } from "../sheets/issued";
+import { floorTileLayout } from "../model/floorTiling";
+import { floorCutRows, renderFloorTilingSheet } from "../sheets/floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "../model/tiling";
 import { cutRows, renderTilingSheet } from "../sheets/tiling";
 import { catalogByKind } from "../model/catalog";
@@ -20,6 +22,7 @@ import { heatingEvidence } from "../model/heating";
 import { renderHeatingReview } from "../sheets/heating";
 import { finishedLevel } from "../model/floor";
 import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems } from "../model/floor";
+import { IDENTITY_FIELDS, SELECTION_STATUSES, type SelectionStatus } from "../model/productIdentity";
 import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
 import { productStore, products } from "../model/productLibrary";
 import { checkModel } from "../model/issues";
@@ -29,6 +32,8 @@ import { dist, formatMm, quantize, segLen } from "../model/geometry";
 import { bus, EVENTS } from "../three/exportBus";
 import { executeWrapped, type ToolDef } from "./registry";
 
+const identityValueSchema = { type: "object", properties: { state: { type: "string", enum: ["known", "unknown", "not-applicable"] }, value: { type: ["string", "null"] }, sources: { type: "array", items: { type: "object" } }, note: { type: "string" }, alternatives: { type: "array", items: { type: "object" } } }, required: ["state", "value"], additionalProperties: false };
+const exactSchemas = { identity: { type: "object", properties: Object.fromEntries(Object.keys(IDENTITY_FIELDS).map(k => [k, identityValueSchema])), additionalProperties: false }, componentsStatus: { type: "string", enum: ["documented", "unknown", "not-applicable"] }, components: { type: "array", items: { type: "object", properties: { name: { type: "string" }, code: identityValueSchema, quantity: { type: ["integer", "null"] }, provision: { type: "string", enum: ["included", "separately-required", "unresolved"] }, sources: { type: "array", items: { type: "object" } }, note: { type: "string" } }, required: ["name", "code", "quantity", "provision"], additionalProperties: false } } };
 const num = { type: "number" } as const;
 const str = { type: "string" } as const;
 
@@ -435,6 +440,77 @@ export const TOOLS: ToolDef[] = [
       return { ok: true, summary: `Wall ${w.id} — ${summary}.`, wallId: w.id, sides };
     },
   },
+  // ------------------------------------------------------------------ floor tiling (#10)
+  {
+    name: "set_floor_tiling",
+    title: "Propose a floor tile set-out",
+    description:
+      "Record a proposed floor pattern for one rectangular room or explicit drainage plane. Units metres with {value,status,source?}. tileLength/Width are long/short edges; axis x or y aligns the long edge in plan. zone is room or a drainage plane id. originX/Y locate a tile's upper-left edge from finished west/north faces. Nothing defaults: missing wall face build-ups, tile inputs and drain cuts stay unresolved. null clears a field; clear removes the proposal. Never an ordering quantity or trade approval.",
+    inputSchema: obj(
+      {
+        room: str,
+        tileLength: quantitySchema,
+        tileWidth: quantitySchema,
+        joint: quantitySchema,
+        originX: quantitySchema,
+        originY: quantitySchema,
+        axis: { type: ["string", "null"], enum: ["x", "y", null] },
+        zone: { type: ["string", "null"] },
+        note: { type: ["string", "null"] },
+        clear: { type: "boolean" },
+      },
+      ["room"],
+    ),
+    execute: (i) =>
+      actions.setFloorTiling(i.room as string, i as FloorTilingPatch),
+  },
+  {
+    name: "get_floor_tiling",
+    title: "Read floor tile cuts and unresolved fields",
+    description:
+      "Derive the proposed plan at finished wall faces. Returns perimeter cuts, tile pieces, door transitions, waste centre lines and fall-plane boundaries with unresolved fields. Waste aperture dimensions are not recorded, so centre-line relationships never certify cut shapes. includeSvg adds the printable diagram. Always report proposal and unresolved status.",
+    inputSchema: obj({ room: str, includeSvg: { type: "boolean" } }, ["room"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const hit = lookupRoom(i.room as string);
+      if (!hit.ok) return { ok: false, summary: hit.summary };
+      const model = store.getState().model,
+        room = hit.entity,
+        l = floorTileLayout(model, room);
+      return {
+        ok: true,
+        summary: `${room.label}: proposed floor tile set-out.`,
+        tiling: room.floorTiling ?? null,
+        ...l,
+        cutTable: floorCutRows(l),
+        ...(i.includeSvg ? { svg: renderFloorTilingSheet(model, room) } : {}),
+      };
+    },
+  },
+  {
+    name: "export_floor_tiling",
+    title: "Export the printable proposed floor tile plan",
+    description:
+      "Return a printable SVG floor tile proposal derived from the canonical room: perimeter cuts, finished face references, dimensions, provenance legend, doorway transition, wastes, floor-plane boundaries, notes and unresolved fields. Print from the Inspector to PDF. Does not approve installation or calculate purchase quantities.",
+    inputSchema: obj({ room: str }, ["room"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const hit = lookupRoom(i.room as string);
+      if (!hit.ok) return { ok: false, summary: hit.summary };
+      const model = store.getState().model,
+        room = hit.entity,
+        l = floorTileLayout(model, room);
+      return {
+        ok: true,
+        summary: `Exported ${room.label} proposed floor tile set-out.`,
+        fileName: `${model.name.replace(/[^\w-]+/g, "-")}-${room.id}-floor-tiling.svg`,
+        resolved: l.resolved,
+        missing: l.missing,
+        svg: renderFloorTilingSheet(model, room),
+      };
+    },
+  },
+
   // ------------------------------------------------------------------ wall tiling (#9)
   {
     name: "set_wall_tiling",
@@ -789,6 +865,8 @@ export const TOOLS: ToolDef[] = [
           id: it.id,
           label: catalogByKind(it.kind)?.label ?? it.kind,
           ...(it.productId ? { productId: it.productId } : {}),
+          productIdentity: it.productIdentity ?? null,
+          selectionStatus: it.selectionStatus ?? "unknown",
           anchor: it.anchor ?? null,
           position: pose.resolved ? { x: pose.x, y: pose.y, rotation: pose.rotation, alongFromA: pose.alongFromA, backOffset: pose.backOffset } : { unresolved: pose.missing },
           clearances: clearances(model, it),
@@ -800,6 +878,13 @@ export const TOOLS: ToolDef[] = [
     },
   },
 
+  {
+    name: "set_fixture_selection",
+    title: "Record a project fixture selection",
+    description: "Record unknown, proposed, purchased or reused on one project fixture. Research acceptance never establishes purchasing status.",
+    inputSchema: obj({ itemId: str, status: { type: "string", enum: SELECTION_STATUSES } }, ["itemId", "status"]),
+    execute: i => actions.setFixtureSelection(i.itemId as string, i.status as SelectionStatus),
+  },
   // ------------------------------------------------------------------ products (#30)
   {
     name: "request_product",
@@ -807,7 +892,7 @@ export const TOOLS: ToolDef[] = [
     description:
       `Open a request to research one product for the product library. category: ${PRODUCT_CATEGORIES.map((c) => `${c.id} (${c.label})`).join(", ")}. Give whatever identifies it: brand, model, reference (quote line or product code), link, notes. Then read its brief with get_product_brief.`,
     inputSchema: obj(
-      { category: { type: "string", enum: PRODUCT_CATEGORIES.map((c) => c.id) }, brand: str, model: str, reference: str, link: str, notes: str },
+      { category: { type: "string", enum: PRODUCT_CATEGORIES.map((c) => c.id) }, brand: str, model: str, reference: str, link: str, notes: str, ...exactSchemas },
       ["category"],
     ),
     execute: (i) => products.request(i.category as string, i as Record<string, string>),
@@ -846,7 +931,8 @@ export const TOOLS: ToolDef[] = [
         status: req.status,
         category: { id: cat.id, label: cat.label },
         known: req.known,
-        protocol: RESEARCH_PROTOCOL,
+        protocol: [...RESEARCH_PROTOCOL, "Record exact identity { code, finish, configuration, handedness }: each { state: known|unknown|not-applicable, value: exact text|null, sources: [{url, locator}], alternatives? }. Known and not-applicable require evidence. Components: { name, code: identity evidence, quantity: whole number|null, provision: included|separately-required|unresolved, sources } with componentsStatus documented|unknown|not-applicable. Never infer purchasing status or guess a variant."],
+        identityFields: IDENTITY_FIELDS,
         references: REFERENCES,
         fields: cat.fields.map((f) => ({ ...f, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
         roughIn: cat.roughIn,
@@ -859,7 +945,7 @@ export const TOOLS: ToolDef[] = [
             ? { pageCount: a.pages?.length ?? 0, pages: a.pages ?? [], ...(a.pages?.some((p) => p.text.trim()) ? {} : { textNote: "No text layer on any page (a scan?). Nothing is OCR'd: ask the person to paste the figures, or find a published source." }) }
             : { textNote: "An image: no text is extracted. It is for the person's review; if you need what it shows, ask them to paste it into the conversation." }),
         })),
-        submitShape: "submit_product_spec { requestId, manufacturer, model, code?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } } — url is an http(s) link or attachment:<id>; for an attachment the locator starts with the page, e.g. \"p. 2, fig. 1\"",
+        submitShape: "submit_product_spec { requestId, manufacturer, model, code?, identity?, componentsStatus?, components?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } } — url is an http(s) link or attachment:<id>; for an attachment the locator starts with the page, e.g. \"p. 2, fig. 1\"",
         ...(req.submission ? { previousSubmission: req.submission } : {}),
         ...(req.feedback ? { feedback: req.feedback } : {}),
       };
@@ -876,6 +962,7 @@ export const TOOLS: ToolDef[] = [
         manufacturer: str,
         model: str,
         code: str,
+        ...exactSchemas,
         fields: { type: "object", additionalProperties: { type: "object" } },
       },
       ["requestId", "manufacturer", "model", "fields"],
