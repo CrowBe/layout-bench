@@ -360,8 +360,15 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission,
     for (const f of category.fields.filter((f) => f.key.endsWith("Min"))) {
       const maxKey = `${f.key.slice(0, -3)}Max`;
       const lo = fields[f.key]?.value, hi = fields[maxKey]?.value;
-      if (applies(f, fields) && typeof lo === "number" && typeof hi === "number" && lo > hi) {
-        err(f.key, "range_reversed", `${f.label} exceeds ${maxKey}; check the published range.`);
+      const maxSpec = category.fields.find((spec) => spec.key === maxKey);
+      const minDatum = fields[f.key]?.reference ?? (f.type === "length" ? f.reference : undefined);
+      const maxDatum = fields[maxKey]?.reference ?? (maxSpec?.type === "length" ? maxSpec.reference : undefined);
+      if (applies(f, fields) && typeof lo === "number" && typeof hi === "number") {
+        if (!minDatum || minDatum === "other" || minDatum !== maxDatum) {
+          warn(f.key, "range_datum_mismatch", `${f.key} and ${maxKey} cannot be ordered without a common named datum. Their sourced values are retained for human review; no conversion is inferred.`);
+        } else if (lo > hi) {
+          err(f.key, "range_reversed", `${f.label} exceeds ${maxKey}; check the published range.`);
+        }
       }
     }
     if (category.id === "towel-rail") {

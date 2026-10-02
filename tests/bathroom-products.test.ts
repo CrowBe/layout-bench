@@ -73,6 +73,31 @@ describe("bounded bathroom fitting briefs (#50)", () => {
     expect(productPlacementProblem(categoryById("tapware")!, { ...fields, mounting: unknown() })).toMatch(/Unsupported/);
   });
 
+  it.each([
+    ["tapware", "concealedDepthMin", "concealedDepthMax", "finished-wall", "frame"],
+    ["shower-fittings", "adjustmentMin", "adjustmentMax", "fixture-bottom", "finished-floor"],
+  ] as const)("%s: retains differently referenced range endpoints for human review", (category, minKey, maxKey, minDatum, maxDatum) => {
+    const original = fittingCases.find((c) => c.category === category)!;
+    const fields: SpecSubmission["fields"] = {
+      ...original.fields,
+      ...(category === "tapware" ? { mounting: pub("wall-concealed") } : {}),
+      [minKey]: { ...pub(0.1), reference: minDatum },
+      [maxKey]: { ...pub(0.05), reference: maxDatum, note: "Synthetic source names a different datum. No conversion is possible from supplied evidence." },
+    };
+    const findings = problems(category, fields);
+    expect(findings.filter((p) => p.severity === "error")).toEqual([]);
+    expect(findings.some((p) => p.code === "reference_mismatch" && p.field === maxKey)).toBe(true);
+    const request = products.request(category, { brand: "Synthetic Co" }).requestId as string;
+    expect(products.submit(request, submission(fields)).ok).toBe(true);
+    const stored = productStore.getState().requests[0];
+    expect(stored.status).toBe("submitted");
+    expect(stored.submission!.fields[maxKey]).toEqual(fields[maxKey]);
+    expect(stored.reviews).toEqual({});
+    // Values on a common datum still have a meaningful numerical order.
+    const sharedDatum = { ...fields, [maxKey]: { ...fields[maxKey], reference: minDatum } };
+    expect(problems(category, sharedDatum).some((p) => p.code === "range_reversed")).toBe(true);
+  });
+
   it("requires opening and swing requirements for hinged screens, never uses fixed-screen placement", () => {
     const fields = { ...fittingCases[2].fields, opening: pub("hinged") };
     expect(problems("shower-screen", fields).map((p) => p.field)).toEqual(["openingWidth", "openingLayout"]);
