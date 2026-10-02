@@ -47,6 +47,7 @@ import { drainageProblems, planeSurface } from "./drainage";
 import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
+import { exactProductLabel, exactSnapshot, identityOf, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
 import type { LibraryProduct } from "./productLibrary";
 import { categoryById, cornerBathOutline, envelopeOf } from "./products";
 import { outlineExtents, outlineProblems, type Outline } from "./outline";
@@ -1434,6 +1435,8 @@ export const actions = {
     if (item.corner) {
       const side = cornerSide(anchor, wall);
       if (side !== item.corner.side) {
+        const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
+        if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) return fail(`This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`);
         next = {
           ...next, kind: item.corner[side], corner: { ...item.corner, side },
           ...(item.servicePoints ? { servicePoints: item.servicePoints.map((p) => (p.across === undefined ? p : { ...p, across: quantize(-p.across) })) } : {}),
@@ -1512,8 +1515,11 @@ export const actions = {
     const built = buildAnchor(anchorInput);
     if (!built.ok) return built.result;
     const { anchor } = built;
-    const label = `${product.manufacturer} ${product.model}`;
+    const label = exactProductLabel(product);
     const corner = product.category === "bath" && product.fields.shape?.value === "corner-round" ? cornerSide(anchor, built.wall) : null;
+    const hand = identityOf(product).handedness;
+    const fixedHand = hand.state === "known" && ["left", "right"].includes(hand.value ?? "");
+    if (corner && fixedHand && hand.value !== corner) return fail(`This exact product is ${hand.value}-handed; it cannot be mirrored into the ${corner} corner.`);
     // a corner bath gets its real outline, mirrored to the corner it sits in; the box is
     // the larger of the printed sizes and the outline, so clearance is never understated
     const outline = corner ? cornerBathOutline(product.fields, env.w, env.d, corner) : null;
@@ -1522,10 +1528,11 @@ export const actions = {
       const e = outlineExtents(outline);
       box = { w: Math.max(env.w, e.maxX - e.minX), d: Math.max(env.d, e.maxY - e.minY), h: env.h };
     }
-    // both hands are defined, so the bath can move to the other corner later (see anchorFixture)
+    // Legacy/reversible baths keep both shapes. A documented fixed hand exposes only its
+    // own kind: the generic catalogue placement path must not offer an invented opposite SKU.
     const handed = (side: "left" | "right") => (box.w !== env.w || box.d !== env.d || side !== corner ? cornerBathOutline(product.fields, box.w, box.d, side) : outline);
     const kindFor = (side: "left" | "right" | null) => `product_${product.id}${side ? `_${side}` : ""}`;
-    if (corner && outline) {
+    if (corner && outline && !fixedHand) {
       const other = corner === "left" ? "right" : "left";
       const r = this.defineItemKind({ kind: kindFor(other), label, w: box.w, d: box.d, h: box.h, category: "bath", outline: handed(other)! });
       if (!r.ok) return r;
@@ -1567,8 +1574,8 @@ export const actions = {
       };
     });
     const item: Item = {
-      id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, servicePoints,
-      ...(corner && outline ? { corner: { left: kindFor("left"), right: kindFor("right"), side: corner } } : {}),
+      id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, productIdentity: exactSnapshot(product), selectionStatus: "unknown", servicePoints,
+      ...(corner && outline ? { corner: { left: kindFor(fixedHand ? corner : "left"), right: kindFor(fixedHand ? corner : "right"), side: corner } } : {}),
     };
     pushUndo();
     setModel({ ...store.getState().model, items: [...store.getState().model.items, item] });
@@ -1577,6 +1584,15 @@ export const actions = {
       `${label} placed${pose.resolved ? ` ${formatMm(anchor.gap)} mm off the ${anchor.face} face of ${anchor.wallId} (${anchor.side}), centre ${formatMm(anchor.distance)} mm from end ${anchor.from.toUpperCase()}` : `, but its position is unresolved: missing ${pose.missing.join(", ")}`}. ${servicePoints.length} service point(s) copied from the library.`,
       { id: item.id, kind: item.kind, resolved: pose.resolved },
     );
+  },
+
+  setFixtureSelection(itemRef: string, status: SelectionStatus): ActionResult {
+    const hit = resolveItem(itemRef);
+    if (!hit.ok) return rejected(hit);
+    if (!SELECTION_STATUSES.includes(status)) return fail("Selection must be unknown, proposed, purchased or reused.");
+    pushUndo();
+    setModel({ ...store.getState().model, items: store.getState().model.items.map(i => i.id === hit.entity.id ? { ...i, selectionStatus: status } : i) });
+    return ok(`Selection for ${hit.entity.id}: ${status}.`, { id: hit.entity.id, selectionStatus: status });
   },
 
   removeItem(idOrKind: string): ActionResult {
