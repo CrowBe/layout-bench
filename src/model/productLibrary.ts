@@ -150,8 +150,10 @@ export function initializeProductLibrary(force = false): void {
       if (doc.version !== 1 || !Array.isArray(doc.requests) || !Array.isArray(doc.products)) {
         throw new Error("Unsupported or unreadable product library. Original browser data was kept.");
       }
-      if (!doc.products.every(isExactProduct) || !doc.requests.every(r => r && r.known && isExactProduct({ manufacturer: "", model: "", identity: r.known.identity, components: r.known.components, componentsStatus: r.known.componentsStatus }))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
-      productStore.setState({ requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) } })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
+      if (!doc.products.every(isExactProduct) || !doc.requests.every(r => r && r.known
+        && isExactProduct({ manufacturer: "", model: "", identity: r.known.identity, components: r.known.components, componentsStatus: r.known.componentsStatus })
+        && (r.submission === undefined || isExactProduct(r.submission)))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
+      productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) } })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
     }
     ready = true;
   } catch (error) {
@@ -218,10 +220,12 @@ export const products = {
     });
     const componentWarnings = (req.known.components ?? []).flatMap(known => {
       const found = submission.components?.find(c => c.name === known.name);
-      if (!found) return [];
-      const differs = known.code.state === "known" && found.code.state === "known" && known.code.value !== found.code.value || known.quantity !== null && found.quantity !== null && known.quantity !== found.quantity || known.provision !== "unresolved" && found.provision !== "unresolved" && known.provision !== found.provision;
+      if (!found) return [{ field: "components", severity: "warning" as const, code: "identity_conflict", message: `${known.name}: request documents code ${known.code.value ?? known.code.state}, quantity ${known.quantity ?? "unknown"}, ${known.provision}; research omits this component. Human review required.` }];
+      const differs = known.code.state !== "unknown" && (known.code.state !== found.code.state || known.code.value !== found.code.value) || known.quantity !== null && known.quantity !== found.quantity || known.provision !== "unresolved" && known.provision !== found.provision;
       return differs ? [{ field: "components", severity: "warning" as const, code: "identity_conflict", message: `${known.name}: component code, quantity or provision conflicts with the request. Human review required.` }] : [];
     });
+    const knownStatus = req.known.componentsStatus ?? "unknown", submittedStatus = submission.componentsStatus ?? "unknown";
+    if (knownStatus !== "unknown" && knownStatus !== submittedStatus) componentWarnings.unshift({ field: "components", severity: "warning", code: "identity_conflict", message: `Component status: request says ${knownStatus}; research says ${submittedStatus}. Human review required.` });
     const warnings = [...problems, ...identityWarnings, ...componentWarnings].filter((p) => p.severity === "warning");
     updateRequest(req.id, {
       status: "submitted",
@@ -258,7 +262,7 @@ export const products = {
   accept(requestId: string): LibraryResult {
     const req = findRequest(requestId);
     if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be accepted.");
-    const keys = [...Object.keys(req.submission.fields), ...identityReviewKeys(req.submission)];
+    const keys = [...Object.keys(req.submission.fields), ...identityReviewKeys(req.submission), ...(req.submission.warnings.some(w => w.field === "components") ? ["components"] : [])];
     const pending = keys.filter((k) => req.reviews[k]?.decision !== "accepted");
     if (pending.length) return fail(`Review every field first. Not accepted: ${pending.join(", ")}.`);
     const product: LibraryProduct = {

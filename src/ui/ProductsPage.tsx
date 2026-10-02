@@ -250,8 +250,10 @@ function RequestDetail({ req }: { req: ProductRequest }) {
       <span className="hint">Request <code>{req.id}</code> · status <b data-status={req.status}>{req.status}</b></span>
       {Object.entries(req.known).filter(([k]) => !["identity", "components", "componentsStatus"].includes(k)).map(([k, v]) => <span key={k} className="hint">{k}: {k === "link" ? <Link url={String(v)}>{String(v)}</Link> : String(v)}</span>)}
       {req.feedback && <div className="inspector-warn">Returned to the agent: {req.feedback}</div>}
-      <ExactIdentity product={req.status === "accepted" && req.submission ? req.submission : { manufacturer: req.known.brand ?? "", model: req.known.model ?? "", identity: req.known.identity, components: req.known.components, componentsStatus: req.known.componentsStatus }} />
+      <span>Request evidence</span>
+      <ExactIdentity product={{ manufacturer: req.known.brand ?? "", model: req.known.model ?? "", identity: req.known.identity, components: req.known.components, componentsStatus: req.known.componentsStatus }} />
       <Attachments req={req} />
+      {req.status === "accepted" && req.submission && <><span>Accepted research</span><ExactIdentity product={req.submission} request={req} /></>}
       {req.status === "submitted" && req.submission ? (
         <>
           <span>Submitted: <b>{req.submission.manufacturer} {req.submission.model}</b>{req.submission.code ? ` (${req.submission.code})` : ""}</span>

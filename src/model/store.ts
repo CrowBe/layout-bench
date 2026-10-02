@@ -1421,7 +1421,8 @@ export const actions = {
     const label = exactProductLabel(product);
     const corner = product.category === "bath" && product.fields.shape?.value === "corner-round" ? cornerSide(anchor, built.wall) : null;
     const hand = identityOf(product).handedness;
-    if (corner && hand.state === "known" && ["left", "right"].includes(hand.value ?? "") && hand.value !== corner) return fail(`This exact product is ${hand.value}-handed; it cannot be mirrored into the ${corner} corner.`);
+    const fixedHand = hand.state === "known" && ["left", "right"].includes(hand.value ?? "");
+    if (corner && fixedHand && hand.value !== corner) return fail(`This exact product is ${hand.value}-handed; it cannot be mirrored into the ${corner} corner.`);
     // a corner bath gets its real outline, mirrored to the corner it sits in; the box is
     // the larger of the printed sizes and the outline, so clearance is never understated
     const outline = corner ? cornerBathOutline(product.fields, env.w, env.d, corner) : null;
@@ -1430,10 +1431,11 @@ export const actions = {
       const e = outlineExtents(outline);
       box = { w: Math.max(env.w, e.maxX - e.minX), d: Math.max(env.d, e.maxY - e.minY), h: env.h };
     }
-    // both hands are defined, so the bath can move to the other corner later (see anchorFixture)
+    // Legacy/reversible baths keep both shapes. A documented fixed hand exposes only its
+    // own kind: the generic catalogue placement path must not offer an invented opposite SKU.
     const handed = (side: "left" | "right") => (box.w !== env.w || box.d !== env.d || side !== corner ? cornerBathOutline(product.fields, box.w, box.d, side) : outline);
     const kindFor = (side: "left" | "right" | null) => `product_${product.id}${side ? `_${side}` : ""}`;
-    if (corner && outline) {
+    if (corner && outline && !fixedHand) {
       const other = corner === "left" ? "right" : "left";
       const r = this.defineItemKind({ kind: kindFor(other), label, w: box.w, d: box.d, h: box.h, category: "bath", outline: handed(other)! });
       if (!r.ok) return r;
@@ -1476,7 +1478,7 @@ export const actions = {
     });
     const item: Item = {
       id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, productIdentity: exactSnapshot(product), selectionStatus: "unknown", servicePoints,
-      ...(corner && outline ? { corner: { left: kindFor("left"), right: kindFor("right"), side: corner } } : {}),
+      ...(corner && outline ? { corner: { left: kindFor(fixedHand ? corner : "left"), right: kindFor(fixedHand ? corner : "right"), side: corner } } : {}),
     };
     pushUndo();
     setModel({ ...store.getState().model, items: [...store.getState().model.items, item] });

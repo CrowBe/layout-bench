@@ -9,6 +9,7 @@ function Sources({ sources }: { sources?: SourceRef[] }) {
 }
 export function ExactIdentity({ product, request }: { product: ExactProduct; request?: ProductRequest }) {
   const identity = identityOf(product);
+  const reviewComponents = product.components !== undefined || product.componentsStatus !== undefined || !!request?.submission?.warnings.some(w => w.field === "components");
   const [reason, setReason] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const review = (key: string, required: boolean) => !request || !required ? null : request.reviews[key] ? <span>{request.reviews[key].decision}{request.reviews[key].reason ? `: ${request.reviews[key].reason}` : ""}</span> : <div className="review-actions">
@@ -24,10 +25,10 @@ export function ExactIdentity({ product, request }: { product: ExactProduct; req
         <td><Sources sources={identity[key].sources} />{identity[key].note}{identity[key].alternatives?.map((a, i) => <div key={i}>Alternative: {a.value}<Sources sources={[a.source]} /></div>)}{warnings(`identity.${key}`)}</td>
         {request && <td>{review(`identity.${key}`, !!product.identity)}</td>}
       </tr>)}
-      <tr data-components {...(request && (product.components !== undefined || product.componentsStatus !== undefined) ? { "data-field": "components" } : {})}>
+      <tr data-components {...(request && reviewComponents ? { "data-field": "components" } : {})}>
         <td>Components</td><td>{product.componentsStatus ?? "unknown"}</td><td>{(product.components ?? []).map((c, i) => <div key={i} data-component={i}>
           <b>{c.name}</b> · code {identityText(c.code)} · quantity {c.quantity ?? "unknown"} · {c.provision}<Sources sources={c.code.sources} />{c.code.alternatives?.map((a, j) => <div key={j}>Alternative code: {a.value}<Sources sources={[a.source]} /></div>)}<Sources sources={c.sources} />{c.note}
-        </div>)}{warnings("components")}</td>{request && <td>{review("components", product.components !== undefined || product.componentsStatus !== undefined)}</td>}
+        </div>)}{warnings("components")}</td>{request && <td>{review("components", reviewComponents)}</td>}
       </tr>
     </tbody></table>{error && <span role="alert">{error}</span>}
   </section>;
