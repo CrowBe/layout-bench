@@ -24,12 +24,13 @@ const layerInputs = (s: WallSide | undefined): LayerInput[] =>
   (s?.layers ?? []).map((l) => ({ id: l.id, kind: l.kind, name: l.name, thickness: toInput(l.thickness) }));
 
 /** Millimetre value plus status. Blank means unknown. */
-export function QuantityField({ label, q, onCommit }: {
+export function QuantityField({ label, q, onCommit, scale = 1000 }: {
   label: string;
+  scale?: number;
   q: Quantity | undefined;
   onCommit: (next: QuantityInput | null) => { ok: boolean; summary: string };
 }) {
-  const shown = q?.value !== undefined ? formatMm(q.value) : "";
+  const shown = q?.value !== undefined ? (scale === 1000 ? formatMm(q.value) : String(q.value * scale)) : "";
   const [draft, setDraft] = useState(shown);
   const [status, setStatus] = useState<ValueStatus | "">(q?.status ?? "");
   const [error, setError] = useState("");
@@ -46,7 +47,7 @@ export function QuantityField({ label, q, onCommit }: {
     const n = Number(text);
     if (!Number.isFinite(n)) { setError(`"${text}" is not a number.`); return; }
     if (!nextStatus) { setError("Choose how this value is known before it is stored."); return; }
-    const r = onCommit({ value: n / 1000, status: nextStatus, ...(q?.source ? { source: q.source } : {}) });
+    const r = onCommit({ value: n / scale, status: nextStatus, ...(q?.source ? { source: q.source } : {}) });
     setError(r.ok ? "" : r.summary);
   };
 

@@ -2,6 +2,7 @@ import type { CatalogEntry } from "./catalog";
 import type { PartSpec } from "../three/furniture";
 import type { Note, PlanModel } from "./types";
 import { seedBathroom, bathroomKinds, bathroomNotes } from "./seed-bathroom";
+import { validHeating } from "./heating";
 import { quantize } from "./geometry";
 import { outlineProblems, type Outline } from "./outline";
 
@@ -155,7 +156,7 @@ export function parseProject(value: unknown): ProjectDocument {
   }
   if (!model.walls.every((v) => point(v, ["ax", "ay", "bx", "by", "thickness", "height"]) && (v.sides === undefined || wallSides(v.sides)) && wallTiling(v.tiling)) ||
       !model.openings.every((v) => point(v, ["t", "width", "sill", "height"]) && typeof v.wallId === "string" && (v.kind === "door" || v.kind === "window")) ||
-      !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp) && drainage(v.drainage)) ||
+      !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp) && drainage(v.drainage) && validHeating(v.heating)) ||
       !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string" &&
         (v.anchor === undefined || validAnchor(v.anchor)) &&
         (v.corner === undefined || (object(v.corner) && typeof v.corner.left === "string" && typeof v.corner.right === "string" && (v.corner.side === "left" || v.corner.side === "right"))) &&

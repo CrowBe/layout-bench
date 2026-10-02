@@ -4,6 +4,7 @@
  * millimetre dimensions, configurable pointer snap, pan & zoom. Everything mutates the same store the agent uses.
  */
 
+import { heatingZones } from "../model/heating";
 import { DrainageOverlay } from "../ui/DrainageOverlay";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sideFaces, sideNormal } from "../model/faces";
@@ -181,6 +182,14 @@ export function Editor() {
     const sp = { x: snap(p.x), y: snap(p.y) };
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setPanning({ px: e.clientX, py: e.clientY, vx: view.x, vy: view.y });
+      return;
+    }
+    if (editor.drawMode === "heating") {
+      const room = model.rooms.find((r) => r.id === editor.selectedRoomId);
+      if (room) {
+        const result = actions.setRoomHeating(room.id, { path: [...(room.heating?.path ?? []), sp] });
+        logActivity("human", "set_room_heating", result.summary, result.ok);
+      }
       return;
     }
     if (editor.drawMode === "wall") {
@@ -361,6 +370,12 @@ export function Editor() {
               strokeWidth={editor.selectedRoomId === r.id ? 2.5 : 1}
             />
             <DrainageOverlay room={r} S={S} />
+            {r.heating && <g data-role="heating" pointerEvents="none">
+              {heatingZones(r).map((z,i) => <rect key={`zone-${i}`} x={z.x*S} y={z.y*S} width={z.w*S} height={z.h*S} fill="none" stroke="#aa7700" strokeDasharray="6 4"/>)}
+              {r.heating.keepouts.map((k) => <rect key={k.id} x={k.x*S} y={k.y*S} width={k.w*S} height={k.h*S} fill="#c0392b22" stroke="#c0392b" strokeDasharray="4 2"/>)}
+              <polyline data-role="heating-route" points={r.heating.path.map((p) => `${p.x*S},${p.y*S}`).join(" ")} fill="none" stroke="#c64c19" strokeWidth={2}/>
+              {r.heating.path.map((p,i) => <g key={i}><circle cx={p.x*S} cy={p.y*S} r={3} fill="#c64c19"/><text x={p.x*S+5} y={p.y*S-5} fontSize={9} fill="#c64c19">{i+1}</text></g>)}
+            </g>}
             <text
               data-role="room-label"
               x={label.x}

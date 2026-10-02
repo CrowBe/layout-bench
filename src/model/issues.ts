@@ -24,6 +24,7 @@ import {
 import { catalogByKind } from "./catalog";
 import { sideProblems } from "./faces";
 import { floorProblems } from "./floor";
+import { heatingProblems } from "./heating";
 import { drainageProblems } from "./drainage";
 import { tilingProblems } from "./tiling";
 import { fixtureProblems, wallOccupiedRect } from "./fixtures";
@@ -395,6 +396,7 @@ export function checkModel(model: PlanModel): Issue[] {
     }
   }
 
+  for (const room of rooms) issues.push(...heatingProblems(room).map((p) => ({ ...p, refs: [room.id] })));
   issues.push(...fixtureProblems(model));
   return issues;
 }

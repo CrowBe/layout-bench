@@ -12,6 +12,7 @@ import { roomOnSide } from "../model/faces";
 import { WallFaces } from "./WallFaces";
 import { WallTiling } from "./WallTiling";
 import { FloorBuildUp } from "./FloorBuildUp";
+import { Heating } from "./Heating";
 import { Drainage } from "./Drainage";
 import { FixturePanel } from "./FixturePanel";
 
@@ -136,6 +137,7 @@ export function Inspector() {
         <NumberField label="Depth (mm)" unit="mm" value={room.h} onCommit={(v) => edit({ h: v })} />
         <FloorBuildUp room={room} />
         <Drainage room={room} />
+        <Heating room={room} />
       </aside>
     );
   }

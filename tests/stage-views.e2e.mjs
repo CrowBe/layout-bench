@@ -2,8 +2,8 @@
  * Issue #41 end-to-end check: construction-stage views over one canonical bathroom.
  *
  * Builds the bathroom through the tools, then composes, inspects and exports stage views by
- * visibility alone. An unknown id (a heating-cable layer the model does not have) is refused
- * with nothing changed. Switching stages changes what the diagram and specification sheet show;
+ * visibility alone. An absent heating-cable layer (a known layer without a record) is refused
+ * with nothing changed. Recorded cable content is exercised in heating.e2e.mjs. Switching stages changes what the diagram and specification sheet show;
  * the project model is byte-identical before and after. The Sheets tab shows the composed view
  * and downloads both outputs.
  *
@@ -73,7 +73,7 @@ try {
     ["2. Initial surfacing and window", [...shell, "wall-frame", "wall-board", "floor-substrate"]],
     ["3. Plumbing and electrical rough-in", [...shell, "wall-frame", "services-waste", "services-power"]],
     ["4. Waterproofing", [...shell, "wall-board", "wall-waterproofing", "floor-waterproofing"]],
-    ["5. In-screed heating cable (not modelled: substrate shown)", [...shell, "floor-substrate", "floor-waterproofing"]],
+    ["5. In-screed heating cable (not recorded: substrate shown)", [...shell, "floor-substrate", "floor-waterproofing"]],
     ["6. Screed", [...shell, "floor-screed"]],
     ["7. Adhesive", [...shell, "wall-adhesive", "floor-adhesive"]],
     ["8. Tiles", [...shell, "wall-tile", "floor-tile"]],

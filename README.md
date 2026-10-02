@@ -237,7 +237,8 @@ A few design notes:
   same set (`export_diagram_view`). The view is kept per project for the page session, outside
   the project document and its undo history, so composing or switching stages never edits,
   copies or versions the geometry, services or their provenance. An id the model does not have
-  is refused: there is no heating-cable layer, and the tools say so instead of drawing one.
+  is refused. The `floor-heating-cable` layer appears when a room has a heating record;
+  projects without one explicitly list heating as absent instead of inventing a route.
   Values keep their status tags and the face or datum they are measured from; unknowns print
   as "?" with what is missing. The A-01 blocking rules apply to visible content (a defaulted
   door width blocks only when the door is shown), with the same printed acknowledgement escape
@@ -453,6 +454,30 @@ partner, so neither needs a `?supplier=` query.
 In production, `.env.production` bakes the deployed origins into the build. Deploy
 `dist/partner/` to its own host or subdomain. `?supplier=https://…` remains an optional
 override. Without a partner origin, everything else in the app still works.
+
+## Heating planning
+
+Heating planning (#8) uses the same `room.heating` record in the room Inspector, 2D plan,
+WebMCP (`set_room_heating`, `get_room_heating`), printable review and selected construction-stage
+diagrams. All product values may stay unknown; numeric constraints carry provenance and a
+source. Route coordinates and rectangular keep-outs are in plan metres (UI entry is mm).
+Cable centre height is above the selected screed bottom; a room with drainage planes derives
+local screed levels from their finished surface and the layers above screed. Without entered
+levels the section stays unresolved. A changed screed thickness immediately rechecks the route.
+
+Select the whole-room footprint or one or more existing floor-plane ids, then draw a polyline
+or edit its exact points. Checks identify route crossing/touching/backtracking, departure
+from the zone union (including gaps between zones), entered exclusions and clearance, entered
+minimum non-adjacent spacing, and excess length only when the cable length has confirmed
+provenance (`published`, `measured` or `site-confirmed`). Area is zone footprint excluding
+entered keep-outs, not verified heat coverage. Straight segments do not define bend radii,
+cold tails, connection lengths, sensor placement or electrical design. Manufacturer and
+licensed electrician review always remains pending. The purchased cable's actual specifications
+have not been supplied; synthetic tests demonstrate the planning capability and cannot satisfy
+the actual purchased-product end-to-end acceptance check.
+
+Run the heating browser check with a local studio server:
+`ALZA_BASE_URL=http://127.0.0.1:5208 node tests/heating.e2e.mjs`.
 
 ## License
 
