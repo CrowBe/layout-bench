@@ -82,6 +82,31 @@ export interface LibraryProduct extends ExactProduct {
   acceptedAt: number;
 }
 
+/** Compare evidence records, including omissions. Persisted warning lists are only a cache. */
+function requestEvidenceWarnings(knownDetails: KnownDetails, submission: SpecSubmission): SpecProblem[] {
+  const identity = identityOf(submission);
+  const identityWarnings = Object.entries(knownDetails.identity ?? {}).flatMap(([key, known]) => {
+    const found = identity[key as keyof ProductIdentity];
+    return known.state !== "unknown" && (known.state !== found.state || known.value !== found.value) ? [{ field: `identity.${key}`, severity: "warning" as const, code: "identity_conflict", message: `identity.${key}: request says ${known.value ?? known.state}; research says ${found.value ?? found.state}. Human review required.` }] : [];
+  });
+  const componentWarnings = (knownDetails.components ?? []).flatMap(known => {
+    const found = submission.components?.find(c => c.name === known.name);
+    if (!found) return [{ field: "components", severity: "warning" as const, code: "identity_conflict", message: `${known.name}: request documents code ${known.code.value ?? known.code.state}, quantity ${known.quantity ?? "unknown"}, ${known.provision}; research omits this component. Human review required.` }];
+    const differs = known.code.state !== "unknown" && (known.code.state !== found.code.state || known.code.value !== found.code.value) || known.quantity !== null && known.quantity !== found.quantity || known.provision !== "unresolved" && known.provision !== found.provision;
+    return differs ? [{ field: "components", severity: "warning" as const, code: "identity_conflict", message: `${known.name}: component code, quantity or provision conflicts with the request. Human review required.` }] : [];
+  });
+  const knownStatus = knownDetails.componentsStatus ?? "unknown", submittedStatus = submission.componentsStatus ?? "unknown";
+  if (knownStatus !== "unknown" && knownStatus !== submittedStatus) componentWarnings.unshift({ field: "components", severity: "warning", code: "identity_conflict", message: `Component status: request says ${knownStatus}; research says ${submittedStatus}. Human review required.` });
+  return [...identityWarnings, ...componentWarnings];
+}
+
+/** Pending review always derives conflicts anew; accepted history keeps its recorded warnings. */
+export function productReviewWarnings(request: ProductRequest): SpecProblem[] {
+  if (!request.submission) return [];
+  const warnings = [...request.submission.warnings, ...(request.status === "submitted" ? requestEvidenceWarnings(request.known, request.submission) : [])];
+  return [...new Map(warnings.map(w => [`${w.field}:${w.code}:${w.message}`, w])).values()];
+}
+
 interface LibraryDoc {
   version: 1;
   requests: ProductRequest[];
@@ -153,7 +178,7 @@ export function initializeProductLibrary(force = false): void {
       if (!doc.products.every(isExactProduct) || !doc.requests.every(r => r && r.known
         && isExactProduct({ manufacturer: "", model: "", identity: r.known.identity, components: r.known.components, componentsStatus: r.known.componentsStatus })
         && (r.submission === undefined || isExactProduct(r.submission)))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
-      productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) } })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
+      productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r) } } : {}) })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
     }
     ready = true;
   } catch (error) {
@@ -214,19 +239,7 @@ export const products = {
       return fail(`Submission rejected, nothing stored: ${errors.map((e) => e.message).join(" ")}`, { problems: errors });
     }
     const identity = identityOf(submission);
-    const identityWarnings = Object.entries(req.known.identity ?? {}).flatMap(([key, known]) => {
-      const found = identity[key as keyof ProductIdentity];
-      return known.state !== "unknown" && (known.state !== found.state || known.value !== found.value) ? [{ field: `identity.${key}`, severity: "warning" as const, code: "identity_conflict", message: `identity.${key}: request says ${known.value ?? known.state}; research says ${found.value ?? found.state}. Human review required.` }] : [];
-    });
-    const componentWarnings = (req.known.components ?? []).flatMap(known => {
-      const found = submission.components?.find(c => c.name === known.name);
-      if (!found) return [{ field: "components", severity: "warning" as const, code: "identity_conflict", message: `${known.name}: request documents code ${known.code.value ?? known.code.state}, quantity ${known.quantity ?? "unknown"}, ${known.provision}; research omits this component. Human review required.` }];
-      const differs = known.code.state !== "unknown" && (known.code.state !== found.code.state || known.code.value !== found.code.value) || known.quantity !== null && known.quantity !== found.quantity || known.provision !== "unresolved" && known.provision !== found.provision;
-      return differs ? [{ field: "components", severity: "warning" as const, code: "identity_conflict", message: `${known.name}: component code, quantity or provision conflicts with the request. Human review required.` }] : [];
-    });
-    const knownStatus = req.known.componentsStatus ?? "unknown", submittedStatus = submission.componentsStatus ?? "unknown";
-    if (knownStatus !== "unknown" && knownStatus !== submittedStatus) componentWarnings.unshift({ field: "components", severity: "warning", code: "identity_conflict", message: `Component status: request says ${knownStatus}; research says ${submittedStatus}. Human review required.` });
-    const warnings = [...problems, ...identityWarnings, ...componentWarnings].filter((p) => p.severity === "warning");
+    const warnings = [...problems, ...requestEvidenceWarnings(req.known, submission)].filter((p) => p.severity === "warning");
     updateRequest(req.id, {
       status: "submitted",
       submission: { ...structuredClone(submission), ...(submission.identity ? { identity: structuredClone(identity) } : {}), at: Date.now(), warnings },
@@ -262,7 +275,7 @@ export const products = {
   accept(requestId: string): LibraryResult {
     const req = findRequest(requestId);
     if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be accepted.");
-    const flaggedIdentity = req.submission.warnings.flatMap(w => w.field === "components" || w.field?.startsWith("identity.") ? [w.field] : []);
+    const flaggedIdentity = productReviewWarnings(req).flatMap(w => w.field === "components" || w.field?.startsWith("identity.") ? [w.field] : []);
     const keys = [...new Set([...Object.keys(req.submission.fields), ...identityReviewKeys(req.submission), ...flaggedIdentity])];
     const pending = keys.filter((k) => req.reviews[k]?.decision !== "accepted");
     if (pending.length) return fail(`Review every field first. Not accepted: ${pending.join(", ")}.`);

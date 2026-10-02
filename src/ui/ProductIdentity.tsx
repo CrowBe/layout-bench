@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { IDENTITY_FIELDS, identityOf, identityText, type ExactProduct, type IdentityKey, type ProductIdentity } from "../model/productIdentity";
-import { products, type ProductRequest } from "../model/productLibrary";
+import { products, productReviewWarnings, type ProductRequest } from "../model/productLibrary";
 import { Link } from "./ProductSource";
 import { type SourceRef } from "../model/products";
 
@@ -9,8 +9,9 @@ function Sources({ sources }: { sources?: SourceRef[] }) {
 }
 export function ExactIdentity({ product, request }: { product: ExactProduct; request?: ProductRequest }) {
   const identity = identityOf(product);
-  const reviewIdentity = (key: IdentityKey) => !!product.identity || !!request?.submission?.warnings.some(w => w.field === `identity.${key}`);
-  const reviewComponents = product.components !== undefined || product.componentsStatus !== undefined || !!request?.submission?.warnings.some(w => w.field === "components");
+  const reviewWarnings = request ? productReviewWarnings(request) : [];
+  const reviewIdentity = (key: IdentityKey) => !!product.identity || reviewWarnings.some(w => w.field === `identity.${key}`);
+  const reviewComponents = product.components !== undefined || product.componentsStatus !== undefined || reviewWarnings.some(w => w.field === "components");
   const [reason, setReason] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const review = (key: string, required: boolean) => !request || !required ? null : request.reviews[key] ? <span>{request.reviews[key].decision}{request.reviews[key].reason ? `: ${request.reviews[key].reason}` : ""}</span> : <div className="review-actions">
@@ -18,7 +19,7 @@ export function ExactIdentity({ product, request }: { product: ExactProduct; req
     <input aria-label={`Reason to reject ${key}`} placeholder="reason to reject" value={reason[key] ?? ""} onChange={e => setReason({ ...reason, [key]: e.target.value })} />
     <button type="button" onClick={() => { const r = products.review(request.id, key, "rejected", reason[key]); setError(r.ok ? "" : r.summary); }}>Reject</button>
   </div>;
-  const warnings = (key: string) => request?.submission?.warnings.filter(w => w.field === key).map((w, i) => <div key={i} className="inspector-warn">⚠ {w.message}</div>);
+  const warnings = (key: string) => reviewWarnings.filter(w => w.field === key).map((w, i) => <div key={i} className="inspector-warn">⚠ {w.message}</div>);
   return <section className="product-identity" aria-label="Exact product identity">
     <table className="products-table"><thead><tr><th>Exact identity</th><th>Value</th><th>Evidence</th>{request && <th>Review</th>}</tr></thead><tbody>
       {(Object.keys(IDENTITY_FIELDS) as IdentityKey[]).map(key => <tr key={key} data-identity={key} {...(request && reviewIdentity(key) ? { "data-field": `identity.${key}` } : {})}>

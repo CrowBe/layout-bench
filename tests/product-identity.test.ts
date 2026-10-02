@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { identityOf, identityReviewKeys, unknownIdentity } from "../src/model/productIdentity";
 import { categoryById, validateSubmission, type SpecSubmission } from "../src/model/products";
-import { configureProductStorage, initializeProductLibrary, productStore, products, PRODUCTS_KEY } from "../src/model/productLibrary";
+import { configureProductStorage, initializeProductLibrary, productStore, products, productReviewWarnings, PRODUCTS_KEY } from "../src/model/productLibrary";
 import { actions, store } from "../src/model/store";
 import { parseImport } from "../src/model/projects";
 import { emptyModel } from "../src/model/types";
@@ -98,6 +98,38 @@ describe("exact product variants (#47)", () => {
       expect(productStore.getState().loadError).toMatch(/Invalid product identity evidence.*Original browser data was kept/);
       expect(productStore.getState().requests).toEqual([]);
       products.request("vanity", { brand: "Recovery attempt" });
+      expect(data.get(PRODUCTS_KEY)).toBe(raw);
+    } finally { configureProductStorage(prev); }
+  });
+  it.each(["identity", "components"] as const)("requires evidence review for a pre-fix saved pending %s omission with an empty warning cache", field => {
+    const s = { ...spec(), identity: undefined, components: undefined, componentsStatus: undefined };
+    const requested = field === "identity" ? { brand: "Synthetic Co", identity: { ...unknownIdentity(), code: known("EXACT-CHROME"), finish: known("Chrome"), handedness: known("left") } } : { brand: "Synthetic Co", components: spec().components, componentsStatus: "documented" };
+    const reviews = Object.fromEntries(Object.keys(s.fields).map(k => [k, { decision: "accepted" }]));
+    const req = { id: "pre-fix", category: "vanity", known: requested, status: "submitted", createdAt: 0, reviews, submission: { ...s, at: 0, warnings: [] } };
+    const raw = JSON.stringify({ version: 1, products: [], requests: [req] });
+    const data = new Map([[PRODUCTS_KEY, raw]]);
+    const prev = configureProductStorage({ local: () => ({ getItem: k => data.get(k) ?? null, setItem: (k, v) => { data.set(k, v); } }) });
+    try {
+      initializeProductLibrary(true);
+      expect(productStore.getState().loadError).toBeNull();
+      expect(data.get(PRODUCTS_KEY)).toBe(raw);
+      expect(productReviewWarnings(productStore.getState().requests[0]).some(w => w.field === (field === "identity" ? "identity.handedness" : "components"))).toBe(true);
+      // Acceptance must derive evidence even if an in-memory warning cache is empty again.
+      productStore.setState({ requests: productStore.getState().requests.map(r => ({ ...r, submission: { ...r.submission!, warnings: [] } })) });
+      expect(products.accept(req.id)).toMatchObject({ ok: false, summary: expect.stringContaining(field === "identity" ? "identity.handedness" : "components") });
+      expect(productStore.getState().products).toEqual([]);
+      expect(productStore.getState().requests[0].known).toMatchObject(requested);
+    } finally { configureProductStorage(prev); }
+  });
+  it("keeps accepted history intact instead of applying new pending-review warnings retrospectively", () => {
+    const history = { id: "historic", category: "vanity", known: { brand: "Synthetic Co", identity: { ...unknownIdentity(), code: known("EXACT-CHROME") } }, status: "accepted", createdAt: 0, reviews: {}, submission: { ...spec(), identity: undefined, components: undefined, componentsStatus: undefined, at: 0, warnings: [] } };
+    const raw = JSON.stringify({ version: 1, products: [], requests: [history] });
+    const data = new Map([[PRODUCTS_KEY, raw]]);
+    const prev = configureProductStorage({ local: () => ({ getItem: k => data.get(k) ?? null, setItem: (k, v) => { data.set(k, v); } }) });
+    try {
+      initializeProductLibrary(true);
+      expect(productStore.getState().requests[0]).toEqual(JSON.parse(JSON.stringify(history)));
+      expect(productReviewWarnings(productStore.getState().requests[0])).toEqual([]);
       expect(data.get(PRODUCTS_KEY)).toBe(raw);
     } finally { configureProductStorage(prev); }
   });

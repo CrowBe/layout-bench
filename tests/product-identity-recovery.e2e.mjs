@@ -103,6 +103,31 @@ try {
   await page.screenshot({ path: "/tmp/layout-bench-47-review-recovery.png", fullPage: true });
   await context.close();
 
+  for (const omitted of ["identity", "components"]) {
+    const model = `Synthetic saved ${omitted} omission`;
+    const knownDetails = omitted === "identity" ? { brand: "Synthetic Co", model, identity: requestedIdentity } : { brand: "Synthetic Co", model, componentsStatus: "documented", components: [component] };
+    const pending = { id: "pre-fix-pending", category: "vanity", known: knownDetails, status: "submitted", createdAt: 0, reviews: Object.fromEntries(Object.keys(vanity.fields).map(k => [k, { decision: "accepted" }])), submission: { ...vanity, at: 0, warnings: [] } };
+    const raw = JSON.stringify({ version: 1, products: [], requests: [pending] });
+    const context = await browser.newContext();
+    await context.addInitScript(({ raw, origin }) => { if (location.origin === origin) localStorage.setItem("alza.products.v1", raw); }, { raw, origin: new URL(base).origin });
+    const saved = await start(context, model);
+    await saved.getByRole("button", { name: /^Products/ }).click();
+    await saved.getByRole("region", { name: "Requests" }).getByRole("button", { name: new RegExp(model) }).click();
+    const selected = saved.getByRole("region", { name: "Selected request" });
+    assert.equal(await saved.evaluate(() => localStorage.getItem("alza.products.v1")), raw);
+    const required = omitted === "identity" ? "identity.handedness" : "components";
+    assert.match(await selected.textContent(), omitted === "identity" ? /identity.handedness: request says left; research says unknown/ : /WASTE-32.*separately-required.*research omits/s);
+    await selected.getByRole("button", { name: "Accept product" }).click();
+    assert.ok((await selected.getByRole("alert").last().textContent()).includes(required));
+    const review = selected.locator(`tr[data-field="${required}"]`);
+    await review.getByLabel(`Reason to reject ${required}`).fill("The saved source evidence is still required");
+    await review.getByRole("button", { name: "Reject", exact: true }).click();
+    await selected.getByRole("button", { name: "Return to agent" }).click();
+    assert.match(await selected.textContent(), /The saved source evidence is still required/);
+    assert.equal((await runOn(saved)("get_product_library")).products.length, 0);
+    await context.close();
+  }
+
   for (const invalid of ["identity", "components"]) {
     const submission = { ...vanity, identity: { finish: known("Chrome") }, componentsStatus: "documented", components: [structuredClone(component)], at: 0, warnings: [] };
     if (invalid === "identity") submission.identity.finish = null;
@@ -119,5 +144,5 @@ try {
     await context.close();
   }
   assert.deepEqual(errors, []);
-  console.log("PASS #47 regressions: omitted identity/components flagged and require review, visible evidence/rejection reasons, corrected human acceptance, fixed hand has no opposite catalogue entry, reversible/legacy movement, malformed saved submissions preserve raw data without page errors");
+  console.log("PASS #47 regressions: new and pre-fix saved identity/component omissions require review, visible evidence/rejection reasons, corrected human acceptance, fixed hand has no opposite catalogue entry, reversible/legacy movement, malformed saved submissions preserve raw data without page errors");
 } finally { await browser.close(); }
