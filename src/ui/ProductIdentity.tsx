@@ -9,6 +9,7 @@ function Sources({ sources }: { sources?: SourceRef[] }) {
 }
 export function ExactIdentity({ product, request }: { product: ExactProduct; request?: ProductRequest }) {
   const identity = identityOf(product);
+  const reviewIdentity = (key: IdentityKey) => !!product.identity || !!request?.submission?.warnings.some(w => w.field === `identity.${key}`);
   const reviewComponents = product.components !== undefined || product.componentsStatus !== undefined || !!request?.submission?.warnings.some(w => w.field === "components");
   const [reason, setReason] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
@@ -20,10 +21,10 @@ export function ExactIdentity({ product, request }: { product: ExactProduct; req
   const warnings = (key: string) => request?.submission?.warnings.filter(w => w.field === key).map((w, i) => <div key={i} className="inspector-warn">⚠ {w.message}</div>);
   return <section className="product-identity" aria-label="Exact product identity">
     <table className="products-table"><thead><tr><th>Exact identity</th><th>Value</th><th>Evidence</th>{request && <th>Review</th>}</tr></thead><tbody>
-      {(Object.keys(IDENTITY_FIELDS) as IdentityKey[]).map(key => <tr key={key} data-identity={key} {...(request && product.identity ? { "data-field": `identity.${key}` } : {})}>
+      {(Object.keys(IDENTITY_FIELDS) as IdentityKey[]).map(key => <tr key={key} data-identity={key} {...(request && reviewIdentity(key) ? { "data-field": `identity.${key}` } : {})}>
         <td>{IDENTITY_FIELDS[key]}</td><td>{identityText(identity[key])}</td>
         <td><Sources sources={identity[key].sources} />{identity[key].note}{identity[key].alternatives?.map((a, i) => <div key={i}>Alternative: {a.value}<Sources sources={[a.source]} /></div>)}{warnings(`identity.${key}`)}</td>
-        {request && <td>{review(`identity.${key}`, !!product.identity)}</td>}
+        {request && <td>{review(`identity.${key}`, reviewIdentity(key))}</td>}
       </tr>)}
       <tr data-components {...(request && reviewComponents ? { "data-field": "components" } : {})}>
         <td>Components</td><td>{product.componentsStatus ?? "unknown"}</td><td>{(product.components ?? []).map((c, i) => <div key={i} data-component={i}>

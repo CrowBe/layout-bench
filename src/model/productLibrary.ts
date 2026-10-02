@@ -216,7 +216,7 @@ export const products = {
     const identity = identityOf(submission);
     const identityWarnings = Object.entries(req.known.identity ?? {}).flatMap(([key, known]) => {
       const found = identity[key as keyof ProductIdentity];
-      return known.state !== "unknown" && found.state !== "unknown" && (known.state !== found.state || known.value !== found.value) ? [{ field: `identity.${key}`, severity: "warning" as const, code: "identity_conflict", message: `identity.${key}: request says ${known.value ?? known.state}; research says ${found.value ?? found.state}. Human review required.` }] : [];
+      return known.state !== "unknown" && (known.state !== found.state || known.value !== found.value) ? [{ field: `identity.${key}`, severity: "warning" as const, code: "identity_conflict", message: `identity.${key}: request says ${known.value ?? known.state}; research says ${found.value ?? found.state}. Human review required.` }] : [];
     });
     const componentWarnings = (req.known.components ?? []).flatMap(known => {
       const found = submission.components?.find(c => c.name === known.name);
@@ -262,7 +262,8 @@ export const products = {
   accept(requestId: string): LibraryResult {
     const req = findRequest(requestId);
     if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be accepted.");
-    const keys = [...Object.keys(req.submission.fields), ...identityReviewKeys(req.submission), ...(req.submission.warnings.some(w => w.field === "components") ? ["components"] : [])];
+    const flaggedIdentity = req.submission.warnings.flatMap(w => w.field === "components" || w.field?.startsWith("identity.") ? [w.field] : []);
+    const keys = [...new Set([...Object.keys(req.submission.fields), ...identityReviewKeys(req.submission), ...flaggedIdentity])];
     const pending = keys.filter((k) => req.reviews[k]?.decision !== "accepted");
     if (pending.length) return fail(`Review every field first. Not accepted: ${pending.join(", ")}.`);
     const product: LibraryProduct = {

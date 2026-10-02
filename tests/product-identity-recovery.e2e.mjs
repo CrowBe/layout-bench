@@ -55,6 +55,30 @@ try {
   assert.match(await evidence.last().textContent(), /WASTE-32.*separately-required/s);
   assert.equal((await run("get_product_library")).products[0].components[0].provision, "separately-required");
 
+  const requestedIdentity = { code: known("EXACT-CHROME"), finish: known("Chrome"), configuration: { state: "not-applicable", value: null, sources: [source] }, handedness: known("left") };
+  const exactReq = await run("request_product", { category: "vanity", brand: "Synthetic Co", model: "Synthetic identity omission", identity: requestedIdentity });
+  const unknownResearch = await run("submit_product_spec", { requestId: exactReq.requestId, ...vanity });
+  assert.equal(unknownResearch.ok, true, unknownResearch.summary);
+  assert.deepEqual(unknownResearch.warnings.map(w => w.field), ["identity.code", "identity.finish", "identity.configuration", "identity.handedness"]);
+  assert.match(await evidence.first().textContent(), /EXACT-CHROME.*Chrome.*not-applicable.*left/s);
+  assert.match(await evidence.last().textContent(), /identity.handedness: request says left; research says unknown/);
+  // Accepting every submitted dimensional value must still leave exact identity pending.
+  const valueRows = detail.getByRole("table", { name: "Submitted values" }).locator("tr[data-field]");
+  for (let i = 0; i < await valueRows.count(); i++) await valueRows.nth(i).getByRole("button", { name: "Accept", exact: true }).click();
+  await detail.getByRole("button", { name: "Accept product" }).click();
+  assert.match(await detail.getByRole("alert").last().textContent(), /identity.code.*identity.finish.*identity.configuration.*identity.handedness/);
+  const handRow = detail.locator('tr[data-field="identity.handedness"]');
+  await handRow.getByLabel("Reason to reject identity.handedness").fill("The supplied source establishes left hand");
+  await handRow.getByRole("button", { name: "Reject", exact: true }).click();
+  assert.match(await handRow.textContent(), /rejected: The supplied source establishes left hand/);
+  await detail.getByRole("button", { name: "Return to agent" }).click();
+  assert.match(await detail.textContent(), /Returned to the agent: identity.handedness: The supplied source establishes left hand/);
+  assert.equal((await run("submit_product_spec", { requestId: exactReq.requestId, ...vanity, identity: requestedIdentity })).ok, true);
+  await acceptOnPage(detail);
+  assert.equal((await run("get_product_library")).products.at(-1).identity.handedness.value, "left");
+  assert.match(await evidence.first().textContent(), /EXACT-CHROME.*Chrome.*left/s);
+  assert.match(await evidence.last().textContent(), /EXACT-CHROME.*Chrome.*left/s);
+
   const wall = await run("add_wall", { ax: 0, ay: 0, bx: 4, by: 0, thickness: .1, height: 2.4 });
   assert.equal((await run("set_wall_side", { wallId: wall.id, side: "right", existing: { value: 0, status: "measured" }, layers: [] })).ok, true);
   for (const hand of ["left", "right", "reversible", "legacy"]) {
@@ -95,5 +119,5 @@ try {
     await context.close();
   }
   assert.deepEqual(errors, []);
-  console.log("PASS #47 regressions: omitted components flagged, visible evidence/rejection reasons, corrected human acceptance, fixed hand has no opposite catalogue entry, reversible/legacy movement, malformed saved submissions preserve raw data without page errors");
+  console.log("PASS #47 regressions: omitted identity/components flagged and require review, visible evidence/rejection reasons, corrected human acceptance, fixed hand has no opposite catalogue entry, reversible/legacy movement, malformed saved submissions preserve raw data without page errors");
 } finally { await browser.close(); }

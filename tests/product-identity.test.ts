@@ -45,6 +45,23 @@ describe("exact product variants (#47)", () => {
     expect(products.returnToAgent(id, "").ok).toBe(true);
     expect(productStore.getState().requests[0].feedback).toContain("The quote specifies Brass");
   });
+  it.each(["omitted", "unknown", "partial"] as const)("requires review when %s research loses documented exact identity", form => {
+    const requested = { code: known("EXACT-CHROME"), finish: known("Chrome"), configuration: { state: "not-applicable" as const, value: null, sources: [source] }, handedness: known("left") };
+    const id = products.request("vanity", { brand: "Synthetic Co", identity: requested }).requestId as string;
+    const s = { ...spec(), identity: form === "omitted" ? undefined : form === "unknown" ? unknownIdentity() : { ...unknownIdentity(), code: known("EXACT-CHROME") } };
+    expect(products.submit(id, s).ok).toBe(true);
+    const req = productStore.getState().requests[0];
+    const fields = form === "partial" ? ["finish", "configuration", "handedness"] : ["code", "finish", "configuration", "handedness"];
+    expect(req.submission!.warnings.filter(w => w.code === "identity_conflict").map(w => w.field)).toEqual(fields.map(k => `identity.${k}`));
+    expect(req.known.identity).toEqual(requested);
+    for (const key of Object.keys(s.fields)) products.review(id, key, "accepted");
+    products.review(id, "components", "accepted");
+    expect(products.accept(id)).toMatchObject({ ok: false, summary: expect.stringContaining("identity.handedness") });
+    products.review(id, "identity.handedness", "rejected", "The supplied source establishes left hand");
+    expect(products.returnToAgent(id, "").ok).toBe(true);
+    expect(productStore.getState().requests[0].feedback).toContain("The supplied source establishes left hand");
+    expect(productStore.getState().requests[0].submission!.identity).toEqual(s.identity);
+  });
   it.each(["not-applicable", "unknown", "omitted"] as const)("flags %s research that omits a documented separately required component", status => {
     const original = spec();
     const id = products.request("vanity", { brand: "Synthetic Co", components: original.components, componentsStatus: "documented" }).requestId as string;
