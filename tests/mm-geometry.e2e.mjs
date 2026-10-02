@@ -153,7 +153,7 @@ try {
   check("readback: window jamb 177.5 mm from end A (0.1 mm precision)", near(w0?.position?.nearJambFromA, 0.1775), fmt(w0?.position?.nearJambFromA));
   check("height: missing window height is a default that fits under the wall",
     w0?.heightDefaulted === true && near(w0?.height, 2.7 - WINDOW.sill), `height ${fmt(w0?.height)}, heightDefaulted ${w0?.heightDefaulted}`);
-  check("height: add_window asks the agent for the measured height", /ask the human for the measured height/i.test(win.summary ?? "") && /edit_opening/.test(win.summary ?? ""), win.summary);
+  check("height: add_window asks for the actual height", /ask for the actual height/i.test(win.summary ?? "") && /edit_opening/.test(win.summary ?? ""), win.summary);
   const d0 = m.openings.find((o) => o.id === door.id);
   check("readback: door width 800 mm", near(d0?.width, DOOR_WIDTH), fmt(d0?.width));
   const v0 = m.items.find((i) => i.id === vanity.id);

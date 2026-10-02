@@ -40,7 +40,8 @@ const sheet = makePdf([
 // 1×1 PNG
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
-const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
+// Full Chromium has the PDF viewer; Playwright's default headless shell does not.
+const browser = await chromium.launch({ headless: true, channel: "chromium", ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage();
 const errors = [];
@@ -78,6 +79,7 @@ try {
   // The person can open the PDF itself
   const pdfRow = files.locator(".products-attachment").filter({ hasText: "test-pan-spec.pdf" });
   const [popup] = await Promise.all([context.waitForEvent("page"), pdfRow.getByRole("button", { name: "View" }).click()]);
+  await popup.waitForURL(/^blob:/);
   assert.match(popup.url(), /^blob:/);
   await popup.close();
 
@@ -143,6 +145,7 @@ try {
   const card = page.getByRole("region", { name: "Library" }).locator("details");
   await card.locator("summary").click();
   const [popup2] = await Promise.all([context.waitForEvent("page"), card.getByRole("button", { name: "p. 2" }).first().click()]);
+  await popup2.waitForURL(/^blob:.*#page=2$/);
   assert.match(popup2.url(), /^blob:.*#page=2$/);
   await popup2.close();
 
