@@ -55,6 +55,36 @@ export interface FloorTileLayout {
   problems: { severity: "error" | "warning"; code: string; message: string }[];
 }
 const EPS = 1e-4;
+/** The first/last tile inside the zone, clipped at both opposing boundaries.
+ * The infinite grid may put a full tile beyond the other edge of a narrow zone;
+ * retain only its intersection with the zone, including bounded joint gaps.
+ */
+function boundedEdgeCut(
+  origin: number,
+  tile: number,
+  joint: number,
+  low: number,
+  high: number,
+  keep: "before" | "after",
+): EdgeCut {
+  const edge = keep === "after" ? low : high;
+  const cut = edgeCut(origin, tile, joint, edge, keep);
+  const gap = cut.gap ?? 0;
+  const start = keep === "after" ? edge + gap : edge - gap - cut.size;
+  const end = start + cut.size;
+  const size = quantize(
+    Math.max(0, Math.min(high, end) - Math.max(low, start)),
+  );
+  return {
+    size: size > EPS ? size : 0,
+    of: tile,
+    full: size >= tile - EPS && size > EPS,
+    ...(cut.gap !== undefined
+      ? { gap: quantize(Math.min(gap, high - low)) }
+      : {}),
+  };
+}
+
 export function floorTileLayout(model: PlanModel, room: Room): FloorTileLayout {
   const t: FloorTiling = room.floorTiling ?? {};
   const inputs = [
@@ -269,10 +299,10 @@ export function floorTileLayout(model: PlanModel, room: Room): FloorTileLayout {
   const canEnumerate =
     Number.isFinite(positionCount) && positionCount <= MAX_PIECES;
   l.cuts = {
-    west: edgeCut(ox, tx, j, x0, "after"),
-    east: edgeCut(ox, tx, j, x1, "before"),
-    north: edgeCut(oy, ty, j, y0, "after"),
-    south: edgeCut(oy, ty, j, y1, "before"),
+    west: boundedEdgeCut(ox, tx, j, x0, x1, "after"),
+    east: boundedEdgeCut(ox, tx, j, x0, x1, "before"),
+    north: boundedEdgeCut(oy, ty, j, y0, y1, "after"),
+    south: boundedEdgeCut(oy, ty, j, y0, y1, "before"),
   };
   const px = tx + j,
     py = ty + j,

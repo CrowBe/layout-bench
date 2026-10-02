@@ -109,6 +109,60 @@ describe("proposed floor tile set-out", () => {
       "drain position not recorded; waste cuts unresolved",
     );
   });
+  it.each([
+    { origin: 0, start: 0.025, end: 0.425, first: 0.4, last: 0.4, gap: undefined },
+    { origin: -0.05, start: 0.025, end: 0.425, first: 0.4, last: 0.4, gap: undefined },
+    {
+      origin: 0.01,
+      start: 0.025,
+      end: 0.425,
+      first: 0.008,
+      last: 0.39,
+      gap: undefined,
+    },
+    { origin: 0, start: 0.626, end: 0.827, first: 0.2, last: 0.2, gap: 0.001 },
+    { origin: 0, start: 0.225, end: 0.626, first: 0.4, last: 0.4, gap: undefined },
+    { origin: 0, start: 0.626, end: 0.6265, first: 0, last: 0, gap: 0.0005 },
+  ])(
+    "clips both perimeter ends to the bounded tile pieces: $origin / $start–$end",
+    ({ origin, start, end, first, last, gap }) => {
+      setup();
+      pattern();
+      actions.setRoomDrainage("Bathroom", {
+        planes: [
+          {
+            id: "small",
+            label: "Narrow zone",
+            x: start,
+            y: start,
+            w: end - start,
+            h: end - start,
+          },
+        ],
+      });
+      actions.setFloorTiling("Bathroom", {
+        tileLength: P(0.6),
+        tileWidth: P(0.6),
+        zone: "small",
+        originX: P(origin),
+        originY: P(origin),
+      });
+      const l = layout();
+      expect(l.cuts?.west).toMatchObject({ size: first, full: false });
+      expect(l.cuts?.north).toMatchObject({ size: first, full: false });
+      expect(l.cuts?.east).toMatchObject({ size: last, full: false });
+      expect(l.cuts?.south).toMatchObject({ size: last, full: false });
+      expect(l.cuts?.north.gap).toBe(gap);
+      if (first > 0) {
+        expect(l.pieces[0].y1 - l.pieces[0].y0).toBeCloseTo(first, 5);
+        expect(l.pieces.at(-1)!.y1 - l.pieces.at(-1)!.y0).toBeCloseTo(last, 5);
+      } else expect(l.pieces).toEqual([]);
+      expect(renderFloorTilingSheet(model(), room())).toContain(
+        `north cut: ${first * 1000}`,
+      );
+    },
+  );
+
   it("follows build-up changes, withholds grid for missing, ambiguous and skew faces", () => {
     setup();
     pattern();

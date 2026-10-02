@@ -236,6 +236,35 @@ try {
     (await run("get_floor_tiling", { room: "Bathroom" })).cuts.east.size,
     0.239,
   );
+  await run("set_room_drainage", {
+    room: "Bathroom",
+    planes: [
+      {
+        id: "narrow",
+        label: "Narrow zone",
+        x: 0.04,
+        y: 0.025,
+        w: 0.4,
+        h: 0.4,
+        waste: "w",
+        fall: P(0.01),
+      },
+    ],
+  });
+  await run("set_floor_tiling", { room: "Bathroom", tileWidth: P(0.6) });
+  await page.locator(`[data-id="${room.id}"]`).first().click({ force: true });
+  await panel.getByLabel("Floor tile zone").selectOption("narrow");
+  const narrow = await run("get_floor_tiling", {
+    room: "Bathroom",
+    includeSvg: true,
+  });
+  assert.equal(narrow.pieces.length, 1);
+  for (const edge of ["west", "east", "north", "south"]) {
+    assert.equal(narrow.cuts[edge].size, 0.4);
+    assert.equal(narrow.cuts[edge].full, false);
+    assert.match(await panel.locator(`[data-cut="${edge}"]`).textContent(), /400/);
+    assert.match(narrow.svg, new RegExp(`${edge} cut: 400`));
+  }
   await run("set_wall_side", { wallId: ids.west, side: "right", frame: null });
   const missing = await run("get_floor_tiling", {
     room: "Bathroom",
