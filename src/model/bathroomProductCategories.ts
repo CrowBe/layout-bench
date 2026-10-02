@@ -1,0 +1,137 @@
+/** Bounded fitting briefs (#50). All figures describe the exact product, never a proposed
+ * project mounting height. Text layouts retain the source's datums until #51 can model them. */
+import type { FieldSpec, LengthField, ProductCategory, ReferenceId } from "./products";
+
+type When = { field: string; in: string[] };
+const length = (key: string, label: string, definition: string, reference: ReferenceId, min = 0, max = 3, when?: When): LengthField =>
+  ({ type: "length", key, label, definition, reference, min, max, group: "installation", required: true, ...(when ? { when } : {}) });
+const choice = (key: string, label: string, options: string[], definition: string, when?: When): FieldSpec =>
+  ({ type: "choice", key, label, options, definition, group: "installation", required: true, ...(when ? { when } : {}) });
+const text = (key: string, label: string, definition: string, when?: When): FieldSpec =>
+  ({ type: "text", key, label, definition, group: "installation", required: true, ...(when ? { when } : {}) });
+const when = (field: string, ...values: string[]): When => ({ field, in: values });
+const envelope = (): FieldSpec[] => [
+  { ...length("width", "Overall width", "Maximum product width, across its own left and right ends; metres.", "fixture-end", 0.001), group: "envelope" },
+  { ...length("depth", "Exposed projection / depth", "Maximum exposed projection from the product's back/mounting plane, excluding any concealed body; metres.", "fixture-side", 0.001), group: "envelope" },
+  { ...length("height", "Overall product height", "Maximum product height from its own bottom edge; not an installed height above the project floor; metres.", "fixture-bottom", 0.001), group: "envelope" },
+];
+const fixing = () => text("fixingLayout", "Fixing arrangement / centres", "Published fixing count, centres, hole sizes and mounting arrangement, naming the product edge or centreline for each offset. Preserve units and the exact source layout; do not invent positions from an image.");
+const powerWhen = when("power", "required");
+const powerFields = (condition = powerWhen): FieldSpec[] => [
+  choice("power", "Power mode", ["not-required", "required"], "Whether this exact supplied variant requires electrical power."),
+  choice("powerConnection", "Electrical connection", ["plug", "hardwired", "low-voltage", "other"], "Published connection type; no proposed project socket location.", condition),
+  text("powerRequirements", "Power / access requirements", "Published voltage, rating, cable route, driver/transformer and isolation or servicing access requirements, with units and any source datums. Required accessories are recorded as exact components.", condition),
+  length("powerOffset", "Power entry sideways offset", "Product power entry centre sideways from product centreline, facing it; left negative; metres.", "fixture-centreline", -1.5, 1.5, condition),
+  length("powerHeight", "Power entry height within product", "Product power entry centre above the product's own bottom edge; metres. Do not submit a proposed project outlet height.", "fixture-bottom", 0, 3, condition),
+  length("powerDepth", "Power entry depth", "Product power entry centre from its back/mounting plane; metres; behind this plane is negative.", "fixture-side", -0.5, 0.5, condition),
+];
+const localPower = (condition = powerWhen) => ({ id: "power", label: "Product power entry", service: "power" as const, when: condition,
+  across: { field: "powerOffset" }, out: { field: "powerDepth" }, up: { field: "powerHeight" } });
+const box = { w: "width", d: "depth", h: "height" };
+const unsupported = (limitation: string) => ({ supportedWhen: [], limitation });
+
+export const BATHROOM_PRODUCT_CATEGORIES: ProductCategory[] = [
+  {
+    id: "tapware", label: "Tapware", envelope: box,
+    placement: { supportedWhen: [when("mounting", "floor-standing")], limitation: "Only floor-standing tapware can use a generic floor-based envelope. Deck and wall mounting, concealed bodies and project mounting heights are not represented." },
+    fields: [
+      ...envelope(),
+      choice("mounting", "Mounting", ["deck", "wall-exposed", "wall-concealed", "floor-standing", "other"], "Published product mounting mode, including whether the body is concealed."),
+      { type: "count", key: "tapHoles", label: "Mounting hole count", group: "installation", required: true, min: 1, max: 5, when: when("mounting", "deck"), definition: "Number of required holes in the deck or basin; count." },
+      text("holeLayout", "Mounting hole layout", "Published hole diameters and centres relative to the product centreline or named deck edge, with units; do not infer a layout from hole count.", when("mounting", "deck")),
+      fixing(),
+      choice("inletMode", "Water inlet arrangement", ["single", "hot-cold", "other"], "Whether the exact product has one inlet or separate hot and cold inlets."),
+      length("inletSpacing", "Hot / cold inlet centres", "Centre-to-centre inlet spacing across the product; metres.", "fixture-centreline", 0, 1, when("inletMode", "hot-cold")),
+      text("waterConnection", "Water connection details", "Published inlet size/thread, hot/cold orientation and flexible/concealed connection arrangement; retain named source datums and units."),
+      length("inletOffset", "Water inlet sideways offset", "Centre of the single inlet, or midpoint of the hot/cold pair, from product centreline; left negative; metres.", "fixture-centreline", -1, 1),
+      length("inletDepth", "Water inlet depth", "Inlet centre or pair midpoint from the product back/mounting plane; behind it is negative; metres.", "fixture-side", -0.5, 1),
+      length("inletHeight", "Water inlet height within product", "Inlet centre or pair midpoint above product bottom, not a project mounting height; metres.", "fixture-bottom", 0, 2),
+      length("concealedDepthMin", "Concealed body minimum depth", "Minimum body installation depth behind the finished wall, as published; metres.", "finished-wall", 0, 0.5, when("mounting", "wall-concealed")),
+      length("concealedDepthMax", "Concealed body maximum depth", "Maximum body installation depth behind the finished wall, as published; metres.", "finished-wall", 0, 0.5, when("mounting", "wall-concealed")),
+    ],
+    // The midpoint of a pair is not a connection: keep the pair's individual layout as
+    // sourced requirements until #51 can represent it, rather than inventing a single inlet.
+    roughIn: [{ id: "inlet", label: "Single water inlet", service: "water", when: when("inletMode", "single"), across: { field: "inletOffset" }, out: { field: "inletDepth" }, up: { field: "inletHeight" } }],
+  },
+  {
+    id: "shower-fittings", label: "Shower fittings", envelope: box,
+    placement: unsupported("Shower wall/ceiling mounting and adjustable head/rail geometry cannot use the current floor-based envelope."),
+    fields: [
+      ...envelope(),
+      choice("fittingType", "Fitting / assembly type", ["head", "rail", "arm", "system"], "Whether the exact product is a head, rail, arm, or combined shower system; component extents only apply when supplied."),
+      choice("mounting", "Mounting", ["wall", "ceiling", "other"], "Published attachment plane for this exact shower fitting assembly."),
+      length("headWidth", "Head width / diameter", "Maximum head width or diameter across its own centreline; metres.", "fixture-centreline", 0.001, 1, when("fittingType", "head", "system")),
+      length("armProjection", "Arm projection", "Arm exposed extent from its mounting plane to its furthest end; metres.", "fixture-side", 0, 1.5, when("fittingType", "arm", "system")),
+      length("railLength", "Rail length", "Rail length from its lower end; metres.", "fixture-bottom", 0, 2, when("fittingType", "rail", "system")),
+      fixing(),
+      choice("adjustment", "Adjustment mode", ["fixed", "adjustable"], "Whether the supplied assembly has published dimensional adjustment."),
+      length("adjustmentMin", "Minimum adjustable position", "Minimum head/carriage position along the rail from its lower end; metres.", "fixture-bottom", 0, 2, when("adjustment", "adjustable")),
+      length("adjustmentMax", "Maximum adjustable position", "Maximum head/carriage position along the rail from its lower end; metres.", "fixture-bottom", 0, 2, when("adjustment", "adjustable")),
+      choice("waterEntry", "Water entry arrangement", ["none", "single", "other"], "A bare fixing rail has no water entry; a fitting or assembly may have one or several connections."),
+      text("waterConnection", "Water connection details", "Published thread/diameter and connection arrangement, naming the mounting plane and each source datum; retain units.", when("waterEntry", "single", "other")),
+      length("inletOffset", "Water inlet sideways offset", "Inlet centre sideways from the assembly centreline; left negative; metres.", "fixture-centreline", -1, 1, when("waterEntry", "single")),
+      length("inletDepth", "Water inlet depth", "Inlet centre from the assembly mounting plane; behind it negative; metres.", "fixture-side", -0.5, 1, when("waterEntry", "single")),
+      length("inletHeight", "Water inlet height within product", "Inlet centre above assembly bottom; not a proposed project shower height; metres.", "fixture-bottom", 0, 3, when("waterEntry", "single")),
+    ],
+    roughIn: [{ id: "inlet", label: "Shower water entry", service: "water", when: when("waterEntry", "single"), across: { field: "inletOffset" }, out: { field: "inletDepth" }, up: { field: "inletHeight" } }],
+  },
+  {
+    id: "shower-screen", label: "Shower screen", envelope: box,
+    placement: { supportedWhen: [when("opening", "fixed"), when("mounting", "floor-supported")], limitation: "Only a fixed floor-supported screen can use its generic envelope. Hinged/sliding movement, wall-supported or raised panels and fixing geometry are not represented." },
+    fields: [
+      ...envelope(),
+      length("panelWidth", "Panel width", "Published glass panel width from its named end; metres; overall assembly width remains separate.", "fixture-end", 0.001, 3),
+      length("panelHeight", "Panel height", "Published glass panel height from its bottom edge; metres; excludes mounting channels unless the source includes them.", "fixture-bottom", 0.001, 3),
+      length("thickness", "Glass thickness", "Published panel thickness through the glass plane; metres.", "fixture-side", 0.001, 0.05),
+      choice("mounting", "Panel support", ["floor-supported", "wall-supported", "other"], "Whether the assembly stands at finished floor level or is supported/raised from the wall."),
+      choice("handedness", "Handedness", ["left", "right", "reversible", "not-handed"], "Published hand, facing the screen from the dry side; never infer from a photograph."),
+      choice("opening", "Opening mode", ["fixed", "hinged", "sliding"], "Whether the assembly is a fixed panel, hinged door or sliding door."),
+      length("openingWidth", "Clear opening width", "Published clear opening between limiting assembly edges; metres.", "fixture-end", 0.001, 2, when("opening", "hinged", "sliding")),
+      text("openingLayout", "Swing / sliding arrangement", "Published pivot/track location, swing direction and angular range (degrees), or travel (with units), relative to named product edges. No swing geometry is inferred.", when("opening", "hinged", "sliding")),
+      fixing(),
+    ], roughIn: [],
+  },
+  {
+    id: "drain", label: "Drain", envelope: box,
+    placement: unsupported("Recessed drain bodies, floor penetrations and installation depth below finished floor are not represented by the floor-based envelope."),
+    fields: [
+      ...envelope(),
+      length("grateLength", "Grate length", "Maximum grate length along its own end-to-end axis; metres.", "fixture-end", 0.001, 3),
+      length("grateWidth", "Grate width", "Maximum grate width across its own centreline; metres.", "fixture-centreline", 0.001, 1),
+      choice("outletDirection", "Outlet direction", ["vertical", "horizontal", "other"], "Published discharge direction; no project pipe route is proposed."),
+      length("outletDiameter", "Outlet diameter", "Published outlet connection diameter through the outlet centreline; metres.", "fixture-centreline", 0.001, 0.3),
+      length("outletOffset", "Outlet sideways offset", "Outlet centre sideways from body centreline; left negative; metres.", "fixture-centreline", -1.5, 1.5),
+      length("outletDepth", "Outlet from body back edge", "Outlet centre from drain body's back edge in plan; metres.", "fixture-side", 0, 1),
+      length("outletBelowGrate", "Outlet below grate", "Outlet centre below grate top; positive down; metres. The named top datum cannot yet be converted into plan service geometry.", "other", 0, 1),
+      length("installationDepth", "Installation depth", "Published body depth below grate top / finished floor; positive down; metres. Preserve another source datum explicitly.", "finished-floor", 0.001, 1),
+      text("installationRequirements", "Installation / fixing requirements", "Published flange, bedding, waterproofing interface, fall and service access requirements; retain source datums and units."),
+    ], roughIn: [{ id: "outlet", label: "Drain outlet (depth below grate)", service: "waste", across: { field: "outletOffset" }, out: { field: "outletDepth" }, up: { field: "outletBelowGrate" } }],
+  },
+  {
+    id: "towel-rail", label: "Towel rail", envelope: box,
+    placement: { supportedWhen: [when("mounting", "floor-standing")], limitation: "Only floor-standing towel rails can use a generic envelope. Raised wall mounting, fixing centres and heating connection geometry are not represented." },
+    fields: [
+      ...envelope(), fixing(),
+      choice("mounting", "Mounting", ["wall", "floor-standing", "other"], "Published support mode; a proposed project mounting height is separate from the product."),
+      length("fixingCentresWidth", "Horizontal fixing centres", "Horizontal centre-to-centre fixing span across the rail; metres.", "fixture-centreline", 0, 2),
+      length("fixingCentresHeight", "Vertical fixing centres", "Vertical centre-to-centre fixing span; metres; zero only when published as one fixing row.", "fixture-bottom", 0, 3),
+      choice("heating", "Heating mode", ["unheated", "electric", "hydronic", "dual"], "Heating mode of this exact variant; electric/dual require power, hydronic/dual require water connections."),
+      ...powerFields(when("heating", "electric", "dual")),
+      text("waterConnection", "Heating water connections", "Published flow/return thread sizes, centres and offsets from named rail edges, with units; no pipe route is inferred.", when("heating", "hydronic", "dual")),
+    ], roughIn: [localPower(when("heating", "electric", "dual"))],
+  },
+  {
+    id: "mirror", label: "Mirror / mirror cabinet", envelope: box,
+    placement: unsupported("Raised wall mirrors and recessed cabinets, door swings, fixing and access geometry cannot use the current floor-based envelope."),
+    fields: [
+      ...envelope(),
+      choice("kind", "Product kind", ["mirror", "cabinet"], "Plain mirror or mirror cabinet; exact illuminated/demister variant is part of the product identity."),
+      choice("mounting", "Mounting", ["surface", "recessed", "other"], "Published wall mounting mode."),
+      length("recessDepth", "Required recess depth", "Published required depth behind finished wall; metres.", "finished-wall", 0.001, 0.5, when("mounting", "recessed")),
+      text("recessOpening", "Recess opening / allowances", "Published recess width/height and tolerance with units, naming the opening edges and finished wall datum.", when("mounting", "recessed")),
+      fixing(),
+      text("accessRequirements", "Door / servicing access", "Published door swing, removal, maintenance and ventilation clearance requirements, with units and datums. For a plain mirror record explicit no-access requirement only when sourced."),
+      ...powerFields(),
+    ], roughIn: [localPower()],
+  },
+];

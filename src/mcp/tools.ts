@@ -900,11 +900,12 @@ export const TOOLS: ToolDef[] = [
         requestId: req.id,
         status: req.status,
         category: { id: cat.id, label: cat.label },
+        ...(cat.placement ? { placement: cat.placement } : {}),
         known: req.known,
         protocol: [...RESEARCH_PROTOCOL, "Record exact identity { code, finish, configuration, handedness }: each { state: known|unknown|not-applicable, value: exact text|null, sources: [{url, locator}], alternatives? }. Known and not-applicable require evidence. Components: { name, code: identity evidence, quantity: whole number|null, provision: included|separately-required|unresolved, sources } with componentsStatus documented|unknown|not-applicable. Never infer purchasing status or guess a variant."],
         identityFields: IDENTITY_FIELDS,
         references: REFERENCES,
-        fields: cat.fields.map((f) => ({ ...f, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
+        fields: cat.fields.map((f) => ({ ...f, unit: f.type === "length" ? "metres" : f.type === "count" ? "count" : f.type, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
         roughIn: cat.roughIn,
         attachments: (req.attachments ?? []).map((a) => ({
           id: a.id,
