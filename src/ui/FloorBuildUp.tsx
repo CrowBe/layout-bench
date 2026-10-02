@@ -34,9 +34,10 @@ function Section({ room }: { room: Room }) {
   });
   const sub = spec?.substrateTop;
   const datumY = sub?.value !== undefined ? base - -sub.value * 1000 * PX : null;
-  const height = Math.max(base + 20, (datumY ?? 0) + 14);
+  const minY = Math.min(0, y, datumY !== null ? datumY - 14 : 0) - 8;
+  const maxY = Math.max(base + 20, (datumY ?? 0) + 14);
   return (
-    <svg className="face-section" role="img" aria-label="Floor section" width="100%" viewBox={`0 0 200 ${height}`}>
+    <svg className="face-section" role="img" aria-label="Floor section" width="100%" viewBox={`0 ${minY} 200 ${maxY - minY}`}>
       <rect x={20} y={base} width={120} height={16} fill="#b88c5a" opacity={sub?.value !== undefined ? 1 : 0.35} />
       <text x={80} y={base + 12} fontSize={9} textAnchor="middle" fill="#6b6255">substrate{sub?.value !== undefined ? "" : " ?"}</text>
       {rects.map((r) => (

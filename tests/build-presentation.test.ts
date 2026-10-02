@@ -79,3 +79,32 @@ describe("3D drainage falls (#7)", () => {
     expect(meshes(open, "planning").some((m) => m.name.includes(":fall:"))).toBe(false);
   });
 });
+
+describe("3D floor assembly (#6)", () => {
+  const assembled = (tile: number | undefined): PlanModel => ({
+    ...smallRoom,
+    rooms: [{ ...smallRoom.rooms[0], floorBuildUp: {
+      datum: "existing floor", substrateTop: { value: -0.012, status: "site-confirmed" },
+      layers: [
+        { id: "s", name: "Screed", kind: "screed", thickness: { value: 0.04, status: "proposed" } },
+        { id: "a", name: "Adhesive", kind: "adhesive", thickness: { value: 0.004, status: "proposed" } },
+        { id: "t", name: "Tile", kind: "tile", thickness: { value: tile, status: tile === undefined ? undefined : "proposed" } },
+      ],
+    } }],
+  });
+
+  it.each(["planning", "styled"] as const)("updates the %s floor when tile thickness changes", (presentation) => {
+    const name = presentation === "planning" ? "room:planning-floor" : "room";
+    const top = (tile: number) => new THREE.Box3().setFromObject(meshes(assembled(tile), presentation).find((m) => m.name === name)!).max.y;
+    expect(top(0.01)).toBeCloseTo(0.042, 6);
+    expect(top(0.02)).toBeCloseTo(0.052, 6);
+  });
+
+  it.each(["planning", "styled"] as const)("omits an unresolved authored floor in %s", (presentation) => {
+    const name = presentation === "planning" ? "room:planning-floor" : "room";
+    expect(meshes(assembled(undefined), presentation).some((m) => m.name === name)).toBe(false);
+    const unknownDatum = assembled(0.01);
+    delete unknownDatum.rooms[0].floorBuildUp!.substrateTop;
+    expect(meshes(unknownDatum, presentation).some((m) => m.name === name)).toBe(false);
+  });
+});

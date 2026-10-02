@@ -5,6 +5,7 @@ dist
 .DS_Store
 tsconfig.tsbuildinfo
 PLAN.md
+.lavish/
 
 # Local Netlify folder
 .netlify

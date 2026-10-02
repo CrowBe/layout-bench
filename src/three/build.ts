@@ -6,6 +6,7 @@
 
 import * as THREE from "three";
 import { surfaces } from "../model/drainage";
+import { finishedLevel } from "../model/floor";
 import { tilingLayout } from "../model/tiling";
 import type { Item, LayerKind, Opening, PlanModel, Room, Wall } from "../model/types";
 import { liningSlabs, resolveFace, sideNormal, wallBody } from "../model/faces";
@@ -410,20 +411,22 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
 }
 
 /**
- * Where the flat floor slab sits. Rooms with derived falls (#7) draw the sloped surface on top
- * of it, so the slab's top is dropped to the lowest derived level (or the datum, 0) to keep
- * the falls visible.
+ * Flat floors follow the authored assembly's finished level (#6), remaining absent when
+ * unresolved. Rooms without an assembly keep the legacy visual slab. Derived falls (#7)
+ * take precedence, with the slab dropped below their lowest sampled level or datum zero.
  */
-function slabTop(room: Room): number {
+function slabTop(room: Room): number | undefined {
+  const finished = room.floorBuildUp ? finishedLevel(room.floorBuildUp) : undefined;
+  const flatTop = finished ? finished.top : 0.04;
   const d = room.drainage;
-  if (!d) return 0.04;
+  if (!d) return flatTop;
   const levels: number[] = [0];
   const map = surfaces(d);
   for (const p of d.planes) {
     const s = map.get(p.id)!;
     if (s.resolved) for (const [x, y] of [[p.x, p.y], [p.x + p.w, p.y], [p.x, p.y + p.h], [p.x + p.w, p.y + p.h], [p.x + p.w / 2, p.y + p.h / 2]]) levels.push(s.level(x, y)!);
   }
-  return levels.length > 1 ? Math.min(...levels) - 0.002 : 0.04;
+  return levels.length > 1 ? Math.min(...levels) - 0.002 : flatTop;
 }
 
 /** The derived sloped surface of each resolved floor plane, as a subdivided grid (#7). */
@@ -528,11 +531,13 @@ function buildTiling(model: PlanModel, wall: Wall, side: "left" | "right"): THRE
   return g;
 }
 
-function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh {
+function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh | null {
+  const top = slabTop(room);
+  if (top === undefined) return null; // authored unresolved levels must not become a default slab
   if (presentation === "planning") {
     const m = new THREE.Mesh(new THREE.BoxGeometry(room.w, 0.04, room.h), new THREE.MeshStandardMaterial({ color: "#b8b8b3", roughness: 0.95 }));
     m.name = `${room.id}:planning-floor`;
-    m.position.set(room.x + room.w / 2, slabTop(room) - 0.02, room.y + room.h / 2);
+    m.position.set(room.x + room.w / 2, top - 0.02, room.y + room.h / 2);
     m.receiveShadow = true;
     return m;
   }
@@ -551,7 +556,7 @@ function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh
   const geo = new THREE.BoxGeometry(room.w, 0.04, room.h);
   const m = new THREE.Mesh(geo, mat);
   m.name = room.id;
-  m.position.set(room.x + room.w / 2, slabTop(room) - 0.02, room.y + room.h / 2);
+  m.position.set(room.x + room.w / 2, top - 0.02, room.y + room.h / 2);
   m.receiveShadow = true;
   return m;
 }
@@ -632,8 +637,8 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
   }
   for (const r of model.rooms) {
     const floor = buildFloor(r, presentation);
-    group.add(floor);
-    const falls = buildFalls(r, floor.material as THREE.Material);
+    if (floor) group.add(floor);
+    const falls = buildFalls(r, (floor?.material as THREE.Material | undefined) ?? liningMaterials.tile);
     if (falls) group.add(named(falls, `${r.id}:falls`));
   }
   for (const w of model.walls) {
