@@ -18,6 +18,7 @@ import type { WallSideName } from "../model/types";
 import { drainageProblems, heightAt, planeSurface, sectionAlong, surfaces, thresholds } from "../model/drainage";
 import { finishedLevel } from "../model/floor";
 import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems } from "../model/floor";
+import { IDENTITY_FIELDS, SELECTION_STATUSES, type SelectionStatus } from "../model/productIdentity";
 import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
 import { productStore, products } from "../model/productLibrary";
 import { checkModel } from "../model/issues";
@@ -27,6 +28,8 @@ import { dist, formatMm, quantize, segLen } from "../model/geometry";
 import { bus, EVENTS } from "../three/exportBus";
 import { executeWrapped, type ToolDef } from "./registry";
 
+const identityValueSchema = { type: "object", properties: { state: { type: "string", enum: ["known", "unknown", "not-applicable"] }, value: { type: ["string", "null"] }, sources: { type: "array", items: { type: "object" } }, note: { type: "string" }, alternatives: { type: "array", items: { type: "object" } } }, required: ["state", "value"], additionalProperties: false };
+const exactSchemas = { identity: { type: "object", properties: Object.fromEntries(Object.keys(IDENTITY_FIELDS).map(k => [k, identityValueSchema])), additionalProperties: false }, componentsStatus: { type: "string", enum: ["documented", "unknown", "not-applicable"] }, components: { type: "array", items: { type: "object", properties: { name: { type: "string" }, code: identityValueSchema, quantity: { type: ["integer", "null"] }, provision: { type: "string", enum: ["included", "separately-required", "unresolved"] }, sources: { type: "array", items: { type: "object" } }, note: { type: "string" } }, required: ["name", "code", "quantity", "provision"], additionalProperties: false } } };
 const num = { type: "number" } as const;
 const str = { type: "string" } as const;
 
@@ -759,6 +762,8 @@ export const TOOLS: ToolDef[] = [
           id: it.id,
           label: catalogByKind(it.kind)?.label ?? it.kind,
           ...(it.productId ? { productId: it.productId } : {}),
+          productIdentity: it.productIdentity ?? null,
+          selectionStatus: it.selectionStatus ?? "unknown",
           anchor: it.anchor ?? null,
           position: pose.resolved ? { x: pose.x, y: pose.y, rotation: pose.rotation, alongFromA: pose.alongFromA, backOffset: pose.backOffset } : { unresolved: pose.missing },
           clearances: clearances(model, it),
@@ -770,6 +775,13 @@ export const TOOLS: ToolDef[] = [
     },
   },
 
+  {
+    name: "set_fixture_selection",
+    title: "Record a project fixture selection",
+    description: "Record unknown, proposed, purchased or reused on one project fixture. Research acceptance never establishes purchasing status.",
+    inputSchema: obj({ itemId: str, status: { type: "string", enum: SELECTION_STATUSES } }, ["itemId", "status"]),
+    execute: i => actions.setFixtureSelection(i.itemId as string, i.status as SelectionStatus),
+  },
   // ------------------------------------------------------------------ products (#30)
   {
     name: "request_product",
@@ -777,7 +789,7 @@ export const TOOLS: ToolDef[] = [
     description:
       `Open a request to research one product for the product library. category: ${PRODUCT_CATEGORIES.map((c) => `${c.id} (${c.label})`).join(", ")}. Give whatever identifies it: brand, model, reference (quote line or product code), link, notes. Then read its brief with get_product_brief.`,
     inputSchema: obj(
-      { category: { type: "string", enum: PRODUCT_CATEGORIES.map((c) => c.id) }, brand: str, model: str, reference: str, link: str, notes: str },
+      { category: { type: "string", enum: PRODUCT_CATEGORIES.map((c) => c.id) }, brand: str, model: str, reference: str, link: str, notes: str, ...exactSchemas },
       ["category"],
     ),
     execute: (i) => products.request(i.category as string, i as Record<string, string>),
@@ -816,7 +828,8 @@ export const TOOLS: ToolDef[] = [
         status: req.status,
         category: { id: cat.id, label: cat.label },
         known: req.known,
-        protocol: RESEARCH_PROTOCOL,
+        protocol: [...RESEARCH_PROTOCOL, "Record exact identity { code, finish, configuration, handedness }: each { state: known|unknown|not-applicable, value: exact text|null, sources: [{url, locator}], alternatives? }. Known and not-applicable require evidence. Components: { name, code: identity evidence, quantity: whole number|null, provision: included|separately-required|unresolved, sources } with componentsStatus documented|unknown|not-applicable. Never infer purchasing status or guess a variant."],
+        identityFields: IDENTITY_FIELDS,
         references: REFERENCES,
         fields: cat.fields.map((f) => ({ ...f, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
         roughIn: cat.roughIn,
@@ -829,7 +842,7 @@ export const TOOLS: ToolDef[] = [
             ? { pageCount: a.pages?.length ?? 0, pages: a.pages ?? [], ...(a.pages?.some((p) => p.text.trim()) ? {} : { textNote: "No text layer on any page (a scan?). Nothing is OCR'd: ask the person to paste the figures, or find a published source." }) }
             : { textNote: "An image: no text is extracted. It is for the person's review; if you need what it shows, ask them to paste it into the conversation." }),
         })),
-        submitShape: "submit_product_spec { requestId, manufacturer, model, code?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } } — url is an http(s) link or attachment:<id>; for an attachment the locator starts with the page, e.g. \"p. 2, fig. 1\"",
+        submitShape: "submit_product_spec { requestId, manufacturer, model, code?, identity?, componentsStatus?, components?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } } — url is an http(s) link or attachment:<id>; for an attachment the locator starts with the page, e.g. \"p. 2, fig. 1\"",
         ...(req.submission ? { previousSubmission: req.submission } : {}),
         ...(req.feedback ? { feedback: req.feedback } : {}),
       };
@@ -846,6 +859,7 @@ export const TOOLS: ToolDef[] = [
         manufacturer: str,
         model: str,
         code: str,
+        ...exactSchemas,
         fields: { type: "object", additionalProperties: { type: "object" } },
       },
       ["requestId", "manufacturer", "model", "fields"],

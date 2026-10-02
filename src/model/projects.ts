@@ -1,3 +1,4 @@
+import { SELECTION_STATUSES, isExactProduct } from "./productIdentity";
 import type { CatalogEntry } from "./catalog";
 import type { PartSpec } from "../three/furniture";
 import type { Note, PlanModel } from "./types";
@@ -158,6 +159,7 @@ export function parseProject(value: unknown): ProjectDocument {
       !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp) && drainage(v.drainage)) ||
       !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string" &&
         (v.anchor === undefined || validAnchor(v.anchor)) &&
+        oneOf(v.selectionStatus, SELECTION_STATUSES) && (v.productIdentity === undefined || isExactProduct(v.productIdentity)) &&
         (v.corner === undefined || (object(v.corner) && typeof v.corner.left === "string" && typeof v.corner.right === "string" && (v.corner.side === "left" || v.corner.side === "right"))) &&
         (v.servicePoints === undefined || (Array.isArray(v.servicePoints) && v.servicePoints.every(validServicePoint)))) ||
       !notes.every((v) => object(v) && typeof v.id === "string" && typeof v.text === "string" && finite(v.at) && (v.author === "human" || v.author === "agent")) ||
