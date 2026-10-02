@@ -245,7 +245,9 @@ try {
   assert.ok(read.problems.some(p => p.code === "heating_length_exceeded"));
   assert.match(await panel.innerText(), /spatial route length.*1\.0012 m/);
   assert.match(read.html, /Spatial route length \(sampled profile\): 1\.0012 m/);
+  await run("set_diagram_view", { label: "Spatial cable review", visible: ["floor-heating-cable"] });
   let slopeDiagram = await run("export_diagram_view", { includeOutputs: true });
+  assert.equal(slopeDiagram.ok, true, slopeDiagram.summary);
   assert.match(slopeDiagram.svg, /plan 1 m; spatial 1\.0012 m/);
   assert.match(slopeDiagram.specHtml, /-0\.0002/);
   // A narrow unresolved gap between two resolved planes withholds the spatial balance.
@@ -263,6 +265,7 @@ try {
   assert.match(await panel.innerText(), /spatial route length.*unknown/);
   assert.match(read.html, /remaining confirmed cable length: unknown/);
   slopeDiagram = await run("export_diagram_view", { includeOutputs: true });
+  assert.equal(slopeDiagram.ok, true, slopeDiagram.summary);
   assert.match(slopeDiagram.svg, /spatial unknown/);
   assert.match(slopeDiagram.specHtml, /heating_route_length_unknown/);
   await page.reload();
