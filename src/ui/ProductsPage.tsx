@@ -7,7 +7,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { logActivity } from "../model/store";
 import { formatMm } from "../model/geometry";
-import { PRODUCT_CATEGORIES, REFERENCES, applies, attachmentIdOf, pageOfLocator, safeUrl, type AxisValue, categoryById, envelopeOf, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
+import { PRODUCT_CATEGORIES, REFERENCES, applies, attachmentIdOf, pageOfLocator, safeUrl, type AxisValue, categoryById, envelopeOf, productPlacementProblem, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
 import { MAX_ATTACHMENT_BYTES, products, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
 
 const human = (tool: string, r: LibraryResult) => {
@@ -213,6 +213,7 @@ function Brief({ cat, req }: { cat: ProductCategory; req: ProductRequest }) {
           ))}
         </tbody>
       </table>
+      {cat.placement && <p className="hint">Placement limits: {cat.placement.limitation} Installation geometry is pending issue #51. Product requirements here are separate from proposed project mounting heights.</p>}
     </>
   );
 }
@@ -299,6 +300,7 @@ function ProductCard({ p }: { p: LibraryProduct }) {
         <b>{p.manufacturer} {p.model}</b> · {cat?.label ?? p.category}
         {env ? ` · ${formatMm(env.w)} × ${formatMm(env.d)} × ${formatMm(env.h)} mm` : " · envelope unknown"}
       </summary>
+      {cat?.placement && <p className="hint" data-placement-limit>{productPlacementProblem(cat, p.fields) ?? `Generic envelope only. ${cat.placement.limitation}`}</p>}
       {cat && (
         <table className="products-table">
           <tbody>

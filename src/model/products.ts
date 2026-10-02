@@ -11,6 +11,7 @@
 import type { ValueStatus } from "./types";
 import { formatMm, quantize } from "./geometry";
 import { outlineExtents, type Outline } from "./outline";
+import { BATHROOM_PRODUCT_CATEGORIES } from "./bathroomProductCategories";
 
 /** Datums a field can be measured from. A spec sheet that uses another one must say so. */
 export const REFERENCES = {
@@ -19,6 +20,7 @@ export const REFERENCES = {
   "fixture-centreline": "the fixture's own centreline, facing it; left is negative",
   "fixture-end": "the fixture's nearer end (bath: the tap end unless the sheet says otherwise)",
   "fixture-side": "the fixture's back or wall-side edge",
+  "fixture-bottom": "the product's own bottom edge; not a project mounting height",
   "frame": "the wall frame face",
   "other": "some other point; say which in the note",
 } as const;
@@ -69,6 +71,8 @@ export interface ProductCategory {
   envelope: { w: string; d: string; h: string };
   fields: FieldSpec[];
   roughIn: RoughInSpec[];
+  /** Existing generic geometry has no elevation, recess or opening/swing. */
+  placement?: { supportedWhen: { field: string; in: string[] }[]; limitation: string };
 }
 
 const len = (f: Omit<LengthField, "type">): LengthField => ({ type: "length", ...f });
@@ -149,9 +153,18 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
       { id: "waste", label: "Bath waste", service: "waste", across: { field: "wasteFromEnd" }, out: { field: "wasteFromSide" } },
     ],
   },
+  ...BATHROOM_PRODUCT_CATEGORIES,
 ];
 
 export const categoryById = (id: string): ProductCategory | undefined => PRODUCT_CATEGORIES.find((c) => c.id === id);
+
+/** Explicitly bound the existing floor-based envelope path; no guessed mounting geometry. */
+export function productPlacementProblem(category: ProductCategory, fields: Record<string, FieldValue>): string | null {
+  const p = category.placement;
+  if (!p) return null; // keep the existing categories compatible
+  return p.supportedWhen.length && p.supportedWhen.every((c) => c.in.includes(String(fields[c.field]?.value)))
+    ? null : `Unsupported product placement: ${p.limitation} Installation geometry is pending issue #51.`;
+}
 
 /** How the agent should research a brief. Returned with every brief. */
 export const RESEARCH_PROTOCOL: string[] = [
@@ -162,6 +175,7 @@ export const RESEARCH_PROTOCOL: string[] = [
   "4. Check each field's reference. If the source measures from a different point than the brief asks (e.g. set-out to the wall surface or frame instead of the finished wall face), submit the source's value with `reference` set to what it measures from and explain in `note`. Never convert it yourself.",
   "5. If a required field is not published, submit value null with a note saying where you looked. Never estimate from photos, drawings without dimensions, or similar models.",
   "6. If two sources disagree, submit the one you trust with the other under `alternatives`.",
+  "7. Product mounting/fixing dimensions belong in this brief; proposed project mounting heights do not. Report published product-local dimensions from their named datum. Do not infer the installation elevation, recess, swing, accessories or connections. Required accessories use the exact component identity fields, not a guessed substitute.",
 ];
 
 export interface SourceRef {
@@ -339,6 +353,24 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission,
       }
     }
   }
+  if (category.placement) {
+    for (const f of category.fields.filter((f) => f.key.endsWith("Min"))) {
+      const maxKey = `${f.key.slice(0, -3)}Max`;
+      const lo = fields[f.key]?.value, hi = fields[maxKey]?.value;
+      if (applies(f, fields) && typeof lo === "number" && typeof hi === "number" && lo > hi) {
+        err(f.key, "range_reversed", `${f.label} exceeds ${maxKey}; check the published range.`);
+      }
+    }
+    if (category.id === "towel-rail") {
+      const mode = fields.heating?.value, power = fields.power?.value;
+      if ((mode === "electric" || mode === "dual") && power === "not-required") {
+        err("power", "power_mode_conflict", "Electric or dual heating requires power for this exact variant.");
+      }
+      if ((mode === "unheated" || mode === "hydronic") && power === "required") {
+        err("power", "power_mode_conflict", "Unheated or hydronic-only rails do not have electric heating; check the exact variant and heating mode.");
+      }
+    }
+  }
   // a corner bath's outline must agree with the printed lengths along each wall
   if (category.id === "bath" && fields.shape?.value === "corner-round") {
     const L = fields.length?.value, W = fields.width?.value;
@@ -397,7 +429,12 @@ export function cornerBathOutline(fields: Record<string, FieldValue>, w: number,
 
 /** The envelope for a 3D block, only when all three are known. */
 export function envelopeOf(category: ProductCategory, fields: Record<string, FieldValue>): { w: number; d: number; h: number } | null {
-  const pick = (k: string) => (typeof fields[k]?.value === "number" ? (fields[k].value as number) : null);
+  const pick = (k: string) => {
+    const fv = fields[k], spec = category.fields.find((f) => f.key === k);
+    // A dimension from a different datum is not an envelope this path can express.
+    if (spec?.type === "length" && fv?.reference && fv.reference !== spec.reference) return null;
+    return typeof fv?.value === "number" && Number.isFinite(fv.value) && fv.value > 0 ? fv.value : null;
+  };
   const w = pick(category.envelope.w);
   const d = pick(category.envelope.d);
   const h = pick(category.envelope.h);
@@ -441,15 +478,21 @@ export function roughInPoints(category: ProductCategory, fields: Record<string, 
       if ("zeroAt" in a) return { from: a.zeroAt, value: 0 };
       if ("range" in a) {
         const [lo, hi] = a.range;
+        const from = fields[lo]?.reference ?? spec(lo)?.reference ?? "other";
+        const maxFrom = fields[hi]?.reference ?? spec(hi)?.reference ?? "other";
+        if (from !== maxFrom) {
+          missing.push(`${lo}..${hi}: different datums`);
+          return { from, field: `${lo}..${hi}` };
+        }
         const min = num(lo);
         const max = num(hi);
         if (min === undefined) missing.push(lo);
         if (max === undefined) missing.push(hi);
-        return { from: spec(lo)?.reference ?? "other", field: `${lo}..${hi}`, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) };
+        return { from, field: `${lo}..${hi}`, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) };
       }
       const value = num(a.field);
       if (value === undefined) missing.push(a.field);
-      return { from: spec(a.field)?.reference ?? "other", field: a.field, ...(value !== undefined ? { value } : {}) };
+      return { from: fields[a.field]?.reference ?? spec(a.field)?.reference ?? "other", field: a.field, ...(value !== undefined ? { value } : {}) };
     };
     const across = axis(r.across);
     const out = axis(r.out);

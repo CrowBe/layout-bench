@@ -48,7 +48,7 @@ import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
 import type { LibraryProduct } from "./productLibrary";
-import { categoryById, cornerBathOutline, envelopeOf } from "./products";
+import { categoryById, cornerBathOutline, envelopeOf, productPlacementProblem } from "./products";
 import { outlineExtents, outlineProblems, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
@@ -1506,8 +1506,10 @@ export const actions = {
    */
   placeProduct(product: LibraryProduct, anchorInput: AnchorInput): ActionResult {
     const cat = categoryById(product.category);
+    const unsupported = cat ? productPlacementProblem(cat, product.fields) : null;
+    if (unsupported) return fail(unsupported);
     const env = cat ? envelopeOf(cat, product.fields) : null;
-    if (!env) return fail(`${product.manufacturer} ${product.model} has no known overall size, so it cannot be placed without inventing one.`);
+    if (!env) return fail(`${product.manufacturer} ${product.model} has no known overall size on supported datums, so it cannot be placed without inventing one.`);
     // validate everything before anything changes, then apply as one undo step
     const built = buildAnchor(anchorInput);
     if (!built.ok) return built.result;
@@ -1557,7 +1559,7 @@ export const actions = {
         out = rp.out.value !== undefined ? quantize(rp.out.value + anchor.gap) : undefined;
       }
       const up = rp.up?.from === "finished-floor" ? rp.up.value : undefined;
-      const unconverted = [rp.across && across === undefined ? `across from ${rp.across.from}` : "", rp.out && out === undefined ? `out from ${rp.out.from}` : ""].filter(Boolean);
+      const unconverted = [rp.across && across === undefined ? `across from ${rp.across.from}` : "", rp.out && out === undefined ? `out from ${rp.out.from}` : "", rp.up && up === undefined ? `up from ${rp.up.from}` : ""].filter(Boolean);
       return {
         id: rp.id, label: rp.label, service: rp.service, face,
         ...(out !== undefined ? { out } : {}), ...(outMax !== undefined ? { outMax } : {}),

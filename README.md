@@ -267,7 +267,8 @@ A few design notes:
   Clash checks use the wall as built: its body and recorded build-up, not a centred thickness.
 
 - The page sets the brief; the agent does the research. **Products** opens a library shared by
-  every project in this browser. A request names a fixture (toilet, vanity, bath) and the page
+  every project in this browser. A request names a fixture (toilet, vanity, bath, tapware,
+  shower fittings, screen, drain, towel rail or mirror/cabinet) and the page
   turns it into a brief: each field, its unit, what it is measured from, and whether a trade
   drawing needs it. The agent searches, then submits values marked `published` (manufacturer or
   retailer figures only; site measurements are a person's to record), each with a source link
@@ -277,6 +278,16 @@ A few design notes:
   points (wastes, water inlet), each axis naming the datum it is measured from. Disagreeing sources and
   figures measured from a different datum are flagged. A person reviews each field and accepts
   the product; no tool can.
+
+- Fitting briefs distinguish powered/unpowered and fixed/hinged variants, and product-local
+  mounting dimensions from proposed project heights. Unknown fields remain explicit through
+  human review and library storage. The existing placement path supports generic envelopes
+  for floor-standing tapware/towel rails and fixed floor-supported screens; it explicitly
+  refuses raised wall/ceiling fittings, recessed bodies and moving screens until installation
+  geometry is available. A source datum the plan cannot express never becomes an invented
+  envelope or service coordinate. `tests/bathroom-products.e2e.mjs` exercises all six new
+  categories with explicitly synthetic evidence, real human review controls, library reload,
+  conditional variants and the canonical diagram/specification export.
 
 - A spec sheet you already hold can be attached to a request (PDF or image, up to 10 MB). It
   stays in this browser: the file in IndexedDB, its record with the library. A PDF's text is

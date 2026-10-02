@@ -888,10 +888,11 @@ export const TOOLS: ToolDef[] = [
         requestId: req.id,
         status: req.status,
         category: { id: cat.id, label: cat.label },
+        ...(cat.placement ? { placement: cat.placement } : {}),
         known: req.known,
         protocol: RESEARCH_PROTOCOL,
         references: REFERENCES,
-        fields: cat.fields.map((f) => ({ ...f, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
+        fields: cat.fields.map((f) => ({ ...f, unit: f.type === "length" ? "metres" : f.type === "count" ? "count" : f.type, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
         roughIn: cat.roughIn,
         attachments: (req.attachments ?? []).map((a) => ({
           id: a.id,

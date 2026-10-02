@@ -275,15 +275,18 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     const product = it.productId ? products.find((p) => p.id === it.productId) : undefined;
     if (it.productId && !product) row("product", { value: it.productId, status: "unknown", missing: ["product not in this browser's library"] });
     if (product) {
-      const lengthKeys = new Set((categoryById(product.category)?.fields ?? []).filter((f) => f.type === "length").map((f) => f.key));
+      const fieldSpecs = categoryById(product.category)?.fields ?? [];
+      const lengthKeys = new Set(fieldSpecs.filter((f) => f.type === "length").map((f) => f.key));
       row("product", { value: [product.manufacturer, product.model, product.code].filter(Boolean).join(" "), status: "published" });
       for (const [key, fv] of Object.entries(product.fields)) {
-        if (fv.value === null || fv.value === undefined) { row(key, { value: "?", status: "unknown", missing: [fv.note ?? key] }); continue; }
+        const field = fieldSpecs.find((f) => f.key === key);
+        const datum = fv.reference ?? (field?.type === "length" ? field.reference : undefined);
+        if (fv.value === null || fv.value === undefined) { row(key, { value: "?", status: "unknown", ...(datum ? { datum } : {}), missing: [fv.note ?? key] }); continue; }
         row(key, {
           // only length fields are metres; a count (tap holes) or text prints as given
           value: typeof fv.value === "number" && lengthKeys.has(key) ? mm(fv.value) : String(fv.value),
           status: (fv.status ?? "unknown") as RowStatus,
-          ...(fv.reference ? { datum: fv.reference } : {}),
+          ...(datum ? { datum } : {}),
           ...(fv.sources?.length ? { source: fv.sources.map((s) => `${s.url}${s.locator ? ` (${s.locator})` : ""}`).join("; ") } : {}),
         });
       }
@@ -639,4 +642,3 @@ ${acks.length ? `<h2>Exported past ${acks.length} blocking finding(s)</h2><ul>${
 </body></html>`;
   return { html, rows };
 }
-
