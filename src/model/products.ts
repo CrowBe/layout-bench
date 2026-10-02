@@ -8,6 +8,7 @@
  * looked; nothing is guessed from photos or similar models.
  */
 
+import { validateIdentity, type ExactProduct } from "./productIdentity";
 import type { ValueStatus } from "./types";
 import { formatMm, quantize } from "./geometry";
 import { outlineExtents, type Outline } from "./outline";
@@ -194,7 +195,7 @@ export interface FieldValue {
   alternatives?: { value: number | string; source: SourceRef }[];
 }
 
-export interface SpecSubmission {
+export interface SpecSubmission extends ExactProduct {
   manufacturer: string;
   model: string;
   code?: string;
@@ -318,8 +319,10 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission,
   const err = (field: string | null, code: string, message: string) => out.push({ field, severity: "error", code, message });
   const warn = (field: string | null, code: string, message: string) => out.push({ field, severity: "warning", code, message });
   if (!s || typeof s !== "object") return [{ field: null, severity: "error", code: "submission_invalid", message: "Submission must be an object." }];
-  if (!s.manufacturer?.trim()) err(null, "manufacturer_missing", "Name the manufacturer.");
-  if (!s.model?.trim()) err(null, "model_missing", "Name the model.");
+  if (typeof s.manufacturer !== "string" || !s.manufacturer.trim()) err(null, "manufacturer_missing", "Name the manufacturer.");
+  if (typeof s.model !== "string" || !s.model.trim()) err(null, "model_missing", "Name the model.");
+  if (s.code !== undefined && typeof s.code !== "string") err(null, "code_invalid", "Product code must be text.");
+  if (typeof s.code === "string" && s.code.trim() && s.identity?.code?.state !== "known") err("identity.code", "identity_source_invalid", "A submitted product code needs matching sourced identity.code evidence; legacy codes remain unknown.");
   const fields = s.fields && typeof s.fields === "object" ? s.fields : {};
   for (const key of Object.keys(fields)) {
     if (!category.fields.some((f) => f.key === key)) err(key, "field_unknown", `"${key}" is not a field of the ${category.label} brief.`);
@@ -397,6 +400,7 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission,
       }
     }
   }
+  out.push(...validateIdentity(s, (sources) => checkSources(sources, ctx)));
   return out;
 }
 

@@ -4,6 +4,8 @@
  * Every edit goes through the same actions the tools call.
  */
 
+import { ExactIdentity } from "./ProductIdentity";
+import { SELECTION_STATUSES, type SelectionStatus } from "../model/productIdentity";
 import { useState } from "react";
 import { actions, logActivity, type ActionResult, type ServicePointInput } from "../model/store";
 import { formatMm } from "../model/geometry";
@@ -140,6 +142,8 @@ export function FixturePanel({ model, item }: { model: PlanModel; item: Item }) 
         </span>
       )}
       {/* keyed on the stored anchor, so an edit made elsewhere (the agent) resets the form */}
+      {item.productIdentity && <ExactIdentity product={item.productIdentity} />}
+      <label className="field inspector-field">Project selection<select aria-label="Project selection" value={item.selectionStatus ?? "unknown"} onChange={e => human("set_fixture_selection", actions.setFixtureSelection(item.id, e.target.value as SelectionStatus))}>{SELECTION_STATUSES.map(status => <option key={status}>{status}</option>)}</select></label>
       <AnchorForm key={`${item.id}:${JSON.stringify(item.anchor ?? null)}`} model={model} item={item} />
       {clear.length > 0 && (
         <span className="hint" data-role="clearances">

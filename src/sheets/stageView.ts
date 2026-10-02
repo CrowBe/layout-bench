@@ -19,6 +19,7 @@ import { DEFAULT_DATUM, floorLayerLabel, floorLevels } from "../model/floor";
 import { planeSurface } from "../model/drainage";
 import { anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
+import { IDENTITY_FIELDS, identityOf, identityText, type IdentityKey } from "../model/productIdentity";
 import { categoryById } from "../model/products";
 import { checkSheet, type SheetFinding } from "./check";
 import { PAPER, TAGS, esc, f1, joinedRect, mm, tag } from "./floorPlan";
@@ -272,12 +273,26 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     } else {
       row("set-out", { value: "?", status: "unknown", missing: ["not set out from a wall face"] });
     }
+    row("project selection", { value: it.selectionStatus ?? "unknown", status: it.selectionStatus && it.selectionStatus !== "unknown" ? "entered" : "unknown" });
     const product = it.productId ? products.find((p) => p.id === it.productId) : undefined;
+    const exact = it.productIdentity ?? product;
+    if (exact) {
+      row("exact product", { value: `${exact.manufacturer} ${exact.model}`, status: "published" });
+      const identity = identityOf(exact);
+      for (const key of Object.keys(IDENTITY_FIELDS) as IdentityKey[]) {
+        const v = identity[key];
+        row(IDENTITY_FIELDS[key], { value: identityText(v), status: v.state === "unknown" ? "unknown" : "published", ...(v.sources?.length ? { source: v.sources.map(s => `${s.url}${s.locator ? ` (${s.locator})` : ""}`).join("; ") } : {}) });
+      }
+      row("components", { value: exact.componentsStatus ?? "unknown", status: exact.componentsStatus && exact.componentsStatus !== "unknown" ? "published" : "unknown" });
+      for (const [i, c] of (exact.components ?? []).entries()) {
+        row(`component ${i + 1}`, { value: `${c.name} · code ${identityText(c.code)} · quantity ${c.quantity ?? "unknown"} · ${c.provision}`, status: c.code.state === "unknown" || c.quantity === null || c.provision === "unresolved" ? "unknown" : "published", source: [...(c.code.sources ?? []), ...(c.sources ?? [])].map(s => `${s.url}${s.locator ? ` (${s.locator})` : ""}`).join("; ") });
+      }
+    }
     if (it.productId && !product) row("product", { value: it.productId, status: "unknown", missing: ["product not in this browser's library"] });
     if (product) {
       const fieldSpecs = categoryById(product.category)?.fields ?? [];
       const lengthKeys = new Set(fieldSpecs.filter((f) => f.type === "length").map((f) => f.key));
-      row("product", { value: [product.manufacturer, product.model, product.code].filter(Boolean).join(" "), status: "published" });
+      row("product", { value: [product.manufacturer, product.model].filter(Boolean).join(" "), status: "published" });
       for (const [key, fv] of Object.entries(product.fields)) {
         const field = fieldSpecs.find((f) => f.key === key);
         const datum = fv.reference ?? (field?.type === "length" ? field.reference : undefined);
@@ -563,6 +578,18 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     const rs = specRows(model, el, opts.products).filter((r) => !["kind", "service"].includes(r.property));
     return { s: `${el.label}: ${rs.map((r) => `${r.property.replace(/ \(mm\)$/, "")} ${r.value === "?" ? "?" : `${r.value} ${tag(r.status)}`}`).join(" · ")}`, extra: de(el.id) };
   });
+  const fixtureElements = byType("fixture");
+  if (fixtureElements.length) {
+    heading("Fixtures — exact selection");
+    limitRows(fixtureElements.map(el => {
+      const it = model.items.find(i => i.id === el.ref)!;
+      const exact = it.productIdentity ?? opts.products?.find(p => p.id === it.productId);
+      const identity = identityOf(exact ?? {});
+      const details = exact ? `${exact.manufacturer} ${exact.model} · ${Object.entries(IDENTITY_FIELDS).map(([key, label]) => `${label} ${identityText(identity[key as IdentityKey])}`).join(" · ")}` : el.label;
+      return { s: `${fixtureNo.get(it.id)}: ${details} · selection ${it.selectionStatus ?? "unknown"}`, extra: de(el.id) };
+    }), 6);
+    y += 2;
+  }
   const sections: [string, ViewElement[], number][] = [
     ["Wall faces and layers (mm from drawn line)", byType("face", "wall-layer"), 10],
     ["Floor (mm above datum)", byType("floor-substrate", "floor-layer"), 6],

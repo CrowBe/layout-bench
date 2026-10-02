@@ -1,3 +1,5 @@
+import type { ExactProduct, SelectionStatus } from "./productIdentity";
+
 /** Domain model — all units are meters, plan lives on the XY plane (y grows downward in 2D view). */
 
 export interface Wall {
@@ -226,6 +228,10 @@ export interface Item {
   servicePoints?: ServicePoint[];
   /** The product-library entry this fixture was placed from. */
   productId?: string;
+  /** Exact identity evidence at placement; travels with project export/import. */
+  productIdentity?: ExactProduct;
+  /** Project decision, independent of research acceptance. Missing legacy state is unknown. */
+  selectionStatus?: SelectionStatus;
   /**
    * A corner fixture that comes in a left and a right hand (#37): the kind for each, and which
    * one is in use. Re-anchoring into the other corner swaps the kind and mirrors the service points.
