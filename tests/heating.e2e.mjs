@@ -221,6 +221,56 @@ try {
   await page.screenshot({
     path: "/tmp/layout-bench-8-evidence/heating-ui.png",
   });
+  // A real UI product-length edit must use the spatial route over the resolved slope.
+  await run("set_room_floor", { room: added.id, layers: [
+    { id: "screed", kind: "screed", thickness: q(0.04) },
+    { kind: "tile", thickness: q(0.01) },
+  ] });
+  await run("set_room_drainage", { room: added.id, planes: [{
+    id: "slope", x: 0, y: 0, w: 2.11, h: 3.02, controls: [
+      { x: 0, y: 0, level: q(0) },
+      { x: 2, y: 0, level: q(0.1) },
+      { x: 0, y: 3, level: q(0) },
+    ],
+  }] });
+  await run("set_room_heating", { room: added.id,
+    path: [{ x: 0.2, y: 0.2 }, { x: 1.2, y: 0.2 }], keepouts: [],
+  });
+  await length.fill("1.001");
+  await length.blur();
+  read = await run("get_room_heating", { room: added.id, includeHtml: true });
+  assert.equal(read.planRouteLength, 1);
+  assert.equal(read.routeLength, 1.0012);
+  assert.equal(read.remainingProductLength, -0.0002);
+  assert.ok(read.problems.some(p => p.code === "heating_length_exceeded"));
+  assert.match(await panel.innerText(), /spatial route length.*1\.0012 m/);
+  assert.match(read.html, /Spatial route length \(sampled profile\): 1\.0012 m/);
+  let slopeDiagram = await run("export_diagram_view", { includeOutputs: true });
+  assert.match(slopeDiagram.svg, /plan 1 m; spatial 1\.0012 m/);
+  assert.match(slopeDiagram.specHtml, /-0\.0002/);
+  // A narrow unresolved gap between two resolved planes withholds the spatial balance.
+  const controls = [{ x: 0, y: 0, level: q(0) }, { x: 2, y: 0, level: q(0) }, { x: 0, y: 3, level: q(0) }];
+  await run("set_room_drainage", { room: added.id, planes: [
+    { id: "left", x: 0, y: 0, w: 0.41, h: 3.02, controls },
+    { id: "right", x: 0.42, y: 0, w: 1.69, h: 3.02, controls },
+  ] });
+  read = await run("get_room_heating", { room: added.id, includeHtml: true });
+  assert.equal(read.planRouteLength, 1);
+  assert.equal(read.routeLength, undefined);
+  assert.equal(read.remainingProductLength, undefined);
+  assert.ok(read.problems.some(p => p.code === "heating_route_length_unknown"));
+  assert.ok(!read.problems.some(p => p.code === "heating_length_exceeded"));
+  assert.match(await panel.innerText(), /spatial route length.*unknown/);
+  assert.match(read.html, /remaining confirmed cable length: unknown/);
+  slopeDiagram = await run("export_diagram_view", { includeOutputs: true });
+  assert.match(slopeDiagram.svg, /spatial unknown/);
+  assert.match(slopeDiagram.specHtml, /heating_route_length_unknown/);
+  await page.reload();
+  await page.locator(".project-card").filter({ hasText: "Synthetic heating check" })
+    .getByRole("button", { name: "Open", exact: true }).click();
+  read = await run("get_room_heating", { room: added.id });
+  assert.equal(read.routeLength, undefined);
+  assert.equal(read.remainingProductLength, undefined);
   assert.deepEqual(errors, []);
   console.log(
     "heating e2e passed (synthetic capability only; actual purchased cable data remains pending)",

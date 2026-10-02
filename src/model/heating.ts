@@ -125,6 +125,7 @@ function contained(a: Pt, b: Pt, rects: Rect[]) {
 export interface CableLevel {
   x: number;
   y: number;
+  /** Cumulative plan-projection distance, not spatial cable distance. */
   s: number;
   level?: number;
   bottom?: number;
@@ -241,11 +242,22 @@ export interface HeatingProblem {
   code: string;
   message: string;
 }
+/** Length follows every resolved profile interval, including plane boundaries and midpoints. */
+function routeLengths(room: Room, section: CableLevel[]) {
+  const planRouteLength = quantize(segments(room.heating?.path ?? []).reduce((n, s) => n + s.length, 0));
+  const resolved = section.length >= 2 && section.every(p => p.level !== undefined);
+  const routeLength = resolved ? section.slice(1).reduce((n, p, i) => {
+    const a = section[i];
+    return n + Math.hypot(p.x - a.x, p.y - a.y, p.level! - a.level!);
+  }, 0) : undefined;
+  return { planRouteLength, routeLength };
+}
 export function heatingEvidence(room: Room) {
   const h = room.heating;
   const segs = segments(h?.path ?? []),
     zones = heatingZones(room);
-  const length = quantize(segs.reduce((n, s) => n + s.length, 0));
+  const section = heatingSection(room);
+  const { planRouteLength, routeLength } = routeLengths(room, section);
   let separation: number | undefined;
   for (let i = 0; i < segs.length; i++)
     for (let j = i + 2; j < segs.length; j++) {
@@ -275,7 +287,8 @@ export function heatingEvidence(room: Room) {
     known(h?.length) &&
     ["published", "measured", "site-confirmed"].includes(h!.length!.status!);
   return {
-    routeLength: length,
+    planRouteLength,
+    ...(routeLength !== undefined ? { routeLength: quantize(routeLength) } : {}),
     selectedArea: union(zones).area,
     availableArea: union(zones, h?.keepouts).area,
     ...(separation !== undefined
@@ -287,17 +300,18 @@ export function heatingEvidence(room: Room) {
     ...(keepoutDistance !== undefined
       ? { keepoutDistance: quantize(keepoutDistance) }
       : {}),
-    ...(confirmedLength
-      ? { remainingProductLength: quantize(h!.length!.value! - length) }
+    ...(confirmedLength && routeLength !== undefined
+      ? { remainingProductLength: quantize(h!.length!.value! - routeLength) }
       : {}),
     coverageNote:
-      "Areas are zone footprints excluding entered keep-outs, not verified heat coverage. Route length excludes unsupplied cold tails and connections.",
+      "Areas are zone footprints excluding entered keep-outs, not verified heat coverage.",
+    lengthNote: "Plan route length is the XY projection. Spatial route length follows the sampled cable profile and drives confirmed product balance only when the whole profile resolves. Unsupplied cold tails and connections are excluded.",
     sectionNote: "Sampled profile at vertices, plane boundaries and interval midpoints. Entered screed thickness applies throughout the route; local screed top follows entered finished planes minus layers above. Trade must verify variable thickness, substrate and slope.",
-    section: heatingSection(room),
-    problems: heatingProblems(room),
+    section,
+    problems: heatingProblems(room, section),
   };
 }
-export function heatingProblems(room: Room): HeatingProblem[] {
+export function heatingProblems(room: Room, section = heatingSection(room)): HeatingProblem[] {
   const h = room.heating;
   if (!h) return [];
   const out: HeatingProblem[] = [];
@@ -431,18 +445,18 @@ export function heatingProblems(room: Room): HeatingProblem[] {
       "Cable is below entered clearance from zone boundary or keep-out.",
       "error",
     );
-  const length = segs.reduce((n, s) => n + s.length, 0);
+  const { routeLength } = routeLengths(room, section);
+  if (routeLength === undefined) add("heating_route_length_unknown", "Spatial cable length and confirmed product-length balance remain unknown until the whole route has resolved screed levels and cable height; the plan projection is not cable length.");
   if (
     known(h.length) &&
     ["published", "measured", "site-confirmed"].includes(h.length.status!) &&
-    length > h.length.value + EPS
+    routeLength !== undefined && routeLength > h.length.value + EPS
   )
     add(
       "heating_length_exceeded",
-      `Proposed route ${length.toFixed(3)} m exceeds confirmed cable length ${h.length.value} m. Do not cut or shorten a cable without manufacturer instructions.`,
+      `Proposed spatial route (sampled profile) ${routeLength.toFixed(4)} m exceeds confirmed cable length ${h.length.value} m. Do not cut or shorten a cable without manufacturer instructions.`,
       "error",
     );
-  const section = heatingSection(room);
   if (section.some((p) => p.level === undefined) || !section.length)
     add(
       "heating_depth_unknown",

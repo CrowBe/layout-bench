@@ -54,6 +54,7 @@ describe("proposed heating (#8), synthetic evidence only", () => {
   it("keeps purchased metadata unknown and derives route length, actual zone union and clearances", () => {
     expect(setup().ok).toBe(true);
     const e = heatingEvidence(room());
+    expect(e.planRouteLength).toBe(3.4);
     expect(e.routeLength).toBe(3.4);
     expect(e.minimumNonAdjacentSpacing).toBe(0.2);
     expect(e.selectedArea).toBe(6);
@@ -82,6 +83,59 @@ describe("proposed heating (#8), synthetic evidence only", () => {
     });
     expect(codes()).toContain("heating_outside_screed");
     expect(room().heating).toEqual(original);
+  });
+  it("compares confirmed cable length against the spatial slope profile rather than its plan projection", () => {
+    setup();
+    actions.setRoomDrainage(room().id, { planes: [{ id: "slope", x: 0, y: 0, w: 2, h: 3, controls: [
+      { x: 0, y: 0, level: proposed(0) },
+      { x: 2, y: 0, level: proposed(.1) },
+      { x: 0, y: 3, level: proposed(0) },
+    ] }] });
+    actions.setRoomHeating(room().id, { path: [{ x: .2, y: .2 }, { x: 1.2, y: .2 }], length: published(1.001) });
+    const e = heatingEvidence(room());
+    expect(e.routeLength).toBeCloseTo(Math.hypot(1, .05), 4);
+    expect(e.planRouteLength).toBe(1);
+    expect(e.remainingProductLength).toBe(-.0002);
+    expect(codes()).toContain("heating_length_exceeded");
+    expect(renderHeatingReview(room())).toContain("Plan route length: 1 m");
+    expect(renderHeatingReview(room())).toContain("Spatial route length (sampled profile): 1.0012 m");
+    const cable = catalogue(store.getState().model).elements.find(e => e.type === "heating")!;
+    expect(specRows(store.getState().model, cable)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ property: "plan route length (m)", value: "1" }),
+      expect.objectContaining({ property: "spatial route length, sampled profile (m)", value: "1.0012" }),
+      expect.objectContaining({ property: "remaining confirmed product length (m)", value: "-0.0002" }),
+    ]));
+  });
+  it("withholds spatial length and confirmed balance when screed depth or floor surface is unknown", () => {
+    setup();
+    actions.setRoomHeating(room().id, { length: published(4), depthFromBottom: null });
+    let e = heatingEvidence(room());
+    expect(e.planRouteLength).toBe(3.4);
+    expect(e.routeLength).toBeUndefined();
+    expect(e.remainingProductLength).toBeUndefined();
+    expect(codes()).toContain("heating_route_length_unknown");
+    actions.setRoomHeating(room().id, { depthFromBottom: proposed(.02) });
+    actions.setRoomDrainage(room().id, { planes: [{ id: "unknown", x: 0, y: 0, w: 2, h: 3 }] });
+    e = heatingEvidence(room());
+    expect(e.planRouteLength).toBe(3.4);
+    expect(e.routeLength).toBeUndefined();
+    expect(e.remainingProductLength).toBeUndefined();
+    expect(codes()).not.toContain("heating_length_exceeded");
+    expect(renderHeatingReview(room())).toContain("Spatial route length (sampled profile): unknown");
+    expect(renderHeatingReview(room())).toContain("remaining confirmed cable length: unknown");
+  });
+  it("includes a continuous change of slope at a plane boundary even with level route endpoints", () => {
+    setup();
+    actions.setRoomDrainage(room().id, { planes: [
+      { id: "up", x: 0, y: 0, w: 1, h: 3, controls: [{ x: 0, y: 0, level: proposed(0) }, { x: 1, y: 0, level: proposed(.05) }, { x: 0, y: 3, level: proposed(0) }] },
+      { id: "down", x: 1, y: 0, w: 1, h: 3, controls: [{ x: 1, y: 0, level: proposed(.05) }, { x: 2, y: 0, level: proposed(0) }, { x: 1, y: 3, level: proposed(.05) }] },
+    ] });
+    actions.setRoomHeating(room().id, { path: [{ x: .5, y: 1 }, { x: 1.5, y: 1 }], length: published(1.001) });
+    const e = heatingEvidence(room());
+    expect(e.section[0].level).toBe(e.section.at(-1)!.level);
+    expect(e.planRouteLength).toBe(1);
+    expect(e.routeLength).toBeCloseTo(2 * Math.hypot(.5, .025), 4);
+    expect(codes()).toContain("heating_length_exceeded");
   });
   it("detects intersections, coincident endpoints, adjacent backtracking and entered separation violations", () => {
     setup();
@@ -223,6 +277,11 @@ describe("proposed heating (#8), synthetic evidence only", () => {
     ).toBe(true);
     expect(section.some((p) => Math.abs(p.x - 0.42) < 1e-8)).toBe(true);
     expect(codes()).toContain("heating_depth_unknown");
+    actions.setRoomHeating(room().id, { length: published(2) });
+    expect(heatingEvidence(room()).planRouteLength).toBe(1.7);
+    expect(heatingEvidence(room()).routeLength).toBeUndefined();
+    expect(heatingEvidence(room()).remainingProductLength).toBeUndefined();
+    expect(codes()).toContain("heating_route_length_unknown");
     const a = section[0];
     expect(a.level).toBeCloseTo(
       0.02 + Math.hypot(0.1, 0.1) * 0.01 - 0.01 - 0.04 + 0.02,
@@ -277,7 +336,7 @@ describe("proposed heating (#8), synthetic evidence only", () => {
       label: "Cable only",
       findings: [],
     });
-    expect(diagram).toContain("PROPOSED CABLE 3.4 m");
+    expect(diagram).toContain("PROPOSED CABLE plan 3.4 m; spatial 3.4 m");
     expect(diagram).not.toContain("Not modelled, never drawn: in-screed heating cable");
     expect(renderStageSpec(store.getState().model, [cable], {
       label: "Cable only", findings: [],

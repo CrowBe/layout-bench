@@ -307,7 +307,7 @@ export function Heating({ room }: { room: Room }) {
         </span>
       )}
       <p aria-label="Heating evidence">
-        Route {e.routeLength} m · selected {e.selectedArea} m² · excluding
+        Plan route length: {e.planRouteLength} m · spatial route length (sampled profile): {e.routeLength === undefined ? "unknown" : `${e.routeLength} m`} · remaining confirmed cable length: {e.remainingProductLength === undefined ? "unknown" : `${e.remainingProductLength} m`} · selected {e.selectedArea} m² · excluding
         keep-outs {e.availableArea} m². Minimum non-adjacent spacing:{" "}
         {e.minimumNonAdjacentSpacing === undefined
           ? "unknown"
@@ -316,7 +316,7 @@ export function Heating({ room }: { room: Room }) {
         {e.edgeDistance === undefined
           ? "unknown"
           : formatMm(e.edgeDistance) + " mm"}
-        . {e.coverageNote}
+        . {e.coverageNote} {e.lengthNote}
       </p>
       <p className="hint">{e.sectionNote}</p>
       <div
