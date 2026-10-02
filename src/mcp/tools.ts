@@ -4,12 +4,14 @@
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
-import { actions, lookupItem, lookupWall, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type FloorPatch, type DrainagePatch, type TilingPatch } from "../model/store";
+import { actions, lookupItem, lookupWall, lookupRoom, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type FloorPatch, type DrainagePatch, type TilingPatch, type FloorTilingPatch } from "../model/store";
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { SHEETS, checkSheet, reconcile, type AckInput } from "../sheets/check";
 import { catalogue, renderStageDiagram, renderStageSpec } from "../sheets/stageView";
 import { applyView, composeView, currentView, recordExport, savedViews } from "../sheets/viewState";
 import { recordIssued } from "../sheets/issued";
+import { floorTileLayout } from "../model/floorTiling";
+import { floorCutRows, renderFloorTilingSheet } from "../sheets/floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "../model/tiling";
 import { cutRows, renderTilingSheet } from "../sheets/tiling";
 import { catalogByKind } from "../model/catalog";
@@ -408,6 +410,77 @@ export const TOOLS: ToolDef[] = [
       return { ok: true, summary: `Wall ${w.id} — ${summary}.`, wallId: w.id, sides };
     },
   },
+  // ------------------------------------------------------------------ floor tiling (#10)
+  {
+    name: "set_floor_tiling",
+    title: "Propose a floor tile set-out",
+    description:
+      "Record a proposed floor pattern for one rectangular room or explicit drainage plane. Units metres with {value,status,source?}. tileLength/Width are long/short edges; axis x or y aligns the long edge in plan. zone is room or a drainage plane id. originX/Y locate a tile's upper-left edge from finished west/north faces. Nothing defaults: missing wall face build-ups, tile inputs and drain cuts stay unresolved. null clears a field; clear removes the proposal. Never an ordering quantity or trade approval.",
+    inputSchema: obj(
+      {
+        room: str,
+        tileLength: quantitySchema,
+        tileWidth: quantitySchema,
+        joint: quantitySchema,
+        originX: quantitySchema,
+        originY: quantitySchema,
+        axis: { type: ["string", "null"], enum: ["x", "y", null] },
+        zone: { type: ["string", "null"] },
+        note: { type: ["string", "null"] },
+        clear: { type: "boolean" },
+      },
+      ["room"],
+    ),
+    execute: (i) =>
+      actions.setFloorTiling(i.room as string, i as FloorTilingPatch),
+  },
+  {
+    name: "get_floor_tiling",
+    title: "Read floor tile cuts and unresolved fields",
+    description:
+      "Derive the proposed plan at finished wall faces. Returns perimeter cuts, tile pieces, door transitions, waste centre lines and fall-plane boundaries with unresolved fields. Waste aperture dimensions are not recorded, so centre-line relationships never certify cut shapes. includeSvg adds the printable diagram. Always report proposal and unresolved status.",
+    inputSchema: obj({ room: str, includeSvg: { type: "boolean" } }, ["room"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const hit = lookupRoom(i.room as string);
+      if (!hit.ok) return { ok: false, summary: hit.summary };
+      const model = store.getState().model,
+        room = hit.entity,
+        l = floorTileLayout(model, room);
+      return {
+        ok: true,
+        summary: `${room.label}: proposed floor tile set-out.`,
+        tiling: room.floorTiling ?? null,
+        ...l,
+        cutTable: floorCutRows(l),
+        ...(i.includeSvg ? { svg: renderFloorTilingSheet(model, room) } : {}),
+      };
+    },
+  },
+  {
+    name: "export_floor_tiling",
+    title: "Export the printable proposed floor tile plan",
+    description:
+      "Return a printable SVG floor tile proposal derived from the canonical room: perimeter cuts, finished face references, dimensions, provenance legend, doorway transition, wastes, floor-plane boundaries, notes and unresolved fields. Print from the Inspector to PDF. Does not approve installation or calculate purchase quantities.",
+    inputSchema: obj({ room: str }, ["room"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const hit = lookupRoom(i.room as string);
+      if (!hit.ok) return { ok: false, summary: hit.summary };
+      const model = store.getState().model,
+        room = hit.entity,
+        l = floorTileLayout(model, room);
+      return {
+        ok: true,
+        summary: `Exported ${room.label} proposed floor tile set-out.`,
+        fileName: `${model.name.replace(/[^\w-]+/g, "-")}-${room.id}-floor-tiling.svg`,
+        resolved: l.resolved,
+        missing: l.missing,
+        svg: renderFloorTilingSheet(model, room),
+      };
+    },
+  },
+
   // ------------------------------------------------------------------ wall tiling (#9)
   {
     name: "set_wall_tiling",

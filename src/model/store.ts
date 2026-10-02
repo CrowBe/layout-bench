@@ -33,6 +33,7 @@ import type {
   FloorPlane,
   FloorControl,
   WallTiling,
+  FloorTiling,
   TileOrientation,
   TileReferenceFace,
   TileFloorReference,
@@ -43,6 +44,7 @@ import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
 import { sideNormal } from "./faces";
 import { drainageProblems, planeSurface } from "./drainage";
+import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
 import { exactProductLabel, exactSnapshot, identityOf, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
@@ -393,6 +395,10 @@ export function lookupWall(ref: string, forgiving = false): Resolved<Wall> {
   return resolveWall(ref, forgiving);
 }
 
+export function lookupRoom(ref: string): Resolved<Room> {
+  return resolveRoom(ref);
+}
+
 export function lookupItem(ref: string): Resolved<Item> {
   return resolveItem(ref);
 }
@@ -568,10 +574,14 @@ export interface DrainagePatch {
   planes?: PlaneInput[];
 }
 
-/**
- * Wall tile set-out (#9) as a caller supplies it. Fields present replace what is stored;
- * null clears one back to unknown. Lengths are metres and need a status.
- */
+/** Floor proposal inputs in metres; null clears a field, omitted fields are retained. */
+export interface FloorTilingPatch {
+  tileLength?: QuantityInput | null; tileWidth?: QuantityInput | null; joint?: QuantityInput | null;
+  originX?: QuantityInput | null; originY?: QuantityInput | null; axis?: "x" | "y" | null;
+  zone?: string | null; note?: string | null; clear?: boolean;
+}
+
+/** Wall proposal inputs in metres; null clears a field, omitted fields are retained. */
 export interface TilingPatch {
   tileLength?: QuantityInput | null;
   tileWidth?: QuantityInput | null;
@@ -815,6 +825,93 @@ export const actions = {
     return r.ok(
       `Wall ${wall.id} ${side} side: ${layerText}.${unresolved.length ? ` Unresolved: ${unresolved.join(", ")}.` : " All faces resolved."}`,
       { id: wall.id, side, faces },
+    );
+  },
+
+  /** Proposed floor set-out: same action for Inspector and WebMCP, with undo/persistence. */
+  setFloorTiling(roomRef: string, patch: FloorTilingPatch): ActionResult {
+    const hit = resolveRoom(roomRef);
+    if (!hit.ok) return rejected(hit);
+    const room = hit.entity;
+    const current: FloorTiling = patch.clear ? {} : { ...room.floorTiling };
+    const r = rounding();
+    for (const key of [
+      "tileLength",
+      "tileWidth",
+      "joint",
+      "originX",
+      "originY",
+    ] as const) {
+      const v = patch[key];
+      if (v === undefined) continue;
+      if (v === null) {
+        delete current[key];
+        continue;
+      }
+      if (typeof v !== "object")
+        return fail(`${key} must be a quantity with value and status.`);
+      if (v.value === undefined || v.value === null) {
+        delete current[key];
+        continue;
+      }
+      if (
+        typeof v.value !== "number" ||
+        !Number.isFinite(v.value) ||
+        !v.status ||
+        !VALUE_STATUSES.includes(v.status)
+      )
+        return fail(
+          `${key} needs a finite metre value and a valid provenance status.`,
+        );
+      if (!Number.isSafeInteger(Math.round(v.value * 10000)))
+        return fail(`${key} exceeds the model’s 0.1 mm precision range.`);
+      if (
+        (key === "tileLength" || key === "tileWidth") &&
+        quantize(v.value) <= 0
+      )
+        return fail(`${key} must be at least 0.1 mm.`);
+      if (key === "joint" && v.value < 0)
+        return fail("Joint cannot be negative.");
+      current[key] = {
+        value: r.q(v.value, key),
+        status: v.status,
+        ...(v.source ? { source: String(v.source) } : {}),
+      };
+    }
+    if (patch.axis !== undefined) {
+      if (patch.axis === null) delete current.axis;
+      else if (patch.axis !== "x" && patch.axis !== "y")
+        return fail("Axis must be x or y.");
+      else current.axis = patch.axis;
+    }
+    if (patch.zone !== undefined) {
+      if (patch.zone === null) delete current.zone;
+      else if (
+        patch.zone !== "room" &&
+        !room.drainage?.planes.some((p) => p.id === patch.zone)
+      )
+        return fail("Zone must be room or a drainage plane in this room.");
+      else current.zone = patch.zone;
+    }
+    if (patch.note !== undefined) {
+      if (patch.note === null || !String(patch.note).trim())
+        delete current.note;
+      else current.note = String(patch.note).trim().slice(0, 500);
+    }
+    const nextRoom: Room = { ...room, floorTiling: current };
+    if (!Object.keys(current).length) delete nextRoom.floorTiling;
+    const model = {
+      ...store.getState().model,
+      rooms: store
+        .getState()
+        .model.rooms.map((r) => (r.id === room.id ? nextRoom : r)),
+    };
+    pushUndo();
+    setModel(model);
+    const layout = floorTileLayout(model, nextRoom);
+    return r.ok(
+      `${room.label}: proposed floor tile set-out. ${layout.missing.join("; ")}`,
+      { id: room.id, tiling: nextRoom.floorTiling ?? null, ...layout },
     );
   },
 

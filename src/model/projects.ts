@@ -56,6 +56,11 @@ const wallTiling = (v: unknown) => v === undefined || (object(v) && Object.entri
   oneOf(t.floor, ["finished", "screed", "substrate", "datum"]) && oneOf(t.originFrom, ["a", "b", "centre"]) &&
   (t.note === undefined || typeof t.note === "string")));
 
+const floorTiling = (v: unknown) => v === undefined || (object(v) &&
+  ["tileLength", "tileWidth", "joint", "originX", "originY"].every(k => quantity(v[k])) &&
+  oneOf(v.axis, ["x", "y"]) && (v.zone === undefined || typeof v.zone === "string") &&
+  (v.note === undefined || typeof v.note === "string"));
+
 /** Floor assembly (#6): datum, optional substrate top, and a layer list with optional quantities. */
 const floorBuildUp = (v: unknown) => v === undefined || (object(v) && typeof v.datum === "string" && quantity(v.substrateTop) &&
   Array.isArray(v.layers) && v.layers.every((l) => object(l) && typeof l.id === "string" && typeof l.kind === "string" && quantity(l.thickness)));
@@ -156,7 +161,7 @@ export function parseProject(value: unknown): ProjectDocument {
   }
   if (!model.walls.every((v) => point(v, ["ax", "ay", "bx", "by", "thickness", "height"]) && (v.sides === undefined || wallSides(v.sides)) && wallTiling(v.tiling)) ||
       !model.openings.every((v) => point(v, ["t", "width", "sill", "height"]) && typeof v.wallId === "string" && (v.kind === "door" || v.kind === "window")) ||
-      !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp) && drainage(v.drainage)) ||
+      !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp) && drainage(v.drainage) && floorTiling(v.floorTiling)) ||
       !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string" &&
         (v.anchor === undefined || validAnchor(v.anchor)) &&
         oneOf(v.selectionStatus, SELECTION_STATUSES) && (v.productIdentity === undefined || isExactProduct(v.productIdentity)) &&

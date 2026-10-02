@@ -151,6 +151,23 @@ export interface Room {
   floorBuildUp?: FloorAssembly;
   /** Proposed wastes and sloped floor planes (#7). Absent = nothing recorded. */
   drainage?: Drainage;
+  /** Proposed floor tile pattern, always derived at finished wall faces (#10). */
+  floorTiling?: FloorTiling;
+}
+
+/** One rectangular room floor or an explicit drainage plane, clipped at finished faces.
+ * originX/Y locate a tile's upper-left edge from the finished west/north faces.
+ * axis x lays the long edge along plan X, axis y along plan Y. Missing stays unknown.
+ */
+export interface FloorTiling {
+  tileLength?: Quantity;
+  tileWidth?: Quantity;
+  joint?: Quantity;
+  axis?: "x" | "y";
+  zone?: "room" | string;
+  originX?: Quantity;
+  originY?: Quantity;
+  note?: string;
 }
 
 /**
