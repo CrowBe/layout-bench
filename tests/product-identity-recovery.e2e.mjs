@@ -85,7 +85,7 @@ try {
     else submission.components[0].code = null;
     const raw = JSON.stringify({ version: 1, products: [], requests: [{ id: "corrupt-synthetic", category: "vanity", known: { brand: "Synthetic Co" }, status: "submitted", createdAt: 0, reviews: {}, submission }] });
     const context = await browser.newContext();
-    await context.addInitScript(raw => localStorage.setItem("alza.products.v1", raw), raw);
+    await context.addInitScript(({ raw, origin }) => { if (location.origin === origin) localStorage.setItem("alza.products.v1", raw); }, { raw, origin: new URL(base).origin });
     const recovery = await start(context, `Synthetic corrupt ${invalid}`);
     await recovery.getByRole("button", { name: /^Products/ }).click();
     assert.match(await recovery.getByRole("alert").textContent(), /Invalid product identity evidence.*Original browser data was kept/);
