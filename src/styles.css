@@ -377,6 +377,12 @@ button.linklike { padding: 0; border: 0; background: none; color: var(--agent); 
 .sheets-preview svg { width: 100%; height: auto; display: block; }
 .sheets-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
+.heating-panel textarea { min-height: 52px; width:100%; resize:vertical; }
+.heating-point { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; border-top:1px solid var(--line,#ddd); padding-top:8px; }
+.heating-point>* {min-width:0}
+.heating-zone {display:flex;gap:8px;align-items:center}
+.heating-zone input {width:auto}
+.heating-section svg {width:100%;height:auto}
 /* Exact variant evidence stays readable in both library and narrow fixture panels. */
 .product-identity { min-width: 0; overflow-wrap: anywhere; }
 .product-identity .products-table { table-layout: fixed; }
