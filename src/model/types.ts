@@ -1,4 +1,6 @@
 import type { ExactProduct, SelectionStatus } from "./productIdentity";
+import type { ProductSpecification } from "./productMeasurements";
+import type { FieldValue } from "./products";
 
 /** Domain model — all units are meters, plan lives on the XY plane (y grows downward in 2D view). */
 
@@ -250,6 +252,8 @@ export interface Item {
   productId?: string;
   /** Exact identity evidence at placement; travels with project export/import. */
   productIdentity?: ExactProduct;
+  /** Accepted evidence snapshot travels with the project, independently of browser library. */
+  productSpecification?: ProductSpecification;
   /** Project decision, independent of research acceptance. Missing legacy state is unknown. */
   selectionStatus?: SelectionStatus;
   /**
@@ -293,6 +297,8 @@ export interface ServicePoint {
   up?: number;
   status: ValueStatus;
   source?: string;
+  /** Original per-axis evidence; unsupported datums never become resolved coordinates. */
+  axisEvidence?: { across?: FieldValue; out?: FieldValue; outMax?: FieldValue; up?: FieldValue };
 }
 
 export interface Underlay {

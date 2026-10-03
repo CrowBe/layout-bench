@@ -660,6 +660,7 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
       if (r.x === undefined || r.y === undefined || r.up === undefined) continue;
       const marker = new THREE.Mesh(serviceMarkerGeometry, serviceMaterials[r.service]);
       marker.position.set(r.x, r.up, r.y);
+      marker.userData.provenance = { status: r.status, ...(r.axisEvidence ? { axisEvidence: structuredClone(r.axisEvidence) } : {}) };
       group.add(named(marker, `${it.id}:service:${r.pointId}`));
     }
   }

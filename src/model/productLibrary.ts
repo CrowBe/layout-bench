@@ -9,6 +9,7 @@
 
 import { identityOf, validateIdentity, isExactProduct, type ProductIdentity, type ProductComponent, type ExactProduct } from "./productIdentity";
 import { safeUrl } from "./products";
+import { isPhysicalItem, isProductSpecification, unknownMeasurementFields, validateMeasurementFields, type PhysicalItem } from "./productMeasurements";
 import { currentReview, prepareReviewRevision, productReviewSummary, requiredReviewKeys, reviewEvidence, REVIEW_GROUPS } from "./productReview";
 import type { FieldGroup } from "./products";
 import { createStore } from "zustand/vanilla";
@@ -28,6 +29,7 @@ export interface KnownDetails {
   identity?: ProductIdentity;
   components?: ProductComponent[];
   componentsStatus?: ExactProduct["componentsStatus"];
+  physicalItem?: PhysicalItem;
 }
 
 export type RequestStatus = "open" | "submitted" | "accepted" | "withdrawn";
@@ -78,6 +80,10 @@ export interface ProductRequest {
   productId?: string;
   /** spec sheets the person attached; absent on requests saved before #34 */
   attachments?: ProductAttachment[];
+  mode?: "human-measurement";
+  measurementDraft?: Record<string, FieldValue>;
+  /** Read-only evidence owned by a prior request; inherited files cannot be detached here. */
+  evidenceOriginRequestId?: string;
 }
 
 export interface LibraryProduct extends ExactProduct {
@@ -91,6 +97,7 @@ export interface LibraryProduct extends ExactProduct {
   roughIn: RoughInPoint[];
   requestId: string;
   acceptedAt: number;
+  recordingMode?: "human-measurement";
 }
 
 /** Compare evidence records, including omissions. Persisted warning lists are only a cache. */
@@ -112,12 +119,12 @@ function requestEvidenceWarnings(knownDetails: KnownDetails, submission: SpecSub
 }
 
 /** Pending review always derives conflicts anew; accepted history keeps its recorded warnings. */
-export function productReviewWarnings(request: ProductRequest): SpecProblem[] {
+export function productReviewWarnings(request: ProductRequest, requests = productStore.getState().requests): SpecProblem[] {
   if (!request.submission) return [];
   const category = categoryById(request.category);
   const warnings = [...request.submission.warnings, ...(request.status === "submitted" ? [
     ...requestEvidenceWarnings(request.known, request.submission),
-    ...(category ? validateSubmission(category, request.submission, { attachments: request.attachments ?? [] }) : []),
+    ...(category ? request.mode === "human-measurement" ? validateMeasurementFields(category, request.submission.fields, { attachments: requestEvidenceAttachments(request, requests) }) : validateSubmission(category, request.submission, { attachments: requestEvidenceAttachments(request, requests) }) : []),
   ] : [])];
   return [...new Map(warnings.map(w => [`${w.field}:${w.code}:${w.message}`, w])).values()];
 }
@@ -147,6 +154,16 @@ const uid = (prefix: string) => `${prefix}_${Date.now().toString(36)}${Math.rand
 export const productStore = createStore<LibraryState>(() => ({
   version: 1, requests: [], products: [], open: false, selectedRequestId: null, loadError: null,
 }));
+export function requestEvidenceAttachments(request: ProductRequest, requests = productStore.getState().requests): ProductAttachment[] {
+  const result = new Map<string, ProductAttachment>(), visited = new Set<string>();
+  let current: ProductRequest | undefined = request;
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    for (const attachment of current.attachments ?? []) if (!result.has(attachment.id)) result.set(attachment.id, attachment);
+    current = current.evidenceOriginRequestId ? requests.find(r => r.id === current!.evidenceOriginRequestId) : undefined;
+  }
+  return [...result.values()];
+}
 export const useProductStore = <T>(selector: (s: LibraryState) => T): T => useStore(productStore, selector);
 
 type KeyValueStore = Pick<Storage, "getItem" | "setItem">;
@@ -191,9 +208,10 @@ export function initializeProductLibrary(force = false): void {
         throw new Error("Unsupported or unreadable product library. Original browser data was kept.");
       }
       if (!doc.products.every(isExactProduct) || !doc.requests.every(r => r && r.known
-        && isExactProduct({ manufacturer: "", model: "", identity: r.known.identity, components: r.known.components, componentsStatus: r.known.componentsStatus })
+        && isExactProduct({ manufacturer: "", model: "", identity: r.known.identity, components: r.known.components, componentsStatus: r.known.componentsStatus, physicalItem: r.known.physicalItem })
         && (r.submission === undefined || isExactProduct(r.submission)))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
-      productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r) } } : {}) })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
+      if (!doc.products.every(p => isProductSpecification({ category: p.category, fields: p.fields, acceptedAt: p.acceptedAt, recordingMode: p.recordingMode })) || !doc.requests.every(r => (!r.mode || r.mode === "human-measurement") && (r.evidenceOriginRequestId === undefined || typeof r.evidenceOriginRequestId === "string") && (r.submission === undefined || isProductSpecification({ category: r.category, fields: r.submission.fields, acceptedAt: r.submission.at, recordingMode: r.mode })) && (!r.measurementDraft || isProductSpecification({ category: r.category, fields: r.measurementDraft, acceptedAt: r.createdAt, recordingMode: r.mode })))) throw new Error("Invalid product measurement evidence. Original browser data was kept.");
+      productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r, doc.requests) } } : {}) })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
     }
     ready = true;
   } catch (error) {
@@ -218,6 +236,49 @@ const findRequest = (id: string): ProductRequest | undefined => productStore.get
 export const products = {
   show(open = true) { productStore.setState({ open }); },
   select(id: string | null) { productStore.setState({ selectedRequestId: id }); },
+
+  /** Human only; a physical label identifies the fitting without manufacturing a SKU. */
+  openMeasurements(category: string, physicalItem: PhysicalItem, initial?: Record<string, FieldValue>, evidenceOriginRequestId?: string): LibraryResult {
+    const cat = categoryById(category);
+    if (!cat || !["toilet", "vanity", "bath"].includes(category)) return fail("The human measurement flow currently supports toilet, vanity and bath categories.");
+    if (!isPhysicalItem(physicalItem)) return fail("Give the physical fitting a label; manufacturer and model can stay unknown.");
+    if (evidenceOriginRequestId && findRequest(evidenceOriginRequestId)?.status !== "accepted") return fail("Original accepted evidence request is missing from this browser.");
+    const req: ProductRequest = { ...(evidenceOriginRequestId ? { evidenceOriginRequestId } : {}), id: uid("preq"), category, known: { physicalItem: structuredClone(physicalItem) }, mode: "human-measurement", status: "open", createdAt: Date.now(), reviews: {}, measurementDraft: structuredClone(initial ?? unknownMeasurementFields(cat)) };
+    productStore.setState(s => ({ requests: [...s.requests, req], selectedRequestId: req.id }));
+    return ok(`Measurements opened for ${physicalItem.label}. Record evidence, then submit for human review.`, { requestId: req.id });
+  },
+
+  /** Human UI action; never exposed as an agent write tool. */
+  recordMeasurement(requestId: string, field: string, value: FieldValue): LibraryResult {
+    const req = findRequest(requestId);
+    if (!req || req.mode !== "human-measurement" || req.status !== "open") return fail("Only an open human measurement record can be edited.");
+    const candidate = { ...req.measurementDraft, [field]: structuredClone(value) };
+    const errors = validateMeasurementFields(categoryById(req.category)!, candidate, { attachments: requestEvidenceAttachments(req) }).filter(p => p.severity === "error" && p.field === field);
+    if (errors.length) return fail(errors.map(p => p.message).join(" "));
+    // Working selection never removes earlier evidence, even if a caller omits the history.
+    const previous = req.measurementDraft?.[field];
+    const strip = ({ observations: _observations, alternatives: _alternatives, ...record }: FieldValue) => record;
+    const history = [...(value.observations ?? [])];
+    for (const observation of [...(previous?.observations ?? []), ...(previous ? [strip(previous)] : [])]) {
+      if (!history.some(v => JSON.stringify(v) === JSON.stringify(observation))) history.push(structuredClone(observation));
+    }
+    const working = strip(value);
+    if (!history.some(v => JSON.stringify(v) === JSON.stringify(working))) history.push(structuredClone(working));
+    candidate[field] = { ...candidate[field], observations: history, ...(previous?.alternatives ? { alternatives: structuredClone(previous.alternatives) } : {}) };
+    updateRequest(req.id, { measurementDraft: candidate });
+    return ok(`${field} evidence recorded. Other observations are retained.`);
+  },
+
+  submitMeasurements(requestId: string): LibraryResult {
+    const req = findRequest(requestId);
+    if (!req || req.mode !== "human-measurement" || req.status !== "open" || !req.known.physicalItem) return fail("Only an open human measurement record can be submitted.");
+    const fields = req.measurementDraft ?? {};
+    const problems = validateMeasurementFields(categoryById(req.category)!, fields, { attachments: requestEvidenceAttachments(req) });
+    if (problems.some(p => p.severity === "error")) return fail(problems.filter(p => p.severity === "error").map(p => p.message).join(" "));
+    const next: ProductRequest = { ...req, status: "submitted", submission: { manufacturer: "", model: "", physicalItem: structuredClone(req.known.physicalItem), fields: structuredClone(fields), at: Date.now(), warnings: problems } };
+    updateRequest(req.id, { status: next.status, submission: next.submission, ...prepareReviewRevision(req, next) });
+    return ok("Measurements submitted for human field review. Unknowns and disagreements remain visible.");
+  },
 
   request(category: string, known: KnownDetails): LibraryResult {
     const cat = categoryById(category);
@@ -246,6 +307,7 @@ export const products = {
   submit(requestId: string, submission: SpecSubmission): LibraryResult {
     const req = findRequest(requestId);
     if (!req) return fail(`No product request "${requestId}".`);
+    if (req.mode === "human-measurement") return fail("This is an explicit human measurement record. An agent cannot submit measurements; use the human page controls.");
     if (req.status !== "open") return fail(`Request ${req.id} is ${req.status}; only an open request takes a submission.`);
     const cat = categoryById(req.category)!;
     const problems = validateSubmission(cat, submission, { attachments: req.attachments ?? [] });
@@ -341,8 +403,9 @@ export const products = {
       identity: structuredClone(identityOf(req.submission)),
       components: structuredClone(req.submission.components ?? []),
       componentsStatus: req.submission.componentsStatus ?? "unknown",
+      ...(req.mode === "human-measurement" ? { recordingMode: req.mode, physicalItem: structuredClone(req.known.physicalItem) } : {}),
       fields: structuredClone(req.submission.fields),
-      roughIn: roughInPoints(categoryById(req.category)!, req.submission.fields),
+      roughIn: roughInPoints(categoryById(req.category)!, req.submission.fields, req.mode === "human-measurement"),
       requestId: req.id,
       acceptedAt: Date.now(),
     };
