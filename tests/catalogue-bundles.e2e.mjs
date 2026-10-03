@@ -647,7 +647,8 @@ try {
     });
   assert.equal(output.ok, true, output.summary);
   assert.match(output.specHtml, /attachment:att_import_/);
-  assert.match(output.specHtml, /Synthetic fixing/);
+  assert.match(output.specHtml, /fixing bracket/);
+  assert.match(output.specHtml, /level 650 mm/);
   assert.equal((await tool(other, "build_3d")).ok, true);
   assert.equal(item.selectionStatus, "unknown");
   assert.match(
@@ -716,7 +717,7 @@ try {
   await fresh.close();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: two independent browsers, actual bundle download/preview/ID remap/import, original SHA bytes in IndexedDB and reopened PDF/image, unchanged reimport no-op, pending research→human review→placement, reload and independent project JSON",
+    "PASS: two independent browsers, actual stale-tab refusal/reload, two accepted revisions and pending third, actual bundle download/preview/ID remap/import, original SHA bytes in IndexedDB and reopened PDF/image, unchanged reimport no-op, pending research→human review→placement, reload and independent project JSON",
   );
 } catch (error) {
   console.error(
