@@ -49,6 +49,7 @@ import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERE
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
 import { exactProductLabel, exactSnapshot, identityOf, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
 import type { LibraryProduct } from "./productLibrary";
+import { evidenceStatus, evidenceText } from "./productMeasurements";
 import { categoryById, cornerBathOutline, envelopeOf, productPlacementProblem } from "./products";
 import { outlineExtents, outlineProblems, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
@@ -1545,8 +1546,8 @@ export const actions = {
       ...(shaped ? { outline: shaped } : {}),
     });
     if (!defined.ok) return defined;
-    const source = `${label}, product library ${product.id} (published)`;
-    const servicePoints: ServicePoint[] = (product.roughIn ?? []).map((rp) => {
+    const source = `${label}, product library ${product.id}`;
+    const servicePoints: ServicePoint[] = (product.roughIn ?? []).filter(rp => product.recordingMode !== "human-measurement" || evidenceStatus([rp.across?.evidence, rp.out?.evidence, rp.out?.maxEvidence, rp.up?.evidence])).map((rp) => {
       // from the fixture end: convert to the centreline only when the product says which end
       // a corner bath's "end" is its back edge on the other wall: the corner it sits in
       const end = corner ?? product.fields.wasteEnd?.value;
@@ -1567,16 +1568,20 @@ export const actions = {
       }
       const up = rp.up?.from === "finished-floor" ? rp.up.value : undefined;
       const unconverted = [rp.across && across === undefined ? `across from ${rp.across.from}` : "", rp.out && out === undefined ? `out from ${rp.out.from}` : "", rp.up && up === undefined ? `up from ${rp.up.from}` : ""].filter(Boolean);
+      const evidence = { ...(rp.across?.evidence ? { across: rp.across.evidence } : {}), ...(rp.out?.evidence ? { out: rp.out.evidence } : {}), ...(rp.out?.maxEvidence ? { outMax: rp.out.maxEvidence } : {}), ...(rp.up?.evidence ? { up: rp.up.evidence } : {}) };
+      const status = evidenceStatus(Object.values(evidence)) ?? "published";
+      const sourced = [source, ...Object.values(evidence).map(evidenceText)].filter(Boolean).join("; ");
       return {
         id: rp.id, label: rp.label, service: rp.service, face,
         ...(out !== undefined ? { out } : {}), ...(outMax !== undefined ? { outMax } : {}),
         ...(across !== undefined ? { across } : {}), ...(up !== undefined ? { up } : {}),
-        status: "published" as const,
-        source: unconverted.length ? `${source}; not converted: ${unconverted.join(", ")}` : source,
+        status,
+        ...(Object.keys(evidence).length ? { axisEvidence: structuredClone(evidence) } : {}),
+        source: unconverted.length ? `${sourced}; not converted: ${unconverted.join(", ")}` : sourced,
       };
     });
     const item: Item = {
-      id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, productIdentity: exactSnapshot(product), selectionStatus: "unknown", servicePoints,
+      id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, productIdentity: exactSnapshot(product), productSpecification: structuredClone({ category: product.category, fields: product.fields, recordingMode: product.recordingMode, acceptedAt: product.acceptedAt }), selectionStatus: "unknown", servicePoints,
       ...(corner && outline ? { corner: { left: kindFor(fixedHand ? corner : "left"), right: kindFor(fixedHand ? corner : "right"), side: corner } } : {}),
     };
     pushUndo();

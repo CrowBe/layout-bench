@@ -13,6 +13,7 @@ import type { ValueStatus } from "./types";
 import { formatMm, quantize } from "./geometry";
 import { outlineExtents, type Outline } from "./outline";
 import { BATHROOM_PRODUCT_CATEGORIES } from "./bathroomProductCategories";
+import type { MeasurementRecord } from "./productMeasurements";
 
 /** Datums a field can be measured from. A spec sheet that uses another one must say so. */
 export const REFERENCES = {
@@ -193,7 +194,12 @@ export interface FieldValue {
   reference?: ReferenceId;
   note?: string;
   alternatives?: { value: number | string; source: SourceRef }[];
+  /** Human evidence is written only through the explicit measurement flow. */
+  measurement?: MeasurementRecord;
+  /** Complete alternative records retain status, datum, date and evidence. */
+  observations?: FieldObservation[];
 }
+export type FieldObservation = Omit<FieldValue, "observations" | "alternatives">;
 
 export interface SpecSubmission extends ExactProduct {
   manufacturer: string;
@@ -262,7 +268,7 @@ const show = (f: FieldSpec, x: number | string) => (f.type === "length" && typeo
  * Every source needs an http(s) link, or an attachment on this request, and where on it the
  * figure is. A PDF attachment's locator must name a page it has (#34).
  */
-function checkSources(sources: unknown[], ctx: SubmissionContext, onNote?: (message: string) => void): string | null {
+export function checkSources(sources: unknown[], ctx: SubmissionContext, onNote?: (message: string) => void): string | null {
   if (!sources.length) return "has no source. Give the URL and where on it (page, figure, table), or cite an attachment as attachment:<id> with its page.";
   for (const x of sources) {
     const src = x as Partial<SourceRef> | null;
@@ -292,7 +298,7 @@ function checkSources(sources: unknown[], ctx: SubmissionContext, onNote?: (mess
 }
 
 /** Type and range for one value; the same rules apply to alternatives. */
-function checkValue(f: FieldSpec, value: unknown): { code: string; message: string } | null {
+export function checkValue(f: FieldSpec, value: unknown): { code: string; message: string } | null {
   switch (f.type) {
     case "length":
       if (typeof value !== "number" || !Number.isFinite(value)) return { code: "not_a_length", message: "must be a number of metres." };
@@ -335,6 +341,7 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission,
       continue;
     }
     if (!applicable && v.value !== null) warn(f.key, "field_not_applicable", `${f.label} does not apply to this ${f.when!.field}; the reviewer will see it anyway.`);
+    if (v.measurement || v.observations) err(f.key, "human_evidence_only", `${f.label}: human measurement evidence belongs in the explicit human flow, not researched submission.`);
     if (v.value === null || v.value === undefined) {
       if (f.required && applicable && !v.note?.trim()) err(f.key, "unknown_without_note", `${f.label} is unknown: say where you looked in note.`);
       else if (f.required && applicable) warn(f.key, "required_unknown", `${f.label} is unknown. ${v.note}`);
@@ -442,8 +449,9 @@ export function cornerBathOutline(fields: Record<string, FieldValue>, w: number,
 export function envelopeOf(category: ProductCategory, fields: Record<string, FieldValue>): { w: number; d: number; h: number } | null {
   const pick = (k: string) => {
     const fv = fields[k], spec = category.fields.find((f) => f.key === k);
+    const ownDatum = k === category.envelope.w ? "fixture-end" : k === category.envelope.d ? "fixture-side" : "fixture-bottom";
     // A dimension from a different datum is not an envelope this path can express.
-    if (spec?.type === "length" && fv?.reference && fv.reference !== spec.reference) return null;
+    if (spec?.type === "length" && fv?.reference && fv.reference !== spec.reference && !(fv.measurement && fv.reference === ownDatum)) return null;
     return typeof fv?.value === "number" && Number.isFinite(fv.value) && fv.value > 0 ? fv.value : null;
   };
   const w = pick(category.envelope.w);
@@ -459,6 +467,8 @@ export interface AxisValue {
   value?: number;
   min?: number;
   max?: number;
+  evidence?: FieldValue;
+  maxEvidence?: FieldValue;
 }
 
 export interface RoughInPoint {
@@ -477,37 +487,42 @@ export interface RoughInPoint {
  * The fixture's service points, each axis naming its datum. An axis whose field is unknown
  * stays without a value and the point is unresolved; nothing is filled in.
  */
-export function roughInPoints(category: ProductCategory, fields: Record<string, FieldValue>): RoughInPoint[] {
+export function roughInPoints(category: ProductCategory, fields: Record<string, FieldValue>, human = false): RoughInPoint[] {
   const spec = (key: string) => category.fields.find((f) => f.key === key) as LengthField | undefined;
   const num = (key: string) => (typeof fields[key]?.value === "number" ? (fields[key].value as number) : undefined);
   const points: RoughInPoint[] = [];
   for (const r of category.roughIn) {
     if (r.when && !r.when.in.includes(String(fields[r.when.field]?.value))) continue;
     const missing: string[] = [];
-    const axis = (a: AxisSpec | undefined): AxisValue | undefined => {
+    const axis = (a: AxisSpec | undefined, axisName: string): AxisValue | undefined => {
       if (!a) return undefined;
-      if ("zeroAt" in a) return { from: a.zeroAt, value: 0 };
+      if ("zeroAt" in a) {
+        if (!human) return { from: a.zeroAt, value: 0 };
+        const key = `service.${r.id}.${axisName}`, value = num(key);
+        if (value === undefined) missing.push(key);
+        return { from: fields[key]?.reference ?? a.zeroAt, field: key, ...(value !== undefined ? { value } : {}), ...(fields[key] ? { evidence: structuredClone(fields[key]) } : {}) };
+      }
       if ("range" in a) {
         const [lo, hi] = a.range;
         const from = fields[lo]?.reference ?? spec(lo)?.reference ?? "other";
         const maxFrom = fields[hi]?.reference ?? spec(hi)?.reference ?? "other";
         if (from !== maxFrom) {
           missing.push(`${lo}..${hi}: different datums`);
-          return { from, field: `${lo}..${hi}` };
+          return { from, field: `${lo}..${hi}`, ...(fields[lo] ? { evidence: structuredClone(fields[lo]) } : {}), ...(fields[hi] ? { maxEvidence: structuredClone(fields[hi]) } : {}) };
         }
         const min = num(lo);
         const max = num(hi);
         if (min === undefined) missing.push(lo);
         if (max === undefined) missing.push(hi);
-        return { from, field: `${lo}..${hi}`, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) };
+        return { from, field: `${lo}..${hi}`, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}), ...(fields[lo] ? { evidence: structuredClone(fields[lo]) } : {}), ...(fields[hi] ? { maxEvidence: structuredClone(fields[hi]) } : {}) };
       }
       const value = num(a.field);
       if (value === undefined) missing.push(a.field);
-      return { from: fields[a.field]?.reference ?? spec(a.field)?.reference ?? "other", field: a.field, ...(value !== undefined ? { value } : {}) };
+      return { from: fields[a.field]?.reference ?? spec(a.field)?.reference ?? "other", field: a.field, ...(value !== undefined ? { value } : {}), ...(fields[a.field] ? { evidence: structuredClone(fields[a.field]) } : {}) };
     };
-    const across = axis(r.across);
-    const out = axis(r.out);
-    const up = axis(r.up);
+    const across = axis(r.across, "across");
+    const out = axis(r.out, "out");
+    const up = axis(r.up, "up");
     points.push({ id: r.id, label: r.label, service: r.service, ...(across ? { across } : {}), ...(out ? { out } : {}), ...(up ? { up } : {}), resolved: missing.length === 0, missing });
   }
   return points;
