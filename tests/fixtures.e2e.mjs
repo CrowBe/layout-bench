@@ -88,7 +88,12 @@ try {
 
   // 2D and the Inspector show the same readings
   assert.ok(await page.locator(`[data-sp="${vanity}:${vw.pointId}"]`).count() === 1);
-  await page.locator(`[data-id="${vanity}"]`).first().click();
+  // The long catalogue revision label crosses the vanity's footprint. Both fixtures
+  // must remain selectable by their own footprint without another label taking the click.
+  await page.locator(`[data-id="${toilet.id}"] rect`).click({ timeout: 3000 });
+  assert.equal(await page.getByRole("region", { name: "Fixture set-out" }).locator('tr[data-point="waste-s"]').count(), 1);
+  await page.locator(".editor-svg").click({ position: { x: 10, y: 10 } });
+  await page.locator(`[data-id="${vanity}"] rect`).click({ timeout: 3000 });
   const panel = page.getByRole("region", { name: "Fixture set-out" });
   const feed = await page.locator(".activity-feed").textContent();
   assert.doesNotMatch(feed ?? "", /move_item\s*Moved Vanity/);

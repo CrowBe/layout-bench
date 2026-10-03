@@ -43,7 +43,7 @@ try {
     length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
     frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
     surround: { value: null, note: "Not on the drawing." },
-  } });
+  }, identity: { code: { state: "known", value: "SB184-1000", sources: src } } });
   assert.equal(sub.ok, true, sub.summary);
   assert.ok(sub.warnings.some((w) => w.code === "outline_disagrees"));
   await page.getByRole("button", { name: /^Products/ }).click();
