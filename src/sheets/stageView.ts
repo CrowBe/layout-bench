@@ -316,7 +316,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
         }
         for(const r of clearanceRegions(model,it)){
           row(`access ${r.id} (distinct from footprint)`,{value:`${r.label}; ${r.direction}; ${r.distance===null?"?":mm(r.distance)} mm`,status:r.status,source:r.sources.map(s=>`${s.url} (${s.locator})`).join("; "),...(r.resolved?{}:{missing:r.missing})});
-          row(`access ${r.id} installed levels (mm)`,{value:`bottom ${r.bottom===undefined?"?":mm(r.bottom)} / top ${r.top===undefined?"?":mm(r.top)}`,status:r.placementBasis as RowStatus,source:r.placementSource,datum:lv.datum,...(r.resolved?{}:{missing:r.missing})});
+          row(`access ${r.id} installed levels (mm)`,{value:`bottom ${r.bottom===undefined?"?":mm(r.bottom)} / top ${r.top===undefined?"?":mm(r.top)}`,status:r.levelBasis as RowStatus,source:r.levelSource,datum:lv.datum,...(r.resolved?{}:{missing:r.missing})});
         }
       }
     }

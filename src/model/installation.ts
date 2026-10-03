@@ -146,6 +146,10 @@ export function clearanceRegions(model:PlanModel,item:Item) {
     let x0=-c.w/2,x1=c.w/2,y0=-c.d/2,y1=c.d/2,bottom=lv.bottom,top=lv.top;
     if(d!==null){if(r.direction==="left"){x1=x0;x0-=d;}if(r.direction==="right"){x0=x1;x1+=d;}if(r.direction==="front"){y0=y1;y1+=d;}if(r.direction==="above"){bottom=top;top=top===undefined?undefined:top+d;}if(r.direction==="below"){top=bottom;bottom=bottom===undefined?undefined:bottom-d;}}
     const polygon=toWorld([{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}].map(p=>({...p,x:item.installation?.mirror?-p.x:p.x})),item);
-    return {...r,polygon,bottom,top,placementBasis:r.direction==="below"?lv.basis:lv.topBasis,placementSource:r.direction==="below"?lv.bottomSource:lv.topSource,resolved:d!==null && lv.resolved,missing:d===null?["specified clearance distance"]:lv.missing};
+    const placementBasis=r.direction==="below"?lv.basis:lv.topBasis;
+    const placementSource=r.direction==="below"?lv.bottomSource:lv.topSource;
+    const levelBasis=weakest([{field:"installed extent",value:bottom??null,status:placementBasis},{field:"access distance",value:d,status:d===null?"unknown":r.status}]);
+    const levelSource=[placementSource,...r.sources.map(s=>`${s.url} (${s.locator})`)].filter(Boolean).join("; ");
+    return {...r,polygon,bottom,top,placementBasis,placementSource,levelBasis,levelSource,resolved:d!==null && lv.resolved,missing:d===null?["specified clearance distance"]:lv.missing};
   });
 }
