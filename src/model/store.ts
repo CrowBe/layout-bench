@@ -1649,7 +1649,7 @@ export const actions = {
     if(placement.mounting!==it.installation?.mounting && it.installation) return fail("Mounting mode is part of the placed product contract; place a supported mounting variant instead.");
     pushUndo();setModel({...store.getState().model,items:store.getState().model.items.map(x=>x.id===it.id?{...x,installation:structuredClone(placement)}:x)});
     const next=store.getState().model.items.find(x=>x.id===it.id)!;const r=installationReading(store.getState().model,next);
-    return {ok:true,summary:r.resolved?"Explicit installation placement updated.":`Placement retained with unresolved datum: ${r.missing.join(", ")}.`,id:it.id};
+    return {ok:true,summary:r.resolved?`Explicit installation placement updated.${r.limitations.length?` Limitation: ${r.limitations.join(" ")}`:""}`:`Placement retained with unresolved datum: ${r.missing.join(", ")}.`,id:it.id};
   },
 
   setFixtureSelection(itemRef: string, status: SelectionStatus): ActionResult {

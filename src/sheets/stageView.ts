@@ -298,6 +298,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     }
     if(it.installation || it.installationGeometry){
       const lv=installationReading(model,it),p=it.installation,g=it.installationGeometry;
+      for(const message of lv.limitations)row("installation limitation",{value:message,status:"unknown"});
       if(p){row("mounting",{value:p.mounting,status:"proposed"});row("product bottom above selected floor (mm)",{...qRow(p.height),datum:lv.datum});
         row("installed bottom level (mm)",lv.bottom===undefined?{value:"?",status:"unknown",datum:lv.datum,missing:lv.missing}:{value:mm(lv.bottom),status:lv.basis as RowStatus,datum:lv.datum});
         row("installed top level (mm)",lv.top===undefined?{value:"?",status:"unknown",datum:lv.datum,missing:lv.missing}:{value:mm(lv.top),status:lv.basis as RowStatus,datum:lv.datum});

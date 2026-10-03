@@ -190,3 +190,28 @@ it("binds geometry review to category-specific envelope fields, including bath l
   original.submission!.fields.length=pub(1.8);
   expect(reviewEvidence(original,"installationGeometry")).not.toBe(evidence);
 });
+
+it("keeps confirmed bottom placement separate from published top height after portable export",()=>{
+  const item=setup();const confirmed=(value:number)=>({value,status:"site-confirmed" as const,source:"Synthetic confirmation of project placement only"});
+  actions.setRoomFloor(item.installation!.roomId!,{substrateTop:confirmed(0),layers:[]});
+  actions.setWallSide(item.anchor!.wallId,"right",{existing:confirmed(0),frame:confirmed(0),layers:[]});
+  actions.anchorFixture(item.id,{...item.anchor!,face:"existing",status:"site-confirmed"});
+  actions.setFixtureInstallation(item.id,{...item.installation!,height:confirmed(.9)});
+  const model=store.getState().model,it=model.items[0];
+  const lv=installationReading(model,it);
+  expect(lv).toMatchObject({bottom:.9,top:1.7,basis:"site-confirmed",topBasis:"published",heightEvidence:pub(.8)});
+  const top=specRows(model,catalogue(model).elements.find(e=>e.type==="fixture")!).find(r=>r.property==="installed top level (mm)")!;
+  expect(top.status).toBe("published");expect(top.source).toContain("example.com");
+  const above=clearanceRegions(model,it)[0];expect(above.placementBasis).toBe("published");expect(above.placementSource).toContain("example.com");
+  const parsed=parseImport(JSON.stringify({...demoProject(),id:"confirmed-placement",model,kinds:store.getState().kinds}));
+  expect(installationReading(parsed.model,parsed.model.items[0])).toMatchObject({topBasis:"published",heightEvidence:pub(.8)});
+});
+it("keeps the named physical back midpoint at the declared wall-face gap and along-wall distance through yaw",()=>{
+  const it=setup();actions.setFixtureInstallation(it.id,{...it.installation!,mirror:true,orientation:90});
+  const model=store.getState().model,item=model.items[0];
+  const origin=localPointReading(model,item,{id:"back",label:"Physical back midpoint",x:0,y:0,z:0,...evidence});
+  expect(origin).toMatchObject({x:1,y:.01});
+  expect(anchorPose(model,item)).toMatchObject({backOffset:.01,alongFromA:1});
+  expect(checkModel(model)).toEqual(expect.arrayContaining([expect.objectContaining({code:"item_through_wall",refs:expect.arrayContaining([it.id])})]));
+  expect(installationReading(model,item).limitations).toEqual(expect.arrayContaining([expect.stringMatching(/physical back/i)]));
+});

@@ -67,7 +67,9 @@ try {
  await panel.getByRole('button',{name:'Update installation placement'}).click();
  read=(await run('get_rough_in',{itemId:item.id})).fixtures[0];
  assert.equal(read.position.rotation,90);assert.deepEqual(read.installationGeometry,geometry);
- assert.equal(read.fixings[0].x,.985);assert.equal(read.fixings[0].y,.51);
+ assert.equal(read.fixings[0].x,1);assert.equal(read.fixings[0].y,.21);
+ assert.match(await panel.textContent(),/Physical back midpoint/);
+ assert.ok((await run('get_issues')).issues.some(i=>i.code==='item_through_wall')); 
  assert.equal(read.accessRequirements[0].status,'published');assert.equal(read.accessRequirements[0].placementBasis,'proposed');
  await run('set_sheet_info',{project:'Synthetic #51',site:'Test only',preparedBy:'Synthetic reviewer'});
  await run('set_diagram_view',{label:'Synthetic mounted fitting',visible:['fixtures','services-power']});
@@ -80,7 +82,7 @@ try {
  const verticesFor=name=>{const chunks=obj.split(/^o /m);return chunks.filter(c=>c.split('\n')[0]===name).flatMap(c=>c.split('\n').filter(l=>l.startsWith('v ')).map(l=>l.split(' ').slice(1).map(Number)));};
  const body=verticesFor(item.id);assert.ok(body.length>20);
  assert.ok(Math.abs(Math.min(...body.map(v=>v[1]))-.96)<.001);assert.ok(Math.abs(Math.max(...body.map(v=>v[1]))-1.76)<.001);
- const fixing=verticesFor(`${item.id}:fixing:bracket`);assert.ok(fixing.length>0);assert.ok(fixing.some(v=>Math.abs(v[0]-.985)<.008 && Math.abs(v[1]-1.56)<.008 && Math.abs(v[2]-.51)<.008));
+ const fixing=verticesFor(`${item.id}:fixing:bracket`);assert.ok(fixing.length>0);assert.ok(fixing.some(v=>Math.abs(v[0]-1)<.008 && Math.abs(v[1]-1.56)<.008 && Math.abs(v[2]-.21)<.008));
  await mkdir('/tmp/layout-bench-51-evidence',{recursive:true});await page.screenshot({path:'/tmp/layout-bench-51-evidence/mounted-3d.png'});
  await page.getByRole('button',{name:'Back to 2D',exact:true}).click();
  const before=await page.evaluate(()=>window.__alza.store.getState().model.items[0]);

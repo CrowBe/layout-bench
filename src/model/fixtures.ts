@@ -10,7 +10,7 @@ import type { FixtureAnchor, Item, PlanModel, ServicePoint, ValueStatus, Wall, W
 import { catalogByKind } from "./catalog";
 import { quantize, segLen, type ORect, type Pt } from "./geometry";
 import { VALUE_STATUSES, layerLabel, resolveFace, sideFaces, sideNormal, wallBody } from "./faces";
-import { itemPolygon, kindPolygon, toWorld, support } from "./outline";
+import { itemPolygon, toWorld, support } from "./outline";
 
 const dirOf = (w: Wall): Pt => {
   const len = segLen(w.ax, w.ay, w.bx, w.by) || 1;
@@ -53,13 +53,13 @@ export function anchorPose(model: PlanModel, item: Item): AnchorPose {
   const n = sideNormal(wall, a.side);
   const backOffset = face.offset! + a.gap;
   const rotation = facingRotation(n) + (item.installation?.orientation ?? 0);
-  const local = kindPolygon(cat).map(p=>({...p,x:item.installation?.mirror?-p.x:p.x}));
-  const rotated=toWorld(local,{x:0,y:0,rotation});
-  const centre = backOffset - Math.min(...rotated.map(p=>p.x*n.x+p.y*n.y));
+  // The anchor names the physical back midpoint, not the nearest rotated edge.
+  // Yaw can therefore expose a wall intersection; it must never redefine this datum.
+  const back = toWorld([{x:0,y:-cat.d/2}],{x:0,y:0,rotation})[0];
   return {
     resolved: true,
-    x: quantize(wall.ax + d.x * alongFromA + n.x * centre),
-    y: quantize(wall.ay + d.y * alongFromA + n.y * centre),
+    x: quantize(wall.ax + d.x * alongFromA + n.x * backOffset - back.x),
+    y: quantize(wall.ay + d.y * alongFromA + n.y * backOffset - back.y),
     rotation: quantize(rotation),
     alongFromA: quantize(alongFromA),
     backOffset: quantize(backOffset),

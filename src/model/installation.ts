@@ -93,7 +93,9 @@ export function geometryForPlacement(product:LibraryProduct):InstallationGeometr
 
 export function installationReading(model: PlanModel, item: Item) {
   const p = item.installation, cat = catalogByKind(item.kind);
-  if (!p) return {resolved:true,bottom:0.04,top:cat ? cat.h+.04 : undefined,basis:"estimated" as ValueStatus | "unknown",missing:[] as string[],datum:"legacy display ground",floorLevel:0.04,finishedFloorLevel:0.04};
+  const limitations: string[]=[];
+  if(p?.mounting === "wall" && Math.abs(((p.orientation % 360) + 360) % 360)>1e-6)limitations.push("Physical back midpoint remains on the named wall-face gap; this yaw does not represent supported flush wall mounting. Check wall intersections.");
+  if (!p) return {resolved:true,bottom:0.04,top:cat ? cat.h+.04 : undefined,basis:"estimated" as ValueStatus | "unknown",missing:[] as string[],datum:"legacy display ground",limitations,floorLevel:0.04,finishedFloorLevel:0.04};
   const missing: string[] = [];
   const room = model.rooms.find(r => r.id === p.roomId);
   if (!room) missing.push("named floor room");
@@ -113,7 +115,7 @@ export function installationReading(model: PlanModel, item: Item) {
   const basis=resolved ? weakest([input("height",p.height),{field:"floor",value:floor!.top!,status:floor!.basis},{field:"anchor",value:0,status:item.anchor!.status}]) : "unknown";
   let finishedFloorLevel=room ? finishedLevel(room.floorBuildUp).top : undefined;
   if(room?.drainage?.planes.length)finishedFloorLevel=heightAt(room.drainage,item.x,item.y).level;
-  return {resolved,...(bottom!==undefined?{bottom,top:quantize(bottom+cat!.h)}:{}),basis,missing:[...new Set(missing)],datum:`${room?.label??"unknown room"}: ${p.floorDatum}; ${room?.floorBuildUp?.datum??"unknown floor datum"}`,floorLevel:floor?.resolved?floor.top:undefined,finishedFloorLevel};
+  return {resolved,limitations,...(bottom!==undefined?{bottom,top:quantize(bottom+cat!.h)}:{}),basis,missing:[...new Set(missing)],datum:`${room?.label??"unknown room"}: ${p.floorDatum}; ${room?.floorBuildUp?.datum??"unknown floor datum"}`,floorLevel:floor?.resolved?floor.top:undefined,finishedFloorLevel};
 }
 export function localPointReading(model: PlanModel,item:Item,p:LocalPoint) {
   const cat=catalogByKind(item.kind),lv=installationReading(model,item),missing=[...lv.missing];
