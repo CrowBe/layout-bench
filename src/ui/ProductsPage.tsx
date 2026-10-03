@@ -247,6 +247,30 @@ function ReviewRow({ req, f }: { req: ProductRequest; f: FieldSpec }) {
   );
 }
 
+function GeometryReview({ req }: {req:ProductRequest}) {
+  const g=req.submission?.installationGeometry;
+  const [reason,setReason]=useState("");const [error,setError]=useState("");
+  if(!g)return null;
+  const review=currentReview(req,"installationGeometry");
+  const decide=(decision:"accepted"|"rejected")=>{const r=human("review_product_geometry",products.review(req.id,"installationGeometry",decision,reason));setError(r.ok?"":r.summary);};
+  const sources=(ss:typeof g.sources)=>ss.map((s,i)=><span key={i}><Link url={s.url} locator={s.locator}>{s.locator}</Link> </span>);
+  const xy=(p:{x:number;y:number})=>`${formatMm(p.x)}, ${formatMm(p.y)} mm`;
+  return <section aria-label="Installation geometry evidence"><strong>Installation geometry</strong>
+    <p className="hint">Point coordinates: across product centreline, out from its back, up from its bottom. Outline coordinates use the named footprint-centre datum (y from −depth/2 to +depth/2). The plan outline is extruded through product height in 3D; fixing and access evidence remain separate.</p>
+    <table className="products-table"><thead><tr><th>Geometry</th><th>Source-local value</th><th>Status</th><th>Source</th></tr></thead><tbody>
+      <tr><td>Hand / point datums</td><td>{g.handedness}; {g.datum.across}; {g.datum.out}; {g.datum.up}</td><td>{g.status}</td><td>{sources(g.sources)}</td></tr>
+      {g.outline&&<tr><td>Plan outline (footprint-centre)</td><td>{g.outline.shape?<><div>Start {xy(g.outline.shape.start)}</div>{g.outline.shape.segments.map((s,i)=><div key={i}>{s.via?`Arc via ${xy(s.via)}`:"Line"} to {xy(s.to)}</div>)}</>:`Envelope fallback: ${g.outline.limitation}`}</td><td>{g.outline.status}</td><td>{sources(g.outline.sources)}</td></tr>}
+      {[...(g.fixings??[]),...(g.services??[])].map(p=><tr key={p.id}><td>{p.label}</td><td>{[p.x,p.y,p.z].map(v=>v===null?"unknown":`${formatMm(v)} mm`).join(" / ")}</td><td>{p.status}</td><td>{sources(p.sources)}</td></tr>)}
+      {(g.clearances??[]).map(r=><tr key={r.id}><td>{r.label} (access)</td><td>{r.direction}: {r.distance===null?"unknown":`${formatMm(r.distance)} mm`}; separate from physical footprint</td><td>{r.status}</td><td>{sources(r.sources)}</td></tr>)}
+    </tbody></table>
+    {productReviewWarnings(req).filter(w=>w.field==="installationGeometry").map((w,i)=><p className="inspector-warn" key={i}>{w.message}</p>)}
+    {req.previousRejections?.installationGeometry&&<p className="inspector-warn">Previous rejection: {req.previousRejections.installationGeometry}</p>}
+    {review&&<span>{review.decision}{review.reason?`: ${review.reason}`:""}</span>}
+    {(!review||review.decision==="rejected")&&<div className="review-actions"><button type="button" onClick={()=>decide("accepted")}>Accept installation geometry</button><input aria-label="Reason to reject installation geometry" value={reason} onChange={e=>setReason(e.target.value)} placeholder="reason to reject"/><button type="button" onClick={()=>decide("rejected")}>Reject installation geometry</button></div>}
+    {error&&<span role="alert" className="inspector-error">{error}</span>}
+  </section>;
+}
+
 function RequestDetail({ req }: { req: ProductRequest }) {
   const cat = categoryById(req.category)!;
   const [feedback, setFeedback] = useState("");
@@ -268,6 +292,7 @@ function RequestDetail({ req }: { req: ProductRequest }) {
           <span>Submitted: <b>{req.submission.manufacturer} {req.submission.model}</b>{req.submission.code ? ` (${req.submission.code})` : ""}</span>
           <ProductReviewSummary request={req} />
           <ExactIdentity product={req.submission} request={req} />
+          <GeometryReview req={req} />
           <table className="products-table" aria-label="Submitted values">
             <thead><tr><th>Field</th><th>Value</th><th>Status</th><th>Source</th><th>Review</th></tr></thead>
             <tbody>{(req.mode ? measurementFields(cat) : cat.fields).map((f) => <ReviewRow key={f.key} req={req} f={f} />)}</tbody>
@@ -296,7 +321,7 @@ function ProductCard({ p }: { p: LibraryProduct }) {
         <b>{exactProductLabel(p)}</b> · {cat?.label ?? p.category}
         {env ? ` · ${formatMm(env.w)} × ${formatMm(env.d)} × ${formatMm(env.h)} mm` : " · envelope unknown"}
       </summary>
-      {cat?.placement && <p className="hint" data-placement-limit>{productPlacementProblem(cat, p.fields) ?? `Generic envelope only. ${cat.placement.limitation}`}</p>}
+      {cat?.placement && <p className="hint" data-placement-limit>{(p.category==="mirror" && p.fields.mounting?.value==="surface" || p.category==="towel-rail" && p.fields.mounting?.value==="wall") ? "Wall-mounted envelope placement requires an explicit room, named floor datum and product bottom height. Product geometry retains its source evidence." : productPlacementProblem(cat, p.fields) ?? `Generic envelope only. ${cat.placement.limitation}`}</p>}
       <span className="hint">{Object.entries(identityOf(p)).map(([key, value]) => `${key}: ${identityText(value)}`).join(" · ")}</span>
       <ExactIdentity product={p} />
       {cat && (

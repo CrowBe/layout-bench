@@ -15,7 +15,7 @@ import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { store, useAppStore, actions, logActivity } from "../model/store";
 import { buildPlan } from "./build";
-import { buildFurniture } from "./furniture";
+import { buildFixture } from "./build";
 import { nameMeshes } from "./build";
 import { bus, EVENTS, type SetDoorsPayload } from "./exportBus";
 import { catalogByKind } from "../model/catalog";
@@ -80,10 +80,8 @@ export function Scene3D() {
     const radius = Math.max(size.x, size.z, 4);
 
     for (const it of model.items) {
-      const fg = buildFurniture(it.kind);
+      const fg = buildFixture(model, it);
       if (!fg) continue;
-      fg.position.set(it.x, 0.04, it.y);
-      fg.rotation.y = (it.rotation * Math.PI) / 180;
       nameMeshes(fg, it.id);
       group.add(fg);
     }
