@@ -4,6 +4,7 @@
  * product is only possible here: it is not a tool.
  */
 
+import { ProductBundles } from "./ProductBundles";
 import { Link, viewAttachment } from "./ProductSource";
 import { ExactIdentity, IdentityEditor } from "./ProductIdentity";
 import { MeasurementEditor, NewMeasurements } from "./ProductMeasurements";
@@ -346,6 +347,7 @@ export function ProductsPage() {
       {loadError && <div className="save-banner" role="alert">{loadError}</div>}
       <div className="products-body">
         <div className="products-col">
+          <ProductBundles />
           <NewRequest />
           <NewMeasurements />
           <section className="products-card" aria-label="Requests">

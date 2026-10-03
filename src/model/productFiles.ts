@@ -7,6 +7,8 @@
 
 export interface FileStore {
   put(id: string, blob: Blob): Promise<void>;
+  /** Create only; imported staging must never replace orphan or catalogue evidence. */
+  add?(id: string, blob: Blob): Promise<void>;
   get(id: string): Promise<Blob | null>;
   remove(id: string): Promise<void>;
 }
@@ -39,6 +41,7 @@ async function run<T>(mode: IDBTransactionMode, op: (s: IDBObjectStore) => IDBRe
 }
 
 export const indexedDbFiles: FileStore = {
+  async add(id, blob) { await run("readwrite", (s) => s.add(blob, id)); },
   async put(id, blob) { await run("readwrite", (s) => s.put(blob, id)); },
   async get(id) { return ((await run("readonly", (s) => s.get(id))) as Blob | undefined) ?? null; },
   async remove(id) { await run("readwrite", (s) => s.delete(id)); },
@@ -48,6 +51,7 @@ export const indexedDbFiles: FileStore = {
 export function memoryFiles(): FileStore {
   const m = new Map<string, Blob>();
   return {
+    async add(id, blob) { if (m.has(id)) throw new Error("File already exists."); m.set(id, blob); },
     async put(id, blob) { m.set(id, blob); },
     async get(id) { return m.get(id) ?? null; },
     async remove(id) { m.delete(id); },

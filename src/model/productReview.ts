@@ -47,7 +47,7 @@ export function requiredReviewKeys(request: ProductRequest): string[] {
   ];
 }
 
-export function reviewEvidence(request: ProductRequest, key: string): string {
+export function reviewEvidence(request: ProductRequest, key: string, requests?: ProductRequest[]): string {
   const s = request.submission;
   if (!s) return "";
   const category = categoryById(request.category);
@@ -80,7 +80,7 @@ export function reviewEvidence(request: ProductRequest, key: string): string {
     applicable: spec ? applies(spec, s.fields) : true,
     condition: spec?.when ? s.fields[spec.when.field] : undefined,
     definition: spec,
-    flags: productReviewWarnings(request).filter(
+    flags: productReviewWarnings(request, requests).filter(
       (w) => w.field === key || w.field === null,
     ),
   });
