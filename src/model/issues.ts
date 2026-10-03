@@ -1,3 +1,4 @@
+import { installationReading, clearanceRegions } from "./installation";
 /**
  * Constraint engine — the metric precision checker agents use to self-repair.
  * Every rule returns issues with entity refs so callers can act on them.
@@ -308,6 +309,14 @@ export function checkModel(model: PlanModel): Issue[] {
   // ---- Furniture ---------------------------------------------------------------
   // every piece is checked by its real footprint: its outline (#37) or its w × d rectangle,
   // built once per check rather than once per pair
+  for(const it of items)if(it.installation){const lv=installationReading(model,it);if(!lv.resolved)issues.push({severity:"warning",code:"fixture_installation_unresolved",message:`${it.id}: installation unresolved: ${lv.missing.join(", ")}. No vertical geometry is inferred.`,refs:[it.id]});
+    for(const message of lv.limitations)issues.push({severity:"warning",code:"fixture_mounting_limitation",message:`${it.id}: ${message}`,refs:[it.id]});
+    for(const r of clearanceRegions(model,it)){
+      if(!r.resolved){issues.push({severity:"warning",code:"fixture_access_unresolved",message:`${it.id} ${r.label}: required access remains unknown.`,refs:[it.id]});continue;}
+      for(const other of items){if(other.id===it.id)continue;const ov=installationReading(model,other),poly=itemPolygon(other);if(poly && polygonsOverlap(r.polygon,poly,.001) && (ov.bottom===undefined || ov.top===undefined || r.bottom===undefined || r.top===undefined || Math.min(ov.top,r.top)-Math.max(ov.bottom,r.bottom)>.001))issues.push({severity:"warning",code:"fixture_access_obstructed",message:`${it.id} ${r.label} (${r.direction}) is obstructed by ${other.id}, separate from the physical footprint.`,refs:[it.id,other.id]});}
+      for(const wall of walls)if(polygonsOverlap(r.polygon,rectCorners(wallOccupiedRect(wall)),.001) && (r.bottom??0)<wall.height && (r.top??0)>0)issues.push({severity:"warning",code:"fixture_access_obstructed",message:`${it.id} ${r.label} (${r.direction}) intersects wall ${wall.id}.`,refs:[it.id,wall.id]});
+    }
+  }
   const footprint = new Map(items.map((it) => [it.id, itemPolygon(it)]));
 
   for (const it of items) {
@@ -324,6 +333,7 @@ export function checkModel(model: PlanModel): Issue[] {
     const r = footprint.get(it.id)!;
     // vs walls: touching (leaning) is legal, crossing through is an error
     for (const w of walls) {
+      const vertical=installationReading(model,it);if(it.installation && vertical.bottom!==undefined && vertical.bottom>=w.height)continue;
       // the wall as built: its body plus any resolved build-up (#4), not the centred drawn thickness
       if (polygonsOverlap(r, rectCorners(wallOccupiedRect(w)), 0.02)) {
         // tolerance 0.02: penetration up to 2 cm still counts as "leaning"
@@ -339,6 +349,7 @@ export function checkModel(model: PlanModel): Issue[] {
     for (const o of openings) {
       const wall = wallById.get(o.wallId);
       if (!wall) continue;
+      const vertical=installationReading(model,it);if(it.installation && vertical.bottom!==undefined && vertical.bottom>=o.sill+o.height)continue;
       const c = openingCenter(wall, o);
       const clearance: ORect = {
         cx: c.x,
@@ -355,7 +366,7 @@ export function checkModel(model: PlanModel): Issue[] {
             message: `${cat.label} blocks the swing path of door ${o.id}.`,
             refs: [it.id, o.id],
           });
-        } else if (cat.h > o.sill) {
+        } else if (it.installation ? vertical.top === undefined || vertical.top > o.sill : cat.h > o.sill) {
           issues.push({
             severity: "warning",
             code: "item_blocks_window",
@@ -371,6 +382,8 @@ export function checkModel(model: PlanModel): Issue[] {
       const oc = catalogByKind(other.kind);
       if (!oc) continue;
       if (cat.isRug || oc.isRug) continue;
+      const iv=installationReading(model,it),ov=installationReading(model,other);
+      if((it.installation || other.installation) && iv.bottom!==undefined && iv.top!==undefined && ov.bottom!==undefined && ov.top!==undefined && Math.min(iv.top,ov.top)-Math.max(iv.bottom,ov.bottom)<=.001)continue;
       const or2 = footprint.get(other.id)!;
       if (polygonsOverlap(r, or2, 0.01)) {
         issues.push({

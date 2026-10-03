@@ -1,3 +1,4 @@
+import { installationReading, localPointReading, clearanceRegions } from "../model/installation";
 /**
  * Construction-stage diagram views (#41). One canonical project; a stage is only a choice of
  * which of its layers and objects are visible. Nothing here writes to the model: the catalogue
@@ -121,7 +122,7 @@ export function catalogue(model: PlanModel): Catalogue {
   for (const it of model.items) {
     const label = catalogByKind(it.kind)?.label ?? it.kind;
     add({ id: `item:${it.id}`, layer: "fixtures", type: "fixture", label: `${label} (${it.id})`, ref: it.id });
-    for (const sp of it.servicePoints ?? []) add({ id: `item:${it.id}:sp:${sp.id}`, layer: `services-${sp.service}` as LayerId, type: "service-point", label: `${label}: ${sp.label}`, ref: it.id, sub: sp.id });
+    for (const sp of roughIn(model,it).map(r=>({id:r.pointId,label:r.label,service:r.service}))) add({ id: `item:${it.id}:sp:${sp.id}`, layer: `services-${sp.service}` as LayerId, type: "service-point", label: `${label}: ${sp.label}`, ref: it.id, sub: sp.id });
   }
   const layers = LAYERS.map((l) => ({ id: l.id, label: l.label, elements: els.filter((e) => e.layer === l.id).map((e) => e.id) })).filter((l) => l.elements.length);
   return { layers, emptyLayers: LAYERS.filter((l) => !layers.some((x) => x.id === l.id)).map((l) => l.id), elements: els, notModelled: NOT_MODELLED.filter((_, i) => i !== 0 || !model.rooms.some((r) => r.heating)) };
@@ -298,6 +299,27 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     } else {
       row("set-out", { value: "?", status: "unknown", missing: ["not set out from a wall face"] });
     }
+    if(it.installation || it.installationGeometry){
+      const lv=installationReading(model,it),p=it.installation,g=it.installationGeometry;
+      for(const message of lv.limitations)row("installation limitation",{value:message,status:"unknown"});
+      if(p){row("mounting",{value:p.mounting,status:"proposed"});row("product bottom above selected floor (mm)",{...qRow(p.height),datum:lv.datum});
+        row("installed bottom level (mm)",lv.bottom===undefined?{value:"?",status:"unknown",datum:lv.datum,missing:lv.missing}:{value:mm(lv.bottom),status:lv.basis as RowStatus,datum:lv.datum,source:lv.bottomSource});
+        row("installed top level (mm)",lv.top===undefined?{value:"?",status:"unknown",datum:lv.datum,missing:lv.missing}:{value:mm(lv.top),status:lv.topBasis as RowStatus,datum:lv.datum,source:lv.topSource});
+        row("orientation / mirror",{value:`${p.orientation} degrees / ${p.mirror}`,status:"proposed"});}
+      if(!g)row("geometry basis",{value:"Envelope fallback: no sourced outline supplied; exact planning envelope",status:"unknown"});
+      if(g){
+        row("geometry basis",{value:g.outline?.shape?"Sourced line/arc plan outline extruded through product height":`Envelope fallback: ${g.outline?.limitation??"No sourced outline supplied"}`,status:g.outline?.status??"unknown",source:g.outline?.sources.map(s=>`${s.url} (${s.locator})`).join("; ")});
+        row("local geometry datums",{value:`${g.datum.across}; ${g.datum.out}; ${g.datum.up}`,status:"published"});
+        for(const point of g.fixings??[]){
+          const r=localPointReading(model,it,point);
+          row(`fixing ${point.id}`,{value:`x ${r.x===undefined?"?":mm(r.x)} / y ${r.y===undefined?"?":mm(r.y)} / level ${r.level===undefined?"?":mm(r.level)} mm`,status:r.basis as RowStatus,datum:lv.datum,source:r.source,...(r.resolved?{}:{missing:r.missing})});
+        }
+        for(const r of clearanceRegions(model,it)){
+          row(`access ${r.id} (distinct from footprint)`,{value:`${r.label}; ${r.direction}; ${r.distance===null?"?":mm(r.distance)} mm`,status:r.status,source:r.sources.map(s=>`${s.url} (${s.locator})`).join("; "),...(r.resolved?{}:{missing:r.missing})});
+          row(`access ${r.id} installed levels (mm)`,{value:`bottom ${r.bottom===undefined?"?":mm(r.bottom)} / top ${r.top===undefined?"?":mm(r.top)}`,status:r.levelBasis as RowStatus,source:r.levelSource,datum:lv.datum,...(r.resolved?{}:{missing:r.missing})});
+        }
+      }
+    }
     row("project selection", { value: it.selectionStatus ?? "unknown", status: it.selectionStatus && it.selectionStatus !== "unknown" ? "entered" : "unknown" });
     const product = it.productId ? products.find((p) => p.id === it.productId) : undefined;
     const exact = it.productIdentity ?? product;
@@ -340,6 +362,11 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
       }
     }
     return rows;
+  }
+  if(el.sub?.startsWith("local:")){
+    const r=roughIn(model,it).find(r=>r.pointId===el.sub)!;
+    row("service",{value:r.service,status:"entered"});row("source-local point",{value:`across ${r.entered.across??"?"}; out ${r.entered.out??"?"}; up ${r.entered.up??"?"} m`,status:it.installationGeometry!.services!.find(p=>`local:${p.id}`===el.sub)!.status,datum:"fixture-centreline; fixture-back; fixture-bottom",source:r.source});
+    row("installed service level (mm)",r.level===undefined?{value:"?",status:"unknown",missing:r.missing}:{value:mm(r.level),status:r.status,datum:installationReading(model,it).datum,source:r.source});return rows;
   }
   const sp = it.servicePoints!.find((x) => x.id === el.sub)!;
   const reading = roughIn(model, it).find((r) => r.pointId === sp.id)!;
@@ -571,7 +598,13 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     const pg = itemPolygon(it);
     if (!pg) continue;
     poly(pg.map(P), `fill="#fff" stroke="#444" stroke-width="0.3" ${de(`item:${it.id}`)}`);
+    if(it.installationGeometry){
+      for(const r of clearanceRegions(model,it))if(r.resolved)poly(r.polygon.map(P),`fill="none" stroke="#8c6496" stroke-dasharray="1 1" stroke-width="0.2" data-access="${esc(r.id)}"`);
+      for(const p of it.installationGeometry.fixings??[]){const r=localPointReading(model,it,p);if(r.x!==undefined && r.y!==undefined){const xy=P({x:r.x,y:r.y});parts.push(`<circle cx="${f1(xy.x)}" cy="${f1(xy.y)}" r="0.7" fill="#8c6496" data-fixing="${esc(p.id)}"/>`);}}
+    }
+
     const c = P({ x: it.x, y: it.y });
+    if(it.installation){const lv=installationReading(model,it);text(c.x,c.y-4,lv.bottom===undefined?"INSTALLATION LEVEL ?":`BOTTOM ${mm(lv.bottom)} ${tag(lv.basis as RowStatus)}`,1.7,`text-anchor="middle"`);}
     text(c.x, c.y, fixtureNo.get(it.id)!, 2.6, `text-anchor="middle" dominant-baseline="middle" font-weight="bold"`);
     if (it.anchor && anchorPose(model, it).resolved) text(c.x, c.y + 3.4, `${mm(it.anchor.distance)} from ${it.anchor.from.toUpperCase()} · ${mm(it.anchor.gap)} off ${it.anchor.face} ${tag(it.anchor.status)}`, 1.8, `text-anchor="middle" fill="#444"`);
   }

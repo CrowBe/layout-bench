@@ -14,6 +14,8 @@ export interface CatalogEntry {
   isRug?: boolean;
   /** plan outline in the piece's own frame (#37); absent means the w × d rectangle */
   outline?: Outline;
+  /** A mounted product requires explicit accepted-product placement, not generic drop. */
+  installationMounting?: "wall";
 }
 
 export const CATALOG: CatalogEntry[] = [

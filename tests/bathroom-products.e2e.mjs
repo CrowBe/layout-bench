@@ -86,7 +86,7 @@ try {
     const result = await run("place_product", { productId: p.id, wallId: wall.id, side: "right", face: "finished", distance: p.category === "tapware" ? 0.5 : p.category === "towel-rail" ? 2.65 : 1.8, status: "proposed", source: "Synthetic project set-out, separate from published product requirements" });
     assert.equal(result.ok, c?.supported ?? variant?.supported ?? false, result.summary);
     if (!result.ok) {
-      assert.match(result.summary, /Unsupported product placement.*#51/);
+      assert.match(result.summary, /Unsupported product placement/);
       assert.equal(await modelJson(), before);
     }
   }

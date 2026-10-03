@@ -1,3 +1,4 @@
+import { validInstallation, validInstallationGeometry } from "./installation";
 import { SELECTION_STATUSES, isExactProduct } from "./productIdentity";
 import { isProductSpecification } from "./productMeasurements";
 import type { CatalogEntry } from "./catalog";
@@ -167,12 +168,13 @@ export function parseProject(value: unknown): ProjectDocument {
       !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp) && drainage(v.drainage) && validHeating(v.heating) && floorTiling(v.floorTiling)) ||
       !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string" &&
         (v.anchor === undefined || validAnchor(v.anchor)) &&
+        (v.installation === undefined || validInstallation(v.installation)) && (v.installationGeometry === undefined || validInstallationGeometry(v.installationGeometry)) &&
         oneOf(v.selectionStatus, SELECTION_STATUSES) && (v.productIdentity === undefined || isExactProduct(v.productIdentity)) &&
         (v.productSpecification === undefined || isProductSpecification(v.productSpecification)) &&
         (v.corner === undefined || (object(v.corner) && typeof v.corner.left === "string" && typeof v.corner.right === "string" && (v.corner.side === "left" || v.corner.side === "right"))) &&
         (v.servicePoints === undefined || (Array.isArray(v.servicePoints) && v.servicePoints.every(validServicePoint)))) ||
       !notes.every((v) => object(v) && typeof v.id === "string" && typeof v.text === "string" && finite(v.at) && (v.author === "human" || v.author === "agent")) ||
-      !kinds.every((v) => object(v) && object(v.entry) && typeof v.entry.kind === "string" && typeof v.entry.label === "string" && ["w", "d", "h"].every((k) => finite((v.entry as Record<string, unknown>)[k])) && (v.parts === undefined || Array.isArray(v.parts)) && validOutline(v.entry as Record<string, unknown>)) ||
+      !kinds.every((v) => object(v) && object(v.entry) && typeof v.entry.kind === "string" && typeof v.entry.label === "string" && ["w", "d", "h"].every((k) => finite((v.entry as Record<string, unknown>)[k])) && (v.parts === undefined || Array.isArray(v.parts)) && oneOf(v.entry.installationMounting,["wall"]) && validOutline(v.entry as Record<string, unknown>)) ||
       !(model.sheetSet === undefined || validSheetSet(model.sheetSet)) ||
       !(model.underlay === null || (object(model.underlay) && typeof model.underlay.dataUrl === "string" && ["opacity", "x", "y", "w", "h"].every((k) => finite((model.underlay as Record<string, unknown>)[k]))))) {
     throw new Error("Project document contains invalid model data.");
