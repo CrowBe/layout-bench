@@ -3,10 +3,10 @@
  *
  * Builds the surveyed 2110 × 3020 mm bathroom the same way tests/mm-geometry.e2e.mjs does,
  * reloads so auto-fit runs on that plan, then checks SVG text boxes. Also checks the shipped
- * Bathroom Concept sample and Sunset Loft (loaded from its seed through the dev server)
+ * Bathroom Concept sample and Sunset Loft's multi-room geometry (built with public tools)
  * at its auto-fit zoom, and that a wheel zoom-out leaves labels at a readable size.
  *
- * Run with the studio dev server: ALZA_BASE_URL=http://127.0.0.1:5316/ node tests/plan-labels.e2e.mjs
+ * Run against dev or production: ALZA_BASE_URL=http://127.0.0.1:5316/ node tests/plan-labels.e2e.mjs
  */
 import { chromium } from "playwright";
 import { strict as assert } from "node:assert";
@@ -167,6 +167,35 @@ async function buildBathroom(page) {
   });
 }
 
+async function buildLoftLabels(page) {
+  await page.evaluate(async () => {
+    const run = window.__alza.runTool;
+    // Match seedLoft's wall and room geometry without depending on source-module URLs.
+    const walls = [
+      [0, 0, 8, 0, 0.15],
+      [8, 0, 8, 6, 0.15],
+      [8, 6, 0, 6, 0.15],
+      [0, 6, 0, 0, 0.15],
+      [5, 0, 5, 3.4, 0.1],
+      [5, 3.4, 8, 3.4, 0.1],
+      [5, 3.4, 5, 6, 0.1],
+    ];
+    for (const [ax, ay, bx, by, thickness] of walls) {
+      const result = await run("add_wall", { ax, ay, bx, by, thickness, height: 2.7 });
+      if (!result.ok) throw new Error(result.summary);
+    }
+    const rooms = [
+      { x: 0.075, y: 0.075, w: 4.85, h: 5.85, label: "Living & Kitchen", floor: "oak" },
+      { x: 5.075, y: 0.075, w: 2.85, h: 3.25, label: "Bedroom", floor: "carpet" },
+      { x: 5.075, y: 3.475, w: 2.85, h: 2.45, label: "Bathroom", floor: "tile" },
+    ];
+    for (const room of rooms) {
+      const result = await run("add_room", room);
+      if (!result.ok) throw new Error(result.summary);
+    }
+  });
+}
+
 try {
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.getByLabel("New project name").fill("Bathroom Survey");
@@ -214,16 +243,13 @@ try {
   assertReadablePlan("Bathroom Concept auto-fit", concept);
   console.log(`Bathroom Concept auto-fit: room ${concept.rooms[0].text} ${concept.rooms[0].fontSize}px`);
 
-  // Sunset Loft no longer ships, but it is still the multi-room case. Load its seed through the
-  // Vite dev server into a blank project, then reopen it so auto-fit runs on it.
+  // Sunset Loft no longer ships, but its geometry is still the multi-room case.
+  // Build it through the public tools, then reopen it so auto-fit runs on it.
   await page.getByRole("button", { name: "Projects" }).click();
   await page.getByLabel("New project name").fill("Sunset Loft");
   await page.getByRole("button", { name: "Create blank" }).click();
   await page.waitForSelector(".editor-svg");
-  await page.evaluate(async () => {
-    const { seedLoft } = await import("/src/model/seed.ts");
-    window.__alza.actions.loadModel(seedLoft());
-  });
+  await buildLoftLabels(page);
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Choose a plan" }).waitFor();
   const loft = page.locator(".project-card").filter({ has: page.getByText("Sunset Loft", { exact: true }) });
