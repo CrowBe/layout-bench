@@ -7,6 +7,7 @@ import {
 } from "../model/productLibrary";
 import { logActivity } from "../model/store";
 import { formatMm } from "../model/geometry";
+import { measurementFields, evidenceText } from "../model/productMeasurements";
 import { categoryById, REFERENCES } from "../model/products";
 import { Link } from "./ProductSource";
 
@@ -14,6 +15,7 @@ import { Link } from "./ProductSource";
 export function ProductReviewSummary({ request }: { request: ProductRequest }) {
   const summary = productReviewSummary(request);
   const category = categoryById(request.category)!;
+  const fields = request.mode ? measurementFields(category) : category.fields;
   const [error, setError] = useState("");
   const act = (name: string, result: LibraryResult) => {
     logActivity("human", name, result.summary, result.ok);
@@ -21,10 +23,10 @@ export function ProductReviewSummary({ request }: { request: ProductRequest }) {
   };
   return (
     <section
-      aria-label="Research completeness"
+      aria-label={request.mode ? "Measurement completeness" : "Research completeness"}
       className="product-review-summary"
     >
-      <strong>Research completeness</strong>
+      <strong>{request.mode ? "Measurement completeness" : "Research completeness"}</strong>
       <p>
         {summary.applicableRequired.length} applicable required fields ·{" "}
         {summary.unknownRequired.length} unknown · {summary.conflicts.length}{" "}
@@ -81,7 +83,7 @@ export function ProductReviewSummary({ request }: { request: ProductRequest }) {
               {summary.fields
                 .filter((row) => row.group === group && row.submitted)
                 .map((row) => {
-                  const spec = category.fields.find(
+                  const spec = fields.find(
                     (field) => field.key === row.key,
                   )!;
                   const value = request.submission!.fields[row.key];
@@ -107,6 +109,8 @@ export function ProductReviewSummary({ request }: { request: ProductRequest }) {
                         {datum ? ` · ${REFERENCES[datum]}` : ""}
                       </td>
                       <td>
+                        {value.measurement && <div>{evidenceText(value)}</div>}
+                        {value.observations?.map((observation, index) => <div key={`observation-${index}`}>Observation {index + 1}: {observation.value === null ? "unknown" : spec.type === "length" && typeof observation.value === "number" ? `${formatMm(observation.value)} mm` : String(observation.value)} · {observation.status ?? "unknown"} · {observation.reference ?? "not spatial"} · {evidenceText(observation)} · {observation.note}</div>)}
                         {(value.sources ?? []).map((source, index) => (
                           <div key={index}>
                             <Link url={source.url} locator={source.locator} />

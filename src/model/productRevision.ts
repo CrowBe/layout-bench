@@ -1,8 +1,14 @@
 /** Catalogue revisions are application history, never manufacturer revision claims. */
-import { identityOf, type ExactProduct } from "./productIdentity";
+import {
+  identityOf,
+  isExactProduct,
+  type ExactProduct,
+} from "./productIdentity";
 import type { LibraryProduct } from "./productLibrary";
 import type { SpecSubmission } from "./products";
 import type { PlanModel } from "./types";
+import { isProductSpecification } from "./productMeasurements";
+import { categoryById, REFERENCES } from "./products";
 
 export interface ProductRevision {
   seriesId: string;
@@ -23,6 +29,48 @@ export function validProductRevision(value: unknown): value is ProductRevision {
     Number.isInteger(v.number) &&
     v.number > 0 &&
     (v.parentProductId === undefined || typeof v.parentProductId === "string")
+  );
+}
+
+export function validProductSnapshot(value: unknown): value is LibraryProduct {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const product = value as LibraryProduct;
+  if (
+    !isExactProduct(product) ||
+    typeof product.id !== "string" ||
+    typeof product.requestId !== "string" ||
+    !categoryById(product.category) ||
+    !isProductSpecification({
+      category: product.category,
+      fields: product.fields,
+      acceptedAt: product.acceptedAt,
+      recordingMode: product.recordingMode,
+    }) ||
+    (product.revision !== undefined &&
+      !validProductRevision(product.revision)) ||
+    !Array.isArray(product.roughIn)
+  )
+    return false;
+  return product.roughIn.every(
+    (point) =>
+      point &&
+      typeof point.id === "string" &&
+      typeof point.label === "string" &&
+      ["water", "waste", "power"].includes(point.service) &&
+      typeof point.resolved === "boolean" &&
+      Array.isArray(point.missing) &&
+      point.missing.every((s) => typeof s === "string") &&
+      [point.across, point.out, point.up].every(
+        (axis) =>
+          axis === undefined ||
+          (axis &&
+            Object.hasOwn(REFERENCES, axis.from) &&
+            [axis.value, axis.min, axis.max].every(
+              (n) =>
+                n === undefined ||
+                (typeof n === "number" && Number.isFinite(n)),
+            )),
+      ),
   );
 }
 

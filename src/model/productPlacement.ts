@@ -8,7 +8,9 @@ import {
   cornerBathOutline,
   envelopeOf,
   productPlacementProblem,
+  validateProductGeometry,
 } from "./products";
+import { evidenceStatus, evidenceText } from "./productMeasurements";
 import { outlineExtents, outlineProblems } from "./outline";
 import { facingRotation } from "./fixtures";
 import { sideNormal } from "./faces";
@@ -37,6 +39,16 @@ export function productPlacement(
   wall: Wall,
 ) {
   const category = categoryById(product.category);
+  const invalid = category
+    ? validateProductGeometry(category, product.fields).filter(
+        (p) => p.severity === "error",
+      )
+    : [];
+  if (invalid.length)
+    return {
+      ok: false as const,
+      summary: invalid.map((p) => p.message).join(" "),
+    };
   const unsupported = category
     ? productPlacementProblem(category, product.fields)
     : null;
@@ -100,60 +112,85 @@ export function productPlacement(
     corner && outline && !fixedHand
       ? [entryFor(corner === "left" ? "right" : "left")]
       : [];
-  const source = `${label}, product library ${product.id} (published)`;
-  const servicePoints: ServicePoint[] = (product.roughIn ?? []).map((point) => {
-    const end = corner ?? product.fields.wasteEnd?.value;
-    const across =
-      point.across?.from === "fixture-centreline"
-        ? point.across.value
-        : point.across?.from === "fixture-end" &&
-            point.across.value !== undefined &&
-            (end === "left" || end === "right")
-          ? quantize(
-              end === "left"
-                ? -box.w / 2 + point.across.value
-                : box.w / 2 - point.across.value,
-            )
-          : undefined;
-    let face = "finished",
-      out: number | undefined,
-      outMax: number | undefined;
-    if (point.out?.from === "finished-wall") {
-      out = point.out.value ?? point.out.min;
-      outMax =
-        point.out.max !== undefined && point.out.min !== undefined
-          ? point.out.max
-          : undefined;
-    } else if (point.out?.from === "fixture-side") {
-      face = anchor.face;
-      out =
-        point.out.value !== undefined
-          ? quantize(point.out.value + anchor.gap)
-          : undefined;
-    }
-    const up = point.up?.from === "finished-floor" ? point.up.value : undefined;
-    const unconverted = [
-      point.across && across === undefined
-        ? `across from ${point.across.from}`
-        : "",
-      point.out && out === undefined ? `out from ${point.out.from}` : "",
-      point.up && up === undefined ? `up from ${point.up.from}` : "",
-    ].filter(Boolean);
-    return {
-      id: point.id,
-      label: point.label,
-      service: point.service,
-      face,
-      ...(out !== undefined ? { out } : {}),
-      ...(outMax !== undefined ? { outMax } : {}),
-      ...(across !== undefined ? { across } : {}),
-      ...(up !== undefined ? { up } : {}),
-      status: "published",
-      source: unconverted.length
-        ? `${source}; not converted: ${unconverted.join(", ")}`
-        : source,
-    };
-  });
+  const source = `${label}, product library ${product.id}`;
+  const servicePoints: ServicePoint[] = (product.roughIn ?? [])
+    .filter(
+      (point) =>
+        product.recordingMode !== "human-measurement" ||
+        evidenceStatus([
+          point.across?.evidence,
+          point.out?.evidence,
+          point.out?.maxEvidence,
+          point.up?.evidence,
+        ]),
+    )
+    .map((point) => {
+      const end = corner ?? product.fields.wasteEnd?.value;
+      const across =
+        point.across?.from === "fixture-centreline"
+          ? point.across.value
+          : point.across?.from === "fixture-end" &&
+              point.across.value !== undefined &&
+              (end === "left" || end === "right")
+            ? quantize(
+                end === "left"
+                  ? -box.w / 2 + point.across.value
+                  : box.w / 2 - point.across.value,
+              )
+            : undefined;
+      let face = "finished",
+        out: number | undefined,
+        outMax: number | undefined;
+      if (point.out?.from === "finished-wall") {
+        out = point.out.value ?? point.out.min;
+        outMax =
+          point.out.max !== undefined && point.out.min !== undefined
+            ? point.out.max
+            : undefined;
+      } else if (point.out?.from === "fixture-side") {
+        face = anchor.face;
+        out =
+          point.out.value !== undefined
+            ? quantize(point.out.value + anchor.gap)
+            : undefined;
+      }
+      const up =
+        point.up?.from === "finished-floor" ? point.up.value : undefined;
+      const unconverted = [
+        point.across && across === undefined
+          ? `across from ${point.across.from}`
+          : "",
+        point.out && out === undefined ? `out from ${point.out.from}` : "",
+        point.up && up === undefined ? `up from ${point.up.from}` : "",
+      ].filter(Boolean);
+      const axisEvidence = {
+        ...(point.across?.evidence ? { across: point.across.evidence } : {}),
+        ...(point.out?.evidence ? { out: point.out.evidence } : {}),
+        ...(point.out?.maxEvidence ? { outMax: point.out.maxEvidence } : {}),
+        ...(point.up?.evidence ? { up: point.up.evidence } : {}),
+      };
+      const status = evidenceStatus(Object.values(axisEvidence)) ?? "published";
+      const sourced = [source, ...Object.values(axisEvidence).map(evidenceText)]
+        .filter(Boolean)
+        .join("; ");
+      return {
+        id: point.id,
+        label: point.label,
+        service: point.service,
+        face,
+        ...(out !== undefined ? { out } : {}),
+        ...(outMax !== undefined ? { outMax } : {}),
+        ...(across !== undefined ? { across } : {}),
+        ...(up !== undefined ? { up } : {}),
+        status,
+        ...(Object.keys(axisEvidence).length
+          ? { axisEvidence: structuredClone(axisEvidence) }
+          : {}),
+        source: unconverted.length
+          ? `${sourced}; not converted: ${unconverted.join(", ")}`
+          : sourced,
+      };
+    });
   return {
     ok: true as const,
     entry,

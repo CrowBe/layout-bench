@@ -15,6 +15,9 @@ import { catalogForItem, CATALOG } from "../src/model/catalog";
 import { previewProductUpdate } from "../src/model/productUpdates";
 import { checkSheet } from "../src/sheets/check";
 import { planningEvidence } from "../src/model/productRevision";
+import { parseImport } from "../src/model/projects";
+import { specRows } from "../src/sheets/stageView";
+import { buildFurniture } from "../src/three/furniture";
 const source = {
   url: "https://example.com/synthetic-vanity.pdf",
   locator: "p. 2",
@@ -65,6 +68,139 @@ beforeEach(() => {
   store.setState({ model: emptyModel(), kinds: [], undoStack: [] });
 });
 describe("accepted catalogue revision history (#53)", () => {
+  it("preserves only a site-edited axis on a mixed-provenance point, rather than the weakest aggregate status", () => {
+    const first = original();
+    const wallId = actions.addWall(0, 0, 3, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wallId, "right", {
+      existing: { value: 0, status: "measured" },
+      layers: [],
+    });
+    const id = actions.placeProduct(first, {
+      wallId,
+      side: "right",
+      face: "existing",
+      distance: 1,
+      status: "proposed",
+    }).id as string;
+    const model = store.getState().model,
+      item = model.items[0],
+      point = item.servicePoints!.find((p) => p.id === "waste")!;
+    const edited = {
+      ...point,
+      across: 0.12,
+      status: "published" as const,
+      axisEvidence: {
+        ...point.axisEvidence,
+        across: {
+          value: 0.12,
+          status: "measured" as const,
+          reference: "fixture-centreline" as const,
+          measurement: {
+            unit: "metres" as const,
+            date: "2026-10-03",
+            evidence: "Synthetic site axis check",
+            recordedBy: "human" as const,
+          },
+        },
+      },
+    };
+    store.setState({
+      model: { ...model, items: [{ ...item, servicePoints: [edited] }] },
+    });
+    const target = {
+      ...structuredClone(first),
+      id: "mixed-two",
+      revision: { seriesId: first.id, number: 2, parentProductId: first.id },
+      roughIn: first.roughIn.map((p) =>
+        p.id === "waste"
+          ? { ...p, up: { ...p.up!, value: 0.55, evidence: { ...pub(0.55) } } }
+          : p,
+      ),
+    };
+    const preview = previewProductUpdate(
+      store.getState().model,
+      target,
+      [id],
+      [first, target],
+    );
+    const after = preview.rows[0].after!.servicePoints![0];
+    expect(after.across).toBe(0.12);
+    expect(after.up).toBe(0.55);
+    expect(after.axisEvidence!.across).toEqual(edited.axisEvidence.across);
+    expect(preview.rows[0].preserved.join(" ")).toMatch(
+      /site-edited.*measured/,
+    );
+    const renamed = {
+      ...target,
+      roughIn: target.roughIn.map((p) => ({ ...p, id: "new-connection" })),
+    };
+    const removed = previewProductUpdate(
+      store.getState().model,
+      renamed,
+      [id],
+      [first, renamed],
+    );
+    expect(
+      removed.rows[0].after!.servicePoints!.some(
+        (p) => p.id === "waste" && p.across === 0.12,
+      ),
+    ).toBe(true);
+    expect(removed.rows[0].unresolved.join(" ")).toMatch(
+      /new catalogue evidence differs/,
+    );
+  });
+  it("keeps pinned geometry and specification through project import without a live library", () => {
+    const first = original();
+    const wallId = actions.addWall(0, 0, 3, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wallId, "right", {
+      existing: { value: 0, status: "measured" },
+      layers: [],
+    });
+    actions.placeProduct(first, {
+      wallId,
+      side: "right",
+      face: "existing",
+      distance: 1,
+      status: "proposed",
+    });
+    const state = store.getState(),
+      originalItem = structuredClone(state.model.items[0]);
+    actions.defineItemKind({ ...originalItem.productGeometry!, w: 1.5 });
+    expect(catalogForItem(state.model.items[0])!.w).toBe(0.9);
+    const transferred = parseImport(
+      JSON.stringify({
+        version: 2,
+        id: "revision-transfer",
+        model: state.model,
+        kinds: state.kinds,
+        notes: [],
+        presentation: "planning",
+      }),
+    );
+    productStore.setState({ requests: [], products: [] });
+    const item = transferred.model.items[0];
+    expect(item.productSnapshot).toEqual(first);
+    expect(catalogForItem(item)!.w).toBe(0.9);
+    expect(
+      specRows(
+        transferred.model,
+        {
+          id: `fixture:${item.id}`,
+          type: "fixture",
+          layer: "fixtures",
+          ref: item.id,
+          label: "Pinned",
+        },
+        [],
+      ).some((row) => row.property === "width" && row.value === "900"),
+    ).toBe(true);
+    expect(buildFurniture(item.kind, item.productGeometry)).not.toBeNull();
+    const bad = JSON.parse(JSON.stringify(transferred));
+    bad.model.items[0].productSnapshot.fields.width.sources = {};
+    expect(() => parseImport(JSON.stringify(bad))).toThrow(
+      /invalid model data/,
+    );
+  });
   it("previews without changing any instance or runtime kind; updates only the human selection and supports undo", () => {
     const first = original();
     const wallId = actions.addWall(0, 0, 5, 0, 0.1, 2.4).id as string;

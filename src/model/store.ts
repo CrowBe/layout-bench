@@ -1564,6 +1564,7 @@ export const actions = {
       id: uid("item"), kind: placement.entry.kind, x: 0, y: 0, rotation: 0,
       anchor: built.anchor, productId: product.id, productIdentity: exactSnapshot(product),
       productSnapshot: structuredClone(product), productGeometry: structuredClone(placement.entry),
+      productSpecification: structuredClone({ category: product.category, fields: product.fields, recordingMode: product.recordingMode, acceptedAt: product.acceptedAt }),
       selectionStatus: "unknown", servicePoints: placement.servicePoints,
       ...(placement.corner ? { corner: placement.corner } : {}),
     };

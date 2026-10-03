@@ -178,6 +178,12 @@ export function previewProductUpdate(
       productIdentity: exactSnapshot(target),
       productSnapshot: structuredClone(target),
       productGeometry: structuredClone(placement.entry),
+      productSpecification: structuredClone({
+        category: target.category,
+        fields: target.fields,
+        recordingMode: target.recordingMode,
+        acceptedAt: target.acceptedAt,
+      }),
       servicePoints: services.points,
       corner: placement.corner,
     };

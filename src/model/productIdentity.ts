@@ -1,5 +1,6 @@
 /** Exact variant evidence (#47). Absent legacy values stay explicitly unknown. */
 import type { SourceRef, SpecProblem } from "./products";
+import { isPhysicalItem, type PhysicalItem } from "./productMeasurements";
 
 export const IDENTITY_FIELDS = { code: "Product code", finish: "Finish", configuration: "Size / configuration", handedness: "Handedness" } as const;
 export type IdentityKey = keyof typeof IDENTITY_FIELDS;
@@ -26,6 +27,7 @@ export interface ExactProduct {
   identity?: ProductIdentity;
   components?: ProductComponent[];
   componentsStatus?: "documented" | "unknown" | "not-applicable";
+  physicalItem?: PhysicalItem;
 }
 export type SelectionStatus = "unknown" | "proposed" | "purchased" | "reused";
 export const SELECTION_STATUSES: SelectionStatus[] = ["unknown", "proposed", "purchased", "reused"];
@@ -34,9 +36,9 @@ export const identityOf = (p: Pick<ExactProduct, "identity">): ProductIdentity =
 export const identityText = (v: IdentityValue): string => v.state === "known" ? v.value ?? "unknown" : v.state;
 export const exactProductLabel = (p: ExactProduct): string => {
   const identity = identityOf(p);
-  return [[p.manufacturer, p.model].filter(Boolean).join(" "), ...Object.values(identity).filter(v => v.state === "known").map(identityText)].filter(Boolean).join(" · ");
+  return [p.physicalItem?.label ?? [p.manufacturer, p.model].filter(Boolean).join(" "), ...Object.values(identity).filter(v => v.state === "known").map(identityText)].filter(Boolean).join(" · ");
 };
-export const exactSnapshot = (p: ExactProduct): ExactProduct => structuredClone({ manufacturer: p.manufacturer, model: p.model, ...(p.code ? { code: p.code } : {}), identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" });
+export const exactSnapshot = (p: ExactProduct): ExactProduct => structuredClone({ manufacturer: p.manufacturer, model: p.model, ...(p.code ? { code: p.code } : {}), ...(p.physicalItem ? { physicalItem: p.physicalItem } : {}), identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" });
 export function identityReviewKeys(p: ExactProduct): string[] {
   return [...(p.identity ? Object.keys(IDENTITY_FIELDS).map(k => `identity.${k}`) : []), ...(p.componentsStatus !== undefined || p.components !== undefined ? ["components"] : [])];
 }
@@ -98,6 +100,7 @@ export function isExactProduct(value: unknown): value is ExactProduct {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const p = value as ExactProduct;
   if (typeof p.manufacturer !== "string" || typeof p.model !== "string" || (p.code !== undefined && typeof p.code !== "string")) return false;
+  if (p.physicalItem !== undefined && !isPhysicalItem(p.physicalItem)) return false;
   return !validateIdentity(p, sources => {
     if (!sources.length) return "Missing source.";
     return sources.every(s => {
