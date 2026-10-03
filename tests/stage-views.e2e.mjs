@@ -4,7 +4,7 @@
  * Builds the bathroom through the tools, then composes, inspects and exports stage views by
  * visibility alone. An absent heating-cable layer (a known layer without a record) is refused
  * with nothing changed. Recorded cable content is exercised in heating.e2e.mjs. Switching stages changes what the diagram and specification sheet show;
- * the project model is byte-identical before and after. The Sheets tab shows the composed view
+ * the planning model is byte-identical before and after; immutable output archives are retained. The Sheets tab shows the composed view
  * and downloads both outputs.
  *
  * Run with the studio dev server up:  ALZA_BASE_URL=http://127.0.0.1:5199/ node tests/stage-views.e2e.mjs
@@ -23,7 +23,7 @@ try {
   await page.getByLabel("New project name").fill("Stage views");
   await page.getByRole("button", { name: "Create blank" }).click();
   const run = (name, args = {}) => page.evaluate(([tool, input]) => window.__alza.runTool(tool, input), [name, args]);
-  const modelJson = () => page.evaluate(() => JSON.stringify(window.__alza.store.getState().model));
+  const modelJson = () => page.evaluate(() => {const model=JSON.parse(JSON.stringify(window.__alza.store.getState().model));if(model.sheetSet)delete model.sheetSet.stageExports;return JSON.stringify(model);});
   const P = (value) => ({ value, status: "proposed" });
 
   const corners = [[0, 0], [2.11, 0], [2.11, 3.02], [0, 3.02]];
@@ -105,8 +105,11 @@ try {
   assert.match(outputs[6].svg, /Adhesive \? \(position unresolved\)/);
   assert.equal(new Set(outputs.map((o) => o.svg)).size, 9);
 
-  // The canonical model is untouched by nine compose/inspect/export cycles
+  // Planning geometry is untouched; the nine immutable issued output archives are retained.
   assert.equal(await modelJson(), before);
+  const archives=await page.evaluate(()=>window.__alza.store.getState().model.sheetSet.stageExports);
+  assert.equal(archives.length,9);
+  for(let index=0;index<outputs.length;index++){assert.equal(archives[index].svg,outputs[index].svg);assert.equal(archives[index].specHtml,outputs[index].specHtml);assert.equal(typeof archives[index].modelEvidence,"string");}
   assert.equal(await page.evaluate(() => window.__alza.store.getState().undoStack.length), undoBefore);
   assert.equal((await run("list_sheets")).sheets[0].revisions.length, 0);
 
@@ -126,7 +129,7 @@ try {
   assert.match(file, /Specification: 3\. Plumbing and electrical rough-in/);
 
   assert.deepEqual(errors, []);
-  console.log("PASS: real layers listed, unknown id refused, 9 stages composed and exported with matching diagram/spec content, model unchanged, switch back, Sheets tab download");
+  console.log("PASS: real layers listed, unknown id refused, 9 stages composed and exported with matching diagram/spec content, planning model unchanged and immutable archives retained, switch back, Sheets tab download");
 } finally {
   await browser.close();
 }
