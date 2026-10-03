@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { currentReview } from "../model/productReview";
 import { IDENTITY_FIELDS, identityOf, identityText, type ExactProduct, type IdentityKey, type ProductIdentity } from "../model/productIdentity";
 import { products, productReviewWarnings, type ProductRequest } from "../model/productLibrary";
 import { Link } from "./ProductSource";
@@ -14,11 +15,19 @@ export function ExactIdentity({ product, request }: { product: ExactProduct; req
   const reviewComponents = product.components !== undefined || product.componentsStatus !== undefined || reviewWarnings.some(w => w.field === "components");
   const [reason, setReason] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
-  const review = (key: string, required: boolean) => !request || !required ? null : request.reviews[key] ? <span>{request.reviews[key].decision}{request.reviews[key].reason ? `: ${request.reviews[key].reason}` : ""}</span> : <div className="review-actions">
-    <button type="button" onClick={() => { const r = products.review(request.id, key, "accepted"); setError(r.ok ? "" : r.summary); }}>Accept</button>
-    <input aria-label={`Reason to reject ${key}`} placeholder="reason to reject" value={reason[key] ?? ""} onChange={e => setReason({ ...reason, [key]: e.target.value })} />
-    <button type="button" onClick={() => { const r = products.review(request.id, key, "rejected", reason[key]); setError(r.ok ? "" : r.summary); }}>Reject</button>
-  </div>;
+  const review = (key: string, required: boolean) => {
+    if (!request || !required) return null;
+    const decision = currentReview(request, key);
+    return <>
+      {decision && <span>{decision.decision}{decision.reason ? `: ${decision.reason}` : ""}</span>}
+      {request.previousRejections?.[key] && decision?.decision !== "rejected" && <div>Previously rejected: {request.previousRejections[key]}</div>}
+      {request.status === "submitted" && (!decision || decision.decision === "rejected") && <div className="review-actions">
+        <button type="button" onClick={() => { const r = products.review(request.id, key, "accepted"); setError(r.ok ? "" : r.summary); }}>{decision ? "Accept individually after rejection" : "Accept"}</button>
+        <input aria-label={`Reason to reject ${key}`} placeholder="reason to reject" value={reason[key] ?? ""} onChange={e => setReason({ ...reason, [key]: e.target.value })} />
+        <button type="button" onClick={() => { const r = products.review(request.id, key, "rejected", reason[key]); setError(r.ok ? "" : r.summary); }}>Reject</button>
+      </div>}
+    </>;
+  };
   const warnings = (key: string) => reviewWarnings.filter(w => w.field === key).map((w, i) => <div key={i} className="inspector-warn">⚠ {w.message}</div>);
   return <section className="product-identity" aria-label="Exact product identity">
     <table className="products-table"><thead><tr><th>Exact identity</th><th>Value</th><th>Evidence</th>{request && <th>Review</th>}</tr></thead><tbody>

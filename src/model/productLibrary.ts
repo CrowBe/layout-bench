@@ -7,8 +7,10 @@
  * Products page and is not published as a tool.
  */
 
-import { identityOf, identityReviewKeys, validateIdentity, isExactProduct, type ProductIdentity, type ProductComponent, type ExactProduct } from "./productIdentity";
+import { identityOf, validateIdentity, isExactProduct, type ProductIdentity, type ProductComponent, type ExactProduct } from "./productIdentity";
 import { safeUrl } from "./products";
+import { currentReview, prepareReviewRevision, productReviewSummary, requiredReviewKeys, reviewEvidence, REVIEW_GROUPS } from "./productReview";
+import type { FieldGroup } from "./products";
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 import { ATTACHMENT_PREFIX, categoryById, roughInPoints, validateSubmission, type FieldValue, type RoughInPoint, type SpecProblem, type SpecSubmission } from "./products";
@@ -33,6 +35,9 @@ export type RequestStatus = "open" | "submitted" | "accepted" | "withdrawn";
 export interface FieldReview {
   decision: "accepted" | "rejected";
   reason?: string;
+  /** Evidence reviewed by the human; absent on legacy records. */
+  evidence?: string;
+  method?: "individual" | "group" | "reused";
 }
 
 /** Largest file a request takes (#34). Spec sheets are rarely over a few MB. */
@@ -62,6 +67,12 @@ export interface ProductRequest {
   createdAt: number;
   submission?: SpecSubmission & { at: number; warnings: SpecProblem[] };
   reviews: Record<string, FieldReview>;
+  /** Unchanged approvals require an explicit human reuse action after revision. */
+  reuseCandidates?: Record<string, FieldReview>;
+  /** Previously rejected fields must be reviewed individually, even after correction. */
+  individualOnly?: string[];
+  /** Preserve the human's reason when corrected evidence invalidates a rejection. */
+  previousRejections?: Record<string, string>;
   /** what the human said when sending it back */
   feedback?: string;
   productId?: string;
@@ -103,7 +114,11 @@ function requestEvidenceWarnings(knownDetails: KnownDetails, submission: SpecSub
 /** Pending review always derives conflicts anew; accepted history keeps its recorded warnings. */
 export function productReviewWarnings(request: ProductRequest): SpecProblem[] {
   if (!request.submission) return [];
-  const warnings = [...request.submission.warnings, ...(request.status === "submitted" ? requestEvidenceWarnings(request.known, request.submission) : [])];
+  const category = categoryById(request.category);
+  const warnings = [...request.submission.warnings, ...(request.status === "submitted" ? [
+    ...requestEvidenceWarnings(request.known, request.submission),
+    ...(category ? validateSubmission(category, request.submission, { attachments: request.attachments ?? [] }) : []),
+  ] : [])];
   return [...new Map(warnings.map(w => [`${w.field}:${w.code}:${w.message}`, w])).values()];
 }
 
@@ -240,10 +255,14 @@ export const products = {
     }
     const identity = identityOf(submission);
     const warnings = [...problems, ...requestEvidenceWarnings(req.known, submission)].filter((p) => p.severity === "warning");
-    updateRequest(req.id, {
-      status: "submitted",
+    const next: ProductRequest = {
+      ...req, status: "submitted",
       submission: { ...structuredClone(submission), ...(submission.identity ? { identity: structuredClone(identity) } : {}), at: Date.now(), warnings },
       reviews: {},
+    };
+    const revision = prepareReviewRevision(req, next);
+    updateRequest(req.id, {
+      status: next.status, submission: next.submission, ...revision,
       feedback: undefined,
     });
     return ok(
@@ -255,9 +274,43 @@ export const products = {
   review(requestId: string, field: string, decision: FieldReview["decision"], reason?: string): LibraryResult {
     const req = findRequest(requestId);
     if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be reviewed.");
+    if (!requiredReviewKeys(req).includes(field)) return fail("Only a submitted or flagged field can be reviewed.");
+    if (!["accepted", "rejected"].includes(decision)) return fail("Choose accepted or rejected.");
     if (decision === "rejected" && !reason?.trim()) return fail("Say why the value is rejected, so the agent can act on it.");
-    updateRequest(req.id, { reviews: { ...req.reviews, [field]: { decision, ...(reason?.trim() ? { reason: reason.trim() } : {}) } } });
+    const rejection = decision === "rejected" ? reason!.trim() : req.reviews[field]?.decision === "rejected" ? req.reviews[field].reason : undefined;
+    updateRequest(req.id, {
+      reviews: { ...req.reviews, [field]: { decision, evidence: reviewEvidence(req, field), method: "individual", ...(reason?.trim() ? { reason: reason.trim() } : {}) } },
+      ...(rejection ? {
+        individualOnly: [...new Set([...(req.individualOnly ?? []), field])],
+        previousRejections: { ...req.previousRejections, [field]: rejection },
+      } : {}),
+    });
     return ok(`${field} ${decision}.`);
+  },
+
+  /** Human only; recompute eligibility at the click, never trust the displayed count. */
+  reviewGroup(requestId: string, group: FieldGroup): LibraryResult {
+    const req = findRequest(requestId);
+    if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be reviewed.");
+    if (!REVIEW_GROUPS.includes(group)) return fail("Choose envelope, rough-in or installation.");
+    const keys = productReviewSummary(req).groups.find(g => g.group === group)!.eligible;
+    if (!keys.length) return fail(`No clean pending ${group} fields are eligible.`);
+    const reviews = { ...req.reviews };
+    for (const key of keys) reviews[key] = { decision: "accepted", evidence: reviewEvidence(req, key), method: "group" };
+    updateRequest(req.id, { reviews });
+    return ok(`Human accepted ${keys.length} clean ${group} field(s). Final product acceptance is separate.`, { reviewed: keys });
+  },
+
+  /** Human explicitly confirms reuse of the unchanged evidence shown in the page. */
+  reuseReviews(requestId: string): LibraryResult {
+    const req = findRequest(requestId);
+    if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can reuse reviews.");
+    const keys = productReviewSummary(req).reuse;
+    if (!keys.length) return fail("No unchanged accepted reviews can be reused.");
+    const reviews = { ...req.reviews };
+    for (const key of keys) reviews[key] = { ...req.reuseCandidates![key], method: "reused" };
+    updateRequest(req.id, { reviews });
+    return ok(`Human reused ${keys.length} unchanged accepted review(s).`, { reviewed: keys });
   },
 
   /** Send a submission back to the agent with the reviewer's reasons. */
@@ -275,9 +328,9 @@ export const products = {
   accept(requestId: string): LibraryResult {
     const req = findRequest(requestId);
     if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be accepted.");
-    const flaggedIdentity = productReviewWarnings(req).flatMap(w => w.field === "components" || w.field?.startsWith("identity.") ? [w.field] : []);
-    const keys = [...new Set([...Object.keys(req.submission.fields), ...identityReviewKeys(req.submission), ...flaggedIdentity])];
-    const pending = keys.filter((k) => req.reviews[k]?.decision !== "accepted");
+    const errors = productReviewWarnings(req).filter(w => w.severity === "error");
+    if (errors.length) return fail(`Submission needs correction: ${errors.map(e => e.message).join(" ")}`);
+    const pending = requiredReviewKeys(req).filter((k) => currentReview(req, k)?.decision !== "accepted");
     if (pending.length) return fail(`Review every field first. Not accepted: ${pending.join(", ")}.`);
     const product: LibraryProduct = {
       id: uid("product"),

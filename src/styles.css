@@ -350,6 +350,10 @@ button.linklike { padding: 0; border: 0; background: none; color: var(--agent); 
 .products-product summary { cursor: pointer; }
 @media (max-width: 760px) { .products-body { grid-template-columns: 1fr; } }
 .products-card > button { align-self: flex-start; }
+.product-review-summary { padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.product-review-summary details { margin: 10px 0; }
+.product-review-summary summary { cursor: pointer; font-weight: 600; }
+.product-review-summary p { margin: 8px 0; }
 
 /* ---- fixture set-out (#5) ---- */
 .inspector:has(.fixture-panel) { width: 340px; }

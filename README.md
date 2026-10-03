@@ -278,7 +278,15 @@ A few design notes:
   alternative sources are held to the same rules. Accepted products carry their rough-in
   points (wastes, water inlet), each axis naming the datum it is measured from. Disagreeing sources and
   figures measured from a different datum are flagged. A person reviews each field and accepts
-  the product; no tool can.
+  the product; no tool can. The completeness summary exposes applicable required values,
+  unknowns, conflicts, datum mismatches and pending or rejected reviews. A human can confirm
+  clean pending fields in named envelope, rough-in and installation groups after reading
+  their values, statuses and source locators. Unknown, flagged and previously rejected fields
+  stay individual; accepting an unknown acknowledges missing evidence. Final product
+  acceptance remains separate. Returned revisions invalidate changed values, sources, datums
+  and applicability; unchanged approvals require explicit human reuse. Existing saved
+  decisions and rejection reasons remain readable. `tests/product-review.e2e.mjs` checks
+  these boundaries through real human controls and browser reloads with synthetic evidence.
 
 - Fitting briefs distinguish powered/unpowered and fixed/hinged variants, and product-local
   mounting dimensions from proposed project heights. Unknown fields remain explicit through
