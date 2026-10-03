@@ -9,11 +9,13 @@ import { ExactIdentity, IdentityEditor } from "./ProductIdentity";
 import { MeasurementEditor, NewMeasurements } from "./ProductMeasurements";
 import { evidenceText, measurementFields } from "../model/productMeasurements";
 import { unknownIdentity, identityOf, identityText, exactProductLabel, type ProductComponent } from "../model/productIdentity";
+import { ProductReviewSummary } from "./ProductReviewSummary";
+import { currentReview } from "../model/productReview";
 import { useEffect, useState } from "react";
 import { logActivity } from "../model/store";
 import { formatMm } from "../model/geometry";
 import { PRODUCT_CATEGORIES, REFERENCES, applies, type AxisValue, categoryById, envelopeOf, productPlacementProblem, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
-import { MAX_ATTACHMENT_BYTES, products, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
+import { MAX_ATTACHMENT_BYTES, requestEvidenceAttachments, products, productReviewWarnings, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
 
 const human = (tool: string, r: LibraryResult) => {
   logActivity("human", tool, r.summary, r.ok);
@@ -29,7 +31,7 @@ const sizeText = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB`
 
 /** Spec sheets attached to a request (#34): upload while open, view and read their text at any time. */
 function Attachments({ req }: { req: ProductRequest }) {
-  const list = req.attachments ?? [];
+  const list = requestEvidenceAttachments(req);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -58,7 +60,7 @@ function Attachments({ req }: { req: ProductRequest }) {
         return (
           <div key={a.id} className="products-attachment" data-attachment={a.id}>
             <div>
-              <b>{a.kind === "pdf" ? "PDF" : "Image"}</b> {a.name} <span className="hint">· {sizeText(a.size)} · <code>attachment:{a.id}</code></span>
+              <b>{a.kind === "pdf" ? "PDF" : "Image"}</b> {a.name}{!req.attachments?.some(own => own.id === a.id) && <span className="hint"> · read-only original evidence</span>} <span className="hint">· {sizeText(a.size)} · <code>attachment:{a.id}</code></span>
             </div>
             <div className="hint" data-text-status>
               {a.kind === "image"
@@ -71,7 +73,7 @@ function Attachments({ req }: { req: ProductRequest }) {
               {a.kind === "image"
                 ? <button type="button" onClick={() => void showImage(a)}>{preview?.id === a.id ? "Hide" : "View"}</button>
                 : <button type="button" onClick={() => void viewAttachment(a).then((e) => setError(e ?? ""))}>View</button>}
-              {open && (
+              {open && req.attachments?.some(own => own.id === a.id) && (
                 <button type="button" onClick={() => void products.detach(req.id, a.id).then((r) => { human("detach_product_attachment", r); setError(r.ok ? "" : r.summary); })}>Remove</button>
               )}
             </div>
@@ -205,10 +207,10 @@ function Brief({ cat, req }: { cat: ProductCategory; req: ProductRequest }) {
 
 function ReviewRow({ req, f }: { req: ProductRequest; f: FieldSpec }) {
   const v = req.submission!.fields[f.key];
-  const review = req.reviews[f.key];
+  const review = currentReview(req, f.key);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
-  const flags = req.submission!.warnings.filter((w) => w.field === f.key);
+  const flags = productReviewWarnings(req).filter((w) => w.field === f.key || w.field === null);
   if (!v) return null;
   const decide = (decision: "accepted" | "rejected") => {
     const r = human("review_product_field", products.review(req.id, f.key, decision, reason));
@@ -226,14 +228,14 @@ function ReviewRow({ req, f }: { req: ProductRequest; f: FieldSpec }) {
         {v.note && <div className="hint">{v.note}</div>}
         {v.measurement && <div className="hint">{evidenceText(v)} · datum {v.reference ?? "not spatial"}</div>}
         {v.observations && <div data-observations>{v.observations.map((observation, index) => <p key={index}>Observation {index + 1}: {shown(f, observation)} · {observation.status ?? "unknown"} · {observation.reference ?? "not spatial"} · {evidenceText(observation)} · {observation.note}</p>)}</div>}
+        {req.previousRejections?.[f.key] && review?.decision !== "rejected" && <div className="hint">Previously rejected: {req.previousRejections[f.key]}</div>}
         {flags.map((w, i) => <div key={i} className="inspector-warn">⚠ {w.message}</div>)}
       </td>
       <td>
-        {review
-          ? <span>{review.decision}{review.reason ? `: ${review.reason}` : ""}</span>
-          : (
+        {review && <span>{review.decision}{review.reason ? `: ${review.reason}` : ""}</span>}
+        {(!review || review.decision === "rejected") && (
             <div className="review-actions">
-              <button type="button" onClick={() => decide("accepted")}>Accept</button>
+              <button type="button" onClick={() => decide("accepted")}>{review ? "Accept individually after rejection" : "Accept"}</button>
               <input aria-label={`Reason to reject ${f.label}`} placeholder="reason to reject" value={reason} onChange={(e) => setReason(e.target.value)} />
               <button type="button" onClick={() => decide("rejected")}>Reject</button>
             </div>
@@ -263,6 +265,7 @@ function RequestDetail({ req }: { req: ProductRequest }) {
       {req.status === "submitted" && req.submission ? (
         <>
           <span>Submitted: <b>{req.submission.manufacturer} {req.submission.model}</b>{req.submission.code ? ` (${req.submission.code})` : ""}</span>
+          <ProductReviewSummary request={req} />
           <ExactIdentity product={req.submission} request={req} />
           <table className="products-table" aria-label="Submitted values">
             <thead><tr><th>Field</th><th>Value</th><th>Status</th><th>Source</th><th>Review</th></tr></thead>
@@ -323,7 +326,7 @@ function ProductCard({ p }: { p: LibraryProduct }) {
         </table>
       )}
       <button type="button" onClick={() => human("remove_product", products.removeProduct(p.id))}>Remove from library</button>
-      {p.physicalItem && <button type="button" onClick={() => human("open_human_measurements", products.openMeasurements(p.category, p.physicalItem!, p.fields))}>Record more measurements</button>}
+      {p.physicalItem && <button type="button" onClick={() => human("open_human_measurements", products.openMeasurements(p.category, p.physicalItem!, p.fields, p.requestId))}>Record more measurements</button>}
     </details>
   );
 }

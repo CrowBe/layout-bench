@@ -25,7 +25,8 @@ import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems } from "..
 import { IDENTITY_FIELDS, SELECTION_STATUSES, type SelectionStatus } from "../model/productIdentity";
 import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
 import { measurementFields } from "../model/productMeasurements";
-import { productStore, products } from "../model/productLibrary";
+import { productStore, products, requestEvidenceAttachments } from "../model/productLibrary";
+import { productReviewSummary } from "../model/productReview";
 import { checkModel } from "../model/issues";
 import { CATALOG } from "../model/catalog";
 import { SUPPLIER_ORIGIN, getProduct, listProducts } from "./supplier";
@@ -932,6 +933,7 @@ export const TOOLS: ToolDef[] = [
         requestId: req.id,
         ...(req.mode ? { mode: req.mode, humanOnly: true, measurementDraft: req.measurementDraft } : {}),
         status: req.status,
+        completeness: productReviewSummary(req),
         category: { id: cat.id, label: cat.label },
         ...(cat.placement ? { placement: cat.placement } : {}),
         known: req.known,
@@ -940,7 +942,7 @@ export const TOOLS: ToolDef[] = [
         references: REFERENCES,
         fields: fields.map((f) => ({ ...f, unit: f.type === "length" ? "metres" : f.type === "count" ? "count" : f.type, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
         roughIn: cat.roughIn,
-        attachments: (req.attachments ?? []).map((a) => ({
+        attachments: requestEvidenceAttachments(req).map((a) => ({
           id: a.id,
           cite: `attachment:${a.id}`,
           name: a.name,

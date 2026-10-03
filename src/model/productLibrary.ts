@@ -7,9 +7,11 @@
  * Products page and is not published as a tool.
  */
 
-import { identityOf, identityReviewKeys, validateIdentity, isExactProduct, type ProductIdentity, type ProductComponent, type ExactProduct } from "./productIdentity";
+import { identityOf, validateIdentity, isExactProduct, type ProductIdentity, type ProductComponent, type ExactProduct } from "./productIdentity";
 import { safeUrl } from "./products";
 import { isPhysicalItem, isProductSpecification, unknownMeasurementFields, validateMeasurementFields, type PhysicalItem } from "./productMeasurements";
+import { currentReview, prepareReviewRevision, productReviewSummary, requiredReviewKeys, reviewEvidence, REVIEW_GROUPS } from "./productReview";
+import type { FieldGroup } from "./products";
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 import { ATTACHMENT_PREFIX, categoryById, roughInPoints, validateSubmission, type FieldValue, type RoughInPoint, type SpecProblem, type SpecSubmission } from "./products";
@@ -35,6 +37,9 @@ export type RequestStatus = "open" | "submitted" | "accepted" | "withdrawn";
 export interface FieldReview {
   decision: "accepted" | "rejected";
   reason?: string;
+  /** Evidence reviewed by the human; absent on legacy records. */
+  evidence?: string;
+  method?: "individual" | "group" | "reused";
 }
 
 /** Largest file a request takes (#34). Spec sheets are rarely over a few MB. */
@@ -64,6 +69,12 @@ export interface ProductRequest {
   createdAt: number;
   submission?: SpecSubmission & { at: number; warnings: SpecProblem[] };
   reviews: Record<string, FieldReview>;
+  /** Unchanged approvals require an explicit human reuse action after revision. */
+  reuseCandidates?: Record<string, FieldReview>;
+  /** Previously rejected fields must be reviewed individually, even after correction. */
+  individualOnly?: string[];
+  /** Preserve the human's reason when corrected evidence invalidates a rejection. */
+  previousRejections?: Record<string, string>;
   /** what the human said when sending it back */
   feedback?: string;
   productId?: string;
@@ -71,6 +82,8 @@ export interface ProductRequest {
   attachments?: ProductAttachment[];
   mode?: "human-measurement";
   measurementDraft?: Record<string, FieldValue>;
+  /** Read-only evidence owned by a prior request; inherited files cannot be detached here. */
+  evidenceOriginRequestId?: string;
 }
 
 export interface LibraryProduct extends ExactProduct {
@@ -106,9 +119,13 @@ function requestEvidenceWarnings(knownDetails: KnownDetails, submission: SpecSub
 }
 
 /** Pending review always derives conflicts anew; accepted history keeps its recorded warnings. */
-export function productReviewWarnings(request: ProductRequest): SpecProblem[] {
+export function productReviewWarnings(request: ProductRequest, requests = productStore.getState().requests): SpecProblem[] {
   if (!request.submission) return [];
-  const warnings = [...request.submission.warnings, ...(request.status === "submitted" ? requestEvidenceWarnings(request.known, request.submission) : [])];
+  const category = categoryById(request.category);
+  const warnings = [...request.submission.warnings, ...(request.status === "submitted" ? [
+    ...requestEvidenceWarnings(request.known, request.submission),
+    ...(category ? request.mode === "human-measurement" ? validateMeasurementFields(category, request.submission.fields, { attachments: requestEvidenceAttachments(request, requests) }) : validateSubmission(category, request.submission, { attachments: requestEvidenceAttachments(request, requests) }) : []),
+  ] : [])];
   return [...new Map(warnings.map(w => [`${w.field}:${w.code}:${w.message}`, w])).values()];
 }
 
@@ -137,6 +154,16 @@ const uid = (prefix: string) => `${prefix}_${Date.now().toString(36)}${Math.rand
 export const productStore = createStore<LibraryState>(() => ({
   version: 1, requests: [], products: [], open: false, selectedRequestId: null, loadError: null,
 }));
+export function requestEvidenceAttachments(request: ProductRequest, requests = productStore.getState().requests): ProductAttachment[] {
+  const result = new Map<string, ProductAttachment>(), visited = new Set<string>();
+  let current: ProductRequest | undefined = request;
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    for (const attachment of current.attachments ?? []) if (!result.has(attachment.id)) result.set(attachment.id, attachment);
+    current = current.evidenceOriginRequestId ? requests.find(r => r.id === current!.evidenceOriginRequestId) : undefined;
+  }
+  return [...result.values()];
+}
 export const useProductStore = <T>(selector: (s: LibraryState) => T): T => useStore(productStore, selector);
 
 type KeyValueStore = Pick<Storage, "getItem" | "setItem">;
@@ -183,8 +210,8 @@ export function initializeProductLibrary(force = false): void {
       if (!doc.products.every(isExactProduct) || !doc.requests.every(r => r && r.known
         && isExactProduct({ manufacturer: "", model: "", identity: r.known.identity, components: r.known.components, componentsStatus: r.known.componentsStatus, physicalItem: r.known.physicalItem })
         && (r.submission === undefined || isExactProduct(r.submission)))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
-      if (!doc.products.every(p => isProductSpecification({ category: p.category, fields: p.fields, acceptedAt: p.acceptedAt, recordingMode: p.recordingMode })) || !doc.requests.every(r => (!r.mode || r.mode === "human-measurement") && (r.submission === undefined || isProductSpecification({ category: r.category, fields: r.submission.fields, acceptedAt: r.submission.at, recordingMode: r.mode })) && (!r.measurementDraft || isProductSpecification({ category: r.category, fields: r.measurementDraft, acceptedAt: r.createdAt, recordingMode: r.mode })))) throw new Error("Invalid product measurement evidence. Original browser data was kept.");
-      productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r) } } : {}) })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
+      if (!doc.products.every(p => isProductSpecification({ category: p.category, fields: p.fields, acceptedAt: p.acceptedAt, recordingMode: p.recordingMode })) || !doc.requests.every(r => (!r.mode || r.mode === "human-measurement") && (r.evidenceOriginRequestId === undefined || typeof r.evidenceOriginRequestId === "string") && (r.submission === undefined || isProductSpecification({ category: r.category, fields: r.submission.fields, acceptedAt: r.submission.at, recordingMode: r.mode })) && (!r.measurementDraft || isProductSpecification({ category: r.category, fields: r.measurementDraft, acceptedAt: r.createdAt, recordingMode: r.mode })))) throw new Error("Invalid product measurement evidence. Original browser data was kept.");
+      productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r, doc.requests) } } : {}) })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
     }
     ready = true;
   } catch (error) {
@@ -211,11 +238,12 @@ export const products = {
   select(id: string | null) { productStore.setState({ selectedRequestId: id }); },
 
   /** Human only; a physical label identifies the fitting without manufacturing a SKU. */
-  openMeasurements(category: string, physicalItem: PhysicalItem, initial?: Record<string, FieldValue>): LibraryResult {
+  openMeasurements(category: string, physicalItem: PhysicalItem, initial?: Record<string, FieldValue>, evidenceOriginRequestId?: string): LibraryResult {
     const cat = categoryById(category);
     if (!cat || !["toilet", "vanity", "bath"].includes(category)) return fail("The human measurement flow currently supports toilet, vanity and bath categories.");
     if (!isPhysicalItem(physicalItem)) return fail("Give the physical fitting a label; manufacturer and model can stay unknown.");
-    const req: ProductRequest = { id: uid("preq"), category, known: { physicalItem: structuredClone(physicalItem) }, mode: "human-measurement", status: "open", createdAt: Date.now(), reviews: {}, measurementDraft: structuredClone(initial ?? unknownMeasurementFields(cat)) };
+    if (evidenceOriginRequestId && findRequest(evidenceOriginRequestId)?.status !== "accepted") return fail("Original accepted evidence request is missing from this browser.");
+    const req: ProductRequest = { ...(evidenceOriginRequestId ? { evidenceOriginRequestId } : {}), id: uid("preq"), category, known: { physicalItem: structuredClone(physicalItem) }, mode: "human-measurement", status: "open", createdAt: Date.now(), reviews: {}, measurementDraft: structuredClone(initial ?? unknownMeasurementFields(cat)) };
     productStore.setState(s => ({ requests: [...s.requests, req], selectedRequestId: req.id }));
     return ok(`Measurements opened for ${physicalItem.label}. Record evidence, then submit for human review.`, { requestId: req.id });
   },
@@ -225,7 +253,7 @@ export const products = {
     const req = findRequest(requestId);
     if (!req || req.mode !== "human-measurement" || req.status !== "open") return fail("Only an open human measurement record can be edited.");
     const candidate = { ...req.measurementDraft, [field]: structuredClone(value) };
-    const errors = validateMeasurementFields(categoryById(req.category)!, candidate, { attachments: req.attachments }).filter(p => p.severity === "error" && p.field === field);
+    const errors = validateMeasurementFields(categoryById(req.category)!, candidate, { attachments: requestEvidenceAttachments(req) }).filter(p => p.severity === "error" && p.field === field);
     if (errors.length) return fail(errors.map(p => p.message).join(" "));
     // Working selection never removes earlier evidence, even if a caller omits the history.
     const previous = req.measurementDraft?.[field];
@@ -245,9 +273,10 @@ export const products = {
     const req = findRequest(requestId);
     if (!req || req.mode !== "human-measurement" || req.status !== "open" || !req.known.physicalItem) return fail("Only an open human measurement record can be submitted.");
     const fields = req.measurementDraft ?? {};
-    const problems = validateMeasurementFields(categoryById(req.category)!, fields, { attachments: req.attachments });
+    const problems = validateMeasurementFields(categoryById(req.category)!, fields, { attachments: requestEvidenceAttachments(req) });
     if (problems.some(p => p.severity === "error")) return fail(problems.filter(p => p.severity === "error").map(p => p.message).join(" "));
-    updateRequest(req.id, { status: "submitted", submission: { manufacturer: "", model: "", physicalItem: structuredClone(req.known.physicalItem), fields: structuredClone(fields), at: Date.now(), warnings: problems }, reviews: {} });
+    const next: ProductRequest = { ...req, status: "submitted", submission: { manufacturer: "", model: "", physicalItem: structuredClone(req.known.physicalItem), fields: structuredClone(fields), at: Date.now(), warnings: problems } };
+    updateRequest(req.id, { status: next.status, submission: next.submission, ...prepareReviewRevision(req, next) });
     return ok("Measurements submitted for human field review. Unknowns and disagreements remain visible.");
   },
 
@@ -288,10 +317,14 @@ export const products = {
     }
     const identity = identityOf(submission);
     const warnings = [...problems, ...requestEvidenceWarnings(req.known, submission)].filter((p) => p.severity === "warning");
-    updateRequest(req.id, {
-      status: "submitted",
+    const next: ProductRequest = {
+      ...req, status: "submitted",
       submission: { ...structuredClone(submission), ...(submission.identity ? { identity: structuredClone(identity) } : {}), at: Date.now(), warnings },
       reviews: {},
+    };
+    const revision = prepareReviewRevision(req, next);
+    updateRequest(req.id, {
+      status: next.status, submission: next.submission, ...revision,
       feedback: undefined,
     });
     return ok(
@@ -303,9 +336,43 @@ export const products = {
   review(requestId: string, field: string, decision: FieldReview["decision"], reason?: string): LibraryResult {
     const req = findRequest(requestId);
     if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be reviewed.");
+    if (!requiredReviewKeys(req).includes(field)) return fail("Only a submitted or flagged field can be reviewed.");
+    if (!["accepted", "rejected"].includes(decision)) return fail("Choose accepted or rejected.");
     if (decision === "rejected" && !reason?.trim()) return fail("Say why the value is rejected, so the agent can act on it.");
-    updateRequest(req.id, { reviews: { ...req.reviews, [field]: { decision, ...(reason?.trim() ? { reason: reason.trim() } : {}) } } });
+    const rejection = decision === "rejected" ? reason!.trim() : req.reviews[field]?.decision === "rejected" ? req.reviews[field].reason : undefined;
+    updateRequest(req.id, {
+      reviews: { ...req.reviews, [field]: { decision, evidence: reviewEvidence(req, field), method: "individual", ...(reason?.trim() ? { reason: reason.trim() } : {}) } },
+      ...(rejection ? {
+        individualOnly: [...new Set([...(req.individualOnly ?? []), field])],
+        previousRejections: { ...req.previousRejections, [field]: rejection },
+      } : {}),
+    });
     return ok(`${field} ${decision}.`);
+  },
+
+  /** Human only; recompute eligibility at the click, never trust the displayed count. */
+  reviewGroup(requestId: string, group: FieldGroup): LibraryResult {
+    const req = findRequest(requestId);
+    if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be reviewed.");
+    if (!REVIEW_GROUPS.includes(group)) return fail("Choose envelope, rough-in or installation.");
+    const keys = productReviewSummary(req).groups.find(g => g.group === group)!.eligible;
+    if (!keys.length) return fail(`No clean pending ${group} fields are eligible.`);
+    const reviews = { ...req.reviews };
+    for (const key of keys) reviews[key] = { decision: "accepted", evidence: reviewEvidence(req, key), method: "group" };
+    updateRequest(req.id, { reviews });
+    return ok(`Human accepted ${keys.length} clean ${group} field(s). Final product acceptance is separate.`, { reviewed: keys });
+  },
+
+  /** Human explicitly confirms reuse of the unchanged evidence shown in the page. */
+  reuseReviews(requestId: string): LibraryResult {
+    const req = findRequest(requestId);
+    if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can reuse reviews.");
+    const keys = productReviewSummary(req).reuse;
+    if (!keys.length) return fail("No unchanged accepted reviews can be reused.");
+    const reviews = { ...req.reviews };
+    for (const key of keys) reviews[key] = { ...req.reuseCandidates![key], method: "reused" };
+    updateRequest(req.id, { reviews });
+    return ok(`Human reused ${keys.length} unchanged accepted review(s).`, { reviewed: keys });
   },
 
   /** Send a submission back to the agent with the reviewer's reasons. */
@@ -323,9 +390,9 @@ export const products = {
   accept(requestId: string): LibraryResult {
     const req = findRequest(requestId);
     if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be accepted.");
-    const flaggedIdentity = productReviewWarnings(req).flatMap(w => w.field === "components" || w.field?.startsWith("identity.") ? [w.field] : []);
-    const keys = [...new Set([...Object.keys(req.submission.fields), ...identityReviewKeys(req.submission), ...flaggedIdentity])];
-    const pending = keys.filter((k) => req.reviews[k]?.decision !== "accepted");
+    const errors = productReviewWarnings(req).filter(w => w.severity === "error");
+    if (errors.length) return fail(`Submission needs correction: ${errors.map(e => e.message).join(" ")}`);
+    const pending = requiredReviewKeys(req).filter((k) => currentReview(req, k)?.decision !== "accepted");
     if (pending.length) return fail(`Review every field first. Not accepted: ${pending.join(", ")}.`);
     const product: LibraryProduct = {
       id: uid("product"),

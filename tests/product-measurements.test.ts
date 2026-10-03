@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { categoryById, roughInPoints, validateSubmission, type FieldValue } from '../src/model/products';
 import { measurementFields, unknownMeasurementFields, validateMeasurementFields, withObservation, workingObservation, isProductSpecification } from '../src/model/productMeasurements';
-import { products, productStore, configureProductStorage, initializeProductLibrary, PRODUCTS_KEY } from '../src/model/productLibrary';
+import { products, productStore, configureProductStorage, initializeProductLibrary, requestEvidenceAttachments, PRODUCTS_KEY } from '../src/model/productLibrary';
 import { actions, store } from '../src/model/store';
 import { emptyModel, type ValueStatus } from '../src/model/types';
 import { roughIn } from '../src/model/fixtures';
@@ -81,6 +81,28 @@ describe('explicit reused fitting evidence (#48)',()=>{
   try {initializeProductLibrary(true);expect(productStore.getState().products[0].fields).toEqual(p.fields);
    const bad=JSON.parse(saved);bad.products[0].fields.width.measurement.dateNote=42;const raw=JSON.stringify(bad);data.set(PRODUCTS_KEY,raw);initializeProductLibrary(true);expect(productStore.getState().loadError).toMatch(/Invalid product measurement/);products.openMeasurements('bath',{label:'Recovery'});expect(data.get(PRODUCTS_KEY)).toBe(raw);
   }finally{configureProductStorage(prev);}
+ });
+ it('binds human review to changed evidence and keeps rejection history through resubmission',()=>{
+  const id=products.openMeasurements('vanity',{label:'Physical vanity'},footprint()).requestId as string;
+  products.submitMeasurements(id);products.review(id,'width','rejected','Survey again');products.review(id,'width','accepted');products.review(id,'depth','accepted');products.returnToAgent(id,'Record another observation');
+  products.recordMeasurement(id,'width',human(.92,'fixture-end','estimated'));expect(products.submitMeasurements(id).ok).toBe(true);
+  const req=productStore.getState().requests[0];expect(req.reviews.width).toBeUndefined();expect(req.previousRejections?.width).toBe('Survey again');expect(req.individualOnly).toContain('width');expect(req.reuseCandidates?.depth.decision).toBe('accepted');
+  expect(products.reviewGroup(id,'envelope').reviewed??[]).not.toContain('width');expect(products.accept(id).ok).toBe(false);
+ });
+ it('inherits original attachment evidence read-only without sharing ownership',async()=>{
+  const p=accept(footprint());const original=productStore.getState().requests[0];const att={id:'original-image',name:'fitting.png',kind:'image' as const,mime:'image/png',size:10,addedAt:0};
+  productStore.setState({requests:[{...original,attachments:[att]}]});const id=products.openMeasurements('vanity',p.physicalItem!,p.fields,p.requestId).requestId as string;const req=productStore.getState().requests.at(-1)!;
+  expect(requestEvidenceAttachments(req)).toEqual([att]);expect(req.attachments).toBeUndefined();expect(await products.detach(id,att.id)).toMatchObject({ok:false});expect(requestEvidenceAttachments(req)).toEqual([att]);
+ });
+ it('rejects malformed project evidence before changing the existing canonical project',()=>{
+  const p=accept({...footprint(),height:human(.84,'fixture-bottom','proposed')});actions.placeProduct(p,wall());const before=structuredClone(store.getState().model);
+  const project={version:2,id:'corrupt',model:structuredClone(before),kinds:store.getState().kinds,notes:[],presentation:'planning'};
+  project.model.items[0].productSpecification!.fields.width.observations=[{value:.9,sources:{} as never}];
+  expect(()=>parseImport(JSON.stringify(project))).toThrow(/invalid model data/);expect(store.getState().model).toEqual(before);
+ });
+ it('refuses malformed source arrays on human records before evidence can render',()=>{
+  const id=products.openMeasurements('vanity',{label:'Physical vanity'},footprint()).requestId as string;const before=structuredClone(productStore.getState().requests[0]);
+  expect(products.recordMeasurement(id,'width',{...human(.9,'fixture-end'),sources:{} as never}).ok).toBe(false);expect(productStore.getState().requests[0]).toEqual(before);
  });
  it('handles malformed observations and alternatives without throwing',()=>{
   const fields=footprint();fields.width={...fields.width,observations:[null] as never,alternatives:{} as never};

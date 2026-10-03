@@ -278,8 +278,29 @@ A few design notes:
   alternative sources are held to the same rules. Accepted products carry their rough-in
   points (wastes, water inlet), each axis naming the datum it is measured from. Disagreeing sources and
   figures measured from a different datum are flagged. A person reviews each field and accepts
-  the product; no tool can.
+  the product; no tool can. The completeness summary exposes applicable required values,
+  unknowns, conflicts, datum mismatches and pending or rejected reviews. A human can confirm
+  clean pending fields in named envelope, rough-in and installation groups after reading
+  their values, statuses and source locators. Unknown, flagged and previously rejected fields
+  stay individual; accepting an unknown acknowledges missing evidence. Final product
+  acceptance remains separate. Returned revisions invalidate changed values, sources, datums
+  and applicability; unchanged approvals require explicit human reuse. Existing saved
+  decisions and rejection reasons remain readable. `tests/product-review.e2e.mjs` checks
+  these boundaries through real human controls and browser reloads with synthetic evidence.
 
+- Reused toilets, vanities/basins and baths have a separate human measurement form.
+  A physical label and attached photos can identify an item while manufacturer/model stay
+  unknown. Every known observation needs explicit status, unit, physical datum, evidence
+  and measurement date (or an explained unknown original date). Selecting working evidence
+  retains measured/published disagreements and previous observations. Additional observation
+  requests retain read-only access to original attachment evidence. Research tools cannot
+  record or submit these human measurements. Unknown dimensions prevent placement; template
+  zeroes are not assumed measured, and product-local heights stay unresolved until an explicit
+  installation datum conversion is available. Placement carries per-axis service evidence and
+  a project-owned specification snapshot through reload and JSON transfer; an absent product
+  library is still reported. `tests/product-measurements.e2e.mjs` covers the recorded existing
+  910 × 465 mm vanity footprint with unknown height/connections, then explicitly synthetic
+  extra geometry/services for acceptance, 3D, specification and fresh-browser transfer.
 - Fitting briefs distinguish powered/unpowered and fixed/hinged variants, and product-local
   mounting dimensions from proposed project heights. Unknown fields remain explicit through
   human review and library storage. The existing placement path supports generic envelopes

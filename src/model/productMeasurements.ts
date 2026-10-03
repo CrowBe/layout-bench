@@ -40,6 +40,8 @@ export function validateMeasurementFields(category: ProductCategory, fields: Rec
   const add = (field: string, severity: "error" | "warning", code: string, message: string) => problems.push({ field, severity, code, message });
   const record = (field: FieldSpec, value: FieldObservation | FieldValue, prefix: string) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) { add(field.key, "error", "measurement_invalid", `${prefix} must be an evidence record.`); return; }
+    if (value.note !== undefined && typeof value.note !== "string") add(field.key, "error", "measurement_invalid", `${prefix}: the note must be text.`);
+    if (value.sources !== undefined && (!Array.isArray(value.sources) || value.sources.length && checkSources(value.sources, ctx))) add(field.key, "error", "source_invalid", `${prefix}: sources must be a list of valid located references.`);
     if (value.value === null) {
       if (!(typeof value.note === "string" && value.note.trim())) add(field.key, "error", "unknown_without_note", `${prefix}: explain what is unknown.`);
       return;
