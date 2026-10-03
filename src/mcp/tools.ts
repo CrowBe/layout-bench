@@ -25,7 +25,8 @@ import { finishedLevel } from "../model/floor";
 import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems } from "../model/floor";
 import { IDENTITY_FIELDS, SELECTION_STATUSES, type SelectionStatus } from "../model/productIdentity";
 import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
-import { productStore, products } from "../model/productLibrary";
+import { measurementFields } from "../model/productMeasurements";
+import { productStore, products, requestEvidenceAttachments } from "../model/productLibrary";
 import { productReviewSummary } from "../model/productReview";
 import { checkModel } from "../model/issues";
 import { CATALOG } from "../model/catalog";
@@ -923,7 +924,7 @@ export const TOOLS: ToolDef[] = [
       return {
         ok: true,
         summary: `${requests.length} request(s); ${requests.filter((r) => r.status === "open").length} open.`,
-        requests: requests.map((r) => ({ id: r.id, category: r.category, known: r.known, status: r.status, ...(r.feedback ? { feedback: r.feedback } : {}), ...(r.attachments?.length ? { attachments: r.attachments.map((a) => ({ id: a.id, name: a.name, kind: a.kind })) } : {}) })),
+        requests: requests.map((r) => ({ id: r.id, category: r.category, known: r.known, status: r.status, ...(r.mode ? { mode: r.mode } : {}), ...(r.feedback ? { feedback: r.feedback } : {}), ...(r.attachments?.length ? { attachments: r.attachments.map((a) => ({ id: a.id, name: a.name, kind: a.kind })) } : {}) })),
       };
     },
   },
@@ -938,22 +939,24 @@ export const TOOLS: ToolDef[] = [
       const req = productStore.getState().requests.find((r) => r.id === i.requestId);
       if (!req) return { ok: false, summary: `No product request "${i.requestId}".` };
       const cat = categoryById(req.category)!;
-      const current = req.submission?.fields ?? {};
+      const current = req.submission?.fields ?? req.measurementDraft ?? {};
+      const fields = req.mode ? measurementFields(cat) : cat.fields;
       return {
         ok: true,
-        summary: `${cat.label} brief for ${[req.known.brand, req.known.model].filter(Boolean).join(" ") || req.known.reference || req.known.link}: ${cat.fields.length} fields, status ${req.status}.`,
+        summary: `${cat.label} brief for ${[req.known.brand, req.known.model].filter(Boolean).join(" ") || req.known.physicalItem?.label || req.known.reference || req.known.link}: ${cat.fields.length} fields, status ${req.status}.`,
         requestId: req.id,
+        ...(req.mode ? { mode: req.mode, humanOnly: true, measurementDraft: req.measurementDraft } : {}),
         status: req.status,
         completeness: productReviewSummary(req),
         category: { id: cat.id, label: cat.label },
         ...(cat.placement ? { placement: cat.placement } : {}),
         known: req.known,
-        protocol: [...RESEARCH_PROTOCOL, "Record exact identity { code, finish, configuration, handedness }: each { state: known|unknown|not-applicable, value: exact text|null, sources: [{url, locator}], alternatives? }. Known and not-applicable require evidence. Components: { name, code: identity evidence, quantity: whole number|null, provision: included|separately-required|unresolved, sources } with componentsStatus documented|unknown|not-applicable. Never infer purchasing status or guess a variant."],
+        protocol: req.mode ? ["This is a human measurement record. Read evidence and unknowns; only the person can record or submit measurements with the page controls. Do not submit as published research or infer values from photos."] : [...RESEARCH_PROTOCOL, "Record exact identity { code, finish, configuration, handedness }: each { state: known|unknown|not-applicable, value: exact text|null, sources: [{url, locator}], alternatives? }. Known and not-applicable require evidence. Components: { name, code: identity evidence, quantity: whole number|null, provision: included|separately-required|unresolved, sources } with componentsStatus documented|unknown|not-applicable. Never infer purchasing status or guess a variant."],
         identityFields: IDENTITY_FIELDS,
         references: REFERENCES,
-        fields: cat.fields.map((f) => ({ ...f, unit: f.type === "length" ? "metres" : f.type === "count" ? "count" : f.type, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
+        fields: fields.map((f) => ({ ...f, unit: f.type === "length" ? "metres" : f.type === "count" ? "count" : f.type, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
         roughIn: cat.roughIn,
-        attachments: (req.attachments ?? []).map((a) => ({
+        attachments: requestEvidenceAttachments(req).map((a) => ({
           id: a.id,
           cite: `attachment:${a.id}`,
           name: a.name,
@@ -962,7 +965,7 @@ export const TOOLS: ToolDef[] = [
             ? { pageCount: a.pages?.length ?? 0, pages: a.pages ?? [], ...(a.pages?.some((p) => p.text.trim()) ? {} : { textNote: "No text layer on any page (a scan?). Nothing is OCR'd: ask the person to paste the figures, or find a published source." }) }
             : { textNote: "An image: no text is extracted. It is for the person's review; if you need what it shows, ask them to paste it into the conversation." }),
         })),
-        submitShape: "submit_product_spec { requestId, manufacturer, model, code?, identity?, componentsStatus?, components?, installationGeometry?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } } — url is an http(s) link or attachment:<id>; for an attachment the locator starts with the page, e.g. \"p. 2, fig. 1\"",
+        submitShape: req.mode ? "Human measurement requests can only be edited and submitted in the Products page; submit_product_spec refuses this request." : "submit_product_spec { requestId, manufacturer, model, code?, identity?, componentsStatus?, components?, installationGeometry?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } } — url is an http(s) link or attachment:<id>; for an attachment the locator starts with the page, e.g. \"p. 2, fig. 1\"",
         ...(req.submission ? { previousSubmission: req.submission } : {}),
         ...(req.feedback ? { feedback: req.feedback } : {}),
       };

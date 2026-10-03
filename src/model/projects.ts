@@ -1,5 +1,6 @@
 import { validInstallation, validInstallationGeometry } from "./installation";
 import { SELECTION_STATUSES, isExactProduct } from "./productIdentity";
+import { isProductSpecification } from "./productMeasurements";
 import type { CatalogEntry } from "./catalog";
 import type { PartSpec } from "../three/furniture";
 import type { Note, PlanModel } from "./types";
@@ -82,7 +83,8 @@ const validAnchor = (v: unknown) => object(v) && typeof v.wallId === "string" &&
   finite(v.gap) && finite(v.distance);
 const validServicePoint = (v: unknown) => object(v) && typeof v.id === "string" && typeof v.label === "string" && typeof v.face === "string" &&
   (v.service === "waste" || v.service === "water" || v.service === "power") && typeof v.status === "string" && STATUS.includes(v.status) &&
-  optionalFinite(v.out) && optionalFinite(v.outMax) && optionalFinite(v.across) && optionalFinite(v.up);
+  optionalFinite(v.out) && optionalFinite(v.outMax) && optionalFinite(v.across) && optionalFinite(v.up) &&
+  (v.axisEvidence === undefined || object(v.axisEvidence) && isProductSpecification({ category: "service", fields: v.axisEvidence, acceptedAt: 0 }));
 
 /** Trade sheets (#29): every field the checker and renderer read. */
 const optionalString = (v: unknown) => v === undefined || typeof v === "string";
@@ -168,6 +170,7 @@ export function parseProject(value: unknown): ProjectDocument {
         (v.anchor === undefined || validAnchor(v.anchor)) &&
         (v.installation === undefined || validInstallation(v.installation)) && (v.installationGeometry === undefined || validInstallationGeometry(v.installationGeometry)) &&
         oneOf(v.selectionStatus, SELECTION_STATUSES) && (v.productIdentity === undefined || isExactProduct(v.productIdentity)) &&
+        (v.productSpecification === undefined || isProductSpecification(v.productSpecification)) &&
         (v.corner === undefined || (object(v.corner) && typeof v.corner.left === "string" && typeof v.corner.right === "string" && (v.corner.side === "left" || v.corner.side === "right"))) &&
         (v.servicePoints === undefined || (Array.isArray(v.servicePoints) && v.servicePoints.every(validServicePoint)))) ||
       !notes.every((v) => object(v) && typeof v.id === "string" && typeof v.text === "string" && finite(v.at) && (v.author === "human" || v.author === "agent")) ||

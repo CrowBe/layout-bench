@@ -23,6 +23,7 @@ import { anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
 import { IDENTITY_FIELDS, identityOf, identityText, type IdentityKey } from "../model/productIdentity";
 import { categoryById } from "../model/products";
+import { evidenceStatus, evidenceText } from "../model/productMeasurements";
 import { checkSheet, type SheetFinding } from "./check";
 import { PAPER, TAGS, esc, f1, joinedRect, mm, tag } from "./floorPlan";
 
@@ -284,7 +285,9 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   const it = model.items.find((x) => x.id === el.ref)!;
   if (el.type === "fixture") {
     const cat = catalogByKind(it.kind);
-    row("footprint w × d (mm)", cat ? { value: `${mm(cat.w)} × ${mm(cat.d)}`, status: it.productId ? "published" : isBuiltInKind(it.kind) ? "defaulted" : "entered" } : { value: "?", status: "unknown", missing: [`kind ${it.kind}`] });
+    const envelope = it.productSpecification ? categoryById(it.productSpecification.category)?.envelope : undefined;
+    const footprintStatus = envelope ? evidenceStatus([it.productSpecification!.fields[envelope.w], it.productSpecification!.fields[envelope.d]]) : undefined;
+    row("footprint w × d (mm)", cat ? { value: `${mm(cat.w)} × ${mm(cat.d)}`, status: footprintStatus ?? (it.productId ? "published" : isBuiltInKind(it.kind) ? "defaulted" : "entered") } : { value: "?", status: "unknown", missing: [`kind ${it.kind}`] });
     if (it.anchor) {
       const pose = anchorPose(model, it);
       row("set-out", {
@@ -300,20 +303,28 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
       const lv=installationReading(model,it),p=it.installation,g=it.installationGeometry;
       for(const message of lv.limitations)row("installation limitation",{value:message,status:"unknown"});
       if(p){row("mounting",{value:p.mounting,status:"proposed"});row("product bottom above selected floor (mm)",{...qRow(p.height),datum:lv.datum});
-        row("installed bottom level (mm)",lv.bottom===undefined?{value:"?",status:"unknown",datum:lv.datum,missing:lv.missing}:{value:mm(lv.bottom),status:lv.basis as RowStatus,datum:lv.datum});
-        row("installed top level (mm)",lv.top===undefined?{value:"?",status:"unknown",datum:lv.datum,missing:lv.missing}:{value:mm(lv.top),status:lv.basis as RowStatus,datum:lv.datum});
+        row("installed bottom level (mm)",lv.bottom===undefined?{value:"?",status:"unknown",datum:lv.datum,missing:lv.missing}:{value:mm(lv.bottom),status:lv.basis as RowStatus,datum:lv.datum,source:lv.bottomSource});
+        row("installed top level (mm)",lv.top===undefined?{value:"?",status:"unknown",datum:lv.datum,missing:lv.missing}:{value:mm(lv.top),status:lv.topBasis as RowStatus,datum:lv.datum,source:lv.topSource});
         row("orientation / mirror",{value:`${p.orientation} degrees / ${p.mirror}`,status:"proposed"});}
       if(!g)row("geometry basis",{value:"Envelope fallback: no sourced outline supplied; exact planning envelope",status:"unknown"});
-      if(g){row("geometry basis",{value:g.outline?.shape?"Sourced line/arc plan outline extruded through product height":`Envelope fallback: ${g.outline?.limitation??"No sourced outline supplied"}`,status:g.outline?.status??"unknown",source:g.outline?.sources.map(s=>`${s.url} (${s.locator})`).join("; ")});
+      if(g){
+        row("geometry basis",{value:g.outline?.shape?"Sourced line/arc plan outline extruded through product height":`Envelope fallback: ${g.outline?.limitation??"No sourced outline supplied"}`,status:g.outline?.status??"unknown",source:g.outline?.sources.map(s=>`${s.url} (${s.locator})`).join("; ")});
         row("local geometry datums",{value:`${g.datum.across}; ${g.datum.out}; ${g.datum.up}`,status:"published"});
-        for(const point of g.fixings??[]){const r=localPointReading(model,it,point);row(`fixing ${point.id}`,{value:`x ${r.x===undefined?"?":mm(r.x)} / y ${r.y===undefined?"?":mm(r.y)} / level ${r.level===undefined?"?":mm(r.level)} mm`,status:r.basis as RowStatus,datum:lv.datum,source:r.source,...(r.resolved?{}:{missing:r.missing})});}
-        for(const r of clearanceRegions(model,it))row(`access ${r.id} (distinct from footprint)`,{value:`${r.label}; ${r.direction}; ${r.distance===null?"?":mm(r.distance)} mm`,status:r.status,source:r.sources.map(s=>`${s.url} (${s.locator})`).join("; "),...(r.resolved?{}:{missing:r.missing})});}
+        for(const point of g.fixings??[]){
+          const r=localPointReading(model,it,point);
+          row(`fixing ${point.id}`,{value:`x ${r.x===undefined?"?":mm(r.x)} / y ${r.y===undefined?"?":mm(r.y)} / level ${r.level===undefined?"?":mm(r.level)} mm`,status:r.basis as RowStatus,datum:lv.datum,source:r.source,...(r.resolved?{}:{missing:r.missing})});
+        }
+        for(const r of clearanceRegions(model,it)){
+          row(`access ${r.id} (distinct from footprint)`,{value:`${r.label}; ${r.direction}; ${r.distance===null?"?":mm(r.distance)} mm`,status:r.status,source:r.sources.map(s=>`${s.url} (${s.locator})`).join("; "),...(r.resolved?{}:{missing:r.missing})});
+          row(`access ${r.id} installed levels (mm)`,{value:`bottom ${r.bottom===undefined?"?":mm(r.bottom)} / top ${r.top===undefined?"?":mm(r.top)}`,status:r.placementBasis as RowStatus,source:r.placementSource,datum:lv.datum,...(r.resolved?{}:{missing:r.missing})});
+        }
+      }
     }
     row("project selection", { value: it.selectionStatus ?? "unknown", status: it.selectionStatus && it.selectionStatus !== "unknown" ? "entered" : "unknown" });
     const product = it.productId ? products.find((p) => p.id === it.productId) : undefined;
     const exact = it.productIdentity ?? product;
     if (exact) {
-      row("exact product", { value: `${exact.manufacturer} ${exact.model}`, status: "published" });
+      row("exact product", { value: exact.physicalItem ? `${exact.physicalItem.label} · manufacturer ${exact.manufacturer || "unknown"} · model ${exact.model || "unknown"}` : `${exact.manufacturer} ${exact.model}`, status: exact.physicalItem ? "entered" : "published" });
       const identity = identityOf(exact);
       for (const key of Object.keys(IDENTITY_FIELDS) as IdentityKey[]) {
         const v = identity[key];
@@ -325,20 +336,28 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
       }
     }
     if (it.productId && !product) row("product", { value: it.productId, status: "unknown", missing: ["product not in this browser's library"] });
-    if (product) {
-      const fieldSpecs = categoryById(product.category)?.fields ?? [];
+    const specification = it.productSpecification ?? product;
+    if (specification) {
+      const fieldSpecs = categoryById(specification.category)?.fields ?? [];
       const lengthKeys = new Set(fieldSpecs.filter((f) => f.type === "length").map((f) => f.key));
-      row("product", { value: [product.manufacturer, product.model].filter(Boolean).join(" "), status: "published" });
-      for (const [key, fv] of Object.entries(product.fields)) {
+      if (product) row("product", { value: product.physicalItem?.label ?? [product.manufacturer, product.model].filter(Boolean).join(" "), status: product.recordingMode ? "entered" : "published" });
+      for (const [key, fv] of Object.entries(specification.fields)) {
         const field = fieldSpecs.find((f) => f.key === key);
         const datum = fv.reference ?? (field?.type === "length" ? field.reference : undefined);
-        if (fv.value === null || fv.value === undefined) { row(key, { value: "?", status: "unknown", ...(datum ? { datum } : {}), missing: [fv.note ?? key] }); continue; }
+        if (fv.value === null || fv.value === undefined) { row(key, { value: "?", status: "unknown", ...(datum ? { datum } : {}), missing: [fv.note ?? key] }); }
+        else
         row(key, {
           // only length fields are metres; a count (tap holes) or text prints as given
-          value: typeof fv.value === "number" && lengthKeys.has(key) ? mm(fv.value) : String(fv.value),
+          value: typeof fv.value === "number" && (lengthKeys.has(key) || key.startsWith("service.")) ? mm(fv.value) : String(fv.value),
           status: (fv.status ?? "unknown") as RowStatus,
           ...(datum ? { datum } : {}),
-          ...(fv.sources?.length ? { source: fv.sources.map((s) => `${s.url}${s.locator ? ` (${s.locator})` : ""}`).join("; ") } : {}),
+          ...(evidenceText(fv) ? { source: evidenceText(fv) } : {}),
+        });
+        for (const [index, alternative] of (fv.alternatives ?? []).entries()) row(`${key} published alternative ${index + 1}`, { value: typeof alternative.value === "number" && lengthKeys.has(key) ? mm(alternative.value) : String(alternative.value), status: "published", source: evidenceText({ value: alternative.value, sources: [alternative.source] }), ...(datum ? { datum } : {}) });
+        for (const [index, observation] of (fv.observations ?? []).entries()) row(`${key} observation ${index + 1}`, {
+          value: observation.value === null ? "?" : typeof observation.value === "number" && (lengthKeys.has(key) || key.startsWith("service.")) ? mm(observation.value) : String(observation.value),
+          status: observation.value === null ? "unknown" : observation.status ?? "unknown", ...(observation.reference ? { datum: observation.reference } : {}),
+          ...(evidenceText(observation) ? { source: evidenceText(observation) } : {}), ...(observation.value === null ? { missing: [observation.note ?? key] } : {}),
         });
       }
     }
@@ -352,12 +371,16 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   const sp = it.servicePoints!.find((x) => x.id === el.sub)!;
   const reading = roughIn(model, it).find((r) => r.pointId === sp.id)!;
   const src = sp.source ? { source: sp.source } : {};
+  const axis = (name: "out" | "across" | "up") => ({ status: sp.axisEvidence?.[name]?.status ?? sp.status, ...(evidenceText(sp.axisEvidence?.[name]) ? { source: evidenceText(sp.axisEvidence?.[name]) } : src) });
+  const rangeEvidence = sp.outMax !== undefined ? [sp.axisEvidence?.out, sp.axisEvidence?.outMax] : [sp.axisEvidence?.out];
+  const outBasis = { status: evidenceStatus(rangeEvidence) ?? sp.status, source: rangeEvidence.map(evidenceText).filter(Boolean).join("; ") || sp.source };
   row("service", { value: sp.service, status: "entered" });
-  row(`out from ${sp.face} face (mm)`, sp.out !== undefined ? { value: `${mm(sp.out)}${sp.outMax !== undefined ? `–${mm(sp.outMax)}` : ""}`, status: sp.status, datum: `${sp.face} face`, ...src } : { value: "?", status: "unknown", missing: ["out distance"] });
-  row("across from fixture centreline (mm)", sp.across !== undefined ? { value: mm(sp.across), status: sp.status, ...src } : { value: "?", status: "unknown", missing: ["across offset"] });
-  row("up from finished floor (mm)", sp.up !== undefined ? { value: mm(sp.up), status: sp.status, datum: "finished floor", ...src } : { value: "?", status: "unknown", missing: ["up height"] });
+  row(`out from ${sp.face} face (mm)`, sp.out !== undefined ? { value: `${mm(sp.out)}${sp.outMax !== undefined ? `–${mm(sp.outMax)}` : ""}`, ...outBasis, datum: `${sp.face} face` } : { value: "?", status: "unknown", missing: ["out distance"] });
+  row("across from fixture centreline (mm)", sp.across !== undefined ? { value: mm(sp.across), ...axis("across"), datum: "fixture-centreline" } : { value: "?", status: "unknown", missing: ["across offset"] });
+  row("up from finished floor (mm)", sp.up !== undefined ? { value: mm(sp.up), ...axis("up"), datum: "finished floor" } : { value: "?", status: "unknown", missing: ["up height"] });
+  for (const [name, evidence] of Object.entries(sp.axisEvidence ?? {})) row(`${name} source evidence`, { value: evidence.value === null ? "?" : typeof evidence.value === "number" ? mm(evidence.value) : String(evidence.value), status: evidence.value === null ? "unknown" : evidence.status ?? "unknown", ...(evidence.reference ? { datum: evidence.reference } : {}), source: evidenceText(evidence), ...(evidence.value === null ? { missing: [evidence.note ?? name] } : {}) });
   // along depends on the fixture's set-out as well as the point's own offset: the weaker status
-  const alongStatus = it.anchor ? weakest([input("point", { value: 0, status: sp.status }), input("set-out", { value: 0, status: it.anchor.status })]) : sp.status;
+  const alongStatus = it.anchor ? weakest([input("point", { value: 0, status: axis("across").status }), input("set-out", { value: 0, status: it.anchor.status })]) : axis("across").status;
   row("along from end A (mm)", reading.alongFromA !== undefined ? { value: mm(reading.alongFromA), status: alongStatus as RowStatus, datum: it.anchor ? `${it.anchor.wallId} end A` : undefined } : { value: "?", status: "unknown", missing: reading.missing.length ? reading.missing : ["position along the wall"] });
   return rows;
 }

@@ -143,7 +143,8 @@ function InstallationForm({model,item}:{model:PlanModel;item:Item}) {
     <label className="field">Orientation from anchor (degrees)<input aria-label="Installation orientation (degrees)" value={orientation} onChange={e=>setOrientation(e.target.value)}/></label>
     <label><input aria-label="Mirror installation" type="checkbox" checked={mirror} onChange={e=>setMirror(e.target.checked)}/> Mirror documented reversible product</label>
     <button type="button" onClick={submit}>Update installation placement</button>
-    <p className="hint" data-installed-level>{lv.resolved?`Bottom ${formatMm(lv.bottom!)} mm; top ${formatMm(lv.top!)} mm above ${lv.datum} · ${lv.basis}`:`Installation unresolved: ${lv.missing.join(", ")}`}</p>
+    <p className="hint" data-installed-level>{lv.resolved?`Bottom ${formatMm(lv.bottom!)} mm (${lv.basis}); top ${formatMm(lv.top!)} mm (${lv.topBasis}) above ${lv.datum}`:`Installation unresolved: ${lv.missing.join(", ")}`}</p>
+    {lv.resolved&&<p className="hint">Top level evidence: {lv.topSource || "unknown product height evidence"}</p>}
     {lv.limitations.map((message,i)=><p className="inspector-warn" key={i}>{message}</p>)}
     <p className="hint">{item.installationGeometry?.outline?.shape ? "Planning geometry extrudes the sourced plan outline through product height." : "Envelope fallback: no sourced outline supplied; exact planning envelope."}</p>
     <p className="hint">Height edits are proposed project placement. Source dimensions and product installation requirements retain their evidence.</p>

@@ -4,6 +4,7 @@ import {
   identityReviewKeys,
   type IdentityKey,
 } from "./productIdentity";
+import { measurementFields } from "./productMeasurements";
 import { applies, categoryById, type FieldGroup } from "./products";
 import {
   productReviewWarnings,
@@ -50,9 +51,8 @@ export function requiredReviewKeys(request: ProductRequest): string[] {
 export function reviewEvidence(request: ProductRequest, key: string): string {
   const s = request.submission;
   if (!s) return "";
-  const spec = categoryById(request.category)?.fields.find(
-    (f) => f.key === key,
-  );
+  const category = categoryById(request.category);
+  const spec = (category ? request.mode ? measurementFields(category) : category.fields : []).find(f => f.key === key);
   const evidence =
     key === "installationGeometry"
       ? s.installationGeometry
@@ -65,6 +65,8 @@ export function reviewEvidence(request: ProductRequest, key: string): string {
     category: request.category,
     manufacturer: s.manufacturer,
     model: s.model,
+    physicalItem: s.physicalItem,
+    recordingMode: request.mode,
     code: s.code,
     identity: identityOf(s),
     key,
@@ -141,7 +143,7 @@ export function productReviewSummary(request: ProductRequest) {
   const s = request.submission;
   const flags = productReviewWarnings(request);
   const cat = categoryById(request.category);
-  const fields = (cat?.fields ?? []).map((f) => {
+  const fields = (cat ? request.mode ? measurementFields(cat) : cat.fields : []).map((f) => {
     const v = s?.fields[f.key];
     const applicable = applies(f, s?.fields ?? {});
     const known =

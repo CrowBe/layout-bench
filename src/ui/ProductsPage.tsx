@@ -6,14 +6,16 @@
 
 import { Link, viewAttachment } from "./ProductSource";
 import { ExactIdentity, IdentityEditor } from "./ProductIdentity";
+import { MeasurementEditor, NewMeasurements } from "./ProductMeasurements";
+import { evidenceText, measurementFields } from "../model/productMeasurements";
+import { unknownIdentity, identityOf, identityText, exactProductLabel, type ProductComponent } from "../model/productIdentity";
 import { ProductReviewSummary } from "./ProductReviewSummary";
 import { currentReview } from "../model/productReview";
-import { unknownIdentity, identityOf, identityText, type ProductComponent } from "../model/productIdentity";
 import { useEffect, useState } from "react";
 import { logActivity } from "../model/store";
 import { formatMm } from "../model/geometry";
 import { PRODUCT_CATEGORIES, REFERENCES, applies, type AxisValue, categoryById, envelopeOf, productPlacementProblem, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
-import { MAX_ATTACHMENT_BYTES, products, productReviewWarnings, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
+import { MAX_ATTACHMENT_BYTES, requestEvidenceAttachments, products, productReviewWarnings, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
 
 const human = (tool: string, r: LibraryResult) => {
   logActivity("human", tool, r.summary, r.ok);
@@ -29,7 +31,7 @@ const sizeText = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB`
 
 /** Spec sheets attached to a request (#34): upload while open, view and read their text at any time. */
 function Attachments({ req }: { req: ProductRequest }) {
-  const list = req.attachments ?? [];
+  const list = requestEvidenceAttachments(req);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -58,7 +60,7 @@ function Attachments({ req }: { req: ProductRequest }) {
         return (
           <div key={a.id} className="products-attachment" data-attachment={a.id}>
             <div>
-              <b>{a.kind === "pdf" ? "PDF" : "Image"}</b> {a.name} <span className="hint">· {sizeText(a.size)} · <code>attachment:{a.id}</code></span>
+              <b>{a.kind === "pdf" ? "PDF" : "Image"}</b> {a.name}{!req.attachments?.some(own => own.id === a.id) && <span className="hint"> · read-only original evidence</span>} <span className="hint">· {sizeText(a.size)} · <code>attachment:{a.id}</code></span>
             </div>
             <div className="hint" data-text-status>
               {a.kind === "image"
@@ -71,7 +73,7 @@ function Attachments({ req }: { req: ProductRequest }) {
               {a.kind === "image"
                 ? <button type="button" onClick={() => void showImage(a)}>{preview?.id === a.id ? "Hide" : "View"}</button>
                 : <button type="button" onClick={() => void viewAttachment(a).then((e) => setError(e ?? ""))}>View</button>}
-              {open && (
+              {open && req.attachments?.some(own => own.id === a.id) && (
                 <button type="button" onClick={() => void products.detach(req.id, a.id).then((r) => { human("detach_product_attachment", r); setError(r.ok ? "" : r.summary); })}>Remove</button>
               )}
             </div>
@@ -124,7 +126,7 @@ function axisText(a: AxisValue | undefined): string {
 }
 
 const identity = (r: ProductRequest) =>
-  ([r.known.brand, r.known.model].filter(Boolean).join(" ") || r.known.reference || r.known.link || r.id) + Object.values(identityOf(r.known)).filter(v => v.state === "known").map(v => ` · ${identityText(v)}`).join("");
+  (r.known.physicalItem?.label ?? ([r.known.brand, r.known.model].filter(Boolean).join(" ") || r.known.reference || r.known.link || r.id)) + Object.values(identityOf(r.known)).filter(v => v.state === "known").map(v => ` · ${identityText(v)}`).join("");
 
 function unit(f: FieldSpec): string {
   if (f.type === "length") return `mm, ${formatMm(f.min)}–${formatMm(f.max)}`;
@@ -224,6 +226,8 @@ function ReviewRow({ req, f }: { req: ProductRequest; f: FieldSpec }) {
           <div key={i}><Link url={s.url} locator={s.locator} />{s.locator ? `, ${s.locator}` : ""}</div>
         ))}
         {v.note && <div className="hint">{v.note}</div>}
+        {v.measurement && <div className="hint">{evidenceText(v)} · datum {v.reference ?? "not spatial"}</div>}
+        {v.observations && <div data-observations>{v.observations.map((observation, index) => <p key={index}>Observation {index + 1}: {shown(f, observation)} · {observation.status ?? "unknown"} · {observation.reference ?? "not spatial"} · {evidenceText(observation)} · {observation.note}</p>)}</div>}
         {req.previousRejections?.[f.key] && review?.decision !== "rejected" && <div className="hint">Previously rejected: {req.previousRejections[f.key]}</div>}
         {flags.map((w, i) => <div key={i} className="inspector-warn">⚠ {w.message}</div>)}
       </td>
@@ -275,7 +279,8 @@ function RequestDetail({ req }: { req: ProductRequest }) {
     <section className="products-card" aria-label="Selected request">
       <strong>{cat.label}: {identity(req)}</strong>
       <span className="hint">Request <code>{req.id}</code> · status <b data-status={req.status}>{req.status}</b></span>
-      {Object.entries(req.known).filter(([k]) => !["identity", "components", "componentsStatus"].includes(k)).map(([k, v]) => <span key={k} className="hint">{k}: {k === "link" ? <Link url={String(v)}>{String(v)}</Link> : String(v)}</span>)}
+      {Object.entries(req.known).filter(([k]) => !["identity", "components", "componentsStatus", "physicalItem"].includes(k)).map(([k, v]) => <span key={k} className="hint">{k}: {k === "link" ? <Link url={String(v)}>{String(v)}</Link> : String(v)}</span>)}
+      {req.known.physicalItem && <p className="hint">Physical item: {req.known.physicalItem.label} · manufacturer/model unknown · {req.known.physicalItem.notes}</p>}
       {req.feedback && <div className="inspector-warn">Returned to the agent: {req.feedback}</div>}
       <span>Request evidence</span>
       <ExactIdentity product={{ manufacturer: req.known.brand ?? "", model: req.known.model ?? "", identity: req.known.identity, components: req.known.components, componentsStatus: req.known.componentsStatus }} />
@@ -289,15 +294,15 @@ function RequestDetail({ req }: { req: ProductRequest }) {
           <GeometryReview req={req} />
           <table className="products-table" aria-label="Submitted values">
             <thead><tr><th>Field</th><th>Value</th><th>Status</th><th>Source</th><th>Review</th></tr></thead>
-            <tbody>{cat.fields.map((f) => <ReviewRow key={f.key} req={req} f={f} />)}</tbody>
+            <tbody>{(req.mode ? measurementFields(cat) : cat.fields).map((f) => <ReviewRow key={f.key} req={req} f={f} />)}</tbody>
           </table>
           <div className="products-actions">
             <button className="primary" type="button" onClick={() => act("accept_product", products.accept(req.id))}>Accept product</button>
             <input aria-label="Feedback for the agent" placeholder="what needs another look" value={feedback} onChange={(e) => setFeedback(e.target.value)} />
-            <button type="button" onClick={() => act("return_product_request", products.returnToAgent(req.id, feedback))}>Return to agent</button>
+            <button type="button" onClick={() => act("return_product_request", products.returnToAgent(req.id, feedback))}>{req.mode ? "Reopen measurements" : "Return to agent"}</button>
           </div>
         </>
-      ) : req.status === "open" ? <Brief cat={cat} req={req} /> : null}
+      ) : req.status === "open" ? req.mode ? <MeasurementEditor request={req} /> : <Brief cat={cat} req={req} /> : null}
       {req.status !== "accepted" && req.status !== "withdrawn" && (
         <button type="button" onClick={() => act("withdraw_product_request", products.withdraw(req.id))}>Withdraw request</button>
       )}
@@ -312,7 +317,7 @@ function ProductCard({ p }: { p: LibraryProduct }) {
   return (
     <details className="products-product" data-product={p.id}>
       <summary>
-        <b>{p.manufacturer} {p.model}</b> · {cat?.label ?? p.category}
+        <b>{exactProductLabel(p)}</b> · {cat?.label ?? p.category}
         {env ? ` · ${formatMm(env.w)} × ${formatMm(env.d)} × ${formatMm(env.h)} mm` : " · envelope unknown"}
       </summary>
       {cat?.placement && <p className="hint" data-placement-limit>{(p.category==="mirror" && p.fields.mounting?.value==="surface" || p.category==="towel-rail" && p.fields.mounting?.value==="wall") ? "Wall-mounted envelope placement requires an explicit room, named floor datum and product bottom height. Product geometry retains its source evidence." : productPlacementProblem(cat, p.fields) ?? `Generic envelope only. ${cat.placement.limitation}`}</p>}
@@ -321,12 +326,12 @@ function ProductCard({ p }: { p: LibraryProduct }) {
       {cat && (
         <table className="products-table">
           <tbody>
-            {cat.fields.filter((f) => p.fields[f.key]).map((f) => (
+            {(p.recordingMode ? measurementFields(cat) : cat.fields).filter((f) => p.fields[f.key]).map((f) => (
               <tr key={f.key}>
                 <td>{f.label}</td>
                 <td className={p.fields[f.key].value === null ? "unknown" : ""}>{shown(f, p.fields[f.key])}</td>
                 <td>{p.fields[f.key].value === null ? "—" : p.fields[f.key].status}</td>
-                <td>{(p.fields[f.key].sources ?? []).map((s, i) => <span key={i}><Link url={s.url} locator={s.locator}>{s.locator ?? "source"}</Link> </span>)}</td>
+                <td>{(p.fields[f.key].sources ?? []).map((s, i) => <span key={i}><Link url={s.url} locator={s.locator}>{s.locator ?? "source"}</Link> </span>)}{p.fields[f.key].measurement && evidenceText(p.fields[f.key])}{p.fields[f.key].reference ? ` · datum ${p.fields[f.key].reference}` : ""}{p.fields[f.key].observations && <span> · {p.fields[f.key].observations!.length} retained observations</span>}</td>
               </tr>
             ))}
           </tbody>
@@ -346,6 +351,7 @@ function ProductCard({ p }: { p: LibraryProduct }) {
         </table>
       )}
       <button type="button" onClick={() => human("remove_product", products.removeProduct(p.id))}>Remove from library</button>
+      {p.physicalItem && <button type="button" onClick={() => human("open_human_measurements", products.openMeasurements(p.category, p.physicalItem!, p.fields, p.requestId))}>Record more measurements</button>}
     </details>
   );
 }
@@ -366,6 +372,7 @@ export function ProductsPage() {
       <div className="products-body">
         <div className="products-col">
           <NewRequest />
+          <NewMeasurements />
           <section className="products-card" aria-label="Requests">
             <strong>Requests</strong>
             {requests.length === 0 && <span className="hint">None yet.</span>}

@@ -101,6 +101,7 @@ export interface RoughInReading {
   service: ServicePoint["service"];
   status: ValueStatus;
   source?: string;
+  axisEvidence?: ServicePoint["axisEvidence"];
   /** what the point was entered against */
   entered: { face: string; out?: number; outMax?: number; across?: number; up?: number };
   resolved: boolean;
@@ -130,6 +131,7 @@ export function roughIn(model: PlanModel, item: Item): RoughInReading[] {
     if (sp.across === undefined) missing.push("across offset");
     const base: RoughInReading = {
       pointId: sp.id, label: sp.label, service: sp.service, status: sp.status, ...(sp.source ? { source: sp.source } : {}),
+      ...(sp.axisEvidence ? { axisEvidence: structuredClone(sp.axisEvidence) } : {}),
       entered: {
         face: sp.face,
         ...(sp.out !== undefined ? { out: sp.out } : {}), ...(sp.outMax !== undefined ? { outMax: sp.outMax } : {}),
