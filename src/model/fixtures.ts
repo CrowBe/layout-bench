@@ -1,3 +1,4 @@
+import { localPointReading, installationReading } from "./installation";
 /**
  * Fixtures set out from wall faces (#5). A fixture anchored to a face takes its position from
  * that face, and its service points are measured from faces too, so every rough-in figure can
@@ -9,7 +10,7 @@ import type { FixtureAnchor, Item, PlanModel, ServicePoint, ValueStatus, Wall, W
 import { catalogByKind } from "./catalog";
 import { quantize, segLen, type ORect, type Pt } from "./geometry";
 import { VALUE_STATUSES, layerLabel, resolveFace, sideFaces, sideNormal, wallBody } from "./faces";
-import { itemPolygon, support } from "./outline";
+import { itemPolygon, toWorld, support } from "./outline";
 
 const dirOf = (w: Wall): Pt => {
   const len = segLen(w.ax, w.ay, w.bx, w.by) || 1;
@@ -51,12 +52,15 @@ export function anchorPose(model: PlanModel, item: Item): AnchorPose {
   const d = dirOf(wall);
   const n = sideNormal(wall, a.side);
   const backOffset = face.offset! + a.gap;
-  const centre = backOffset + cat.d / 2;
+  const rotation = facingRotation(n) + (item.installation?.orientation ?? 0);
+  // The anchor names the physical back midpoint, not the nearest rotated edge.
+  // Yaw can therefore expose a wall intersection; it must never redefine this datum.
+  const back = toWorld([{x:0,y:-cat.d/2}],{x:0,y:0,rotation})[0];
   return {
     resolved: true,
-    x: quantize(wall.ax + d.x * alongFromA + n.x * centre),
-    y: quantize(wall.ay + d.y * alongFromA + n.y * centre),
-    rotation: facingRotation(n),
+    x: quantize(wall.ax + d.x * alongFromA + n.x * backOffset - back.x),
+    y: quantize(wall.ay + d.y * alongFromA + n.y * backOffset - back.y),
+    rotation: quantize(rotation),
     alongFromA: quantize(alongFromA),
     backOffset: quantize(backOffset),
     missing: [],
@@ -108,6 +112,8 @@ export interface RoughInReading {
   alongFromB?: number;
   /** above the finished floor, as entered: floor levels arrive with #6 */
   up?: number;
+  /** Absolute model level above the named room floor datum, distinct from relative up. */
+  level?: number;
   x?: number;
   y?: number;
 }
@@ -117,7 +123,7 @@ export function roughIn(model: PlanModel, item: Item): RoughInReading[] {
   const a = item.anchor;
   const wall = a ? model.walls.find((w) => w.id === a.wallId) : undefined;
   const pose = anchorPose(model, item);
-  return (item.servicePoints ?? []).map((sp) => {
+  const legacy = (item.servicePoints ?? []).map((sp) => {
     const missing: string[] = [];
     if (!a) missing.push("fixture anchor (place it against a wall face)");
     else if (!pose.resolved) missing.push(...pose.missing.map((m) => `anchor: ${m}`));
@@ -173,6 +179,13 @@ export function roughIn(model: PlanModel, item: Item): RoughInReading[] {
     base.resolved = missing.length === 0;
     return base;
   });
+  const lv=installationReading(model,item);
+  const local=(item.installationGeometry?.services??[]).map(p=>{
+    const r=localPointReading(model,item,p);
+    const up=r.level!==undefined && lv.finishedFloorLevel!==undefined ? quantize(r.level-lv.finishedFloorLevel) : undefined;
+    return {pointId:`local:${p.id}`,label:p.label,service:p.service,status:r.basis==="unknown"?p.status:r.basis,source:r.source,entered:{face:"fixture-back",across:p.x??undefined,out:p.y??undefined,up:p.z??undefined},resolved:r.resolved,missing:r.missing,fromFaces:[],...(r.x!==undefined?{x:r.x,y:r.y}:{}),...(up!==undefined?{up}:{}),...(r.level!==undefined?{level:r.level}:{})};
+  });
+  return [...legacy,...local];
 }
 
 /**

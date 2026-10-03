@@ -46,7 +46,7 @@ describe("bounded bathroom fitting briefs (#50)", () => {
         const result = actions.placeProduct(product, { wallId: wall, side: "right", face: "finished", distance: 1, status: "proposed" });
         expect(result.ok).toBe(c.supported);
         if (!c.supported) {
-          expect(result.summary).toMatch(/Unsupported product placement.*#51/);
+          expect(result.summary).toMatch(/Unsupported product placement/);
           expect(JSON.stringify(store.getState().model)).toBe(before);
           expect(store.getState().kinds).toEqual([]);
         } else {

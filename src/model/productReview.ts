@@ -41,6 +41,7 @@ export function requiredReviewKeys(request: ProductRequest): string[] {
   return [
     ...new Set([
       ...Object.keys(s.fields),
+      ...(s.installationGeometry ? ["installationGeometry"] : []),
       ...identityReviewKeys(s),
       ...flagged,
     ]),
@@ -53,7 +54,9 @@ export function reviewEvidence(request: ProductRequest, key: string): string {
   const category = categoryById(request.category);
   const spec = (category ? request.mode ? measurementFields(category) : category.fields : []).find(f => f.key === key);
   const evidence =
-    key === "components"
+    key === "installationGeometry"
+      ? s.installationGeometry
+      : key === "components"
       ? { status: s.componentsStatus, components: s.components }
       : key.startsWith("identity.")
         ? identityOf(s)[key.slice(9) as IdentityKey]
@@ -68,6 +71,8 @@ export function reviewEvidence(request: ProductRequest, key: string): string {
     identity: identityOf(s),
     key,
     evidence,
+    // The outline and point datums are interpreted against this envelope.
+    ...(key === "installationGeometry" ? { envelope: Object.fromEntries(Object.entries(categoryById(request.category)?.envelope ?? {}).map(([axis,field]) => [axis,s.fields[field]])) } : {}),
     requestedEvidence:
       key === "components"
         ? {

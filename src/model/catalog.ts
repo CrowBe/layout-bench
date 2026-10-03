@@ -21,6 +21,8 @@ export interface CatalogEntry {
    * place themselves.
    */
   elevation?: number;
+  /** A mounted product requires explicit accepted-product placement, not generic drop. */
+  installationMounting?: "wall";
 }
 
 export const CATALOG: CatalogEntry[] = [

@@ -1,3 +1,4 @@
+import type { FixtureInstallation, InstallationGeometry } from "./installation";
 import type { ExactProduct, SelectionStatus } from "./productIdentity";
 import type { ProductSpecification } from "./productMeasurements";
 import type { FieldValue } from "./products";
@@ -248,6 +249,8 @@ export interface Item {
   anchor?: FixtureAnchor;
   /** Service connections (#5): entered, or copied from a library product's rough-in. */
   servicePoints?: ServicePoint[];
+  installation?: FixtureInstallation;
+  installationGeometry?: InstallationGeometry;
   /** The product-library entry this fixture was placed from. */
   productId?: string;
   /** Exact identity evidence at placement; travels with project export/import. */

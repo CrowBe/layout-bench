@@ -1,3 +1,6 @@
+import { installationReading, localPointReading, clearanceRegions } from "../model/installation";
+import { anchorPose } from "../model/fixtures";
+import { buildFurniture } from "./furniture";
 /**
  * 3D builder — extrudes the plan into a dollhouse-style model:
  * walls with REAL openings (lintels + sills, no CSG), resolved corner joints,
@@ -202,6 +205,23 @@ export function nameMeshes(root: THREE.Object3D, name: string): void {
   root.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && !o.name) o.name = name;
   });
+}
+
+/** Canonical fixture shape, transform and resolved vertical level; unknown placement is omitted. */
+export function buildFixture(model: PlanModel,it: Item): THREE.Group | null {
+  const lv=installationReading(model,it);
+  if(it.installation && (!lv.resolved || !anchorPose(model,it).resolved))return null;
+  const cat=catalogByKind(it.kind);if(!cat)return null;
+  // An installed fitting without a sourced outline is exactly its envelope, without
+  // decorative legs/top offsets that would change its documented height or footprint.
+  const fg=it.installation && !cat.outline ? new THREE.Group() : buildFurniture(it.kind);if(!fg)return null;
+  if(it.installation && !cat.outline){const mesh=new THREE.Mesh(new THREE.BoxGeometry(cat.w,cat.h,cat.d),new THREE.MeshStandardMaterial({color:cat.color,roughness:.75}));mesh.position.y=cat.h/2;fg.add(mesh);}
+  fg.position.set(it.x,lv.bottom ?? .04,it.y);fg.rotation.y=it.rotation*Math.PI/180;
+  if(it.installation?.mirror)fg.scale.x=-1;
+  fg.userData={fixtureId:it.id,installation:lv};nameMeshes(fg,it.id);
+  for(const p of it.installationGeometry?.fixings??[]){const r=localPointReading(model,it,p);if(r.x===undefined || r.y===undefined || r.level===undefined)continue;
+    const marker=new THREE.Mesh(new THREE.SphereGeometry(.007,8,6),frameMaterial);marker.position.set(p.x! ,p.z!,p.y!-catalogByKind(it.kind)!.d/2);marker.name=`${it.id}:fixing:${p.id}`;fg.add(marker);}
+  return fg;
 }
 
 const named = <T extends THREE.Object3D>(o: T, name: string): T => {
@@ -656,10 +676,19 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
 
   // service points (#5): a small marker where plan position and height are both known
   for (const it of model.items) {
+    // Installation access is a wire volume, separate from the physical fixture mesh.
+    for(const access of clearanceRegions(model,it)){
+      if(!access.resolved || access.bottom===undefined || access.top===undefined)continue;
+      const lines:number[]=[];const v=(i:number,z:number)=>[access.polygon[i].x,z,access.polygon[i].y];
+      for(let i=0;i<4;i++){const j=(i+1)%4;for(const z of [access.bottom,access.top])lines.push(...v(i,z),...v(j,z));lines.push(...v(i,access.bottom),...v(i,access.top));}
+      const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(lines,3));
+      const region=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:"#8c6496",transparent:true,opacity:.65}));region.name=`${it.id}:access:${access.id}`;region.userData={requirement:access};group.add(region);
+    }
     for (const r of roughIn(model, it)) {
-      if (r.x === undefined || r.y === undefined || r.up === undefined) continue;
+      const vertical=r.level ?? r.up;
+      if (r.x === undefined || r.y === undefined || vertical === undefined) continue;
       const marker = new THREE.Mesh(serviceMarkerGeometry, serviceMaterials[r.service]);
-      marker.position.set(r.x, r.up, r.y);
+      marker.position.set(r.x, vertical, r.y);
       marker.userData.provenance = { status: r.status, ...(r.axisEvidence ? { axisEvidence: structuredClone(r.axisEvidence) } : {}) };
       group.add(named(marker, `${it.id}:service:${r.pointId}`));
     }

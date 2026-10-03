@@ -1,3 +1,4 @@
+import { localPointReading, clearanceRegions } from "../model/installation";
 /**
  * Editor — precise 2D SVG plan editor.
  * Chained wall drawing, rooms, openings with door arcs, furniture, blueprint underlay,
@@ -468,7 +469,7 @@ export function Editor() {
               // a real outline (#37): the same polygon the checks and the sheet use
               <polygon
                 data-outline="true"
-                points={kindPolygon(cat).map((p) => `${p.x * S},${p.y * S}`).join(" ")}
+                points={kindPolygon(cat).map((p) => `${(it.installation?.mirror ? -p.x : p.x) * S},${p.y * S}`).join(" ")}
                 fill={cat.color}
                 fillOpacity={0.85}
                 stroke={selected ? "#e07b39" : "#5a5248"}
@@ -487,6 +488,7 @@ export function Editor() {
                 strokeWidth={selected ? 2.5 : 1}
               />
             )}
+            {(it.installationGeometry?.fixings??[]).map(p=>{const r=localPointReading(model,it,p);return r.x!==undefined && r.y!==undefined?<circle key={p.id} data-fixing={p.id} cx={(it.installation?.mirror?-1:1)*p.x!*S} cy={(p.y!-cat.d/2)*S} r={3} fill="#8c6496"/>:null;})}
             <text
               x={0}
               y={0}
@@ -504,6 +506,7 @@ export function Editor() {
       })}
 
       {/* service points (#5): only resolved ones have a position */}
+      {model.items.flatMap(it=>clearanceRegions(model,it).filter(r=>r.resolved && !["above","below"].includes(r.direction)).map(r=><polygon key={`${it.id}:${r.id}`} data-access={r.id} points={r.polygon.map(p=>`${p.x*S},${p.y*S}`).join(" ")} fill="none" stroke="#8c6496" strokeDasharray="3 3" strokeWidth={1}/>))}
       {servicePoints.map(({ it, r }) => (
         <g key={`${it.id}:${r.pointId}`} data-sp={`${it.id}:${r.pointId}`} pointerEvents="none">
           <circle cx={r.x! * S} cy={r.y! * S} r={Math.max(3, 0.03 * S)} fill={SERVICE_COLOR[r.service]} stroke="#fff" strokeWidth={1} />
