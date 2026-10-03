@@ -277,7 +277,14 @@ export const products = {
     if (!requiredReviewKeys(req).includes(field)) return fail("Only a submitted or flagged field can be reviewed.");
     if (!["accepted", "rejected"].includes(decision)) return fail("Choose accepted or rejected.");
     if (decision === "rejected" && !reason?.trim()) return fail("Say why the value is rejected, so the agent can act on it.");
-    updateRequest(req.id, { reviews: { ...req.reviews, [field]: { decision, evidence: reviewEvidence(req, field), method: "individual", ...(reason?.trim() ? { reason: reason.trim() } : {}) } } });
+    const rejection = decision === "rejected" ? reason!.trim() : req.reviews[field]?.decision === "rejected" ? req.reviews[field].reason : undefined;
+    updateRequest(req.id, {
+      reviews: { ...req.reviews, [field]: { decision, evidence: reviewEvidence(req, field), method: "individual", ...(reason?.trim() ? { reason: reason.trim() } : {}) } },
+      ...(rejection ? {
+        individualOnly: [...new Set([...(req.individualOnly ?? []), field])],
+        previousRejections: { ...req.previousRejections, [field]: rejection },
+      } : {}),
+    });
     return ok(`${field} ${decision}.`);
   },
 

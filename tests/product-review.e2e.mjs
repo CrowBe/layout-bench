@@ -179,6 +179,18 @@ try {
     /rejected: Confirm entry side/,
   );
   assert.equal((await saved(mixedId)).reviews.width.method, "group");
+  await row("inletEntry")
+    .getByRole("button", {
+      name: "Accept individually after rejection",
+      exact: true,
+    })
+    .click();
+  assert.equal((await saved(mixedId)).reviews.inletEntry.decision, "accepted");
+  assert.equal(
+    (await saved(mixedId)).previousRejections.inletEntry,
+    "Confirm entry side",
+  );
+  assert.ok((await saved(mixedId)).individualOnly.includes("inletEntry"));
   await detail
     .getByLabel("Feedback for the agent")
     .fill("Recheck changed width and entry");

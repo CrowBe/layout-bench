@@ -130,6 +130,27 @@ describe("explicit human product review groups (#52)", () => {
     products.reuseReviews(id);
     expect(products.accept(id).ok).toBe(true);
   });
+  it("retains rejection history after individual reconsideration and a later changed revision", () => {
+    const id = submit();
+    products.review(id, "width", "rejected", "Check widest point");
+    products.review(id, "width", "accepted");
+    expect(currentReview(request(), "width")?.decision).toBe("accepted");
+    expect(request().previousRejections?.width).toBe("Check widest point");
+    expect(request().individualOnly).toContain("width");
+    products.returnToAgent(id, "Correct width after reconsideration");
+    const changed = spec();
+    changed.fields.width = pub(0.39);
+    expect(products.submit(id, changed).ok).toBe(true);
+    expect(currentReview(request(), "width")).toBeUndefined();
+    expect(request().previousRejections?.width).toBe("Check widest point");
+    expect(productReviewSummary(request()).groups[0].eligible).not.toContain(
+      "width",
+    );
+    products.reviewGroup(id, "envelope");
+    expect(currentReview(request(), "width")).toBeUndefined();
+    expect(products.review(id, "width", "accepted").ok).toBe(true);
+  });
+
   it("offers unchanged approvals for explicit reuse and invalidates value, source, datum and applicability changes", () => {
     const id = submit();
     groups(id);
