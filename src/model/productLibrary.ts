@@ -266,7 +266,7 @@ export const products = {
 
   async importBundle(preview: BundlePreview): Promise<LibraryResult> {
     const local = io.local(), state = productStore.getState(), staged: string[] = [];
-    let attemptedPersistence = false;
+    let attemptedPersistence = false, attemptedPublication = false;
     if (bundleCommitInFlight) return fail("Another catalogue import is still committing.");
     if (!local || state.loadError || bundlePreviews.get(preview) !== previewSignature(preview)) return fail("This import preview is unavailable or changed. Preview the original bundle again.");
     const unchanged = () => recordsFingerprint(productStore.getState()) === preview.base && local.getItem(PRODUCTS_KEY) === preview.rawBase;
@@ -278,7 +278,8 @@ export const products = {
       for (const file of preview.files) {
         if (await io.files.get(file.id)) throw new Error("A staged file ID is already occupied. Preview again; existing bytes were preserved.");
         if (await bundleHash(new Uint8Array(await file.blob.arrayBuffer())) !== file.sha256) throw new Error("Preview original-file bytes changed. Preview again.");
-        if (io.files.add) await io.files.add(file.id, file.blob); else await io.files.put(file.id, file.blob);
+        if (!io.files.add) throw new Error("This file store cannot create original evidence without overwriting existing bytes. Import is unavailable.");
+        await io.files.add(file.id, file.blob);
         staged.push(file.id);
       }
       if (!unchanged()) throw new Error("Catalogue changed while staging original files. Preview again.");
@@ -287,12 +288,19 @@ export const products = {
       attemptedPersistence = true;
       local.setItem(PRODUCTS_KEY, docOf(next));
       const wasReady = ready; ready = false;
-      try { productStore.setState({ ...next, loadError: null, selectedRequestId: preview.additions.requests.at(-1)?.id ?? state.selectedRequestId }); }
+      try { attemptedPublication = true; productStore.setState({ ...next, loadError: null, selectedRequestId: preview.additions.requests.at(-1)?.id ?? state.selectedRequestId }); }
       finally { ready = wasReady; }
       bundlePreviews.delete(preview);
       return ok(`Imported ${preview.additions.products.length} accepted products, ${preview.additions.requests.length} requests and ${staged.length} original files. Existing project instances and selection statuses were preserved.`, { imported: preview.maps });
     } catch(error) {
       const rollbackErrors: string[] = [];
+      if (attemptedPublication) {
+        const wasReady = ready; ready = false;
+        // Zustand assigns state before notifying subscribers. A throwing subscriber must
+        // not leave records visible after their bytes/document are rolled back.
+        try { productStore.setState(state, true); } catch { /* Assignment already restored; subscriber errors cannot veto it. */ }
+        finally { ready = wasReady; }
+      }
       for (const id of staged) try { await io.files.remove(id); } catch { rollbackErrors.push(id); }
       // A conforming localStorage write is atomic. Also recover injected write-after-save faults.
       if (attemptedPersistence) try { if (local.getItem(PRODUCTS_KEY) !== preview.rawBase) { if (preview.rawBase === null && local.removeItem) local.removeItem(PRODUCTS_KEY); else local.setItem(PRODUCTS_KEY, preview.rawBase ?? docOf(state)); } } catch { rollbackErrors.push("library document"); }
