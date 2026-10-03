@@ -482,6 +482,41 @@ try {
   assert.equal(rough.installedLevels.bottom, 0.9);
   assert.equal(rough.fixings[0].level, 1.5);
   assert.match(rough.fixings[0].source, /attachment:att_import_/);
+  const archivedGeometry = library[0].installationGeometry;
+  assert.equal(archivedGeometry.fixings[0].z, 0.6);
+  assert.match(archivedGeometry.sources[0].url, /attachment:att_import_/);
+  const archivedPlaced = await tool(other, "place_product", {
+    productId: library[0].id,
+    wallId: wall.id,
+    side: "right",
+    face: "existing",
+    distance: 1.8,
+    status: "proposed",
+    installation: {
+      mounting: "floor",
+      roomId: room.id,
+      floorDatum: "finished-floor",
+      height: q(0.05),
+      mirror: false,
+      orientation: 0,
+    },
+  });
+  assert.equal(archivedPlaced.ok, true, archivedPlaced.summary);
+  const archivedRead = (
+    await tool(other, "get_rough_in", { itemId: archivedPlaced.id })
+  ).fixtures[0];
+  assert.equal(archivedRead.fixings[0].level, 0.65);
+  assert.match(archivedRead.fixings[0].source, /attachment:att_import_/);
+  await tool(other, "set_diagram_view", {
+    label: "Transferred catalogue originals",
+    visible: ["walls", "fixtures", "services-waste"],
+  });
+  const output = await tool(other, "export_diagram_view", {
+    includeOutputs: true,
+  });
+  assert.equal(output.ok, true, output.summary);
+  assert.match(output.specHtml, /attachment:att_import_/);
+  assert.match(output.specHtml, /Synthetic fixing/);
   assert.equal((await tool(other, "build_3d")).ok, true);
   assert.equal(item.selectionStatus, "unknown");
   assert.match(

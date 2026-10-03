@@ -6,6 +6,7 @@ import {
   initializeProductLibrary,
   PRODUCTS_KEY,
   type ProductRequest,
+  type LibraryProduct,
 } from "../src/model/productLibrary";
 import { memoryFiles, type FileStore } from "../src/model/productFiles";
 import { categoryById, type FieldValue } from "../src/model/products";
@@ -17,7 +18,11 @@ import {
   type CatalogueBundle,
   type BundlePreview,
 } from "../src/model/productBundles";
-import { reviewEvidence, currentReview } from "../src/model/productReview";
+import {
+  reviewEvidence,
+  currentReview,
+  requiredReviewKeys,
+} from "../src/model/productReview";
 import { actions, store } from "../src/model/store";
 import { emptyModel } from "../src/model/types";
 const nodePdfjs = async () =>
@@ -657,6 +662,108 @@ describe("portable original catalogue evidence (#49)", () => {
     expect(imported.reviews.width).toEqual(r.reviews.width);
     expect(imported.previousRejections).toEqual(r.previousRejections);
     expect(currentReview(imported, "width")).toBeUndefined();
+  });
+  it("exports and remaps two accepted revisions plus a pending third with inherited originals and bound review candidates", async () => {
+    await sourceBundle();
+    const first = productStore.getState().products[0],
+      origin = productStore.getState().requests[0];
+    Object.assign(first, { revision: { seriesId: first.id, number: 1 } });
+    const second = structuredClone(first) as LibraryProduct & {
+      revision: { seriesId: string; number: number; parentProductId?: string };
+    };
+    second.id = "revision_two_product";
+    second.requestId = "revision_two_request";
+    second.revision = {
+      seriesId: first.id,
+      number: 2,
+      parentProductId: first.id,
+    };
+    const secondRequest = structuredClone(origin) as ProductRequest & {
+      revisionOf?: string;
+    };
+    secondRequest.id = second.requestId;
+    secondRequest.productId = second.id;
+    secondRequest.revisionOf = first.id;
+    secondRequest.evidenceOriginRequestId = origin.id;
+    secondRequest.attachments = [];
+    const third = structuredClone(secondRequest) as ProductRequest & {
+      revisionOf?: string;
+    };
+    third.id = "pending_third_revision";
+    third.productId = undefined;
+    third.status = "submitted";
+    third.revisionOf = second.id;
+    third.evidenceOriginRequestId = secondRequest.id;
+    third.reviews = {};
+    third.reuseCandidates = {};
+    third.previousRejections = { height: "Historical correction reason" };
+    third.individualOnly = ["height"];
+    const records = {
+      requests: [origin, secondRequest, third],
+      products: [first, second],
+    };
+    for (const r of [secondRequest, third])
+      for (const key of requiredReviewKeys(r)) {
+        const review = {
+          decision: "accepted" as const,
+          method: "individual" as const,
+          evidence: reviewEvidence(r, key, records.requests),
+        };
+        if (r === third) third.reuseCandidates![key] = review;
+        else r.reviews[key] = review;
+      }
+    productStore.setState(records);
+    const exported = await products.exportBundle({
+      requestIds: [third.id],
+      productIds: [],
+    });
+    expect(exported.ok, exported.summary).toBe(true);
+    const bundle = exported.bundle as CatalogueBundle;
+    expect(bundle.products).toHaveLength(2);
+    expect(bundle.requests).toHaveLength(3);
+    expect(bundle.files).toHaveLength(2);
+    setup();
+    await files.put(bundle.files[0].id, new Blob(["unrelated orphan"]));
+    const p = await preview(bundle);
+    expect((await products.importBundle(p)).ok).toBe(true);
+    const received = productStore.getState(),
+      newFirst = received.products.find(
+        (x) => x.id === p.maps.products[first.id],
+      )! as typeof second,
+      newSecond = received.products.find(
+        (x) => x.id === p.maps.products[second.id],
+      )! as typeof second,
+      pending = received.requests.find(
+        (x) => x.id === p.maps.requests[third.id],
+      )! as typeof third;
+    expect(newFirst.revision.seriesId).toBe(newFirst.id);
+    expect(newSecond.revision).toEqual({
+      seriesId: newFirst.id,
+      number: 2,
+      parentProductId: newFirst.id,
+    });
+    expect(pending.revisionOf).toBe(newSecond.id);
+    expect(pending.evidenceOriginRequestId).toBe(
+      p.maps.requests[secondRequest.id],
+    );
+    expect(pending.reuseCandidates!.width.evidence).toBe(
+      reviewEvidence(pending, "width", received.requests),
+    );
+    expect(pending.previousRejections).toEqual(third.previousRejections);
+    expect(pending.individualOnly).toEqual(["height"]);
+    expect(pending.submission!.fields.width.sources![0].url).toBe(
+      `attachment:${p.maps.attachments[bundle.files[0].id]}`,
+    );
+    expect(
+      await bundleHash(
+        new Uint8Array(
+          await (await files.get(
+            p.maps.attachments[bundle.files[0].id],
+          ))!.arrayBuffer(),
+        ),
+      ),
+    ).toBe(bundle.files[0].sha256);
+    expect((await preview(bundle)).reused).toBe(true);
   });
   it("retains inherited measurement evidence and accepted revision dependency closure", async () => {
     const bundle = await sourceBundle(),
