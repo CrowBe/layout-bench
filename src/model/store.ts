@@ -1,4 +1,4 @@
-import { validInstallation, installationReading, geometryForPlacement, type FixtureInstallation } from "./installation";
+import { validInstallation, installationReading, geometryForPlacement, mirroringProblem, type FixtureInstallation } from "./installation";
 /**
  * Single source of truth. The UI buttons and the WebMCP tools call THE SAME actions,
  * so human and agent truly co-edit one model. Vanilla zustand store (usable outside React).
@@ -1559,7 +1559,7 @@ export const actions = {
     if (wallMounted && anchorInput.installation?.mounting !== "wall") return fail("Unsupported product placement: this wall-mounted fitting requires explicit installation.mounting wall and an entered room/floor datum; omitted height remains unknown.");
     if(product.installationGeometry && !anchorInput.installation)return fail("Sourced installation geometry requires explicit placement above a named room/floor datum; no ground height is assumed.");
     if (anchorInput.installation?.mounting === "wall" && !wallMounted) return fail("Unsupported wall mounting for this category/mode; detailed installation geometry is not represented.");
-    if (anchorInput.installation?.mirror && (["left","right"].includes(identityOf(product).handedness.value ?? "") || product.installationGeometry?.handedness !== "reversible" && identityOf(product).handedness.value !== "reversible")) return fail("Mirroring requires documented reversibility for this exact product.");
+    if (anchorInput.installation?.mirror) {const problem=mirroringProblem(product,product.installationGeometry);if(problem)return fail(problem);}
     const env = cat ? envelopeOf(cat, product.fields) : null;
     if (!env) return fail(`${product.manufacturer} ${product.model} has no known overall size on supported datums, so it cannot be placed without inventing one.`);
     // validate everything before anything changes, then apply as one undo step
@@ -1645,7 +1645,7 @@ export const actions = {
     const hit=resolveItem(itemRef);if(!hit.ok)return rejected(hit);
     if(!validInstallation(placement))return fail("Invalid installation placement: height is metres above a named floor datum with status and source.");
     const it=hit.entity;
-    if(placement.mirror && (["left","right"].includes(identityOf(it.productIdentity ?? {}).handedness.value??"") || it.installationGeometry?.handedness!=="reversible" && identityOf(it.productIdentity ?? {}).handedness.value!=="reversible"))return fail("Mirroring requires documented reversibility for this exact product.");
+    if(placement.mirror){const problem=mirroringProblem(it.productIdentity ?? {},it.installationGeometry);if(problem)return fail(problem);}
     if(placement.mounting!==it.installation?.mounting && it.installation) return fail("Mounting mode is part of the placed product contract; place a supported mounting variant instead.");
     pushUndo();setModel({...store.getState().model,items:store.getState().model.items.map(x=>x.id===it.id?{...x,installation:structuredClone(placement)}:x)});
     const next=store.getState().model.items.find(x=>x.id===it.id)!;const r=installationReading(store.getState().model,next);

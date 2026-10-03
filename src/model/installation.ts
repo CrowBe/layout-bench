@@ -2,6 +2,7 @@
  * never change; all consumers derive the same transformed points and level interval. */
 import type { Item, PlanModel, Quantity, ValueStatus } from "./types";
 import type { SourceRef, FieldValue } from "./products";
+import { identityOf, type ExactProduct } from "./productIdentity";
 import type { LibraryProduct } from "./productLibrary";
 import { catalogByKind } from "./catalog";
 import { floorLevels, finishedLevel } from "./floor";
@@ -32,6 +33,14 @@ export interface FixtureInstallation {
   mirror: boolean;
   /** Yaw relative to the anchor's facing direction, degrees. */
   orientation: number;
+}
+/** A fixed or conflicting source hand never becomes another exact variant. */
+export function mirroringProblem(product: Pick<ExactProduct, "identity">, geometry?: InstallationGeometry): string | null {
+  const hand=identityOf(product).handedness;
+  const documented=hand.state === "known" ? hand.value : null;
+  if ([documented,geometry?.handedness].some(h=>h === "left" || h === "right") ||
+      hand.alternatives?.some(a=>a.value !== documented)) return "Mirroring is unavailable: fixed or conflicting handedness evidence needs individual review; the exact variant is retained.";
+  return documented === "reversible" || geometry?.handedness === "reversible" ? null : "Mirroring requires documented reversibility for this exact product; unknown handedness is retained.";
 }
 const obj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);

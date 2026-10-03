@@ -31,6 +31,16 @@ try {
  await detail.getByRole('button',{name:'Accept product',exact:true}).click();
  assert.match(await detail.textContent(),/installationGeometry/);
  await detail.getByRole('button',{name:'Accept installation geometry',exact:true}).click();
+ // A changed source invalidates the geometry approval; group/reused field reviews cannot bypass it.
+ await detail.getByLabel('Feedback for the agent').fill('Correct synthetic fixing source locator');
+ await detail.getByRole('button',{name:'Return to agent',exact:true}).click();
+ geometry.fixings[0].sources=[{...sources[0],locator:'p. 3 corrected synthetic fixing diagram'}];
+ assert.equal((await run('submit_product_spec',{requestId:req.requestId,manufacturer:'Synthetic',model:'Arc mirror',fields:{...fittingCases[5].fields,...powered},installationGeometry:geometry})).ok,true);
+ await detail.locator('summary').filter({hasText:'unchanged accepted reviews available'}).click();
+ await detail.getByRole('button',{name:/Reuse .* unchanged accepted reviews/}).click();
+ await detail.getByRole('button',{name:'Accept product',exact:true}).click();
+ assert.match(await detail.textContent(),/installationGeometry/);
+ await detail.getByRole('button',{name:'Accept installation geometry',exact:true}).click();
  await detail.getByRole('button',{name:'Accept product',exact:true}).click();
  assert.match(await detail.textContent(),/status accepted/);
  await page.getByRole('button',{name:'Back to plan',exact:true}).click();
@@ -76,12 +86,19 @@ try {
  const before=await page.evaluate(()=>window.__alza.store.getState().model.items[0]);
  await page.reload();await page.locator('.project-card').filter({hasText:'Synthetic installation #51'}).getByRole('button',{name:'Open',exact:true}).click();
  assert.deepEqual(await page.evaluate(()=>window.__alza.store.getState().model.items[0]),before);
- // A portable project can be imported into a browser with no accepted product library.
- const raw=await page.evaluate(()=>JSON.parse(localStorage.getItem('alza.projects.v1')).projects.find(p=>p.model.name==='Synthetic installation #51'));
+ // Genuine JSON backup and import into a browser with no accepted product library.
+ await page.getByRole('button',{name:'Projects',exact:true}).click();
+ const jsonDownload=page.waitForEvent('download');
+ await page.locator('.project-card').filter({hasText:'Synthetic installation #51'}).getByRole('button',{name:'Export JSON',exact:true}).click();
+ const jsonFile=await (await jsonDownload).path();
  const fresh=await browser.newContext();const imported=await fresh.newPage();await imported.goto(process.env.ALZA_BASE_URL??'http://127.0.0.1:5251/');
- await imported.evaluate(raw=>{localStorage.removeItem('alza.products.v1');localStorage.setItem('alza.projects.v1',JSON.stringify({version:2,activeId:raw.id,projects:[raw]}));},raw);
- await imported.reload();await imported.locator('.project-card').filter({hasText:'Synthetic installation #51'}).getByRole('button',{name:'Open',exact:true}).click();
+ await imported.getByLabel('Import project JSON').setInputFiles({name:'synthetic-installation.json',mimeType:'application/json',buffer:await readFile(jsonFile)});
+ await imported.getByLabel('Name for imported copy').fill('Portable installation #51');
+ await imported.getByRole('button',{name:'Import as new project',exact:true}).click();
+ assert.equal(await imported.locator('.brand-plan').textContent(),'Portable installation #51');
  const importedRead=await imported.evaluate(id=>window.__alza.runTool('get_rough_in',{itemId:id}),item.id);assert.deepEqual(importedRead.fixtures[0].installationGeometry,geometry);assert.equal(importedRead.fixtures[0].fixings[0].level,1.56);
+ assert.equal(await imported.evaluate(()=>JSON.parse(localStorage.getItem('alza.products.v1')??'{"products":[]}').products.length),0);
+ await page.locator('.project-card').filter({hasText:'Synthetic installation #51'}).getByRole('button',{name:'Open',exact:true}).click();
  await fresh.close();
  // With no resolved floor, product/local heights stay in evidence but actual level is unknown.
  await run('set_room_floor',{room:room.id,substrateTop:{}});

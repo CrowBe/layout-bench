@@ -26,6 +26,7 @@ import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems } from "..
 import { IDENTITY_FIELDS, SELECTION_STATUSES, type SelectionStatus } from "../model/productIdentity";
 import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
 import { productStore, products } from "../model/productLibrary";
+import { productReviewSummary } from "../model/productReview";
 import { checkModel } from "../model/issues";
 import { CATALOG } from "../model/catalog";
 import { SUPPLIER_ORIGIN, getProduct, listProducts } from "./supplier";
@@ -943,6 +944,7 @@ export const TOOLS: ToolDef[] = [
         summary: `${cat.label} brief for ${[req.known.brand, req.known.model].filter(Boolean).join(" ") || req.known.reference || req.known.link}: ${cat.fields.length} fields, status ${req.status}.`,
         requestId: req.id,
         status: req.status,
+        completeness: productReviewSummary(req),
         category: { id: cat.id, label: cat.label },
         ...(cat.placement ? { placement: cat.placement } : {}),
         known: req.known,

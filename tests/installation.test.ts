@@ -1,3 +1,4 @@
+import { currentReview, requiredReviewKeys } from "../src/model/productReview";
 import { identityOf } from "../src/model/productIdentity";
 import { beforeEach, expect, it } from "vitest";
 import { actions, store } from "../src/model/store";
@@ -129,4 +130,55 @@ it("renders an installed envelope without decorative defaults that alter its dim
   const item=store.getState().model.items.at(-1)!;const mesh=buildFixture(store.getState().model,item)!;
   const box=new THREE.Box3().setFromObject(mesh);expect(box.min.y).toBeCloseTo(.86,4);expect(box.max.y).toBeCloseTo(1.66,4);
   expect(box.max.x-box.min.x).toBeCloseTo(.6,4);expect(box.max.z-box.min.z).toBeCloseTo(.03,4);
+});
+
+it("binds geometry approval to source evidence and envelope, with explicit reuse for unchanged revisions", () => {
+  const fields={...fittingCases[5].fields,...powered};
+  const id=products.request("mirror",{brand:"Synthetic"}).requestId as string;
+  const submission={manufacturer:"Synthetic",model:"Arc mirror",fields,installationGeometry:geometry()};
+  expect(products.submit(id,submission).ok).toBe(true);
+  const req=()=>productStore.getState().requests[0];
+  expect(requiredReviewKeys(req())).toContain("installationGeometry");
+  for(const group of ["envelope","rough-in","installation"] as const)products.reviewGroup(id,group);
+  expect(currentReview(req(),"installationGeometry")).toBeUndefined();
+  for(const key of Object.keys(fields))products.review(id,key,"accepted");
+  products.review(id,"installationGeometry","accepted");
+  expect(products.returnToAgent(id,"Confirm unchanged evidence").ok).toBe(true);
+  expect(products.submit(id,submission).ok).toBe(true);
+  expect(currentReview(req(),"installationGeometry")).toBeUndefined();
+  expect(req().reuseCandidates?.installationGeometry).toBeDefined();
+  expect(products.accept(id).ok).toBe(false);
+  expect(products.reuseReviews(id).ok).toBe(true);
+  expect(currentReview(req(),"installationGeometry")?.method).toBe("reused");
+  expect(products.returnToAgent(id,"Correct source locator").ok).toBe(true);
+  const changed=structuredClone(submission);changed.installationGeometry.fixings[0].sources=[{...sources[0],locator:"p. 3 corrected fixing diagram"}];
+  expect(products.submit(id,changed).ok).toBe(true);
+  expect(req().reuseCandidates?.installationGeometry).toBeUndefined();
+  products.reuseReviews(id);
+  expect(products.accept(id).ok).toBe(false);
+  expect(products.review(id,"installationGeometry","accepted").ok).toBe(true);
+  // Even a changed pending record with an old review fingerprint cannot bypass acceptance.
+  const stale=structuredClone(req());stale.submission!.fields.height=pub(.81);
+  productStore.setState({requests:[stale]});
+  expect(currentReview(req(),"installationGeometry")).toBeUndefined();
+  expect(products.accept(id).ok).toBe(false);
+});
+
+it("refuses mirroring fixed, conflicting and unknown hand evidence on placement and later edits",()=>{
+  const it=setup(),accepted=productStore.getState().products[0];
+  for(const [identityHand,shapeHand,alternatives] of [["left","reversible",undefined],["reversible","right",undefined],["reversible","reversible",[{value:"left",source:sources[0]}]],[null,"unknown",undefined]] as const){
+    const hand={state:identityHand?"known" as const:"unknown" as const,value:identityHand,sources,...(alternatives?{alternatives:[...alternatives]}:{})};
+    const identity={...identityOf(accepted),handedness:hand};
+    const installationGeometry={...geometry(),handedness:shapeHand};
+    const product={...accepted,identity,installationGeometry};
+    const before=JSON.stringify(store.getState().model);
+    expect(actions.placeProduct(product,{...it.anchor!,installation:{...it.installation!,mirror:true}}).ok).toBe(false);
+    expect(JSON.stringify(store.getState().model)).toBe(before);
+    const model=store.getState().model;store.setState({model:{...model,items:[{...it,installationGeometry,productIdentity:{...it.productIdentity!,identity}}]}});
+    const editedBefore=JSON.stringify(store.getState().model);
+    expect(actions.setFixtureInstallation(it.id,{...it.installation!,mirror:true}).ok).toBe(false);
+    expect(JSON.stringify(store.getState().model)).toBe(editedBefore);
+  }
+  const conflict={manufacturer:"Synthetic",model:"Right",identity:{...identityOf(accepted),handedness:{state:"known" as const,value:"right",sources}},fields:accepted.fields,installationGeometry:geometry()};
+  expect(validateSubmission(categoryById("mirror")!,conflict)).toEqual(expect.arrayContaining([expect.objectContaining({code:"geometry_hand_conflict",severity:"warning"})]));
 });

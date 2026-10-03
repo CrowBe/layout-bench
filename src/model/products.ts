@@ -9,7 +9,7 @@ import { geometryProblems, type InstallationGeometry } from "./installation";
  * looked; nothing is guessed from photos or similar models.
  */
 
-import { validateIdentity, type ExactProduct } from "./productIdentity";
+import { identityOf, validateIdentity, type ExactProduct } from "./productIdentity";
 import type { ValueStatus } from "./types";
 import { formatMm, quantize } from "./geometry";
 import { outlineExtents, type Outline } from "./outline";
@@ -414,6 +414,10 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission,
     if (!env) err("installationGeometry", "geometry_envelope_unknown", "Sourced installation geometry needs known overall dimensions on supported datums.");
     else for (const m of geometryProblems(s.installationGeometry,env.w,env.d,env.h)) err("installationGeometry","geometry_invalid",m);
     if (!out.some(p => p.field === "installationGeometry" && p.severity === "error")) {
+      const hand=identityOf(s).handedness;
+      const shapeHand=s.installationGeometry.handedness === "not-handed" ? "non-handed" : s.installationGeometry.handedness;
+      if(hand.state === "known" && shapeHand !== "unknown" && hand.value !== shapeHand)
+        warn("installationGeometry","geometry_hand_conflict","Exact variant handedness and geometry handedness disagree. Both source records are retained; mirroring cannot create another exact variant.");
       for (const record of [s.installationGeometry,s.installationGeometry.outline,...s.installationGeometry.fixings ?? [],...s.installationGeometry.services ?? [],...s.installationGeometry.clearances ?? []].filter(Boolean)) {
         const problem=checkSources(record!.sources,ctx);if(problem)err("installationGeometry","geometry_source_invalid",problem);
         if(record!.status!=="published")err("installationGeometry","geometry_status_invalid","Research geometry must retain published source evidence.");

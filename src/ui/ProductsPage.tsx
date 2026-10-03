@@ -6,12 +6,14 @@
 
 import { Link, viewAttachment } from "./ProductSource";
 import { ExactIdentity, IdentityEditor } from "./ProductIdentity";
+import { ProductReviewSummary } from "./ProductReviewSummary";
+import { currentReview } from "../model/productReview";
 import { unknownIdentity, identityOf, identityText, type ProductComponent } from "../model/productIdentity";
 import { useEffect, useState } from "react";
 import { logActivity } from "../model/store";
 import { formatMm } from "../model/geometry";
 import { PRODUCT_CATEGORIES, REFERENCES, applies, type AxisValue, categoryById, envelopeOf, productPlacementProblem, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
-import { MAX_ATTACHMENT_BYTES, products, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
+import { MAX_ATTACHMENT_BYTES, products, productReviewWarnings, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
 
 const human = (tool: string, r: LibraryResult) => {
   logActivity("human", tool, r.summary, r.ok);
@@ -203,10 +205,10 @@ function Brief({ cat, req }: { cat: ProductCategory; req: ProductRequest }) {
 
 function ReviewRow({ req, f }: { req: ProductRequest; f: FieldSpec }) {
   const v = req.submission!.fields[f.key];
-  const review = req.reviews[f.key];
+  const review = currentReview(req, f.key);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
-  const flags = req.submission!.warnings.filter((w) => w.field === f.key);
+  const flags = productReviewWarnings(req).filter((w) => w.field === f.key || w.field === null);
   if (!v) return null;
   const decide = (decision: "accepted" | "rejected") => {
     const r = human("review_product_field", products.review(req.id, f.key, decision, reason));
@@ -222,14 +224,14 @@ function ReviewRow({ req, f }: { req: ProductRequest; f: FieldSpec }) {
           <div key={i}><Link url={s.url} locator={s.locator} />{s.locator ? `, ${s.locator}` : ""}</div>
         ))}
         {v.note && <div className="hint">{v.note}</div>}
+        {req.previousRejections?.[f.key] && review?.decision !== "rejected" && <div className="hint">Previously rejected: {req.previousRejections[f.key]}</div>}
         {flags.map((w, i) => <div key={i} className="inspector-warn">⚠ {w.message}</div>)}
       </td>
       <td>
-        {review
-          ? <span>{review.decision}{review.reason ? `: ${review.reason}` : ""}</span>
-          : (
+        {review && <span>{review.decision}{review.reason ? `: ${review.reason}` : ""}</span>}
+        {(!review || review.decision === "rejected") && (
             <div className="review-actions">
-              <button type="button" onClick={() => decide("accepted")}>Accept</button>
+              <button type="button" onClick={() => decide("accepted")}>{review ? "Accept individually after rejection" : "Accept"}</button>
               <input aria-label={`Reason to reject ${f.label}`} placeholder="reason to reject" value={reason} onChange={(e) => setReason(e.target.value)} />
               <button type="button" onClick={() => decide("rejected")}>Reject</button>
             </div>
@@ -244,7 +246,7 @@ function GeometryReview({ req }: {req:ProductRequest}) {
   const g=req.submission?.installationGeometry;
   const [reason,setReason]=useState("");const [error,setError]=useState("");
   if(!g)return null;
-  const review=req.reviews.installationGeometry;
+  const review=currentReview(req,"installationGeometry");
   const decide=(decision:"accepted"|"rejected")=>{const r=human("review_product_geometry",products.review(req.id,"installationGeometry",decision,reason));setError(r.ok?"":r.summary);};
   const sources=(ss:typeof g.sources)=>ss.map((s,i)=><span key={i}><Link url={s.url} locator={s.locator}>{s.locator}</Link> </span>);
   const xy=(p:{x:number;y:number})=>`${formatMm(p.x)}, ${formatMm(p.y)} mm`;
@@ -256,7 +258,8 @@ function GeometryReview({ req }: {req:ProductRequest}) {
       {[...(g.fixings??[]),...(g.services??[])].map(p=><tr key={p.id}><td>{p.label}</td><td>{[p.x,p.y,p.z].map(v=>v===null?"unknown":`${formatMm(v)} mm`).join(" / ")}</td><td>{p.status}</td><td>{sources(p.sources)}</td></tr>)}
       {(g.clearances??[]).map(r=><tr key={r.id}><td>{r.label} (access)</td><td>{r.direction}: {r.distance===null?"unknown":`${formatMm(r.distance)} mm`}; separate from physical footprint</td><td>{r.status}</td><td>{sources(r.sources)}</td></tr>)}
     </tbody></table>
-    {req.submission!.warnings.filter(w=>w.field==="installationGeometry").map((w,i)=><p className="inspector-warn" key={i}>{w.message}</p>)}
+    {productReviewWarnings(req).filter(w=>w.field==="installationGeometry").map((w,i)=><p className="inspector-warn" key={i}>{w.message}</p>)}
+    {req.previousRejections?.installationGeometry&&<p className="inspector-warn">Previous rejection: {req.previousRejections.installationGeometry}</p>}
     {review&&<span>{review.decision}{review.reason?`: ${review.reason}`:""}</span>}
     {(!review||review.decision==="rejected")&&<div className="review-actions"><button type="button" onClick={()=>decide("accepted")}>Accept installation geometry</button><input aria-label="Reason to reject installation geometry" value={reason} onChange={e=>setReason(e.target.value)} placeholder="reason to reject"/><button type="button" onClick={()=>decide("rejected")}>Reject installation geometry</button></div>}
     {error&&<span role="alert" className="inspector-error">{error}</span>}
@@ -281,6 +284,7 @@ function RequestDetail({ req }: { req: ProductRequest }) {
       {req.status === "submitted" && req.submission ? (
         <>
           <span>Submitted: <b>{req.submission.manufacturer} {req.submission.model}</b>{req.submission.code ? ` (${req.submission.code})` : ""}</span>
+          <ProductReviewSummary request={req} />
           <ExactIdentity product={req.submission} request={req} />
           <GeometryReview req={req} />
           <table className="products-table" aria-label="Submitted values">
