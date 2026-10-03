@@ -1,3 +1,4 @@
+import { validInstallationGeometry, type InstallationGeometry } from "./installation";
 /**
  * Product library (#30): research requests and accepted products, saved in this browser and
  * shared by every project. Kept apart from the project store on purpose: a toilet researched
@@ -78,6 +79,7 @@ export interface LibraryProduct extends ExactProduct {
   fields: Record<string, FieldValue>;
   /** service points derived from the accepted fields, each axis naming its datum */
   roughIn: RoughInPoint[];
+  installationGeometry?: InstallationGeometry;
   requestId: string;
   acceptedAt: number;
 }
@@ -175,9 +177,9 @@ export function initializeProductLibrary(force = false): void {
       if (doc.version !== 1 || !Array.isArray(doc.requests) || !Array.isArray(doc.products)) {
         throw new Error("Unsupported or unreadable product library. Original browser data was kept.");
       }
-      if (!doc.products.every(isExactProduct) || !doc.requests.every(r => r && r.known
+      if (!doc.products.every(p => isExactProduct(p) && (p.installationGeometry === undefined || validInstallationGeometry(p.installationGeometry))) || !doc.requests.every(r => r && r.known
         && isExactProduct({ manufacturer: "", model: "", identity: r.known.identity, components: r.known.components, componentsStatus: r.known.componentsStatus })
-        && (r.submission === undefined || isExactProduct(r.submission)))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
+        && (r.submission === undefined || isExactProduct(r.submission) && (r.submission.installationGeometry === undefined || validInstallationGeometry(r.submission.installationGeometry))))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
       productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r) } } : {}) })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
     }
     ready = true;
@@ -276,7 +278,7 @@ export const products = {
     const req = findRequest(requestId);
     if (!req?.submission || req.status !== "submitted") return fail("Only a submitted request can be accepted.");
     const flaggedIdentity = productReviewWarnings(req).flatMap(w => w.field === "components" || w.field?.startsWith("identity.") ? [w.field] : []);
-    const keys = [...new Set([...Object.keys(req.submission.fields), ...identityReviewKeys(req.submission), ...flaggedIdentity])];
+    const keys = [...new Set([...Object.keys(req.submission.fields), ...(req.submission.installationGeometry ? ["installationGeometry"] : []), ...identityReviewKeys(req.submission), ...flaggedIdentity])];
     const pending = keys.filter((k) => req.reviews[k]?.decision !== "accepted");
     if (pending.length) return fail(`Review every field first. Not accepted: ${pending.join(", ")}.`);
     const product: LibraryProduct = {
@@ -289,6 +291,7 @@ export const products = {
       components: structuredClone(req.submission.components ?? []),
       componentsStatus: req.submission.componentsStatus ?? "unknown",
       fields: structuredClone(req.submission.fields),
+      ...(req.submission.installationGeometry ? { installationGeometry: structuredClone(req.submission.installationGeometry) } : {}),
       roughIn: roughInPoints(categoryById(req.category)!, req.submission.fields),
       requestId: req.id,
       acceptedAt: Date.now(),

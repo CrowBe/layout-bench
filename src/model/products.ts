@@ -1,3 +1,4 @@
+import { geometryProblems, type InstallationGeometry } from "./installation";
 /**
  * Product spec briefs (#30). The page decides what must be found for each kind of fixture;
  * the user's agent searches and fills it in; a human accepts the result. Templates are data,
@@ -200,6 +201,7 @@ export interface SpecSubmission extends ExactProduct {
   model: string;
   code?: string;
   fields: Record<string, FieldValue>;
+  installationGeometry?: InstallationGeometry;
 }
 
 /** What validation needs to know about a file attached to the request (#34). */
@@ -404,6 +406,17 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission,
       const along1 = e.maxX - e.minX, along2 = e.maxY - e.minY;
       if (Math.abs(along1 - L) > 0.005 || Math.abs(along2 - W) > 0.005) {
         warn("frontWidth", "outline_disagrees", `A circular front through the front width and projection reaches ${formatMm(along1)} × ${formatMm(along2)} mm along the walls, but the printed length and width are ${formatMm(L)} × ${formatMm(W)} mm. The front may not be a circular arc, or the printed sizes may include a rim. The plan uses the outline for shape and the larger of the two for clearance.`);
+      }
+    }
+  }
+  if (s.installationGeometry !== undefined) {
+    const env = envelopeOf(category, fields);
+    if (!env) err("installationGeometry", "geometry_envelope_unknown", "Sourced installation geometry needs known overall dimensions on supported datums.");
+    else for (const m of geometryProblems(s.installationGeometry,env.w,env.d,env.h)) err("installationGeometry","geometry_invalid",m);
+    if (!out.some(p => p.field === "installationGeometry" && p.severity === "error")) {
+      for (const record of [s.installationGeometry,s.installationGeometry.outline,...s.installationGeometry.fixings ?? [],...s.installationGeometry.services ?? [],...s.installationGeometry.clearances ?? []].filter(Boolean)) {
+        const problem=checkSources(record!.sources,ctx);if(problem)err("installationGeometry","geometry_source_invalid",problem);
+        if(record!.status!=="published")err("installationGeometry","geometry_status_invalid","Research geometry must retain published source evidence.");
       }
     }
   }

@@ -1,3 +1,4 @@
+import { validInstallation, installationReading, geometryForPlacement, type FixtureInstallation } from "./installation";
 /**
  * Single source of truth. The UI buttons and the WebMCP tools call THE SAME actions,
  * so human and agent truly co-edit one model. Vanilla zustand store (usable outside React).
@@ -480,6 +481,7 @@ export interface AnchorInput {
   distance: number;
   status: ValueStatus;
   source?: string;
+  installation?: FixtureInstallation;
 }
 
 /** Service point as a caller supplies it. Omitted or null numbers are unknown. */
@@ -1374,6 +1376,7 @@ export const actions = {
   placeItem(kind: string, x: number, y: number, rotation = 0): ActionResult {
     const cat = catalogByKind(kind);
     if (!cat) return fail(`Unknown furniture kind "${kind}". Use get_item_catalog.`);
+    if(cat.installationMounting) return fail("This mounted product needs explicit placement with place_product and its room/floor datum; generic catalogue drop would omit that evidence.");
     const r = rounding();
     const item: Item = { id: uid("item"), kind: cat.kind, x: r.q(x, "x"), y: r.q(y, "y"), rotation };
     pushUndo();
@@ -1550,7 +1553,13 @@ export const actions = {
   placeProduct(product: LibraryProduct, anchorInput: AnchorInput): ActionResult {
     const cat = categoryById(product.category);
     const unsupported = cat ? productPlacementProblem(cat, product.fields) : null;
-    if (unsupported) return fail(unsupported);
+    const wallMounted = (product.category === "mirror" && product.fields.mounting?.value === "surface") || (product.category === "towel-rail" && product.fields.mounting?.value === "wall");
+    if (unsupported && !wallMounted) return fail(unsupported);
+    if (anchorInput.installation !== undefined && !validInstallation(anchorInput.installation)) return fail("Invalid installation placement: name the mounting, floor datum, room, orientation and optional height with status/source.");
+    if (wallMounted && anchorInput.installation?.mounting !== "wall") return fail("Unsupported product placement: this wall-mounted fitting requires explicit installation.mounting wall and an entered room/floor datum; omitted height remains unknown.");
+    if(product.installationGeometry && !anchorInput.installation)return fail("Sourced installation geometry requires explicit placement above a named room/floor datum; no ground height is assumed.");
+    if (anchorInput.installation?.mounting === "wall" && !wallMounted) return fail("Unsupported wall mounting for this category/mode; detailed installation geometry is not represented.");
+    if (anchorInput.installation?.mirror && (["left","right"].includes(identityOf(product).handedness.value ?? "") || product.installationGeometry?.handedness !== "reversible" && identityOf(product).handedness.value !== "reversible")) return fail("Mirroring requires documented reversibility for this exact product.");
     const env = cat ? envelopeOf(cat, product.fields) : null;
     if (!env) return fail(`${product.manufacturer} ${product.model} has no known overall size on supported datums, so it cannot be placed without inventing one.`);
     // validate everything before anything changes, then apply as one undo step
@@ -1579,14 +1588,16 @@ export const actions = {
       const r = this.defineItemKind({ kind: kindFor(other), label, w: box.w, d: box.d, h: box.h, category: "bath", outline: handed(other)! });
       if (!r.ok) return r;
     }
-    const shaped = corner && outline ? handed(corner) : null;
+    const shaped = product.installationGeometry?.outline?.shape ?? (corner && outline ? handed(corner) : null);
     const defined = this.defineItemKind({
       kind: kindFor(corner && outline ? corner : null), label, w: box.w, d: box.d, h: box.h, category: "bath",
       ...(shaped ? { outline: shaped } : {}),
+      ...(wallMounted ? { installationMounting: "wall" as const } : {}),
     });
     if (!defined.ok) return defined;
+    const installationGeometry = anchorInput.installation ? geometryForPlacement(product) : product.installationGeometry;
     const source = `${label}, product library ${product.id} (published)`;
-    const servicePoints: ServicePoint[] = (product.roughIn ?? []).map((rp) => {
+    const servicePoints: ServicePoint[] = (product.roughIn ?? []).filter(rp=>!installationGeometry?.services?.some(p=>p.id===rp.id)).map((rp) => {
       // from the fixture end: convert to the centreline only when the product says which end
       // a corner bath's "end" is its back edge on the other wall: the corner it sits in
       const end = corner ?? product.fields.wasteEnd?.value;
@@ -1617,6 +1628,8 @@ export const actions = {
     });
     const item: Item = {
       id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, productIdentity: exactSnapshot(product), selectionStatus: "unknown", servicePoints,
+      ...(installationGeometry ? { installationGeometry: structuredClone(installationGeometry) } : {}),
+      ...(anchorInput.installation ? { installation: structuredClone(anchorInput.installation) } : {}),
       ...(corner && outline ? { corner: { left: kindFor(fixedHand ? corner : "left"), right: kindFor(fixedHand ? corner : "right"), side: corner } } : {}),
     };
     pushUndo();
@@ -1626,6 +1639,17 @@ export const actions = {
       `${label} placed${pose.resolved ? ` ${formatMm(anchor.gap)} mm off the ${anchor.face} face of ${anchor.wallId} (${anchor.side}), centre ${formatMm(anchor.distance)} mm from end ${anchor.from.toUpperCase()}` : `, but its position is unresolved: missing ${pose.missing.join(", ")}`}. ${servicePoints.length} service point(s) copied from the library.`,
       { id: item.id, kind: item.kind, resolved: pose.resolved },
     );
+  },
+
+  setFixtureInstallation(itemRef: string, placement: FixtureInstallation): ActionResult {
+    const hit=resolveItem(itemRef);if(!hit.ok)return rejected(hit);
+    if(!validInstallation(placement))return fail("Invalid installation placement: height is metres above a named floor datum with status and source.");
+    const it=hit.entity;
+    if(placement.mirror && (["left","right"].includes(identityOf(it.productIdentity ?? {}).handedness.value??"") || it.installationGeometry?.handedness!=="reversible" && identityOf(it.productIdentity ?? {}).handedness.value!=="reversible"))return fail("Mirroring requires documented reversibility for this exact product.");
+    if(placement.mounting!==it.installation?.mounting && it.installation) return fail("Mounting mode is part of the placed product contract; place a supported mounting variant instead.");
+    pushUndo();setModel({...store.getState().model,items:store.getState().model.items.map(x=>x.id===it.id?{...x,installation:structuredClone(placement)}:x)});
+    const next=store.getState().model.items.find(x=>x.id===it.id)!;const r=installationReading(store.getState().model,next);
+    return {ok:true,summary:r.resolved?"Explicit installation placement updated.":`Placement retained with unresolved datum: ${r.missing.join(", ")}.`,id:it.id};
   },
 
   setFixtureSelection(itemRef: string, status: SelectionStatus): ActionResult {
@@ -1791,6 +1815,7 @@ export const actions = {
     category?: string;
     parts?: PartSpec[];
     outline?: Outline;
+    installationMounting?: "wall";
   }): ActionResult {
     const kind = spec.kind.trim().toLowerCase().replace(/[^a-z0-9_:-]+/g, "_");
     if (!kind) return fail("A kind id is required.");
@@ -1800,7 +1825,7 @@ export const actions = {
       const problems = outlineProblems(spec.outline, spec.w, spec.d);
       if (problems.length) return fail(`Outline rejected: ${problems.join("; ")}.`);
     }
-    const outline = spec.outline ? { outline: structuredClone(spec.outline) } : {};
+    const outline = { ...(spec.outline ? { outline: structuredClone(spec.outline) } : {}), ...(spec.installationMounting ? {installationMounting: spec.installationMounting} : {}) };
     const known: CatalogEntry["category"][] = ["living", "bedroom", "kitchen", "bath", "office", "decor"];
     const category = known.includes(spec.category as CatalogEntry["category"])
       ? (spec.category as CatalogEntry["category"])
@@ -1814,6 +1839,7 @@ export const actions = {
       existing.h = spec.h;
       existing.color = color;
       existing.category = category;
+      if(spec.installationMounting)existing.installationMounting=spec.installationMounting;
       if (spec.outline) existing.outline = structuredClone(spec.outline);
       else delete existing.outline;
     } else {

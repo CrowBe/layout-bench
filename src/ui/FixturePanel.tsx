@@ -1,3 +1,4 @@
+import { installationReading, localPointReading, clearanceRegions, type FixtureInstallation } from "../model/installation";
 /**
  * Fixture set-out (#5) in the Inspector: set the fixture out from a wall face, enter service
  * points, and read the rough-in the way a plumber would, as distances from each wall face.
@@ -124,6 +125,31 @@ function PointForm({ item }: { item: Item }) {
   );
 }
 
+function InstallationForm({model,item}:{model:PlanModel;item:Item}) {
+  const p=item.installation!;
+  const [height,setHeight]=useState(p.height?.value===undefined?"":formatMm(p.height.value));
+  const [room,setRoom]=useState(p.roomId??"");const [datum,setDatum]=useState(p.floorDatum);
+  const [orientation,setOrientation]=useState(String(p.orientation));const [mirror,setMirror]=useState(p.mirror);
+  const [source,setSource]=useState(p.height?.source??"");const [error,setError]=useState("");
+  const submit=()=>{if(!Number.isFinite(Number(orientation)) || height.trim()!=="" && !Number.isFinite(Number(height))){setError("Enter finite height and orientation values.");return;}
+    const next:FixtureInstallation={...p,roomId:room,floorDatum:datum,orientation:Number(orientation),mirror,...(height.trim()?{height:{value:Number(height)/1000,status:"proposed",source}}:{height:undefined})};
+    const r=human("set_fixture_installation",actions.setFixtureInstallation(item.id,next));setError(r.ok?"":r.summary);};
+  const lv=installationReading(model,item);
+  return <section aria-label="Fixture installation"><strong>Installation placement</strong>
+    <label className="field">Floor room<select aria-label="Installation floor room" value={room} onChange={e=>setRoom(e.target.value)}><option value="">unknown</option>{model.rooms.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}</select></label>
+    <label className="field">Floor datum<select aria-label="Installation floor datum" value={datum} onChange={e=>setDatum(e.target.value as FixtureInstallation["floorDatum"])}><option value="finished-floor">Finished floor</option><option value="substrate-top">Substrate top</option></select></label>
+    <label className="field">Product bottom above floor (mm)<input aria-label="Installation bottom height (mm)" placeholder="unknown" value={height} onChange={e=>setHeight(e.target.value)}/></label>
+    <label className="field">Placement source<input aria-label="Installation placement source" value={source} onChange={e=>setSource(e.target.value)}/></label>
+    <label className="field">Orientation from anchor (degrees)<input aria-label="Installation orientation (degrees)" value={orientation} onChange={e=>setOrientation(e.target.value)}/></label>
+    <label><input aria-label="Mirror installation" type="checkbox" checked={mirror} onChange={e=>setMirror(e.target.checked)}/> Mirror documented reversible product</label>
+    <button type="button" onClick={submit}>Update installation placement</button>
+    <p className="hint" data-installed-level>{lv.resolved?`Bottom ${formatMm(lv.bottom!)} mm; top ${formatMm(lv.top!)} mm above ${lv.datum} · ${lv.basis}`:`Installation unresolved: ${lv.missing.join(", ")}`}</p>
+    <p className="hint">{item.installationGeometry?.outline?.shape ? "Planning geometry extrudes the sourced plan outline through product height." : "Envelope fallback: no sourced outline supplied; exact planning envelope."}</p>
+    <p className="hint">Height edits are proposed project placement. Source dimensions and product installation requirements retain their evidence.</p>
+    {error&&<span role="alert" className="inspector-error">{error}</span>}
+  </section>;
+}
+
 const cell = (f: FaceDistance | undefined) =>
   !f ? "—" : f.resolved ? `${formatMm(f.value!)}${f.max !== undefined ? `–${formatMm(f.max)}` : ""}` : "?";
 
@@ -145,6 +171,13 @@ export function FixturePanel({ model, item }: { model: PlanModel; item: Item }) 
       {item.productIdentity && <ExactIdentity product={item.productIdentity} />}
       <label className="field inspector-field">Project selection<select aria-label="Project selection" value={item.selectionStatus ?? "unknown"} onChange={e => human("set_fixture_selection", actions.setFixtureSelection(item.id, e.target.value as SelectionStatus))}>{SELECTION_STATUSES.map(status => <option key={status}>{status}</option>)}</select></label>
       <AnchorForm key={`${item.id}:${JSON.stringify(item.anchor ?? null)}`} model={model} item={item} />
+      {item.installation && <InstallationForm key={JSON.stringify(item.installation)} model={model} item={item}/>}
+      {item.installationGeometry && <section aria-label="Fixings and access evidence">
+        <strong>Fixings and access</strong>
+        <span className="hint">{item.installationGeometry.outline?.shape?"Sourced line/arc plan outline; 3D is a height extrusion.":`Envelope fallback: ${item.installationGeometry.outline?.limitation??"No sourced outline supplied"}`}</span>
+        {(item.installationGeometry.fixings??[]).map(p=>{const r=localPointReading(model,item,p);return <p className="hint" key={p.id}>{p.label}: x {r.x===undefined?"?":formatMm(r.x)} / y {r.y===undefined?"?":formatMm(r.y)} / level {r.level===undefined?"?":formatMm(r.level)} mm · {r.basis}<br/>{r.source}</p>;})}
+        {clearanceRegions(model,item).map(r=><p className="hint" key={r.id}>{r.label}: {r.direction} {r.distance===null?"?":formatMm(r.distance)} mm ({r.status}); distinct from physical footprint.<br/>{r.sources.map(s=>`${s.url} (${s.locator})`).join("; ")}</p>)}
+      </section>}
       {clear.length > 0 && (
         <span className="hint" data-role="clearances">
           Clearance: {clear.map((c) => `${c.direction} ${c.distance === null ? "—" : `${formatMm(c.distance)} mm`}${c.surface ? ` (${c.surface})` : ""}`).join(" · ")}

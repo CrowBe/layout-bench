@@ -1,3 +1,4 @@
+import type { FixtureInstallation, InstallationGeometry } from "./installation";
 import type { ExactProduct, SelectionStatus } from "./productIdentity";
 
 /** Domain model — all units are meters, plan lives on the XY plane (y grows downward in 2D view). */
@@ -246,6 +247,8 @@ export interface Item {
   anchor?: FixtureAnchor;
   /** Service connections (#5): entered, or copied from a library product's rough-in. */
   servicePoints?: ServicePoint[];
+  installation?: FixtureInstallation;
+  installationGeometry?: InstallationGeometry;
   /** The product-library entry this fixture was placed from. */
   productId?: string;
   /** Exact identity evidence at placement; travels with project export/import. */

@@ -498,6 +498,16 @@ the actual purchased-product end-to-end acceptance check.
 Run the heating browser check with a local studio server:
 `ALZA_BASE_URL=http://127.0.0.1:5208 node tests/heating.e2e.mjs`.
 
+## Sourced fixture installation geometry
+
+Accepted products may include optional `installationGeometry`, reviewed separately by the human. It retains source/status for the geometry, line/arc outline, fixing and service coordinates and access requirements. Point coordinates use x across the fixture centreline, y out from the physical back, and z above its bottom, in metres. Outline coordinates explicitly use `datum: {across: "fixture-centreline", out: "footprint-centre"}`: x within ±width/2, y within ±depth/2. This is the existing line/arc representation; unsupported curves retain a sourced limitation and use the documented envelope, without fitting a curve by eye.
+
+`place_product` supports wall-mounted surface mirrors and wall towel rails through explicit `installation: {mounting: "wall", roomId, floorDatum: "finished-floor" | "substrate-top", height?: {value, status, source}, orientation, mirror}`. Height is the **product bottom above that named room floor datum**, separate from published installation requirements. Use proposed status for a proposed project height. Missing height, floor level or wall face stays unknown and omits the fixture's vertical 3D geometry. Existing unsupported recess, ceiling and moving/swing modes remain explicit limitations. New mounted catalogue kinds cannot be generically dropped without their placement evidence.
+
+The Inspector and `set_fixture_installation` edit the same placement. `get_rough_in` returns installed levels, transformed fixing/service points and access regions; source dimensions are unchanged. Mirroring requires documented reversibility and transforms all of them together. Plan, 3D extrusion, spatial clash checks and stage diagram/spec use the same instance. Access is drawn separately from physical footprint and retains both requirement source/status and placement basis. Geometry/placement snapshots travel with project export/import; no browser product library is required to read them. These are planning representations, not manufacturer CAD or installation/compliance approval.
+
+Synthetic verification: `ALZA_BASE_URL=http://127.0.0.1:5251 node tests/installation.e2e.mjs` exercises real human geometry review and height/orientation controls, transformed points, rendered 3D OBJ, stage outputs, reload/portable import and unresolved floor output. Fixtures are explicitly synthetic evidence, not a catalogue of actual products.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).

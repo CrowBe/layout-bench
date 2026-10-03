@@ -1,3 +1,4 @@
+import { installationReading, localPointReading, clearanceRegions, type FixtureInstallation } from "../model/installation";
 /**
  * The 60 WebMCP tools (+ 1 dynamic, registered in bootstrap.ts).
  * Every tool calls THE SAME actions the UI buttons use — one store, human and agent co-edit.
@@ -78,6 +79,7 @@ export const TRACING_PROTOCOL: string[] = [
   "8. Verify, then repair. Call get_issues, fix every error it reports, and call it again until only intentional warnings remain. Finish with build_3d so the human sees the result.",
 ];
 
+const installationSchema = obj({mounting:{type:"string",enum:["wall","floor"]},roomId:str,floorDatum:{type:"string",enum:["finished-floor","substrate-top"]},height:{type:"object",description:"Product bottom above selected room floor datum, metres, {value,status,source}; omission is unknown."},mirror:{type:"boolean"},orientation:num},["mounting","floorDatum","mirror","orientation"]);
 export const TOOLS: ToolDef[] = [
   // ------------------------------------------------------------------ reads
   {
@@ -832,9 +834,9 @@ export const TOOLS: ToolDef[] = [
     name: "place_product",
     title: "Place a library product against a wall face",
     description:
-      "Place an accepted product from the product library (get_product_library) against a wall face, with the same anchor fields as anchor_fixture. Its published envelope becomes the fixture's footprint and its rough-in points are copied onto it as published service points, each still measured from its datum. A product with an unknown envelope is refused rather than given an invented size.",
+      "Place an accepted product from the library against a wall face. Wall-mounted mirror/surface and towel-rail/wall require installation {mounting:wall,roomId,floorDatum,height?:{value,status,source},mirror,orientation}. Height is product bottom above the selected room floor; omission stays unknown. Mirror requires documented reversibility. Source coordinates remain unchanged. With the same anchor fields as anchor_fixture. Its published envelope becomes the fixture's footprint and its rough-in points are copied onto it as published service points, each still measured from its datum. A product with an unknown envelope is refused rather than given an invented size.",
     inputSchema: obj(
-      { productId: str, wallId: str, side: sideSchema, face: str, gap: num, from: { type: "string", enum: ["a", "b"] }, distance: num, status: { type: "string", enum: VALUE_STATUSES }, source: str },
+      { installation: installationSchema, productId: str, wallId: str, side: sideSchema, face: str, gap: num, from: { type: "string", enum: ["a", "b"] }, distance: num, status: { type: "string", enum: VALUE_STATUSES }, source: str },
       ["productId", "wallId", "side", "face", "distance", "status"],
     ),
     execute: (i) => {
@@ -842,6 +844,13 @@ export const TOOLS: ToolDef[] = [
       if (!product) return { ok: false, summary: `No accepted product "${i.productId}" in the library.` };
       return actions.placeProduct(product, i as unknown as AnchorInput);
     },
+  },
+  {
+    name: "set_fixture_installation",
+    title: "Set explicit fixture height and orientation",
+    description: "Replace the explicit installation placement on a fixture. Height is product bottom above named room floor datum, never a product requirement or default. Missing height/floor levels remain unresolved and omitted from 3D. Mirroring requires documented reversibility and transforms the outline, fixing/service points and access regions together; source coordinates do not change.",
+    inputSchema: obj({itemId:str,installation:installationSchema},["itemId","installation"]),
+    execute:i=>actions.setFixtureInstallation(i.itemId as string,i.installation as FixtureInstallation),
   },
   {
     name: "get_rough_in",
@@ -869,6 +878,11 @@ export const TOOLS: ToolDef[] = [
           selectionStatus: it.selectionStatus ?? "unknown",
           anchor: it.anchor ?? null,
           position: pose.resolved ? { x: pose.x, y: pose.y, rotation: pose.rotation, alongFromA: pose.alongFromA, backOffset: pose.backOffset } : { unresolved: pose.missing },
+          installation: it.installation ?? null,
+          installationGeometry: it.installationGeometry ?? null,
+          installedLevels: installationReading(model,it),
+          fixings: (it.installationGeometry?.fixings ?? []).map(p=>localPointReading(model,it,p)),
+          accessRequirements: clearanceRegions(model,it),
           clearances: clearances(model, it),
           servicePoints: points,
         };
@@ -946,7 +960,7 @@ export const TOOLS: ToolDef[] = [
             ? { pageCount: a.pages?.length ?? 0, pages: a.pages ?? [], ...(a.pages?.some((p) => p.text.trim()) ? {} : { textNote: "No text layer on any page (a scan?). Nothing is OCR'd: ask the person to paste the figures, or find a published source." }) }
             : { textNote: "An image: no text is extracted. It is for the person's review; if you need what it shows, ask them to paste it into the conversation." }),
         })),
-        submitShape: "submit_product_spec { requestId, manufacturer, model, code?, identity?, componentsStatus?, components?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } } — url is an http(s) link or attachment:<id>; for an attachment the locator starts with the page, e.g. \"p. 2, fig. 1\"",
+        submitShape: "submit_product_spec { requestId, manufacturer, model, code?, identity?, componentsStatus?, components?, installationGeometry?, fields: { <key>: { value, status, sources: [{ url, locator }], reference?, note?, alternatives? } } } — url is an http(s) link or attachment:<id>; for an attachment the locator starts with the page, e.g. \"p. 2, fig. 1\"",
         ...(req.submission ? { previousSubmission: req.submission } : {}),
         ...(req.feedback ? { feedback: req.feedback } : {}),
       };
@@ -964,6 +978,7 @@ export const TOOLS: ToolDef[] = [
         model: str,
         code: str,
         ...exactSchemas,
+        installationGeometry: {type:"object",description:"Optional sourced local geometry: datum {across:fixture-centreline,out:fixture-back,up:fixture-bottom}, handedness; outline {datum:{across:fixture-centreline,out:footprint-centre},shape:{start,segments:[{to,via?}]},status:published,sources} or limitation without shape; fixings/services {id,label,x,y,z,status,sources,service?}; clearances {id,label,direction:left|right|front|above|below,distance,status,sources}. Metres; null unknown coordinates. Reviewed separately by the human."},
         fields: { type: "object", additionalProperties: { type: "object" } },
       },
       ["requestId", "manufacturer", "model", "fields"],
