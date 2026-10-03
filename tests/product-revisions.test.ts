@@ -806,3 +806,93 @@ it("retains both range endpoints and evidence when one confirmed axis uses a dif
     );
   }
 });
+
+it("refuses to reflect a site-confirmed corner service while allowing unchanged copied measurement evidence", () => {
+  const fields = {
+    length: pub(1.2),
+    width: pub(1.2),
+    height: pub(0.5),
+    shape: pub("corner-round"),
+    frontWidth: pub(1.4),
+    frontProjection: pub(1.1),
+    wasteFromEnd: {
+      value: 0.2,
+      status: "measured" as const,
+      sources: [source],
+    },
+    wasteFromSide: pub(0.5),
+  };
+  const product = {
+    ...original(),
+    id: "measured-corner",
+    category: "bath",
+    fields,
+    roughIn: roughInPoints(categoryById("bath")!, fields),
+    identity: {
+      ...unknownIdentity(),
+      handedness: {
+        state: "known" as const,
+        value: "reversible",
+        sources: [source],
+      },
+    },
+  };
+  const wall = actions.addWall(0, 0, 4, 0, 0.1, 2.4).id as string;
+  actions.setWallSide(wall, "right", {
+    existing: { value: 0, status: "measured" },
+    layers: [],
+  });
+  const anchor = {
+    wallId: wall,
+    side: "right" as const,
+    face: "existing",
+    distance: 0.8,
+    status: "proposed" as const,
+  };
+  const placement = actions.placeProduct(product, anchor);
+  expect(placement.ok).toBe(true);
+  expect(
+    actions.anchorFixture(placement.id as string, { ...anchor, distance: 3.2 })
+      .ok,
+  ).toBe(true);
+  expect(actions.anchorFixture(placement.id as string, anchor).ok).toBe(true);
+  const item = store.getState().model.items[0],
+    point = item.servicePoints![0];
+  for (const edited of [
+    {
+      ...point,
+      across: 0.12,
+      axisEvidence: undefined,
+      status: "site-confirmed" as const,
+      source: "Synthetic surveyed waste 120 mm right of centreline",
+    },
+    {
+      ...point,
+      across: 0.12,
+      axisEvidence: {
+        ...point.axisEvidence,
+        across: {
+          value: 0.12,
+          status: "measured" as const,
+          reference: "fixture-centreline" as const,
+          sources: [{ ...source, locator: "Synthetic site axis" }],
+        },
+      },
+    },
+  ]) {
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: [{ ...item, servicePoints: [edited] }],
+      },
+    });
+    const before = structuredClone(store.getState());
+    const result = actions.anchorFixture(placement.id as string, {
+      ...anchor,
+      distance: 3.2,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain("Reconcile");
+    expect(store.getState()).toEqual(before);
+  }
+});

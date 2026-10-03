@@ -55,7 +55,7 @@ import { exactProductLabel, exactSnapshot, identityOf, SELECTION_STATUSES, type 
 import { productStore, type LibraryProduct } from "./productLibrary";
 import { productPlacement } from "./productPlacement";
 import { previewProductUpdate, type ProductUpdatePreview } from "./productUpdates";
-import { planningEvidence, revisionOf } from "./productRevision";
+import { evidenceFingerprint, planningEvidence, revisionOf } from "./productRevision";
 import { outlineExtents, outlineProblems, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
@@ -1485,6 +1485,16 @@ export const actions = {
       if (side !== item.corner.side) {
         const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
         if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) return fail(`This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`);
+        const oldWall=item.anchor && store.getState().model.walls.find(w=>w.id===item.anchor!.wallId);
+        const sourcePlacement=item.productSnapshot && item.anchor && oldWall ? productPlacement(item.productSnapshot,item.anchor,oldWall,item.installation) : undefined;
+        const confirmed=(status?:string)=>status === "measured" || status === "site-confirmed";
+        const conflict=(item.servicePoints??[]).find(point=>{
+          if(point.across === undefined || point.across === 0)return false;
+          const copied=sourcePlacement?.ok ? sourcePlacement.servicePoints.find(p=>p.id===point.id) : undefined;
+          return (!point.axisEvidence && confirmed(point.status) && evidenceFingerprint(point)!==evidenceFingerprint(copied)) ||
+            (confirmed(point.axisEvidence?.across?.status) && (point.across!==copied?.across || evidenceFingerprint(point.axisEvidence?.across)!==evidenceFingerprint(copied?.axisEvidence?.across)));
+        });
+        if(conflict)return fail(`Changing corner hand would reflect the measured/site-confirmed project axis on ${conflict.id}. Reconcile that instance connection individually; its coordinate, evidence and anchor remain unchanged.`);
         if(item.installationGeometry) return fail("Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged.");
         const pinned = item.productGeometry;
         const mirrorPoint = (point: {x:number;y:number}) => ({x:-point.x,y:point.y});

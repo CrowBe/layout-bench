@@ -453,7 +453,7 @@ try {
   const pinned = await run("get_diagram_view");
   assert.equal(
     pinned.spec.find((row) => row.property === "footprint w × d (mm)").value,
-    `${Math.round(right.productGeometry.w*1000)} × ${Math.round(right.productGeometry.d*1000)}`,
+    `${Math.round(right.productGeometry.w * 1000)} × ${Math.round(right.productGeometry.d * 1000)}`,
   );
   await page.reload();
   await page
@@ -466,6 +466,31 @@ try {
   );
   assert.equal(reloaded.productGeometry.kind, reloaded.kind);
   assert.equal(reloaded.productGeometry.w, right.productGeometry.w);
+  assert.equal(
+    (
+      await run("set_service_point", {
+        itemId: right.id,
+        id: "waste",
+        label: "Synthetic confirmed waste",
+        service: "waste",
+        face: "existing",
+        across: 0.12,
+        out: 0.5,
+        status: "site-confirmed",
+        source: "Synthetic surveyed waste 120 mm right of centreline",
+      })
+    ).ok,
+    true,
+  );
+  const confirmedBefore = await run("get_model");
+  const refusedReanchor = await run("anchor_fixture", {
+    itemId: right.id,
+    ...anchor,
+    distance: 0.8,
+  });
+  assert.equal(refusedReanchor.ok, false);
+  assert.match(refusedReanchor.summary, /Reconcile/);
+  assert.deepEqual(await run("get_model"), confirmedBefore);
   assert.deepEqual(errors, []);
   console.log(
     "PASS: human revision draft/rejection/correction/acceptance → preview cancel → explicit selected apply with override retention → historical outputs → undo → reload/download/fresh import with pinned revisions",
