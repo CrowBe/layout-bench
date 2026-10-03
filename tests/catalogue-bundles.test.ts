@@ -665,54 +665,42 @@ describe("portable original catalogue evidence (#49)", () => {
   });
   it("exports and remaps two accepted revisions plus a pending third with inherited originals and bound review candidates", async () => {
     await sourceBundle();
-    const first = productStore.getState().products[0],
-      origin = productStore.getState().requests[0];
-    Object.assign(first, { revision: { seriesId: first.id, number: 1 } });
-    const second = structuredClone(first) as LibraryProduct & {
-      revision: { seriesId: string; number: number; parentProductId?: string };
-    };
-    second.id = "revision_two_product";
-    second.requestId = "revision_two_request";
-    second.revision = {
-      seriesId: first.id,
-      number: 2,
-      parentProductId: first.id,
-    };
-    const secondRequest = structuredClone(origin) as ProductRequest & {
-      revisionOf?: string;
-    };
-    secondRequest.id = second.requestId;
-    secondRequest.productId = second.id;
-    secondRequest.revisionOf = first.id;
-    secondRequest.evidenceOriginRequestId = origin.id;
-    secondRequest.attachments = [];
-    const third = structuredClone(secondRequest) as ProductRequest & {
-      revisionOf?: string;
-    };
-    third.id = "pending_third_revision";
-    third.productId = undefined;
-    third.status = "submitted";
-    third.revisionOf = second.id;
-    third.evidenceOriginRequestId = secondRequest.id;
-    third.reviews = {};
-    third.reuseCandidates = {};
-    third.previousRejections = { height: "Historical correction reason" };
-    third.individualOnly = ["height"];
-    const records = {
-      requests: [origin, secondRequest, third],
-      products: [first, second],
-    };
-    for (const r of [secondRequest, third])
-      for (const key of requiredReviewKeys(r)) {
-        const review = {
-          decision: "accepted" as const,
-          method: "individual" as const,
-          evidence: reviewEvidence(r, key, records.requests),
-        };
-        if (r === third) third.reuseCandidates![key] = review;
-        else r.reviews[key] = review;
-      }
-    productStore.setState(records);
+    const first = productStore.getState().products[0];
+    const revision = products.reviseProduct(first.id);
+    expect(revision.ok).toBe(true);
+    const secondRequestId = revision.requestId as string,
+      secondDraft = productStore
+        .getState()
+        .requests.find((r) => r.id === secondRequestId)!;
+    const corrected = structuredClone(secondDraft.submission!);
+    corrected.fields.width.value = 0.39;
+    corrected.fields.width.sources![0].locator =
+      "p. 1, synthetic corrected width";
+    expect(products.submit(secondRequestId, corrected).ok).toBe(true);
+    expect(products.reuseReviews(secondRequestId).ok).toBe(true);
+    products.review(secondRequestId, "width", "accepted");
+    expect(products.accept(secondRequestId).ok).toBe(true);
+    const second = productStore.getState().products.at(-1)!;
+    const thirdDraft = products.reviseProduct(second.id);
+    expect(thirdDraft.ok).toBe(true);
+    const thirdId = thirdDraft.requestId as string,
+      thirdOpen = productStore
+        .getState()
+        .requests.find((r) => r.id === thirdId)!;
+    expect(
+      products.submit(thirdId, structuredClone(thirdOpen.submission!)).ok,
+    ).toBe(true);
+    products.review(
+      thirdId,
+      "height",
+      "rejected",
+      "Historical correction reason",
+    );
+    const third = productStore
+      .getState()
+      .requests.find((r) => r.id === thirdId)!;
+    expect(third.reuseCandidates!.width).toBeDefined();
+    expect(third.individualOnly).toContain("height");
     const exported = await products.exportBundle({
       requestIds: [third.id],
       productIds: [],
@@ -736,7 +724,7 @@ describe("portable original catalogue evidence (#49)", () => {
       pending = received.requests.find(
         (x) => x.id === p.maps.requests[third.id],
       )! as typeof third;
-    expect(newFirst.revision.seriesId).toBe(newFirst.id);
+    expect(newFirst.revision!.seriesId).toBe(newFirst.id);
     expect(newSecond.revision).toEqual({
       seriesId: newFirst.id,
       number: 2,
@@ -744,13 +732,13 @@ describe("portable original catalogue evidence (#49)", () => {
     });
     expect(pending.revisionOf).toBe(newSecond.id);
     expect(pending.evidenceOriginRequestId).toBe(
-      p.maps.requests[secondRequest.id],
+      p.maps.requests[secondRequestId],
     );
     expect(pending.reuseCandidates!.width.evidence).toBe(
       reviewEvidence(pending, "width", received.requests),
     );
     expect(pending.previousRejections).toEqual(third.previousRejections);
-    expect(pending.individualOnly).toEqual(["height"]);
+    expect(pending.individualOnly).toContain("height");
     expect(pending.submission!.fields.width.sources![0].url).toBe(
       `attachment:${p.maps.attachments[bundle.files[0].id]}`,
     );
@@ -764,6 +752,41 @@ describe("portable original catalogue evidence (#49)", () => {
       ),
     ).toBe(bundle.files[0].sha256);
     expect((await preview(bundle)).reused).toBe(true);
+  });
+  it("refuses a preview based on stale canonical memory when another tab saved newer evidence", async () => {
+    const bundle = await sourceBundle();
+    setup();
+    products.request("vanity", { brand: "Prior local record" });
+    const disk = JSON.parse(data.get(PRODUCTS_KEY)!);
+    disk.requests.push({
+      ...structuredClone(disk.requests[0]),
+      id: "other_tab_request",
+      known: { brand: "Other tab new evidence" },
+    });
+    const newerRaw = JSON.stringify(disk);
+    data.set(PRODUCTS_KEY, newerRaw);
+    const before = productStore.getState();
+    const result = await products.previewBundle(JSON.stringify(bundle));
+    expect(result.ok).toBe(false);
+    expect(result.summary).toMatch(/another tab|reload|saved catalogue/i);
+    expect(productStore.getState()).toBe(before);
+    expect(data.get(PRODUCTS_KEY)).toBe(newerRaw);
+    for (const f of bundle.files) expect(await files.get(f.id)).toBeNull();
+  });
+  it("compares legacy version-1 defaults consistently without rewriting their saved document during preview", async () => {
+    const bundle = await sourceBundle();
+    const disk = JSON.parse(data.get(PRODUCTS_KEY)!);
+    for (const r of disk.requests) delete r.known.identity;
+    for (const p of disk.products) {
+      delete p.identity;
+      delete p.components;
+      delete p.componentsStatus;
+    }
+    data.set(PRODUCTS_KEY, JSON.stringify(disk));
+    const raw = data.get(PRODUCTS_KEY),
+      result = await products.previewBundle(JSON.stringify(bundle));
+    expect(result.ok, result.summary).toBe(true);
+    expect(data.get(PRODUCTS_KEY)).toBe(raw);
   });
   it("retains inherited measurement evidence and accepted revision dependency closure", async () => {
     const bundle = await sourceBundle(),

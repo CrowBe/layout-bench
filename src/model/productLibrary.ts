@@ -199,6 +199,22 @@ const previewSignature = (p: BundlePreview) => stableBundleValue({ base:p.base, 
 
 const docOf = (s: Pick<LibraryDoc, "requests" | "products">) => JSON.stringify({ version: 1, requests: s.requests, products: s.products });
 
+/** Compare the saved and canonical catalogue after the same version-1 display defaults.
+ * A fresh raw document alone does not mean this tab has incorporated another tab's work. */
+const normalizedRecords = (records: Pick<LibraryDoc, "requests" | "products">) => ({
+  requests: records.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r, records.requests) } } : {}) })),
+  products: records.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })),
+});
+function savedCatalogueMatches(state: Pick<LibraryDoc, "requests" | "products">, raw: string | null): boolean {
+  if(raw === null) return state.requests.length === 0 && state.products.length === 0;
+  try {
+    const doc = JSON.parse(raw) as Partial<LibraryDoc>;
+    return doc.version === 1 && Array.isArray(doc.requests) && Array.isArray(doc.products)
+      && recordsFingerprint(normalizedRecords(state)) === recordsFingerprint(normalizedRecords(doc as LibraryDoc));
+  } catch { return false; }
+}
+
+
 /** Browsers report a full store as QuotaExceededError (code 22, or 1014 in old Firefox). */
 export function isQuotaError(error: unknown): boolean {
   const e = error as { name?: string; code?: number } | null;
@@ -224,7 +240,7 @@ export function initializeProductLibrary(force = false): void {
         && (r.submission === undefined || isExactProduct(r.submission) && (r.submission.installationGeometry === undefined || validInstallationGeometry(r.submission.installationGeometry))))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
       if (!doc.products.every(p => isProductSpecification({ category: p.category, fields: p.fields, acceptedAt: p.acceptedAt, recordingMode: p.recordingMode })) || !doc.requests.every(r => (!r.mode || r.mode === "human-measurement") && (r.evidenceOriginRequestId === undefined || typeof r.evidenceOriginRequestId === "string") && (r.submission === undefined || isProductSpecification({ category: r.category, fields: r.submission.fields, acceptedAt: r.submission.at, recordingMode: r.mode })) && (!r.measurementDraft || isProductSpecification({ category: r.category, fields: r.measurementDraft, acceptedAt: r.createdAt, recordingMode: r.mode })))) throw new Error("Invalid product measurement evidence. Original browser data was kept.");
       if (!doc.products.every(p => p.revision === undefined || validProductRevision(p.revision)) || !doc.requests.every(r => r.revisionOf === undefined || typeof r.revisionOf === "string")) throw new Error("Invalid product revision history. Original browser data was kept.");
-      productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r, doc.requests) } } : {}) })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
+      productStore.setState({ loadError: null, ...normalizedRecords(doc as LibraryDoc) });
     }
     ready = true;
   } catch (error) {
@@ -262,6 +278,7 @@ export const products = {
     try {
       if (!io.local() || productStore.getState().loadError) return fail("Readable browser storage is required before importing catalogue evidence.");
       const state = productStore.getState(), local = io.local()!, before = recordsFingerprint(state), rawBase = local.getItem(PRODUCTS_KEY);
+      if (!savedCatalogueMatches(state, rawBase)) return fail("The saved catalogue changed in another tab or no longer matches this tab. Reload the page to read the saved catalogue before previewing; nothing was imported or overwritten.");
       const preview = await previewCatalogueBundle(raw, state, rawBase, id => io.files.get(id), io.extract);
       if (recordsFingerprint(productStore.getState()) !== before || local.getItem(PRODUCTS_KEY) !== rawBase) return fail("Catalogue changed during preview. Preview the bundle again.");
       bundlePreviews.set(preview, previewSignature(preview));

@@ -88,7 +88,7 @@ export function stableBundleValue(v: unknown, depth = 0): string {
   return JSON.stringify(v) ?? "null";
 }
 export const recordsFingerprint = (records: CatalogueRecords) =>
-  stableBundleValue(records);
+  stableBundleValue({ requests: records.requests, products: records.products });
 const withoutImport = (record: ProductRequest | LibraryProduct) => {
   const { bundleImport: _import, ...rest } = record;
   return rest;

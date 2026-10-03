@@ -107,7 +107,7 @@ const create = async (p, model, attach = true, category = "toilet") => {
   }
   return (await tool(p, "list_product_requests")).requests.at(-1).id;
 };
-const submit = async (p, id, model, code) => {
+const submit = async (p, id, model, code, revisedWidth) => {
   const brief = await tool(p, "get_product_brief", { requestId: id }),
     pdf = brief.attachments.find((a) => a.kind === "pdf"),
     pub = (value) => ({
@@ -148,6 +148,7 @@ const submit = async (p, id, model, code) => {
       sTrapSetoutMax: pub(0.2),
       power: pub("not-required"),
     });
+  if (revisedWidth !== undefined) fields.width = pub(revisedWidth);
   const identity = {
     code: {
       state: "known",
@@ -263,17 +264,48 @@ try {
   const b = await create(page, "Variant B");
   await submit(page, b, "Variant B", "SYNTH-B");
   await accept(page);
+  const firstA = (await tool(page, "get_product_library")).products[0],
+    cardA = page.locator(`[data-product="${firstA.id}"]`);
+  await cardA.locator("summary").first().click();
+  await cardA
+    .getByRole("button", { name: "Draft catalogue revision", exact: true })
+    .click();
+  const revisionId = (await tool(page, "list_product_requests")).requests.at(
+    -1,
+  ).id;
+  await submit(page, revisionId, "Variant A", "SYNTH-A", 0.39);
+  await accept(page);
+  const secondA = (await tool(page, "get_product_library")).products.at(-1);
+  assert.equal(secondA.revision.number, 2);
+  assert.equal(secondA.revision.parentProductId, firstA.id);
+  const cardSecond = page.locator(`[data-product="${secondA.id}"]`);
+  await cardSecond.locator("summary").first().click();
+  await cardSecond
+    .getByRole("button", { name: "Draft catalogue revision", exact: true })
+    .click();
+  const pendingThird = (await tool(page, "list_product_requests")).requests.at(
+    -1,
+  ).id;
+  assert.match(
+    await detail(page)
+      .getByRole("region", { name: "Attachments" })
+      .textContent(),
+    /read-only original evidence/,
+  );
   const pending = await create(page, "Pending variant", true, "mirror");
   const transfer = page.getByRole("region", { name: "Portable catalogue" });
   await transfer
     .getByText("Select products and pending requests", { exact: true })
     .click();
   const choices = transfer.getByRole("checkbox", { name: /^Export product/ });
-  assert.equal(await choices.count(), 2);
-  await choices.nth(0).check();
+  assert.equal(await choices.count(), 3);
+  await choices.nth(2).check();
   await choices.nth(1).check();
   await transfer
     .getByRole("checkbox", { name: `Export request ${pending}` })
+    .check();
+  await transfer
+    .getByRole("checkbox", { name: `Export request ${pendingThird}` })
     .check();
   const download = page.waitForEvent("download");
   await transfer
@@ -281,8 +313,8 @@ try {
     .click();
   const raw = readFileSync(await (await download).path(), "utf8"),
     bundle = JSON.parse(raw);
-  assert.equal(bundle.products.length, 2);
-  assert.equal(bundle.requests.length, 3);
+  assert.equal(bundle.products.length, 3);
+  assert.equal(bundle.requests.length, 5);
   assert.equal(bundle.files.length, 6);
   for (const f of bundle.files) {
     assert.equal(sha(Buffer.from(f.base64, "base64")), f.sha256);
@@ -311,12 +343,63 @@ try {
     .getByRole("button", { name: "Open", exact: true })
     .click();
   await other.getByRole("button", { name: /^Products/ }).click();
+  // A real second tab shares storage but the first tab still has its older canonical snapshot.
+  const sibling = await destination.newPage();
+  await sibling.goto(base);
+  await sibling
+    .locator(".project-card")
+    .filter({ hasText: "Bundle destination #49" })
+    .getByRole("button", { name: "Open", exact: true })
+    .click();
+  await sibling.getByRole("button", { name: /^Products/ }).click();
+  const newerId = await create(sibling, "Other tab preserved", false),
+    newerRaw = await sibling.evaluate(() =>
+      localStorage.getItem("alza.products.v1"),
+    );
+  const staleTransfer = other.getByRole("region", {
+    name: "Portable catalogue",
+  });
+  await staleTransfer
+    .getByLabel("Preview catalogue bundle")
+    .setInputFiles({
+      name: "catalogue.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(raw),
+    });
+  await staleTransfer.getByRole("alert").waitFor();
+  assert.match(
+    await staleTransfer.getByRole("alert").textContent(),
+    /saved catalogue changed in another tab/,
+  );
+  assert.equal(
+    await staleTransfer
+      .getByRole("region", { name: "Catalogue import preview" })
+      .count(),
+    0,
+  );
+  assert.equal(
+    await other.evaluate(() => localStorage.getItem("alza.products.v1")),
+    newerRaw,
+  );
+  await sibling.close();
+  await other.reload();
+  await other
+    .locator(".project-card")
+    .filter({ hasText: "Bundle destination #49" })
+    .getByRole("button", { name: "Open", exact: true })
+    .click();
+  await other.getByRole("button", { name: /^Products/ }).click();
+  assert.ok(
+    (await tool(other, "list_product_requests")).requests.some(
+      (r) => r.id === newerId,
+    ),
+  );
   const beforeModel = JSON.stringify((await tool(other, "get_model")).model),
     section = await preview(other, raw);
   assert.equal((await tool(other, "get_product_library")).products.length, 0);
   assert.match(
     await section.textContent(),
-    /2 product additions · 3 request additions · 6 file additions/,
+    /3 product additions · 5 request additions · 6 file additions/,
   );
   assert.equal(
     await section
@@ -333,7 +416,7 @@ try {
     .click();
   await section
     .getByRole("status")
-    .filter({ hasText: /Imported 2 accepted products/ })
+    .filter({ hasText: /Imported 3 accepted products/ })
     .waitFor();
   assert.equal(
     JSON.stringify((await tool(other, "get_model")).model),
@@ -341,19 +424,49 @@ try {
   );
   const requests = (await tool(other, "list_product_requests")).requests,
     receivedPending = requests.find((r) => r.known.model === "Pending variant");
-  assert.equal(requests.length, 4);
+  assert.equal(requests.length, bundle.requests.length + 2);
   assert.ok(requests.some((r) => r.known.model === "Unrelated preserved"));
   assert.notEqual(receivedPending.id, pending);
   const library = (await tool(other, "get_product_library")).products;
   assert.deepEqual(
     library.map((p) => p.identity.code.value),
-    ["SYNTH-A", "SYNTH-B"],
+    ["SYNTH-A", "SYNTH-B", "SYNTH-A"],
   );
   assert.ok(
     library.every(
       (p) => p.id !== bundle.products[0].id && p.id !== bundle.products[1].id,
     ),
   );
+  const importedA1 = library.find(
+      (p) => p.identity.code.value === "SYNTH-A" && p.revision.number === 1,
+    ),
+    importedA2 = library.find(
+      (p) => p.identity.code.value === "SYNTH-A" && p.revision.number === 2,
+    ),
+    incomingThird = requests.find(
+      (r) => r.known.model === "Variant A" && r.status === "open",
+    );
+  assert.equal(importedA2.revision.seriesId, importedA1.id);
+  assert.equal(importedA2.revision.parentProductId, importedA1.id);
+  const thirdBrief = await tool(other, "get_product_brief", {
+    requestId: incomingThird.id,
+  });
+  assert.match(thirdBrief.attachments[0].pages[0].text, /Variant A/);
+  await other
+    .getByRole("region", { name: "Requests" })
+    .getByRole("button", { name: /Variant A/ })
+    .filter({ hasText: "open" })
+    .click();
+  assert.match(
+    await detail(other)
+      .getByRole("region", { name: "Attachments" })
+      .textContent(),
+    /read-only original evidence/,
+  );
+  await other
+    .getByRole("region", { name: "Requests" })
+    .getByRole("button", { name: /Pending variant/ })
+    .click();
   // Read actual IndexedDB original bytes after import, beyond metadata/text equality.
   const receivedBytes = await other.evaluate(async () => {
     const db = await new Promise((resolve, reject) => {
@@ -421,7 +534,10 @@ try {
   await again
     .getByRole("button", { name: "Confirm already-present bundle" })
     .click();
-  assert.equal((await tool(other, "get_product_library")).products.length, 2);
+  assert.equal(
+    (await tool(other, "get_product_library")).products.length,
+    bundle.products.length,
+  );
   await submit(other, receivedPending.id, "Pending variant", "SYNTH-PENDING");
   await accept(other);
   const finalProduct = (await tool(other, "get_product_library")).products.at(
@@ -511,9 +627,24 @@ try {
     label: "Transferred catalogue originals",
     visible: ["walls", "fixtures", "services-waste"],
   });
-  const output = await tool(other, "export_diagram_view", {
+  await tool(other, "set_sheet_info", {
+    project: "Synthetic catalogue transfer #49",
+    site: "Test only",
+    preparedBy: "Synthetic reviewer",
+  });
+  let output = await tool(other, "export_diagram_view", {
     includeOutputs: true,
   });
+  if (!output.ok)
+    output = await tool(other, "export_diagram_view", {
+      includeOutputs: true,
+      acknowledge: output.open.map((f) => ({
+        code: f.code,
+        ref: f.ref,
+        reason:
+          "Synthetic catalogue portability demonstration; unresolved dimensions remain unknown and this is not a trade instruction.",
+      })),
+    });
   assert.equal(output.ok, true, output.summary);
   assert.match(output.specHtml, /attachment:att_import_/);
   assert.match(output.specHtml, /Synthetic fixing/);
@@ -529,14 +660,17 @@ try {
     .filter({ hasText: "Bundle destination #49" })
     .getByRole("button", { name: "Open", exact: true })
     .click();
-  assert.equal((await tool(other, "get_product_library")).products.length, 3);
+  assert.equal(
+    (await tool(other, "get_product_library")).products.length,
+    bundle.products.length + 1,
+  );
   assert.deepEqual(
     (await tool(other, "get_model")).model.items[0].productSpecification,
     JSON.parse(JSON.stringify(item.productSpecification)),
   );
   assert.equal(
     (await tool(page, "get_product_library")).products.length,
-    2,
+    bundle.products.length,
     "Source browser stays independent",
   );
   await other.getByRole("button", { name: /^Products/ }).click();
@@ -548,7 +682,10 @@ try {
   await changedPreview
     .getByRole("button", { name: "Cancel catalogue import" })
     .click();
-  assert.equal((await tool(other, "get_product_library")).products.length, 3);
+  assert.equal(
+    (await tool(other, "get_product_library")).products.length,
+    bundle.products.length + 1,
+  );
   await other.getByRole("button", { name: "Back to plan" }).click();
   await other.getByRole("button", { name: /^Projects/ }).click();
   const projectDownload = other.waitForEvent("download");
