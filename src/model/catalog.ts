@@ -14,6 +14,13 @@ export interface CatalogEntry {
   isRug?: boolean;
   /** plan outline in the piece's own frame (#37); absent means the w × d rectangle */
   outline?: Outline;
+  /**
+   * Bottom of a wall-mounted or deck-mounted piece above the finished floor (m); absent means
+   * it stands on the floor. `h` is the piece's own height, so it spans elevation → elevation + h.
+   * Only the overlap check reads it (a mixer over a bath is not a clash); a piece's 3D parts
+   * place themselves.
+   */
+  elevation?: number;
 }
 
 export const CATALOG: CatalogEntry[] = [

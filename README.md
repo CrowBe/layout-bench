@@ -311,6 +311,13 @@ A few design notes:
   categories with explicitly synthetic evidence, real human review controls, library reload,
   conditional variants and the canonical diagram/specification export.
 
+- The Bathroom Concept sample carries the owner's purchased fittings (bath, wall and basin
+  mixers, spout, shower system, towel rail, thermostat), each marked `purchased` with the code
+  printed on its label. Only label-printed sizes are copied; every other size, reach and mounting
+  height is a placeholder named in the kind's data. A kind may carry an `elevation` (define_item_kind),
+  so a wall mixer over a bath is not an `items_overlap` once their heights differ. The corner bath
+  is a right-angle isosceles triangle with a rounded hypotenuse; the arc depth is a placeholder.
+
 - A spec sheet you already hold can be attached to a request (PDF or image, up to 10 MB). It
   stays in this browser: the file in IndexedDB, its record with the library. A PDF's text is
   read in the browser with pdf.js, page by page, and `get_product_brief` hands it to the agent,

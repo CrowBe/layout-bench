@@ -371,6 +371,9 @@ export function checkModel(model: PlanModel): Issue[] {
       const oc = catalogByKind(other.kind);
       if (!oc) continue;
       if (cat.isRug || oc.isRug) continue;
+      // pieces mounted at different heights share a footprint without touching
+      const [lo, hi] = [cat.elevation ?? 0, oc.elevation ?? 0];
+      if (lo >= hi + oc.h || hi >= lo + cat.h) continue;
       const or2 = footprint.get(other.id)!;
       if (polygonsOverlap(r, or2, 0.01)) {
         issues.push({

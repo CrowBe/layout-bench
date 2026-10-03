@@ -1796,6 +1796,7 @@ export const actions = {
     h: number;
     color?: string;
     category?: string;
+    elevation?: number;
     parts?: PartSpec[];
     outline?: Outline;
   }): ActionResult {
@@ -1803,11 +1804,15 @@ export const actions = {
     if (!kind) return fail("A kind id is required.");
     if (FURNITURE_BUILDERS[kind]) return fail(`"${kind}" is a built-in kind — pick another id or use place_item.`);
     if (!(spec.w > 0 && spec.d > 0 && spec.h > 0)) return fail("w, d and h must all be positive metres.");
+    if (spec.elevation !== undefined && !(Number.isFinite(spec.elevation) && spec.elevation >= 0)) return fail("elevation must be a metre height above the finished floor, 0 or more.");
     if (spec.outline !== undefined) {
       const problems = outlineProblems(spec.outline, spec.w, spec.d);
       if (problems.length) return fail(`Outline rejected: ${problems.join("; ")}.`);
     }
-    const outline = spec.outline ? { outline: structuredClone(spec.outline) } : {};
+    const outline = {
+      ...(spec.outline ? { outline: structuredClone(spec.outline) } : {}),
+      ...(spec.elevation ? { elevation: spec.elevation } : {}),
+    };
     const known: CatalogEntry["category"][] = ["living", "bedroom", "kitchen", "bath", "office", "decor"];
     const category = known.includes(spec.category as CatalogEntry["category"])
       ? (spec.category as CatalogEntry["category"])
@@ -1823,6 +1828,8 @@ export const actions = {
       existing.category = category;
       if (spec.outline) existing.outline = structuredClone(spec.outline);
       else delete existing.outline;
+      if (spec.elevation) existing.elevation = spec.elevation;
+      else delete existing.elevation;
     } else {
       registerCatalogEntry({ kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category, ...outline });
     }
