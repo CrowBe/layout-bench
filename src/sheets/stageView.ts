@@ -4,8 +4,8 @@
  * is derived from it, a view is a list of ids kept outside it (see viewState.ts), and the
  * diagram and the specification sheet are both rendered from the same resolved element set.
  *
- * Only what the model really records is offered. A layer the model has no concept of (in-screed
- * heating cable, pipe and cable runs) is named as not modelled and is never drawn or invented.
+ * Only recorded content is offered. Heating without a room record is explicitly absent;
+ * pipe and cable runs between service points remain unmodelled.
  * Unknown values print as "?" with what is missing, exactly as on sheet A-01.
  */
 
@@ -16,6 +16,7 @@ import { rectCorners, segLen, type Pt } from "../model/geometry";
 import { openingSpan } from "../model/issues";
 import { input, known, layerLabel, resolveFace, sideFaces, sideNormal, wallBody, weakest } from "../model/faces";
 import { DEFAULT_DATUM, floorLayerLabel, floorLevels } from "../model/floor";
+import { heatingEvidence } from "../model/heating";
 import { planeSurface } from "../model/drainage";
 import { anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
@@ -40,6 +41,7 @@ export const LAYERS = [
   { id: "rooms", label: "Rooms (outline label)" },
   { id: "floor-substrate", label: "Floor substrate and datum" },
   { id: "floor-waterproofing", label: "Floor waterproofing" },
+  { id: "floor-heating-cable", label: "Proposed in-screed heating cable" },
   { id: "floor-screed", label: "Floor screed" },
   { id: "floor-adhesive", label: "Floor tile adhesive" },
   { id: "floor-tile", label: "Floor tile" },
@@ -54,11 +56,11 @@ export type LayerId = (typeof LAYERS)[number]["id"];
 
 /** Construction content the model has no representation for. It is never drawn or listed as present. */
 export const NOT_MODELLED = [
-  "in-screed / under-tile heating cable (no model layer; record it in a note)",
+  "in-screed heating cable (no cable record supplied)",
   "pipe and cable runs between service points (only the points are modelled)",
 ];
 
-export type ElementType = "wall" | "face" | "wall-layer" | "opening" | "room" | "floor-substrate" | "floor-layer" | "waste" | "floor-plane" | "fixture" | "service-point";
+export type ElementType = "wall" | "face" | "wall-layer" | "opening" | "room" | "floor-substrate" | "floor-layer" | "waste" | "floor-plane" | "heating" | "fixture" | "service-point";
 
 export interface ViewElement {
   id: string;
@@ -112,6 +114,7 @@ export function catalogue(model: PlanModel): Catalogue {
       add({ id: `room:${r.id}:substrate`, layer: "floor-substrate", type: "floor-substrate", label: `${r.label} floor: substrate`, ref: r.id });
       for (const l of fb.layers) add({ id: `room:${r.id}:floor:${l.id}`, layer: `floor-${l.kind}` as LayerId, type: "floor-layer", label: `${r.label} floor: ${floorLayerLabel(l)}`, ref: r.id, sub: l.id });
     }
+    if (r.heating) add({ id: `room:${r.id}:heating`, layer: "floor-heating-cable", type: "heating", label: `${r.label}: proposed heating cable`, ref: r.id });
     for (const wst of r.drainage?.wastes ?? []) add({ id: `room:${r.id}:waste:${wst.id}`, layer: "drainage-wastes", type: "waste", label: `${r.label}: ${wst.label}`, ref: r.id, sub: wst.id });
     for (const p of r.drainage?.planes ?? []) add({ id: `room:${r.id}:plane:${p.id}`, layer: "drainage-planes", type: "floor-plane", label: `${r.label}: ${p.label}`, ref: r.id, sub: p.id });
   }
@@ -121,7 +124,7 @@ export function catalogue(model: PlanModel): Catalogue {
     for (const sp of it.servicePoints ?? []) add({ id: `item:${it.id}:sp:${sp.id}`, layer: `services-${sp.service}` as LayerId, type: "service-point", label: `${label}: ${sp.label}`, ref: it.id, sub: sp.id });
   }
   const layers = LAYERS.map((l) => ({ id: l.id, label: l.label, elements: els.filter((e) => e.layer === l.id).map((e) => e.id) })).filter((l) => l.elements.length);
-  return { layers, emptyLayers: LAYERS.filter((l) => !layers.some((x) => x.id === l.id)).map((l) => l.id), elements: els, notModelled: NOT_MODELLED };
+  return { layers, emptyLayers: LAYERS.filter((l) => !layers.some((x) => x.id === l.id)).map((l) => l.id), elements: els, notModelled: NOT_MODELLED.filter((_, i) => i !== 0 || !model.rooms.some((r) => r.heating)) };
 }
 
 export interface Resolution {
@@ -245,6 +248,25 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     const wst = r.drainage!.wastes.find((x) => x.id === el.sub)!;
     row("kind", { value: wst.kind, status: "entered" });
     row("finished level at waste (mm)", { ...qRow(wst.level), datum: r.floorBuildUp?.datum || DEFAULT_DATUM });
+    return rows;
+  }
+  if (el.type === "heating") {
+    const r = room(), h = r.heating!, e = heatingEvidence(r);
+    for (const property of ["manufacturer", "model", "productSource", "requirements"] as const) row(property, { value: h[property] || "?", status: h[property] ? "entered" : "unknown" });
+    for (const property of ["length", "minSpacing", "edgeClearance", "depthFromBottom"] as const) row(`${property} (mm)`, qRow(h[property]));
+    row("rated output (W)", h.ratedOutput?.value !== undefined ? { value: String(h.ratedOutput.value), status: h.ratedOutput.status ?? "unknown", source: h.ratedOutput.source } : { value: "?", status: "unknown" });
+    row("plan route length (m)", { value: String(e.planRouteLength), status: "proposed" });
+    row("spatial route length, sampled profile (m)", { value: e.routeLength === undefined ? "?" : String(e.routeLength), status: e.routeLength === undefined ? "unknown" : "proposed" });
+    row("remaining confirmed product length (m)", { value: e.remainingProductLength === undefined ? "?" : String(e.remainingProductLength), status: e.remainingProductLength === undefined ? "unknown" : "proposed" });
+    row("length basis", { value: e.lengthNote, status: "proposed" });
+    row("zone ids", { value: h.zoneIds.join(", ") || "?", status: h.zoneIds.length ? "proposed" : "unknown" });
+    row("available zone area (m²), not heat coverage", { value: String(e.availableArea), status: "proposed" });
+    row("minimum non-adjacent spacing (mm)", { value: e.minimumNonAdjacentSpacing === undefined ? "?" : mm(e.minimumNonAdjacentSpacing), status: e.minimumNonAdjacentSpacing === undefined ? "unknown" : "proposed" });
+    row("installation approval", { value: "Pending manufacturer / electrician review", status: "proposed" });
+    for (const [i, p] of h.path.entries()) row(`point ${i + 1} x / y (mm)`, { value: `${mm(p.x)} / ${mm(p.y)}`, status: "proposed", datum: "plan origin" });
+    for (const p of e.section) row(`cable level at ${p.s} m along plan route (mm)`, p.level === undefined ? { value: "?", status: "unknown", missing: p.missing } : { value: mm(p.level), status: p.basis as RowStatus, datum: r.floorBuildUp?.datum || DEFAULT_DATUM });
+    for (const k of h.keepouts) row(`keep-out ${k.label} x / y / w / h (mm)`, { value: [k.x, k.y, k.w, k.h].map(mm).join(" / "), status: "entered", source: k.source });
+    for (const p of e.problems) row(p.code, { value: p.message, status: "proposed" });
     return rows;
   }
   if (el.type === "floor-plane") {
@@ -489,6 +511,21 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     }
   }
 
+  // Heating is drawn only if its canonical element is selected for this stage.
+  for (const r of model.rooms) {
+    const id = `room:${r.id}:heating`;
+    if (!vis.has(id) || !r.heating) continue;
+    for (const exclusion of r.heating.keepouts) {
+      const a = P(exclusion), b = P({ x: exclusion.x + exclusion.w, y: exclusion.y + exclusion.h });
+      parts.push(`<rect x="${f1(a.x)}" y="${f1(a.y)}" width="${f1(b.x-a.x)}" height="${f1(b.y-a.y)}" fill="#fee" stroke="#b00020" stroke-width="0.2" ${de(id)}/>`);
+    }
+    const points = r.heating.path.map(P);
+    parts.push(`<polyline points="${points.map((p) => `${f1(p.x)},${f1(p.y)}`).join(" ")}" fill="none" stroke="#c64c19" stroke-width="0.5" ${de(id)}/>`);
+    points.forEach((p, i) => text(p.x+1, p.y-1, String(i+1), 1.8, `fill="#c64c19"`));
+    const evidence = heatingEvidence(r);
+    if (points.length) text(points[0].x, points[0].y-4, `PROPOSED CABLE plan ${evidence.planRouteLength} m; spatial ${evidence.routeLength === undefined ? "unknown" : `${evidence.routeLength} m`} (sampled); trade review pending`, 1.8, `fill="#c64c19"`);
+  }
+
   // ---- openings ----
   for (const o of model.openings) {
     const id = `opening:${o.id}`;
@@ -583,7 +620,7 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
   heading(`Stage: ${opts.label}`);
   row(`Shows ${elements.length} element(s) of the one project model; everything else is hidden, not removed.`);
   row("Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · ENT entered · DEF default · ? unknown");
-  row(`Not modelled, never drawn: ${NOT_MODELLED.map((s) => s.split(" (")[0]).join("; ")}.`, 1.9, `fill="#666"`);
+  row(`Not modelled, never drawn: ${catalogue(model).notModelled.map((s) => s.split(" (")[0]).join("; ")}.`, 1.9, `fill="#666"`);
   y += 2;
 
   const byType = (...types: ElementType[]) => elements.filter((e) => types.includes(e.type));
@@ -606,7 +643,7 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
   const sections: [string, ViewElement[], number][] = [
     ["Wall faces and layers (mm from drawn line)", byType("face", "wall-layer"), 10],
     ["Floor (mm above datum)", byType("floor-substrate", "floor-layer"), 6],
-    ["Drainage", byType("waste", "floor-plane"), 4],
+    [byType("heating").length ? "Drainage / heating" : "Drainage", byType("waste", "floor-plane", "heating"), 4],
     ["Rough-in (as entered, from the named face)", byType("service-point"), 10],
   ];
   for (const [title, els, max] of sections) {
@@ -675,7 +712,7 @@ export function renderStageSpec(model: PlanModel, elements: ViewElement[], opts:
 <div>Project: ${esc(tb.project?.trim() || "?")} · Site / room: ${esc(tb.site?.trim() || "?")} · Prepared by: ${esc(tb.preparedBy?.trim() || "?")} · Plan: ${esc(model.name)}</div>
 <div>${opts.date ? `Exported ${esc(opts.date)} · not a revision of A-01` : "PREVIEW, not exported"}${opts.note ? ` · Note: ${esc(opts.note)}` : ""}</div>
 <div class="banner">PROPOSED · FOR TRADE REVIEW · NOT AS-BUILT · NOT A COMPLIANCE CERTIFICATE</div>
-<p class="muted">Lists exactly the ${elements.length} element(s) visible in this stage view of the one project model. Lengths in mm. Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · ENT entered (not site-confirmed) · DEF default placeholder · ? unknown. A "?" value is not known and must not be read as a measurement. Not modelled, so never listed: ${esc(NOT_MODELLED.join("; "))}.</p>
+<p class="muted">Lists exactly the ${elements.length} element(s) visible in this stage view of the one project model. Lengths in mm. Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · ENT entered (not site-confirmed) · DEF default placeholder · ? unknown. A "?" value is not known and must not be read as a measurement. Not modelled, so never listed: ${esc(catalogue(model).notModelled.join("; "))}.</p>
 <table><thead><tr><th>Element</th><th>Property</th><th>Value</th><th>Status</th><th>Measured from</th><th>Source</th><th>Missing</th></tr></thead>${body}</table>
 <h2>Unresolved in this view (${unresolved.length})</h2><ul>${unresolved.map((f) => `<li>${esc(f.message)}</li>`).join("")}</ul>
 ${acks.length ? `<h2>Exported past ${acks.length} blocking finding(s)</h2><ul>${acks.map((a) => `<li>${esc(`${a.code} (${a.ref}), ${a.by}: ${a.reason}`)}</li>`).join("")}</ul>` : ""}

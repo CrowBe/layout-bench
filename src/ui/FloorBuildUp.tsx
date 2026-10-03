@@ -4,6 +4,7 @@
  * action set_room_floor calls. A blank value is unknown; levels above it read "unresolved".
  */
 
+import { heatingSection } from "../model/heating";
 import { useState } from "react";
 import { actions, logActivity, type FloorLayerInput, type FloorPatch } from "../model/store";
 import { formatMm } from "../model/geometry";
@@ -35,6 +36,10 @@ function Section({ room }: { room: Room }) {
   const sub = spec?.substrateTop;
   const datumY = sub?.value !== undefined ? base - -sub.value * 1000 * PX : null;
   const minY = Math.min(0, y, datumY !== null ? datumY - 14 : 0) - 8;
+  // This stack is referenced to the substrate. Sloped cable levels use their own local
+  // screed faces in the route profile, rather than an unrelated flat section.
+  const cable = room.drainage?.planes.length ? undefined : heatingSection(room)[0];
+  const cableY = cable?.level !== undefined && sub?.value !== undefined ? base - (cable.level - sub.value) * 1000 * PX : undefined;
   const maxY = Math.max(base + 20, (datumY ?? 0) + 14);
   return (
     <svg className="face-section" role="img" aria-label="Floor section" width="100%" viewBox={`0 ${minY} 200 ${maxY - minY}`}>
@@ -46,6 +51,7 @@ function Section({ room }: { room: Room }) {
           {r.unknown && <text x={80} y={r.y + r.h - 3} fontSize={10} textAnchor="middle" fill="#c0392b">?</text>}
         </g>
       ))}
+      {cableY !== undefined && <g data-role="heating-in-floor-section"><circle cx={80} cy={cableY} r={3} fill="#c64c19"/><text x={144} y={cableY} fontSize={8} fill="#c64c19">cable (first point)</text></g>}
       {datumY !== null && (
         <g>
           <line x1={0} y1={datumY} x2={200} y2={datumY} stroke="#4f86b0" strokeDasharray="4 3" />

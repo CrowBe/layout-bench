@@ -4,7 +4,7 @@
  * Arguments accept human names ("bedroom", "sofa") as well as ids.
  */
 
-import { actions, lookupItem, lookupWall, lookupRoom, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type FloorPatch, type DrainagePatch, type TilingPatch, type FloorTilingPatch } from "../model/store";
+import { actions, lookupItem, lookupWall, lookupRoom, store, type ActionResult, type AnchorInput, type OpeningPosition, type ServicePointInput, type WallSidePatch, type HeatingPatch, type FloorPatch, type DrainagePatch, type TilingPatch, type FloorTilingPatch } from "../model/store";
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { SHEETS, checkSheet, reconcile, type AckInput } from "../sheets/check";
 import { catalogue, renderStageDiagram, renderStageSpec } from "../sheets/stageView";
@@ -18,6 +18,8 @@ import { catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
 import type { WallSideName } from "../model/types";
 import { drainageProblems, heightAt, planeSurface, sectionAlong, surfaces, thresholds } from "../model/drainage";
+import { heatingEvidence } from "../model/heating";
+import { renderHeatingReview } from "../sheets/heating";
 import { finishedLevel } from "../model/floor";
 import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems } from "../model/floor";
 import { IDENTITY_FIELDS, SELECTION_STATUSES, type SelectionStatus } from "../model/productIdentity";
@@ -310,6 +312,34 @@ export const TOOLS: ToolDef[] = [
       const levels = floorLevels(spec);
       const summary = `Room "${room.label}" floor, datum ${spec?.datum ?? DEFAULT_DATUM}: ${spec ? `${levels.filter((l) => l.resolved).length}/${levels.length} levels resolved` : "nothing recorded"}.`;
       return { ok: true, summary, roomId: room.id, datum: spec?.datum ?? DEFAULT_DATUM, substrate: spec?.substrate, recorded: !!spec, layers: spec?.layers ?? [], levels, problems: spec ? floorProblems(spec) : [] };
+    },
+  },
+
+  // ------------------------------------------------------------------ proposed heating
+  {
+    name: "set_room_heating",
+    title: "Record proposed in-screed cable and entered product information",
+    description: "Edit one canonical room heating record. Fields present replace, null clears to unknown; clear:true removes it. Geometry is metres, ratedOutput watts; each numeric constraint needs value/status/source. Manufacturer, model, productSource and requirements are user-entered text: never synthesize product specifications. zoneIds selects the room id for its entire footprint or this room's drainage plane ids. Select screedLayerId when multiple screeds exist. depthFromBottom is cable CENTRE height above screed bottom, not finished floor or cover. Path is an open polyline of straight segments, without an assumed cold tail; keepouts are entered exclusion rectangles, never auto-created from assumed requirements. Geometry conflicts are stored for review. This is planning only; manufacturer/electrician approval remains pending.",
+    inputSchema: obj({ room: str, clear: { type: "boolean" },
+      manufacturer: { type: ["string", "null"] }, model: { type: ["string", "null"] }, productSource: { type: ["string", "null"] }, requirements: { type: ["string", "null"] }, screedLayerId: { type: ["string", "null"] },
+      length: quantitySchema, ratedOutput: { ...quantitySchema, description: "rated total watts, not metres" }, minSpacing: quantitySchema, edgeClearance: quantitySchema, depthFromBottom: quantitySchema,
+      zoneIds: { type: ["array", "null"], items: str }, path: { type: ["array", "null"], maxItems: 1000, items: obj({ x: num, y: num }, ["x", "y"]) },
+      keepouts: { type: ["array", "null"], maxItems: 100, items: obj({ id: str, label: str, x: num, y: num, w: num, h: num, source: str }, ["id", "label", "x", "y", "w", "h"]) },
+    }, ["room"]),
+    execute: (i) => actions.setRoomHeating(i.room as string, i as HeatingPatch),
+  },
+  {
+    name: "get_room_heating",
+    title: "Read cable route, length, clearances and screed section",
+    description: "Read user-entered cable metadata and proposed route. planRouteLength is the XY projection; routeLength is spatial length along the sampled cable profile and is absent if any interval has unresolved screed levels or cable height. remainingProductLength compares confirmed product length with that spatial length and is also absent while the profile is unresolved. Derives exact zone union area excluding entered keep-outs (not verified heating coverage), minimum spacing between non-adjacent straight segments, zone/keep-out clearance and warnings. section follows vertices, floor-plane boundaries and interval midpoints; s is cumulative plan-projection distance. Levels above the named floor datum stay absent if inputs are unknown. Cable centre is measured above screed bottom; local sloped screed derives from the entered finished surface and layers above it. includeHtml returns a printable review with metadata provenance, exact coordinates, section and all warnings. Manufacturer/electrician sign-off is always pending.",
+    inputSchema: obj({ room: str, includeHtml: { type: "boolean" } }, ["room"]),
+    annotations: { readOnlyHint: true },
+    execute: (i) => {
+      const ref = String(i.room).toLowerCase();
+      const hits = store.getState().model.rooms.filter((r) => r.id === i.room || r.label.toLowerCase() === ref);
+      if (hits.length !== 1) return { ok: false, summary: hits.length ? "Ambiguous room; use its id." : "Room not found." };
+      const room = hits[0];
+      return { ok: true, summary: `Room "${room.label}" heating ${room.heating ? "proposed; manufacturer/electrician review pending" : "not recorded"}.`, roomId: room.id, recorded: !!room.heating, heating: room.heating ?? null, ...heatingEvidence(room), ...(i.includeHtml ? { html: renderHeatingReview(room) } : {}) };
     },
   },
 
@@ -668,7 +698,7 @@ export const TOOLS: ToolDef[] = [
     name: "list_diagram_content",
     title: "List layers and objects a stage diagram can show",
     description:
-      "List every layer and object of the open project that a construction-stage diagram can show, with stable ids: layer ids (e.g. walls, wall-frame, wall-board, wall-waterproofing, windows, doors, floor-screed, drainage-wastes, fixtures, services-waste) and element ids under them (e.g. wall:<wallId>, wall:<wallId>:<side>:<layerId>, opening:<id>, room:<id>:floor:<layerId>, item:<id>, item:<id>:sp:<pointId>). Only what the model really records is listed: emptyLayers are kinds with nothing recorded yet, and notModelled names construction content the model cannot represent at all (in-screed heating cable, pipe and cable runs). Never claim a diagram shows those. Read-only; also returns the current view.",
+      "List every layer and object of the open project that a construction-stage diagram can show, with stable ids: layer ids (e.g. walls, wall-frame, wall-board, wall-waterproofing, windows, doors, floor-screed, drainage-wastes, fixtures, services-waste) and element ids under them (e.g. wall:<wallId>, wall:<wallId>:<side>:<layerId>, opening:<id>, room:<id>:floor:<layerId>, item:<id>, item:<id>:sp:<pointId>). Only what the model really records is listed: emptyLayers are kinds with nothing recorded yet, and notModelled names absent heating records and construction content the model cannot represent (pipe and cable runs). Never claim a diagram shows those. Read-only; also returns the current view.",
     inputSchema: obj({}),
     annotations: { readOnlyHint: true },
     execute: () => {

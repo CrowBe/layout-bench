@@ -141,6 +141,25 @@ export interface Opening {
   side?: "left" | "right";
 }
 
+/** Proposed heating only. No unsupplied product value has a default. Lengths in metres; output in W. */
+export interface Heating {
+  manufacturer?: string;
+  model?: string;
+  productSource?: string;
+  requirements?: string;
+  length?: Quantity;
+  ratedOutput?: Quantity;
+  minSpacing?: Quantity;
+  edgeClearance?: Quantity;
+  /** Height of cable centre above selected screed bottom, not finished floor. */
+  depthFromBottom?: Quantity;
+  screedLayerId?: string;
+  /** Room id means the whole room; otherwise ids of this room's drainage planes. */
+  zoneIds: string[];
+  path: { x: number; y: number }[];
+  keepouts: { id: string; label: string; x: number; y: number; w: number; h: number; source?: string }[];
+}
+
 export interface Room {
   id: string;
   x: number;
@@ -153,6 +172,7 @@ export interface Room {
   floorBuildUp?: FloorAssembly;
   /** Proposed wastes and sloped floor planes (#7). Absent = nothing recorded. */
   drainage?: Drainage;
+  heating?: Heating;
   /** Proposed floor tile pattern, always derived at finished wall faces (#10). */
   floorTiling?: FloorTiling;
 }

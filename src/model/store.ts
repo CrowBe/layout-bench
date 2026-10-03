@@ -6,6 +6,7 @@
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 import type {
+  Heating,
   ActivityEntry,
   Item,
   Note,
@@ -39,6 +40,7 @@ import type {
   TileFloorReference,
 } from "./types";
 import { emptyModel } from "./types";
+import { validHeating, heatingEvidence } from "./heating";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
@@ -85,7 +87,7 @@ export interface EditorState {
   selectedOpeningId: string | null;
   /** pointer snap step in metres for the 2D editor; 0 turns it off. Typed values and tools never snap. */
   snapStep: number;
-  drawMode: "select" | "wall" | "room" | "place";
+  drawMode: "select" | "wall" | "room" | "place" | "heating";
   placingKind: string | null;
   pendingWallStart: { x: number; y: number } | null;
 }
@@ -526,6 +528,10 @@ export interface FloorLayerInput {
 }
 
 /** Fields present replace what is stored; null clears back to unknown. */
+type HeatingQuantityKey = "length" | "ratedOutput" | "minSpacing" | "edgeClearance" | "depthFromBottom";
+export type HeatingPatch = { [K in Exclude<keyof Heating, HeatingQuantityKey>]?: Heating[K] | null } &
+  { [K in HeatingQuantityKey]?: QuantityInput | null } & { clear?: boolean };
+
 export interface FloorPatch {
   datum?: string;
   substrate?: string | null;
@@ -1141,6 +1147,40 @@ export const actions = {
       rooms: store.getState().model.rooms.map((x) => (x.id === room.id ? next : x)),
     });
     return r.ok(`Room "${next.label}" updated (${formatMm(next.w)} × ${formatMm(next.h)} mm at ${formatMm(next.x)}, ${formatMm(next.y)}).`, { id: room.id });
+  },
+
+  /** Same canonical edit for UI and tools. Present fields replace; null restores unknown. */
+  setRoomHeating(roomRef: string, patch: HeatingPatch): ActionResult {
+    const hit = resolveRoom(roomRef);
+    if (!hit.ok) return rejected(hit);
+    if (!patch || typeof patch !== "object" || Array.isArray(patch)) return fail("Heating patch must be an object.");
+    const room = hit.entity;
+    const nextRoom = { ...room };
+    if (patch.clear === true) delete nextRoom.heating;
+    else {
+      const next: Heating = structuredClone(room.heating ?? { zoneIds: [], path: [], keepouts: [] });
+      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts"] as (keyof Heating)[]) {
+        if (patch[key] === undefined) continue;
+        if (patch[key] === null) {
+          if (key === "path" || key === "zoneIds" || key === "keepouts") Object.assign(next, { [key]: [] });
+          else delete next[key];
+        } else Object.assign(next, { [key]: structuredClone(patch[key]) });
+      }
+      // Tool/QuantityField null values mean unknown; persisted quantities omit them.
+      for (const key of ["length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom"] as const) {
+        const quantity = next[key];
+        if (quantity && quantity.value === null) delete quantity.value;
+      }
+      if (!validHeating(next)) return fail("Heating rejected: finite non-negative quantities need provenance; paths need finite x/y; keep-outs need unique ids, labels and positive rectangles. Maximum 1000 points and 100 keep-outs.");
+      for (const key of ["length", "minSpacing", "edgeClearance", "depthFromBottom"] as const) if (next[key]?.value !== undefined) next[key]!.value = quantize(next[key]!.value!);
+      next.path = next.path.map((p) => ({ x: quantize(p.x), y: quantize(p.y) }));
+      next.keepouts = next.keepouts.map((r) => ({ ...r, x: quantize(r.x), y: quantize(r.y), w: quantize(r.w), h: quantize(r.h) }));
+      if (!validHeating(next)) return fail("Heating keep-out collapses at stored precision (0.1 mm).");
+      nextRoom.heating = next;
+    }
+    pushUndo();
+    setModel({ ...store.getState().model, rooms: store.getState().model.rooms.map((r) => r.id === room.id ? nextRoom : r) });
+    return { ok: true, summary: `Room "${room.label}" proposed heating ${nextRoom.heating ? "updated" : "cleared"}; electrician/manufacturer review required.`, id: room.id, ...heatingEvidence(nextRoom) };
   },
 
   // ---- floor assembly (#6) ----

@@ -226,7 +226,7 @@ describe("stage diagram views (#41)", () => {
       ["2. Initial surfacing and window", [...shell, "wall-frame", "wall-board", "windows", "floor-substrate"]],
       ["3. Plumbing and electrical rough-in", [...shell, "wall-frame", "windows", "services-waste", "services-water", "services-power", "drainage-wastes"]],
       ["4. Waterproofing", [...shell, "windows", "wall-board", "wall-waterproofing", "floor-waterproofing", "drainage-wastes"]],
-      // no heating-cable layer exists: the stage shows the substrate it would go on and says so
+      // no heating record exists: the stage shows the substrate and lists absent heating
       ["5. In-screed heating cable", [...shell, "windows", "floor-substrate", "floor-waterproofing", "drainage-wastes"]],
       ["6. Screed", [...shell, "windows", "floor-screed", "drainage-wastes", "drainage-planes"]],
       ["7. Adhesive", [...shell, "windows", "wall-adhesive", "floor-adhesive"]],
