@@ -122,7 +122,7 @@ export function installationReading(model: PlanModel, item: Item) {
   const heightMatches=typeof heightEvidence?.value === "number" && cat && Math.abs(heightEvidence.value-cat.h)<1e-6;
   const topBasis=bottom!==undefined ? weakest([{field:"installed bottom",value:bottom,status:basis},{field:"product height",value:heightMatches?cat!.h:null,status:heightMatches?heightEvidence!.status??"unknown":"unknown"}]) : "unknown";
   const side=face && item.anchor && face.sides?.[item.anchor.side];
-  const bottomSource=[p.height?.source,room?.floorBuildUp?.substrateTop?.source,...room?.floorBuildUp?.layers.map(l=>l.thickness.source)??[],side?.existing?.source,side?.frame?.source,...side?.layers.map(l=>l.thickness.source)??[]].filter(Boolean).join("; ");
+  const bottomSource=[...new Set([item.anchor?.source,p.height?.source,room?.floorBuildUp?.substrateTop?.source,...room?.floorBuildUp?.layers.map(l=>l.thickness.source)??[],side?.existing?.source,side?.frame?.source,...side?.layers.map(l=>l.thickness.source)??[]].filter(Boolean))].join("; ");
   const topSource=[bottomSource,evidenceText(heightEvidence)].filter(Boolean).join("; ");
   let finishedFloorLevel=room ? finishedLevel(room.floorBuildUp).top : undefined;
   if(room?.drainage?.planes.length)finishedFloorLevel=heightAt(room.drainage,item.x,item.y).level;

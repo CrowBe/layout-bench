@@ -205,6 +205,9 @@ it("keeps confirmed bottom placement separate from published top height after po
   const above=clearanceRegions(model,it)[0];expect(above.placementBasis).toBe("published");expect(above.placementSource).toContain("example.com");
   const parsed=parseImport(JSON.stringify({...demoProject(),id:"confirmed-placement",model,kinds:store.getState().kinds}));
   expect(installationReading(parsed.model,parsed.model.items[0])).toMatchObject({topBasis:"published",heightEvidence:pub(.8)});
+  productStore.setState({products:[],requests:[]});
+  expect(installationReading(parsed.model,parsed.model.items[0]).topBasis).toBe("published");
+  expect(installationReading(parsed.model,{...parsed.model.items[0],productSpecification:undefined}).topBasis).toBe("unknown");
 });
 it("keeps the named physical back midpoint at the declared wall-face gap and along-wall distance through yaw",()=>{
   const it=setup();actions.setFixtureInstallation(it.id,{...it.installation!,mirror:true,orientation:90});

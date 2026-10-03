@@ -62,6 +62,24 @@ try {
  assert.equal(read.installedLevels.bottom,.96);assert.equal(read.installedLevels.top,1.76);assert.equal(read.installedLevels.basis,'proposed');
  assert.equal(read.fixings[0].level,1.56);assert.equal(read.servicePoints.find(p=>p.pointId==='local:power').level,1.16);
  assert.equal(await page.locator(`[data-id="${item.id}"] [data-outline]`).count(),1);
+ // Confirmed project placement does not promote the sourced product height to confirmed.
+ const confirmed=value=>({value,status:'site-confirmed',source:'Synthetic confirmation of project placement only'});
+ await run('set_room_floor',{room:room.id,substrateTop:confirmed(0),layers:[]});
+ await run('set_wall_side',{wallId:wall.id,side:'right',existing:confirmed(0),frame:confirmed(0),layers:[]});
+ await run('anchor_fixture',{itemId:item.id,wallId:wall.id,side:'right',face:'existing',distance:1,status:'site-confirmed'});
+ await run('set_fixture_installation',{itemId:item.id,installation:{...placement,height:confirmed(1)}});
+ read=(await run('get_rough_in',{itemId:item.id})).fixtures[0];
+ assert.equal(read.installedLevels.bottom,1);assert.equal(read.installedLevels.top,1.8);
+ assert.equal(read.installedLevels.basis,'site-confirmed');assert.equal(read.installedLevels.topBasis,'published');
+ assert.deepEqual(read.installedLevels.heightEvidence,fittingCases[5].fields.height);
+ assert.match(read.installedLevels.topSource,/synthetic-fitting.pdf/);
+ assert.equal(read.accessRequirements[0].placementBasis,'published');assert.match(read.accessRequirements[0].placementSource,/synthetic-fitting.pdf/);
+ assert.match(await page.getByRole('region',{name:'Fixture installation'}).textContent(),/top 1800 mm \(published\)/);
+ await run('set_room_floor',{room:room.id,substrateTop:q(-.05),layers:[{kind:'tile',thickness:q(.01)}]});
+ await run('set_wall_side',{wallId:wall.id,side:'right',existing:q(0),frame:q(0),layers:[{kind:'tile',thickness:q(.01)}]});
+ await run('anchor_fixture',{itemId:item.id,wallId:wall.id,side:'right',face:'finished',distance:1,status:'proposed'});
+ await run('set_fixture_installation',{itemId:item.id,installation:{...placement,height:q(1)}});
+
  await panel.getByLabel('Mirror installation').check();
  await panel.getByLabel('Installation orientation (degrees)').fill('90');
  await panel.getByRole('button',{name:'Update installation placement'}).click();
@@ -73,7 +91,10 @@ try {
  assert.equal(read.accessRequirements[0].status,'published');assert.equal(read.accessRequirements[0].placementBasis,'proposed');
  await run('set_sheet_info',{project:'Synthetic #51',site:'Test only',preparedBy:'Synthetic reviewer'});
  await run('set_diagram_view',{label:'Synthetic mounted fitting',visible:['fixtures','services-power']});
- let exported=await run('export_diagram_view',{includeOutputs:true});assert.equal(exported.ok,true,exported.summary);
+ let exported=await run('export_diagram_view',{includeOutputs:true});
+ assert.equal(exported.ok,false);assert.ok(exported.open.length>0 && exported.open.every(f=>f.code==='geometry:item_through_wall'));
+ const acknowledge=exported.open.map(f=>({code:f.code,ref:f.ref,reason:'Synthetic yaw demonstration intersects wall; unsupported mounting is retained for geometry verification only.'}));
+ exported=await run('export_diagram_view',{includeOutputs:true,acknowledge});assert.equal(exported.ok,true,exported.summary);
  assert.match(exported.svg,/data-fixing="bracket"/);assert.match(exported.svg,/data-access="lift"/);assert.match(exported.specHtml,/960/);assert.match(exported.specHtml,/synthetic-mirror.pdf/);
  // Actual rendered 3D export contains the same absolute levels and transformed fixing.
  await page.getByRole('button',{name:'Build 3D ▲',exact:true}).click();
@@ -85,7 +106,7 @@ try {
  const fixing=verticesFor(`${item.id}:fixing:bracket`);assert.ok(fixing.length>0);assert.ok(fixing.some(v=>Math.abs(v[0]-1)<.008 && Math.abs(v[1]-1.56)<.008 && Math.abs(v[2]-.21)<.008));
  await mkdir('/tmp/layout-bench-51-evidence',{recursive:true});await page.screenshot({path:'/tmp/layout-bench-51-evidence/mounted-3d.png'});
  await page.getByRole('button',{name:'Back to 2D',exact:true}).click();
- const before=await page.evaluate(()=>window.__alza.store.getState().model.items[0]);
+ const before=await page.evaluate(()=>JSON.parse(JSON.stringify(window.__alza.store.getState().model.items[0])));
  await page.reload();await page.locator('.project-card').filter({hasText:'Synthetic installation #51'}).getByRole('button',{name:'Open',exact:true}).click();
  assert.deepEqual(await page.evaluate(()=>window.__alza.store.getState().model.items[0]),before);
  // Genuine JSON backup and import into a browser with no accepted product library.
@@ -98,7 +119,7 @@ try {
  await imported.getByLabel('Name for imported copy').fill('Portable installation #51');
  await imported.getByRole('button',{name:'Import as new project',exact:true}).click();
  assert.equal(await imported.locator('.brand-plan').textContent(),'Portable installation #51');
- const importedRead=await imported.evaluate(id=>window.__alza.runTool('get_rough_in',{itemId:id}),item.id);assert.deepEqual(importedRead.fixtures[0].installationGeometry,geometry);assert.equal(importedRead.fixtures[0].fixings[0].level,1.56);
+ const importedRead=await imported.evaluate(id=>window.__alza.runTool('get_rough_in',{itemId:id}),item.id);assert.deepEqual(importedRead.fixtures[0].installationGeometry,geometry);assert.equal(importedRead.fixtures[0].fixings[0].level,1.56);assert.deepEqual(importedRead.fixtures[0].installedLevels.heightEvidence,fittingCases[5].fields.height);
  assert.equal(await imported.evaluate(()=>JSON.parse(localStorage.getItem('alza.products.v1')??'{"products":[]}').products.length),0);
  await page.locator('.project-card').filter({hasText:'Synthetic installation #51'}).getByRole('button',{name:'Open',exact:true}).click();
  await fresh.close();
@@ -107,6 +128,6 @@ try {
  read=(await run('get_rough_in',{itemId:item.id})).fixtures[0];assert.equal(read.installedLevels.bottom,undefined);assert.equal(read.fixings[0].level,undefined);
  await page.evaluate(id=>window.__alza.actions.selectItem(id),item.id);
  assert.match(await page.getByRole('region',{name:'Fixture installation'}).textContent(),/Installation unresolved/);
- await run('set_diagram_view',{label:'Unknown datum',visible:['fixtures','services-power']});exported=await run('export_diagram_view',{includeOutputs:true});assert.equal(exported.ok,true,exported.summary);assert.match(exported.svg,/INSTALLATION LEVEL \?/);assert.match(exported.specHtml,/substrate top/);
+ await run('set_diagram_view',{label:'Unknown datum',visible:['fixtures','services-power']});exported=await run('export_diagram_view',{includeOutputs:true,acknowledge});assert.equal(exported.ok,true,exported.summary);assert.match(exported.svg,/INSTALLATION LEVEL \?/);assert.match(exported.specHtml,/substrate top/);
  assert.deepEqual(errors,[]);console.log('PASS: sourced arc geometry human review → proposed wall height/transform → consistent fixing/service/access evidence → genuine 3D OBJ/stage output → reload/portable project → unknown floor datum');
 }finally{await browser.close();}
