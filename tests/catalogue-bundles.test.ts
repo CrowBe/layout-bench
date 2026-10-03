@@ -590,6 +590,74 @@ describe("portable original catalogue evidence (#49)", () => {
       unsubscribe();
     }
   });
+  it("preserves newer canonical and document work during rollback cleanup after a write-after-save fault", async () => {
+    const bundle = await sourceBundle();
+    setup();
+    products.request("vanity", { brand: "Prior evidence" });
+    const p = await preview(bundle),
+      originalFiles = files,
+      storage = local();
+    let throwOnce = true,
+      newId: string | undefined;
+    configureProductStorage({
+      local: () => ({
+        ...storage,
+        setItem: (key, value) => {
+          storage.setItem(key, value);
+          if (throwOnce) {
+            throwOnce = false;
+            throw new Error("Synthetic write-after-save fault");
+          }
+        },
+      }),
+      files: {
+        ...files,
+        remove: async (id) => {
+          await originalFiles.remove(id);
+          if (!newId)
+            newId = products.request("bath", {
+              brand: "Human work during cleanup",
+            }).requestId as string;
+        },
+      },
+    });
+    const result = await products.importBundle(p);
+    expect(result.ok).toBe(false);
+    expect(productStore.getState().requests.map((r) => r.id)).toContain(newId);
+    expect(
+      JSON.parse(data.get(PRODUCTS_KEY)!).requests.map(
+        (r: ProductRequest) => r.id,
+      ),
+    ).toContain(newId);
+    expect(productStore.getState().products).toEqual([]);
+    for (const f of p.files) expect(await originalFiles.get(f.id)).toBeNull();
+  });
+  it("retains stale human decisions and rejection reasons as history without rebinding approval", async () => {
+    const bundle = await sourceBundle(),
+      r = bundle.requests[1];
+    r.status = "submitted";
+    r.submission = structuredClone(bundle.requests[0].submission);
+    r.evidenceOriginRequestId = bundle.requests[0].id;
+    r.reviews.width = {
+      decision: "accepted",
+      reason: "Historical human decision",
+      evidence: "historical-different-evidence",
+      method: "individual",
+    };
+    r.previousRejections = { width: "Original reason retained" };
+    await recalc(bundle);
+    setup();
+    await files.put(bundle.files[0].id, new Blob(["occupied"]));
+    const p = await preview(bundle);
+    expect(p.warnings.join(" ")).toContain("historical evidence");
+    expect((await products.importBundle(p)).ok).toBe(true);
+    const imported = productStore
+      .getState()
+      .requests.find((x) => x.id === p.maps.requests[r.id])!;
+    expect(imported.reviews.width).toEqual(r.reviews.width);
+    expect(imported.previousRejections).toEqual(r.previousRejections);
+    expect(currentReview(imported, "width")).toBeUndefined();
+  });
   it("retains inherited measurement evidence and accepted revision dependency closure", async () => {
     const bundle = await sourceBundle(),
       parent = bundle.products[0],

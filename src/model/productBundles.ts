@@ -812,9 +812,9 @@ export async function previewCatalogueBundle(
           ) {
             review.evidence = reviewEvidence(r, key, additions.requests);
           } else {
-            delete (r[reviews] ?? {})[key];
+            review.evidence = original[reviews]![key].evidence;
             warnings.push(
-              `Stale ${reviews} for ${original.id} ${key} stays pending; no approval was rebound.`,
+              `Stale ${reviews} for ${original.id} ${key} is preserved as historical evidence; no approval was rebound${original.status === "accepted" ? "; accepted history remains read-only" : "; current review stays pending"}.`,
             );
           }
         }

@@ -267,6 +267,7 @@ export const products = {
   async importBundle(preview: BundlePreview): Promise<LibraryResult> {
     const local = io.local(), state = productStore.getState(), staged: string[] = [];
     let attemptedPersistence = false, attemptedPublication = false;
+    let attemptedDocument: string | null = null;
     if (bundleCommitInFlight) return fail("Another catalogue import is still committing.");
     if (!local || state.loadError || bundlePreviews.get(preview) !== previewSignature(preview)) return fail("This import preview is unavailable or changed. Preview the original bundle again.");
     const unchanged = () => recordsFingerprint(productStore.getState()) === preview.base && local.getItem(PRODUCTS_KEY) === preview.rawBase;
@@ -285,8 +286,8 @@ export const products = {
       if (!unchanged()) throw new Error("Catalogue changed while staging original files. Preview again.");
       const next = { requests: [...state.requests, ...preview.additions.requests], products: [...state.products, ...preview.additions.products] };
       // Persist once before publishing. The normal subscription must not issue a second write.
-      attemptedPersistence = true;
-      local.setItem(PRODUCTS_KEY, docOf(next));
+      attemptedPersistence = true; attemptedDocument = docOf(next);
+      local.setItem(PRODUCTS_KEY, attemptedDocument);
       const wasReady = ready; ready = false;
       try { attemptedPublication = true; productStore.setState({ ...next, loadError: null, selectedRequestId: preview.additions.requests.at(-1)?.id ?? state.selectedRequestId }); }
       finally { ready = wasReady; }
@@ -302,8 +303,9 @@ export const products = {
         finally { ready = wasReady; }
       }
       for (const id of staged) try { await io.files.remove(id); } catch { rollbackErrors.push(id); }
-      // A conforming localStorage write is atomic. Also recover injected write-after-save faults.
-      if (attemptedPersistence) try { if (local.getItem(PRODUCTS_KEY) !== preview.rawBase) { if (preview.rawBase === null && local.removeItem) local.removeItem(PRODUCTS_KEY); else local.setItem(PRODUCTS_KEY, preview.rawBase ?? docOf(state)); } } catch { rollbackErrors.push("library document"); }
+      // A conforming localStorage write is atomic. Recover write-after-save faults only
+      // while the document still belongs to this attempt; cleanup can allow newer work.
+      if (attemptedPersistence) try { if (local.getItem(PRODUCTS_KEY) === attemptedDocument) { if (preview.rawBase === null && local.removeItem) local.removeItem(PRODUCTS_KEY); else local.setItem(PRODUCTS_KEY, preview.rawBase ?? docOf(state)); } } catch { rollbackErrors.push("library document"); }
       return fail(`${error instanceof Error ? error.message : String(error)} Catalogue was not published.${rollbackErrors.length ? ` Cleanup failed for ${rollbackErrors.join(", ")}; retained staged bytes are not visible catalogue evidence.` : " Staged files were rolled back."}`);
     } finally { bundleCommitInFlight = false; }
   },
