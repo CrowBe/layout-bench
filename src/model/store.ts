@@ -1485,8 +1485,13 @@ export const actions = {
       if (side !== item.corner.side) {
         const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
         if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) return fail(`This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`);
+        if(item.installationGeometry) return fail("Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged.");
+        const pinned = item.productGeometry;
+        const mirrorPoint = (point: {x:number;y:number}) => ({x:-point.x,y:point.y});
+        const geometry = pinned ? {...structuredClone(pinned),kind:item.corner[side],...(pinned.outline ? {outline:{...structuredClone(pinned.outline),start:mirrorPoint(pinned.outline.start),segments:pinned.outline.segments.map(segment=>({...segment,to:mirrorPoint(segment.to),...(segment.via ? {via:mirrorPoint(segment.via)} : {})}))}} : {})} : undefined;
         next = {
           ...next, kind: item.corner[side], corner: { ...item.corner, side },
+          ...(geometry ? {productGeometry:geometry} : {}),
           ...(item.servicePoints ? { servicePoints: item.servicePoints.map((p) => (p.across === undefined ? p : { ...p, across: quantize(-p.across) })) } : {}),
         };
       }

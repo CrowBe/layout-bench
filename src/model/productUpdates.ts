@@ -51,7 +51,9 @@ function preserveServices(
           (axis.startsWith("out") && prior.face !== copied?.face)),
     );
     if (!axes.length) continue;
-    const retained = next ?? { ...structuredClone(prior), axisEvidence: {} };
+    const retained = next
+      ? structuredClone(next)
+      : { ...structuredClone(prior), axisEvidence: {} };
     retained.axisEvidence = { ...retained.axisEvidence };
     for (const axis of axes) {
       preserved.push(
@@ -75,10 +77,12 @@ function preserveServices(
           retained.outMax = prior.outMax;
           if (prior.axisEvidence?.out)
             retained.axisEvidence.out = structuredClone(prior.axisEvidence.out);
+          else delete retained.axisEvidence.out;
           if (prior.axisEvidence?.outMax)
             retained.axisEvidence.outMax = structuredClone(
               prior.axisEvidence.outMax,
             );
+          else delete retained.axisEvidence.outMax;
         }
       }
     }

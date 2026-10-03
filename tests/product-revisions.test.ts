@@ -1,3 +1,5 @@
+import { roughInPoints, categoryById } from "../src/model/products";
+import { itemPolygon } from "../src/model/outline";
 import { installationReading as installationReadingForTest } from "../src/model/installation";
 import { buildFixture as buildFixtureForTest } from "../src/three/build";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -629,4 +631,178 @@ it("retains archived stage content through update, undo and project import while
       }),
     ),
   ).toThrow();
+});
+
+it("keeps a reversible corner's pinned shape portable and isolated when its anchor changes hand", () => {
+  const fields = {
+    length: pub(1.4),
+    width: pub(1.4),
+    height: pub(0.5),
+    shape: pub("corner-round"),
+    frontWidth: pub(1.75),
+    frontProjection: pub(1.29),
+  };
+  const product = {
+    ...original(),
+    id: "reversible-pinned-bath",
+    category: "bath",
+    fields,
+    roughIn: roughInPoints(categoryById("bath")!, fields),
+    identity: {
+      ...unknownIdentity(),
+      handedness: {
+        state: "known" as const,
+        value: "reversible",
+        sources: [source],
+      },
+    },
+  };
+  const wall = actions.addWall(0, 0, 4, 0, 0.1, 2.4).id as string;
+  actions.setWallSide(wall, "right", {
+    existing: { value: 0, status: "measured" },
+    layers: [],
+  });
+  const anchor = {
+    wallId: wall,
+    side: "right" as const,
+    face: "existing",
+    distance: 0.8,
+    status: "proposed" as const,
+  };
+  const placement = actions.placeProduct(product, anchor);
+  expect(placement.ok).toBe(true);
+  const left = structuredClone(store.getState().model.items[0]);
+  expect(
+    actions.anchorFixture(placement.id as string, { ...anchor, distance: 3.2 })
+      .ok,
+  ).toBe(true);
+  const right = structuredClone(store.getState().model.items[0]);
+  expect(right.kind).toBe(right.productGeometry!.kind);
+  expect(right.productSnapshot).toEqual(left.productSnapshot);
+  expect(right.productGeometry!.outline!.start.x).toBe(
+    -left.productGeometry!.outline!.start.x,
+  );
+  const footprint = itemPolygon(right);
+  actions.defineItemKind({ ...right.productGeometry!, w: 2 });
+  expect(catalogForItem(store.getState().model.items[0])!.w).toBe(1.4);
+  expect(itemPolygon(store.getState().model.items[0])).toEqual(footprint);
+  const project = {
+    version: 2,
+    id: "reanchored",
+    model: store.getState().model,
+    kinds: [],
+    notes: [],
+    presentation: "planning",
+  };
+  const imported = parseImport(JSON.stringify(project));
+  expect(imported.model.items[0]).toEqual(right);
+  expect(itemPolygon(imported.model.items[0])).toEqual(footprint);
+  expect(
+    buildFixtureForTest(imported.model, imported.model.items[0]),
+  ).not.toBeNull();
+  expect(actions.anchorFixture(placement.id as string, anchor).ok).toBe(true);
+  expect(store.getState().model.items[0].productGeometry).toEqual(
+    left.productGeometry,
+  );
+});
+
+it("retains both range endpoints and evidence when one confirmed axis uses a different wall datum", () => {
+  for (const maximum of [0.11, undefined]) {
+    const first = {
+      ...original(),
+      roughIn: [
+        {
+          id: "water",
+          label: "Water",
+          service: "water" as const,
+          resolved: true,
+          missing: [],
+          across: {
+            from: "fixture-centreline" as const,
+            value: 0.1,
+            evidence: pub(0.1),
+          },
+          out: {
+            from: "finished-wall" as const,
+            min: 0.05,
+            max: 0.1,
+            evidence: pub(0.05),
+            maxEvidence: pub(0.1),
+          },
+          up: {
+            from: "finished-floor" as const,
+            value: 0.5,
+            evidence: pub(0.5),
+          },
+        },
+      ],
+    };
+    const wall = actions.addWall(0, 0, 5, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", {
+      existing: { value: 0, status: "measured" },
+      frame: { value: 0, status: "measured" },
+      layers: [
+        { kind: "tile", thickness: { value: 0.01, status: "measured" } },
+      ],
+    });
+    const id = actions.placeProduct(first, {
+      wallId: wall,
+      side: "right",
+      face: "existing",
+      distance: 1,
+      status: "proposed",
+    }).id as string;
+    const model = structuredClone(store.getState().model),
+      point = model.items.find((i) => i.id === id)!.servicePoints![0];
+    point.face = "frame";
+    point.out = 0.07;
+    point.outMax = maximum;
+    point.axisEvidence!.out = {
+      value: 0.07,
+      status: "site-confirmed",
+      reference: "frame",
+      measurement: {
+        unit: "metres",
+        date: "2026-10-03",
+        evidence: "Synthetic frame datum confirmation",
+        recordedBy: "human",
+      },
+    };
+    point.axisEvidence!.outMax =
+      maximum === undefined
+        ? {
+            value: null,
+            note: "Synthetic max not confirmed",
+          }
+        : { ...pub(maximum), reference: "frame" };
+    const target = {
+      ...structuredClone(first),
+      id: `range-r2-${maximum}`,
+      revision: { seriesId: first.id, number: 2, parentProductId: first.id },
+      roughIn: [
+        {
+          ...first.roughIn[0],
+          out: {
+            ...first.roughIn[0].out,
+            min: 0.08,
+            max: 0.15,
+            evidence: pub(0.08),
+            maxEvidence: pub(0.15),
+          },
+          up: { ...first.roughIn[0].up, value: 0.55, evidence: pub(0.55) },
+        },
+      ],
+    };
+    const next = previewProductUpdate(model, target, [id], [first, target])
+      .rows[0].after!.servicePoints![0];
+    expect(next.face).toBe("frame");
+    expect(next.out).toBe(0.07);
+    expect(next.outMax).toBe(maximum);
+    expect(next.axisEvidence!.out).toEqual(point.axisEvidence!.out);
+    expect(next.axisEvidence!.outMax).toEqual(point.axisEvidence!.outMax);
+    expect(next.up).toBe(0.55);
+    expect(model.items.find((i) => i.id === id)!.servicePoints![0]).toEqual(
+      point,
+    );
+  }
 });
