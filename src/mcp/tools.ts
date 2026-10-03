@@ -10,12 +10,13 @@ import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { SHEETS, checkSheet, reconcile, type AckInput } from "../sheets/check";
 import { catalogue, renderStageDiagram, renderStageSpec } from "../sheets/stageView";
 import { applyView, composeView, currentView, recordExport, savedViews } from "../sheets/viewState";
+import { planningEvidence } from "../model/productRevision";
 import { recordIssued } from "../sheets/issued";
 import { floorTileLayout } from "../model/floorTiling";
 import { floorCutRows, renderFloorTilingSheet } from "../sheets/floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "../model/tiling";
 import { cutRows, renderTilingSheet } from "../sheets/tiling";
-import { catalogByKind } from "../model/catalog";
+import { catalogForItem, catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
 import type { WallSideName } from "../model/types";
 import { drainageProblems, heightAt, planeSurface, sectionAlong, surfaces, thresholds } from "../model/drainage";
@@ -765,7 +766,7 @@ export const TOOLS: ToolDef[] = [
     name: "export_diagram_view",
     title: "Generate the stage diagram and specification sheet",
     description:
-      "Generate, from the current stage view only, the dimensioned A3 diagram (SVG) and the matching specification sheet (HTML table). Both list the same visible elements; unknown values print as \"?\" with what is missing and are never shown as measurements, and every value keeps its status tag and datum. The A-01 sheet rules apply to the visible content: blocking findings refuse the export until fixed, or acknowledged with acknowledge: [{ code, ref, reason }] (10+ characters, printed on both outputs). This records no sheet revision and does not change the model. The person can download both from the Sheets tab; pass includeOutputs: true to get the text back.",
+      "Generate, from the current stage view only, the dimensioned A3 diagram (SVG) and the matching specification sheet (HTML table). Both list the same visible elements; unknown values print as \"?\" with what is missing and are never shown as measurements, and every value keeps its status tag and datum. The A-01 sheet rules apply to the visible content: blocking findings refuse the export until fixed, or acknowledged with acknowledge: [{ code, ref, reason }] (10+ characters, printed on both outputs). This records an immutable stage-output archive, separate from A-01 sheet revisions. The person can download both from the Sheets tab; pass includeOutputs: true to get the text back.",
     inputSchema: obj({
       acknowledge: { type: "array", items: obj({ code: str, ref: str, reason: str }, ["code", "ref", "reason"]) },
       note: str,
@@ -790,7 +791,9 @@ export const TOOLS: ToolDef[] = [
       const opts = { label: view.label, findings: c.findings, acknowledged: result.acknowledged, date: new Date().toISOString().slice(0, 10), note, products };
       const svg = renderStageDiagram(s.model, c.resolution.elements, opts);
       const spec = renderStageSpec(s.model, c.resolution.elements, opts);
-      recordExport({ projectId: s.activeProjectId, label: view.label, date: opts.date, svg, specHtml: spec.html, elements: c.resolution.elements.map((e) => e.id), at: Date.now() });
+      const output = {label:view.label,date:opts.date,svg,specHtml:spec.html,elements:c.resolution.elements.map(e=>e.id),at:Date.now(),modelEvidence:planningEvidence(s.model),acknowledged:result.acknowledged,...(note ? {note} : {})};
+      actions.recordStageExport(output);
+      recordExport({projectId:s.activeProjectId,...output});
       const advisory = c.findings.filter((f) => f.severity === "advisory").length;
       return {
         ok: true,
@@ -874,7 +877,7 @@ export const TOOLS: ToolDef[] = [
         const points = roughIn(model, it);
         return {
           id: it.id,
-          label: catalogByKind(it.kind)?.label ?? it.kind,
+          label: catalogForItem(it)?.label ?? it.kind,
           ...(it.productId ? { productId: it.productId } : {}),
           productIdentity: it.productIdentity ?? null,
           selectionStatus: it.selectionStatus ?? "unknown",
@@ -999,6 +1002,19 @@ export const TOOLS: ToolDef[] = [
     execute: () => {
       const { products: list } = productStore.getState();
       return { ok: true, summary: `${list.length} product(s) in the library.`, products: list };
+    },
+  },
+  {
+    name: "preview_product_revision",
+    title: "Preview selected fixture revision updates",
+    description: "Read-only comparison of an accepted catalogue revision against explicitly named earlier instances. Shows projected geometry, service changes, retained project confirmations, unresolved reconciliation and clashes. Does not register kinds, modify instances, accept evidence or apply an update. A person must review and apply the selection in Products.",
+    inputSchema: obj({ productId: str, itemIds: { type: "array", items: str } }, ["productId", "itemIds"]),
+    annotations: { readOnlyHint: true },
+    execute: input => {
+      const selected: unknown = input.itemIds;
+      if (!Array.isArray(selected) || selected.some(id => typeof id !== "string")) return { ok: false, summary: "Name the selected instance IDs explicitly." };
+      const preview = actions.previewProductRevision(input.productId as string, selected as string[]);
+      return preview ? { ok: true, summary: `${preview.rows.length} selected instance comparison(s). Only a human can apply an update.`, targetId: preview.targetId, applicable: preview.applicable, rows: preview.rows, issues: preview.issues } : { ok: false, summary: "Accepted catalogue revision not found." };
     },
   },
 

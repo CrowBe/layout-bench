@@ -16,7 +16,7 @@ import type { Opening, Wall } from "../model/types";
 import { formatMm, snap as snapTo, segLen, segPoint } from "../model/geometry";
 import { DIM_FONT_FAMILY, DIM_OFFSET_M, dimensionFontPx, layoutRoomLabel, planFontPx, ROOM_FONT_FAMILY, wallDimensionAnchor } from "./planLabels";
 import { openingSpan } from "../model/issues";
-import { catalogByKind } from "../model/catalog";
+import { catalogForItem, catalogByKind } from "../model/catalog";
 
 interface View {
   x: number; // world coords at top-left
@@ -224,7 +224,7 @@ export function Editor() {
     if (panning) setPanning(null);
     if (dragItem) {
       const it = model.items.find((i) => i.id === dragItem.id);
-      if (it) logActivity("human", "move_item", `Moved ${catalogByKind(it.kind)?.label ?? it.kind} to (${formatMm(it.x)}, ${formatMm(it.y)}) mm.`);
+      if (it) logActivity("human", "move_item", `Moved ${catalogForItem(it)?.label ?? it.kind} to (${formatMm(it.x)}, ${formatMm(it.y)}) mm.`);
       setDragItem(null);
     }
     if (dragRoom) setDragRoom(null);
@@ -452,7 +452,7 @@ export function Editor() {
 
       {/* furniture */}
       {model.items.map((it) => {
-        const cat = catalogByKind(it.kind);
+        const cat = catalogForItem(it);
         if (!cat) return null;
         const selected = editor.selectedItemId === it.id;
         return (

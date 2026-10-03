@@ -1,6 +1,7 @@
 import { validInstallation, validInstallationGeometry } from "./installation";
 import { SELECTION_STATUSES, isExactProduct } from "./productIdentity";
 import { isProductSpecification } from "./productMeasurements";
+import { validProductSnapshot } from "./productRevision";
 import type { CatalogEntry } from "./catalog";
 import type { PartSpec } from "../three/furniture";
 import type { Note, PlanModel } from "./types";
@@ -90,8 +91,10 @@ const validServicePoint = (v: unknown) => object(v) && typeof v.id === "string" 
 const optionalString = (v: unknown) => v === undefined || typeof v === "string";
 const validSheetSet = (v: unknown) => object(v) && object(v.titleBlock) &&
   ["project", "site", "preparedBy"].every((k) => optionalString((v.titleBlock as Record<string, unknown>)[k])) &&
+  (v.stageExports === undefined || Array.isArray(v.stageExports) && v.stageExports.every(e=>object(e) && typeof e.label === "string" && typeof e.date === "string" && typeof e.svg === "string" && typeof e.specHtml === "string" && typeof e.modelEvidence === "string" && finite(e.at) && optionalString(e.note) && Array.isArray(e.elements) && e.elements.every(id=>typeof id === "string") && Array.isArray(e.acknowledged) && e.acknowledged.every(a=>object(a) && typeof a.code === "string" && typeof a.ref === "string" && typeof a.reason === "string" && ["human","agent"].includes(String(a.by))))) &&
   Array.isArray(v.revisions) && v.revisions.every((r: unknown) => object(r) && typeof r.rev === "string" && typeof r.sheet === "string" &&
     typeof r.date === "string" && optionalString(r.note) && Array.isArray(r.acknowledged) &&
+    (r.content === undefined || object(r.content) && typeof r.content.svg === "string" && typeof r.content.modelEvidence === "string" && Array.isArray(r.content.productRefs) && r.content.productRefs.every(p => object(p) && typeof p.itemId === "string" && optionalString(p.productId) && (p.revision === undefined || Number.isInteger(p.revision) && (p.revision as number) > 0))) &&
     r.acknowledged.every((a: unknown) => object(a) && typeof a.code === "string" && typeof a.ref === "string" && typeof a.reason === "string" && (a.by === "human" || a.by === "agent")));
 
 /** Fixture outlines (#37): points the renderer and checks read. */
@@ -171,6 +174,9 @@ export function parseProject(value: unknown): ProjectDocument {
         (v.installation === undefined || validInstallation(v.installation)) && (v.installationGeometry === undefined || validInstallationGeometry(v.installationGeometry)) &&
         oneOf(v.selectionStatus, SELECTION_STATUSES) && (v.productIdentity === undefined || isExactProduct(v.productIdentity)) &&
         (v.productSpecification === undefined || isProductSpecification(v.productSpecification)) &&
+        (v.productSnapshot === undefined || validProductSnapshot(v.productSnapshot)) &&
+        (v.productGeometry === undefined || object(v.productGeometry) && v.productGeometry.kind === v.kind && typeof v.productGeometry.label === "string" && typeof v.productGeometry.color === "string" && ["w","d","h"].every(key => finite(v.productGeometry![key]) && (v.productGeometry![key] as number) > 0) && validOutline(v.productGeometry)) &&
+        (v.productUpdates === undefined || Array.isArray(v.productUpdates) && v.productUpdates.every((u: unknown) => object(u) && typeof u.from === "string" && typeof u.to === "string" && finite(u.at) && Array.isArray(u.preserved) && u.preserved.every(s => typeof s === "string") && Array.isArray(u.unresolved) && u.unresolved.every(s => typeof s === "string"))) &&
         (v.corner === undefined || (object(v.corner) && typeof v.corner.left === "string" && typeof v.corner.right === "string" && (v.corner.side === "left" || v.corner.side === "right"))) &&
         (v.servicePoints === undefined || (Array.isArray(v.servicePoints) && v.servicePoints.every(validServicePoint)))) ||
       !notes.every((v) => object(v) && typeof v.id === "string" && typeof v.text === "string" && finite(v.at) && (v.author === "human" || v.author === "agent")) ||
