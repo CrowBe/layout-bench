@@ -345,8 +345,10 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   const reading = roughIn(model, it).find((r) => r.pointId === sp.id)!;
   const src = sp.source ? { source: sp.source } : {};
   const axis = (name: "out" | "across" | "up") => ({ status: sp.axisEvidence?.[name]?.status ?? sp.status, ...(evidenceText(sp.axisEvidence?.[name]) ? { source: evidenceText(sp.axisEvidence?.[name]) } : src) });
+  const rangeEvidence = sp.outMax !== undefined ? [sp.axisEvidence?.out, sp.axisEvidence?.outMax] : [sp.axisEvidence?.out];
+  const outBasis = { status: evidenceStatus(rangeEvidence) ?? sp.status, source: rangeEvidence.map(evidenceText).filter(Boolean).join("; ") || sp.source };
   row("service", { value: sp.service, status: "entered" });
-  row(`out from ${sp.face} face (mm)`, sp.out !== undefined ? { value: `${mm(sp.out)}${sp.outMax !== undefined ? `–${mm(sp.outMax)}` : ""}`, ...axis("out"), datum: `${sp.face} face` } : { value: "?", status: "unknown", missing: ["out distance"] });
+  row(`out from ${sp.face} face (mm)`, sp.out !== undefined ? { value: `${mm(sp.out)}${sp.outMax !== undefined ? `–${mm(sp.outMax)}` : ""}`, ...outBasis, datum: `${sp.face} face` } : { value: "?", status: "unknown", missing: ["out distance"] });
   row("across from fixture centreline (mm)", sp.across !== undefined ? { value: mm(sp.across), ...axis("across"), datum: "fixture-centreline" } : { value: "?", status: "unknown", missing: ["across offset"] });
   row("up from finished floor (mm)", sp.up !== undefined ? { value: mm(sp.up), ...axis("up"), datum: "finished floor" } : { value: "?", status: "unknown", missing: ["up height"] });
   for (const [name, evidence] of Object.entries(sp.axisEvidence ?? {})) row(`${name} source evidence`, { value: evidence.value === null ? "?" : typeof evidence.value === "number" ? mm(evidence.value) : String(evidence.value), status: evidence.value === null ? "unknown" : evidence.status ?? "unknown", ...(evidence.reference ? { datum: evidence.reference } : {}), source: evidenceText(evidence), ...(evidence.value === null ? { missing: [evidence.note ?? name] } : {}) });

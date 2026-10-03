@@ -363,21 +363,32 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission,
       }
     }
   }
-  if (category.placement) {
-    for (const f of category.fields.filter((f) => f.key.endsWith("Min"))) {
-      const maxKey = `${f.key.slice(0, -3)}Max`;
-      const lo = fields[f.key]?.value, hi = fields[maxKey]?.value;
-      const maxSpec = category.fields.find((spec) => spec.key === maxKey);
-      const minDatum = fields[f.key]?.reference ?? (f.type === "length" ? f.reference : undefined);
-      const maxDatum = fields[maxKey]?.reference ?? (maxSpec?.type === "length" ? maxSpec.reference : undefined);
-      if (applies(f, fields) && typeof lo === "number" && typeof hi === "number") {
-        if (!minDatum || minDatum === "other" || minDatum !== maxDatum) {
-          warn(f.key, "range_datum_mismatch", `${f.key} and ${maxKey} cannot be ordered without a common named datum. Their sourced values are retained for human review; no conversion is inferred.`);
-        } else if (lo > hi) {
-          err(f.key, "range_reversed", `${f.label} exceeds ${maxKey}; check the published range.`);
-        }
+  out.push(...validateProductGeometry(category, fields));
+  out.push(...validateIdentity(s, (sources) => checkSources(sources, ctx)));
+  return out;
+}
+
+/** Geometry invariants are shared by published research, human observations and placement.
+ * Ordering requires comparable named datums; differing references retain review evidence. */
+export function validateProductGeometry(category: ProductCategory, fields: Record<string, FieldValue>): SpecProblem[] {
+  const out: SpecProblem[] = [];
+  const err = (field: string | null, code: string, message: string) => out.push({ field, severity: "error" as const, code, message });
+  const warn = (field: string | null, code: string, message: string) => out.push({ field, severity: "warning" as const, code, message });
+  for (const f of category.fields.filter((f) => f.key.endsWith("Min"))) {
+    const maxKey = `${f.key.slice(0, -3)}Max`;
+    const lo = fields[f.key]?.value, hi = fields[maxKey]?.value;
+    const maxSpec = category.fields.find((spec) => spec.key === maxKey);
+    const minDatum = fields[f.key]?.reference ?? (f.type === "length" ? f.reference : undefined);
+    const maxDatum = fields[maxKey]?.reference ?? (maxSpec?.type === "length" ? maxSpec.reference : undefined);
+    if (applies(f, fields) && typeof lo === "number" && typeof hi === "number") {
+      if (!minDatum || minDatum === "other" || minDatum !== maxDatum) {
+        warn(f.key, "range_datum_mismatch", `${f.key} and ${maxKey} cannot be ordered without a common named datum. Their sourced values are retained for human review; no conversion is inferred.`);
+      } else if (lo > hi) {
+        err(f.key, "range_reversed", `${f.label} exceeds ${maxKey}; check the range.`);
       }
     }
+  }
+  if (category.placement) {
     if (category.id === "towel-rail") {
       const mode = fields.heating?.value, power = fields.power?.value;
       if ((mode === "electric" || mode === "dual") && power === "not-required") {
@@ -414,7 +425,6 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission,
       }
     }
   }
-  out.push(...validateIdentity(s, (sources) => checkSources(sources, ctx)));
   return out;
 }
 
@@ -506,12 +516,16 @@ export function roughInPoints(category: ProductCategory, fields: Record<string, 
         const [lo, hi] = a.range;
         const from = fields[lo]?.reference ?? spec(lo)?.reference ?? "other";
         const maxFrom = fields[hi]?.reference ?? spec(hi)?.reference ?? "other";
-        if (from !== maxFrom) {
+        if (from === "other" || from !== maxFrom) {
           missing.push(`${lo}..${hi}: different datums`);
           return { from, field: `${lo}..${hi}`, ...(fields[lo] ? { evidence: structuredClone(fields[lo]) } : {}), ...(fields[hi] ? { maxEvidence: structuredClone(fields[hi]) } : {}) };
         }
         const min = num(lo);
         const max = num(hi);
+        if (min !== undefined && max !== undefined && min > max) {
+          missing.push(`${lo}..${hi}: reversed range`);
+          return { from, field: `${lo}..${hi}`, ...(fields[lo] ? { evidence: structuredClone(fields[lo]) } : {}), ...(fields[hi] ? { maxEvidence: structuredClone(fields[hi]) } : {}) };
+        }
         if (min === undefined) missing.push(lo);
         if (max === undefined) missing.push(hi);
         return { from, field: `${lo}..${hi}`, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}), ...(fields[lo] ? { evidence: structuredClone(fields[lo]) } : {}), ...(fields[hi] ? { maxEvidence: structuredClone(fields[hi]) } : {}) };

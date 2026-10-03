@@ -52,7 +52,7 @@ import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floor
 import { exactProductLabel, exactSnapshot, identityOf, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
 import type { LibraryProduct } from "./productLibrary";
 import { evidenceStatus, evidenceText } from "./productMeasurements";
-import { categoryById, cornerBathOutline, envelopeOf, productPlacementProblem } from "./products";
+import { categoryById, cornerBathOutline, envelopeOf, validateProductGeometry, productPlacementProblem } from "./products";
 import { outlineExtents, outlineProblems, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
@@ -1550,6 +1550,8 @@ export const actions = {
    */
   placeProduct(product: LibraryProduct, anchorInput: AnchorInput): ActionResult {
     const cat = categoryById(product.category);
+    const geometryProblems = cat ? validateProductGeometry(cat, product.fields).filter(p => p.severity === "error") : [];
+    if (geometryProblems.length) return fail(`Product geometry is invalid: ${geometryProblems.map(p => p.message).join(" ")}`);
     const unsupported = cat ? productPlacementProblem(cat, product.fields) : null;
     if (unsupported) return fail(unsupported);
     const env = cat ? envelopeOf(cat, product.fields) : null;

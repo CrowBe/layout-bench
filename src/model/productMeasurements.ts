@@ -1,6 +1,6 @@
 /** Explicit human evidence for reused fittings (#48). No measurements come from photos or
  * the research tool. Published observations keep their separately located source. */
-import { REFERENCES, applies, checkSources, checkValue, type FieldObservation, type FieldSpec, type FieldValue, type ProductCategory, type SpecProblem, type SubmissionContext } from "./products";
+import { REFERENCES, applies, validateProductGeometry, checkSources, checkValue, type FieldObservation, type FieldSpec, type FieldValue, type ProductCategory, type SpecProblem, type SubmissionContext } from "./products";
 import { VALUE_STATUSES } from "./faces";
 import type { ValueStatus } from "./types";
 
@@ -84,6 +84,7 @@ export function validateMeasurementFields(category: ProductCategory, fields: Rec
       if (alternative.value !== value.value) add(field.key, "warning", "evidence_disagreement", `${field.label}: a published alternative differs; its source is retained.`);
     }
   }
+  problems.push(...validateProductGeometry(category, fields));
   return problems;
 }
 

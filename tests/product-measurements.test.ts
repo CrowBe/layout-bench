@@ -104,6 +104,24 @@ describe('explicit reused fitting evidence (#48)',()=>{
   const id=products.openMeasurements('vanity',{label:'Physical vanity'},footprint()).requestId as string;const before=structuredClone(productStore.getState().requests[0]);
   expect(products.recordMeasurement(id,'width',{...human(.9,'fixture-end'),sources:{} as never}).ok).toBe(false);expect(productStore.getState().requests[0]).toEqual(before);
  });
+ it('refuses reversed comparable human ranges before submission or legacy placement',()=>{
+  const toilet=categoryById('toilet')!,fields={...unknownMeasurementFields(toilet),width:human(.4,'fixture-end'),depth:human(.65,'fixture-side'),height:human(.8,'fixture-bottom'),trap:human('S'),sTrapSetoutMin:human(.3,'finished-wall'),sTrapSetoutMax:human(.1,'finished-wall')};
+  expect(validateMeasurementFields(toilet,fields)).toEqual(expect.arrayContaining([expect.objectContaining({code:'range_reversed',severity:'error'})]));
+  const id=products.openMeasurements('toilet',{label:'Synthetic measured toilet'},fields).requestId as string;expect(products.submitMeasurements(id).ok).toBe(false);expect(productStore.getState().requests[0].status).toBe('open');
+  const legacy={id:'historic',category:'toilet',manufacturer:'',model:'',physicalItem:{label:'Historic measured toilet'},fields,roughIn:roughInPoints(toilet,fields,true),requestId:id,acceptedAt:0,recordingMode:'human-measurement' as const};const anchor=wall(),before=structuredClone(store.getState().model);expect(actions.placeProduct(legacy,anchor).ok).toBe(false);expect(store.getState().model).toEqual(before);
+ });
+ it('retains unlike-datum range endpoints as unresolved review evidence without numerical ordering',()=>{
+  const toilet=categoryById('toilet')!,fields={...unknownMeasurementFields(toilet),trap:human('S'),sTrapSetoutMin:human(.3,'finished-wall'),sTrapSetoutMax:human(.1,'frame')};
+  const problems=validateMeasurementFields(toilet,fields);expect(problems.some(p=>p.code==='range_reversed')).toBe(false);expect(problems.some(p=>p.code==='range_datum_mismatch')).toBe(true);
+  const range=roughInPoints(toilet,fields,true).find(p=>p.id==='waste-s')!;expect(range.out?.min).toBeUndefined();expect(range.out?.max).toBeUndefined();expect(range.out?.evidence?.reference).toBe('finished-wall');expect(range.out?.maxEvidence?.reference).toBe('frame');expect(range.resolved).toBe(false);
+ });
+ it('prints both range endpoint statuses and evidence without promoting a proposed maximum',()=>{
+  const toilet=categoryById('toilet')!,min=human(.1,'finished-wall'),max=human(.3,'finished-wall','proposed');min.measurement!.evidence='Synthetic minimum ruler measurement';max.measurement!.evidence='Synthetic maximum proposed allowance';
+  const fields={...unknownMeasurementFields(toilet),width:human(.4,'fixture-end'),depth:human(.65,'fixture-side'),height:human(.8,'fixture-bottom'),trap:human('S'),sTrapSetoutMin:min,sTrapSetoutMax:max,'service.waste-s.across':human(0,'fixture-centreline'),'service.waste-s.up':human(0,'finished-floor')};
+  const id=products.openMeasurements('toilet',{label:'Synthetic mixed range'},fields).requestId as string;products.submitMeasurements(id);for(const key of Object.keys(fields))products.review(id,key,'accepted');expect(products.accept(id).ok).toBe(true);const p=productStore.getState().products[0];expect(actions.placeProduct(p,wall()).ok).toBe(true);
+  const model=store.getState().model,it=model.items[0],sp=it.servicePoints![0];const rows=specRows(model,{id:`rough-in:${it.id}:${sp.id}`,layer:'services-waste',type:'service-point',ref:it.id,sub:sp.id,label:'Synthetic range'});const row=rows.find(r=>r.property.startsWith('out from'))!;
+  expect(row).toMatchObject({value:'100–300',status:'proposed'});expect(row.source).toContain('Synthetic minimum ruler measurement');expect(row.source).toContain('Synthetic maximum proposed allowance');expect(rows.find(r=>r.property==='out source evidence')).toMatchObject({status:'measured',datum:'finished-wall'});expect(rows.find(r=>r.property==='outMax source evidence')).toMatchObject({status:'proposed',datum:'finished-wall'});
+ });
  it('handles malformed observations and alternatives without throwing',()=>{
   const fields=footprint();fields.width={...fields.width,observations:[null] as never,alternatives:{} as never};
   expect(()=>validateMeasurementFields(cat,fields)).not.toThrow();expect(validateMeasurementFields(cat,fields).some(p=>p.severity==='error')).toBe(true);
