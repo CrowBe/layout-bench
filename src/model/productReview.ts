@@ -70,7 +70,7 @@ export function reviewEvidence(request: ProductRequest, key: string): string {
     key,
     evidence,
     // The outline and point datums are interpreted against this envelope.
-    ...(key === "installationGeometry" ? { envelope: { width: s.fields.width, depth: s.fields.depth, height: s.fields.height } } : {}),
+    ...(key === "installationGeometry" ? { envelope: Object.fromEntries(Object.entries(categoryById(request.category)?.envelope ?? {}).map(([axis,field]) => [axis,s.fields[field]])) } : {}),
     requestedEvidence:
       key === "components"
         ? {

@@ -1,4 +1,4 @@
-import { currentReview, requiredReviewKeys } from "../src/model/productReview";
+import { currentReview, requiredReviewKeys, reviewEvidence } from "../src/model/productReview";
 import { identityOf } from "../src/model/productIdentity";
 import { beforeEach, expect, it } from "vitest";
 import { actions, store } from "../src/model/store";
@@ -181,4 +181,12 @@ it("refuses mirroring fixed, conflicting and unknown hand evidence on placement 
   }
   const conflict={manufacturer:"Synthetic",model:"Right",identity:{...identityOf(accepted),handedness:{state:"known" as const,value:"right",sources}},fields:accepted.fields,installationGeometry:geometry()};
   expect(validateSubmission(categoryById("mirror")!,conflict)).toEqual(expect.arrayContaining([expect.objectContaining({code:"geometry_hand_conflict",severity:"warning"})]));
+});
+
+it("binds geometry review to category-specific envelope fields, including bath length",()=>{
+  setup();const original=structuredClone(productStore.getState().requests[0]);
+  original.status="submitted";original.category="bath";original.submission!.fields.length=pub(1.7);
+  const evidence=reviewEvidence(original,"installationGeometry");
+  original.submission!.fields.length=pub(1.8);
+  expect(reviewEvidence(original,"installationGeometry")).not.toBe(evidence);
 });
