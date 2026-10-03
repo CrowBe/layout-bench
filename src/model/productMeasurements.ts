@@ -6,7 +6,8 @@ import type { ValueStatus } from "./types";
 
 export interface PhysicalItem { label: string; notes?: string }
 export interface MeasurementRecord {
-  unit: "metres" | "count" | "choice" | "text";
+  /** metres, count, choice, text, or the unit of a quantity field (W, V, A, Ω…) */
+  unit: string;
   date: string | null;
   dateNote?: string;
   evidence: string;
@@ -18,7 +19,7 @@ export interface ProductSpecification {
   recordingMode?: "human-measurement";
   acceptedAt: number;
 }
-export const measurementUnit = (field: FieldSpec): MeasurementRecord["unit"] => field.type === "length" ? "metres" : field.type;
+export const measurementUnit = (field: FieldSpec): MeasurementRecord["unit"] => field.type === "length" ? "metres" : field.type === "quantity" ? field.unit : field.type;
 const dateValid = (date: unknown) => typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
 export const isPhysicalItem = (p: unknown): p is PhysicalItem => !!p && typeof p === "object" && typeof (p as PhysicalItem).label === "string" && !!(p as PhysicalItem).label.trim() && ((p as PhysicalItem).notes === undefined || typeof (p as PhysicalItem).notes === "string");
 
@@ -104,6 +105,6 @@ export function isProductSpecification(value: unknown): value is ProductSpecific
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const spec = value as ProductSpecification;
   if (typeof spec.category !== "string" || !spec.fields || typeof spec.fields !== "object" || Array.isArray(spec.fields) || !Number.isFinite(spec.acceptedAt) || (spec.recordingMode !== undefined && spec.recordingMode !== "human-measurement")) return false;
-  const valid = (v: FieldObservation | FieldValue): boolean => !!v && typeof v === "object" && !Array.isArray(v) && (v.value === null || typeof v.value === "string" || typeof v.value === "number" && Number.isFinite(v.value)) && (v.status === undefined || VALUE_STATUSES.includes(v.status)) && (v.note === undefined || typeof v.note === "string") && (v.reference === undefined || typeof v.reference === "string" && Object.hasOwn(REFERENCES, v.reference)) && (v.sources === undefined || Array.isArray(v.sources) && v.sources.every(s => !!s && typeof s.url === "string" && (s.locator === undefined || typeof s.locator === "string"))) && (v.measurement === undefined || !!v.measurement && typeof v.measurement === "object" && v.measurement.recordedBy === "human" && typeof v.measurement.evidence === "string" && !!v.measurement.evidence.trim() && (dateValid(v.measurement.date) || v.measurement.date === null && typeof v.measurement.dateNote === "string" && !!v.measurement.dateNote.trim()) && ["metres", "count", "choice", "text"].includes(v.measurement.unit));
+  const valid = (v: FieldObservation | FieldValue): boolean => !!v && typeof v === "object" && !Array.isArray(v) && (v.value === null || typeof v.value === "string" || typeof v.value === "number" && Number.isFinite(v.value)) && (v.status === undefined || VALUE_STATUSES.includes(v.status)) && (v.note === undefined || typeof v.note === "string") && (v.reference === undefined || typeof v.reference === "string" && Object.hasOwn(REFERENCES, v.reference)) && (v.sources === undefined || Array.isArray(v.sources) && v.sources.every(s => !!s && typeof s.url === "string" && (s.locator === undefined || typeof s.locator === "string"))) && (v.measurement === undefined || !!v.measurement && typeof v.measurement === "object" && v.measurement.recordedBy === "human" && typeof v.measurement.evidence === "string" && !!v.measurement.evidence.trim() && (dateValid(v.measurement.date) || v.measurement.date === null && typeof v.measurement.dateNote === "string" && !!v.measurement.dateNote.trim()) && v.measurement.unit.trim() !== "");
   return Object.values(spec.fields).every(v => valid(v) && (v.observations === undefined || Array.isArray(v.observations) && v.observations.every(valid)) && (v.alternatives === undefined || Array.isArray(v.alternatives) && v.alternatives.every(a => !!a && typeof a === "object" && valid({ ...a, status: "published", sources: [a.source] }))));
 }

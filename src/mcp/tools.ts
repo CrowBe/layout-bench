@@ -940,7 +940,7 @@ export const TOOLS: ToolDef[] = [
         protocol: req.mode ? ["This is a human measurement record. Read evidence and unknowns; only the person can record or submit measurements with the page controls. Do not submit as published research or infer values from photos."] : [...RESEARCH_PROTOCOL, "Record exact identity { code, finish, configuration, handedness }: each { state: known|unknown|not-applicable, value: exact text|null, sources: [{url, locator}], alternatives? }. Known and not-applicable require evidence. Components: { name, code: identity evidence, quantity: whole number|null, provision: included|separately-required|unresolved, sources } with componentsStatus documented|unknown|not-applicable. Never infer purchasing status or guess a variant."],
         identityFields: IDENTITY_FIELDS,
         references: REFERENCES,
-        fields: fields.map((f) => ({ ...f, unit: f.type === "length" ? "metres" : f.type === "count" ? "count" : f.type, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
+        fields: fields.map((f) => ({ ...f, unit: f.type === "length" ? "metres" : f.type === "count" ? "count" : f.type === "quantity" ? f.unit : f.type, ...(f.when ? { appliesNow: applies(f, current) } : {}) })),
         roughIn: cat.roughIn,
         attachments: requestEvidenceAttachments(req).map((a) => ({
           id: a.id,

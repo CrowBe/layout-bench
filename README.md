@@ -318,6 +318,13 @@ A few design notes:
   so a wall mixer over a bath is not an `items_overlap` once their heights differ. The corner bath
   is a right-angle isosceles triangle with a rounded hypotenuse; the arc depth is a placeholder.
 
+- Briefs can capture what a label prints beyond lengths. A `quantity` field carries its own unit
+  (W, V, A, Ω, W/m, °C, m²) and range, and prints with that unit on the spec sheet; a wrong-unit
+  value is refused. New briefs: floor heating cable, thermostat/controller and bath/basin waste
+  (none placeable; the cable's route stays in the heating tools). A `packaging` datum records a
+  carton size without ever making it the product's envelope. The human capture form also covers
+  these three, so a photographed label can be recorded with its evidence and date.
+
 - A spec sheet you already hold can be attached to a request (PDF or image, up to 10 MB). It
   stays in this browser: the file in IndexedDB, its record with the library. A PDF's text is
   read in the browser with pdf.js, page by page, and `get_product_brief` hands it to the agent,

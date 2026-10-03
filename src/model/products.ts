@@ -24,6 +24,7 @@ export const REFERENCES = {
   "fixture-side": "the fixture's back or wall-side edge",
   "fixture-bottom": "the product's own bottom edge; not a project mounting height",
   "frame": "the wall frame face",
+  "packaging": "the shipping carton or pack, not the product itself; an upper bound on the product, never its size",
   "other": "some other point; say which in the note",
 } as const;
 export type ReferenceId = keyof typeof REFERENCES;
@@ -44,7 +45,9 @@ export interface LengthField extends BaseField { type: "length"; reference?: Ref
 export interface ChoiceField extends BaseField { type: "choice"; options: string[] }
 export interface CountField extends BaseField { type: "count"; min: number; max: number }
 export interface TextField extends BaseField { type: "text" }
-export type FieldSpec = LengthField | ChoiceField | CountField | TextField;
+/** A number in a named unit that is not a length: W, V, A, Ω, W/m, L/min, kPa, °C, m². */
+export interface QuantityField extends BaseField { type: "quantity"; unit: string; min: number; max: number }
+export type FieldSpec = LengthField | ChoiceField | CountField | TextField | QuantityField;
 
 /**
  * One axis of a rough-in point: taken from a field, a range between two fields, or fixed at
@@ -308,6 +311,10 @@ export function checkValue(f: FieldSpec, value: unknown): { code: string; messag
       return typeof value === "string" && f.options.includes(value) ? null : { code: "not_an_option", message: `must be one of ${f.options.join(", ")}.` };
     case "count":
       return typeof value === "number" && Number.isInteger(value) && value >= f.min && value <= f.max ? null : { code: "not_a_count", message: `must be a whole number from ${f.min} to ${f.max}.` };
+    case "quantity":
+      if (typeof value !== "number" || !Number.isFinite(value)) return { code: "not_a_quantity", message: `must be a number of ${f.unit}.` };
+      if (value < f.min || value > f.max) return { code: "out_of_range", message: `${value} ${f.unit} is outside ${f.min}–${f.max} ${f.unit}. Check the unit: this field is in ${f.unit}.` };
+      return null;
     case "text":
       return typeof value === "string" && value.trim() ? null : { code: "not_text", message: "must be text." };
   }
@@ -378,6 +385,11 @@ export function validateProductGeometry(category: ProductCategory, fields: Recor
     const maxKey = `${f.key.slice(0, -3)}Max`;
     const lo = fields[f.key]?.value, hi = fields[maxKey]?.value;
     const maxSpec = category.fields.find((spec) => spec.key === maxKey);
+    if (f.type === "quantity") {
+      // same unit by construction: no datum to compare
+      if (applies(f, fields) && typeof lo === "number" && typeof hi === "number" && lo > hi) err(f.key, "range_reversed", `${f.label} exceeds ${maxKey}; check the range.`);
+      continue;
+    }
     const minDatum = fields[f.key]?.reference ?? (f.type === "length" ? f.reference : undefined);
     const maxDatum = fields[maxKey]?.reference ?? (maxSpec?.type === "length" ? maxSpec.reference : undefined);
     if (applies(f, fields) && typeof lo === "number" && typeof hi === "number") {

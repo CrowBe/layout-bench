@@ -81,3 +81,59 @@ describe("purchased fittings in the sample project", () => {
     expect(actions.defineItemKind({ kind: "x_rail", label: "x", w: 1, d: 1, h: 1, elevation: -1 }).ok).toBe(false);
   });
 });
+
+// ---- spec capture: what the labels needed that the briefs could not say ----------------------
+import { categoryById, checkValue, envelopeOf, validateSubmission, REFERENCES, type FieldValue } from "../src/model/products";
+import { unknownMeasurementFields, validateMeasurementFields } from "../src/model/productMeasurements";
+import { products, productStore } from "../src/model/productLibrary";
+
+const label = (value: number | string, unit: string, reference?: FieldValue["reference"]): FieldValue => ({
+  value, status: "measured", ...(reference ? { reference } : {}),
+  measurement: { unit, date: "2026-10-03", evidence: "Printed label on the cable drum, photographed", recordedBy: "human" },
+});
+
+describe("capturing a label's electrical figures", () => {
+  const cable = categoryById("heating-cable")!;
+  it("checks a quantity against its own unit and range", () => {
+    const watts = cable.fields.find((f) => f.key === "outputPerMetre")!;
+    expect(checkValue(watts, 18)).toBeNull();
+    expect(checkValue(watts, 765)?.code).toBe("out_of_range"); // total power typed into W/m
+    expect(checkValue(watts, "18")?.code).toBe("not_a_quantity");
+  });
+
+  it("holds the SCK0765L label as a human record, with units", () => {
+    const fields = {
+      ...unknownMeasurementFields(cable),
+      cableLength: label(42.5, "metres", "fixture-end"), outputPerMetre: label(18, "W/m"), totalPower: label(765, "W"),
+      ratedVoltage: label(240, "V"), ratedCurrent: label(3.2, "A"), resistance: label(75.3, "Ω"),
+      coverageAreaMin: label(3.7, "m²"), coverageAreaMax: label(5.1, "m²"), cableType: label("in-screed", "choice"),
+    };
+    expect(validateMeasurementFields(cable, fields).filter((p) => p.severity === "error")).toEqual([]);
+    expect(validateMeasurementFields(cable, { ...fields, totalPower: label(765, "kW") }).some((p) => p.code === "measurement_provenance")).toBe(true);
+    const id = products.openMeasurements("heating-cable", { label: "In-screed heater SCK0765L" }, fields).requestId as string;
+    expect(products.submitMeasurements(id)).toMatchObject({ ok: true });
+    productStore.setState({ requests: [], products: [] });
+  });
+
+  it("refuses a reversed range, and keeps the cable out of the placement path", () => {
+    const fields = { ...unknownMeasurementFields(cable), coverageAreaMin: label(5.1, "m²"), coverageAreaMax: label(3.7, "m²") };
+    expect(validateMeasurementFields(cable, fields).some((p) => p.code === "range_reversed")).toBe(true);
+    expect(cable.placement?.supportedWhen).toEqual([]);
+  });
+
+  it("offers a packaging datum so a carton size is never taken as the product's", () => {
+    expect(REFERENCES.packaging).toMatch(/carton/);
+    const bath = categoryById("bath")!;
+    const carton = { ...unknownMeasurementFields(bath), length: label(1, "metres", "packaging"), width: label(1, "metres", "packaging"), height: label(0.63, "metres", "packaging") };
+    expect(validateMeasurementFields(bath, carton).filter((p) => p.severity === "error")).toEqual([]);
+    expect(envelopeOf(bath, carton)).toBeNull(); // recorded, but never placed as the bath
+    const own = { ...carton, length: label(1, "metres", "fixture-end"), width: label(1, "metres", "fixture-side"), height: label(0.63, "metres", "fixture-bottom") };
+    expect(envelopeOf(bath, own)).toEqual({ w: 1, d: 1, h: 0.63 });
+  });
+
+  it("has the thermostat and waste briefs the labels called for", () => {
+    expect(categoryById("thermostat")!.fields.map((f) => f.key)).toEqual(expect.arrayContaining(["ingressProtection", "ratedVoltageMin", "floorSensor"]));
+    expect(categoryById("waste")!.fields.map((f) => f.key)).toContain("outletDiameter");
+    expect(validateSubmission(categoryById("waste")!, { manufacturer: "Ahrok", model: "SDP-40BN", fields: {} }).some((p) => p.code === "field_missing")).toBe(true);
+  });
+});

@@ -2,14 +2,14 @@
 import { useState } from "react";
 import { categoryById, REFERENCES, type FieldObservation, type FieldSpec } from "../model/products";
 import { evidenceText, measurementFields, measurementUnit, withObservation, workingObservation } from "../model/productMeasurements";
-import { products, type ProductRequest, type LibraryResult } from "../model/productLibrary";
+import { products, HUMAN_MEASURABLE, type ProductRequest, type LibraryResult } from "../model/productLibrary";
 import { VALUE_STATUSES } from "../model/faces";
 import { formatMm } from "../model/geometry";
 import { logActivity } from "../model/store";
 import type { ValueStatus } from "../model/types";
 
 const human = (tool: string, result: LibraryResult) => { logActivity("human", tool, result.summary, result.ok); return result; };
-const show = (field: FieldSpec, value: number | string | null) => value === null ? "unknown" : field.type === "length" && typeof value === "number" ? `${formatMm(value)} mm` : String(value);
+const show = (field: FieldSpec, value: number | string | null) => value === null ? "unknown" : field.type === "length" && typeof value === "number" ? `${formatMm(value)} mm` : field.type === "quantity" ? `${value} ${field.unit}` : String(value);
 
 export function NewMeasurements() {
   const [category, setCategory] = useState("vanity"), [label, setLabel] = useState(""), [notes, setNotes] = useState(""), [error, setError] = useState("");
@@ -21,7 +21,7 @@ export function NewMeasurements() {
   }}>
     <strong>Record a reused fitting</strong>
     <span className="hint">Identify the physical item with notes and attached photos. Brand/model may remain unknown. Photographs do not supply measurements automatically.</span>
-    <label className="field">Measured category<select value={category} onChange={event => setCategory(event.target.value)}>{["vanity", "toilet", "bath"].map(id => <option key={id} value={id}>{categoryById(id)!.label}</option>)}</select></label>
+    <label className="field">Measured category<select value={category} onChange={event => setCategory(event.target.value)}>{HUMAN_MEASURABLE.map(id => <option key={id} value={id}>{categoryById(id)!.label}</option>)}</select></label>
     <label className="field">Physical fitting label<input value={label} onChange={event => setLabel(event.target.value)} /></label>
     <label className="field">Physical identification notes<textarea value={notes} onChange={event => setNotes(event.target.value)} /></label>
     {error && <span role="alert">{error}</span>}
@@ -38,7 +38,7 @@ function MeasurementField({ request, field }: { request: ProductRequest; field: 
     if (status === "unknown") observation = { value: null, note };
     else {
       if (!value.trim()) { setError("Enter the value, or choose unknown and explain it."); return; }
-      const numeric = field.type === "length" || field.type === "count";
+      const numeric = field.type === "length" || field.type === "count" || field.type === "quantity";
       const number = Number(value) / (field.type === "length" && unit === "mm" ? 1000 : 1);
       if (numeric && !Number.isFinite(number)) { setError("The value must be a finite number."); return; }
       observation = { value: numeric ? number : value, status: status as ValueStatus, note,
