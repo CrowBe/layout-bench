@@ -74,6 +74,11 @@ try {
  assert.deepEqual(read.installedLevels.heightEvidence,fittingCases[5].fields.height);
  assert.match(read.installedLevels.topSource,/synthetic-fitting.pdf/);
  assert.equal(read.accessRequirements[0].placementBasis,'published');assert.match(read.accessRequirements[0].placementSource,/synthetic-fitting.pdf/);
+ assert.equal(read.accessRequirements[0].levelBasis,'published');assert.match(read.accessRequirements[0].levelSource,/synthetic-mirror.pdf/);assert.match(read.accessRequirements[0].levelSource,/synthetic-fitting.pdf/);
+ await run('set_diagram_view',{label:'Confirmed mounting, published clearance',visible:['fixtures','services-power']});
+ const provenance=await run('get_diagram_view');
+ const clearanceRow=provenance.spec.find(row=>row.property==='access lift installed levels (mm)');
+ assert.equal(clearanceRow.status,'published');assert.match(clearanceRow.source,/synthetic-mirror.pdf/);assert.match(clearanceRow.source,/synthetic-fitting.pdf/);
  assert.match(await page.getByRole('region',{name:'Fixture installation'}).textContent(),/top 1800 mm \(published\)/);
  await run('set_room_floor',{room:room.id,substrateTop:q(-.05),layers:[{kind:'tile',thickness:q(.01)}]});
  await run('set_wall_side',{wallId:wall.id,side:'right',existing:q(0),frame:q(0),layers:[{kind:'tile',thickness:q(.01)}]});

@@ -7,7 +7,7 @@ import { localPointReading, installationReading } from "./installation";
  */
 
 import type { FixtureAnchor, Item, PlanModel, ServicePoint, ValueStatus, Wall, WallSideName } from "./types";
-import { catalogByKind } from "./catalog";
+import { catalogForItem, catalogByKind, type CatalogLookup } from "./catalog";
 import { quantize, segLen, type ORect, type Pt } from "./geometry";
 import { VALUE_STATUSES, layerLabel, resolveFace, sideFaces, sideNormal, wallBody } from "./faces";
 import { itemPolygon, toWorld, support } from "./outline";
@@ -36,13 +36,13 @@ export interface AnchorPose {
 }
 
 /** Where an anchored fixture sits, from its wall, face, gap and distance. */
-export function anchorPose(model: PlanModel, item: Item): AnchorPose {
+export function anchorPose(model: PlanModel, item: Item, lookup: CatalogLookup = catalogByKind): AnchorPose {
   const a = item.anchor;
   if (!a) return { resolved: false, missing: ["anchor"] };
   const wall = model.walls.find((w) => w.id === a.wallId);
   if (!wall) return { resolved: false, missing: [`wall ${a.wallId}`] };
   const face = resolveFace(wall.sides?.[a.side], a.face);
-  const cat = catalogByKind(item.kind);
+  const cat = catalogForItem(item, lookup);
   const missing = [...face.missing, ...(cat ? [] : [`footprint of kind ${item.kind}`])];
   if (!face.resolved || !cat) return { resolved: false, missing };
   const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
@@ -68,11 +68,11 @@ export function anchorPose(model: PlanModel, item: Item): AnchorPose {
 }
 
 /** Re-derive every anchored fixture. Returns the same model when nothing moved. */
-export function applyAnchors(model: PlanModel): PlanModel {
+export function applyAnchors(model: PlanModel, lookup: CatalogLookup = catalogByKind): PlanModel {
   let changed = false;
   const items = model.items.map((it) => {
     if (!it.anchor) return it;
-    const pose = anchorPose(model, it);
+    const pose = anchorPose(model, it, lookup);
     if (!pose.resolved || (it.x === pose.x && it.y === pose.y && it.rotation === pose.rotation)) return it;
     changed = true;
     return { ...it, x: pose.x!, y: pose.y!, rotation: pose.rotation! };
@@ -119,10 +119,10 @@ export interface RoughInReading {
 }
 
 /** Read one fixture's service points against every face of the wall side it is anchored to. */
-export function roughIn(model: PlanModel, item: Item): RoughInReading[] {
+export function roughIn(model: PlanModel, item: Item, lookup: CatalogLookup = catalogByKind): RoughInReading[] {
   const a = item.anchor;
   const wall = a ? model.walls.find((w) => w.id === a.wallId) : undefined;
-  const pose = anchorPose(model, item);
+  const pose = anchorPose(model, item, lookup);
   const legacy = (item.servicePoints ?? []).map((sp) => {
     const missing: string[] = [];
     if (!a) missing.push("fixture anchor (place it against a wall face)");
@@ -179,9 +179,9 @@ export function roughIn(model: PlanModel, item: Item): RoughInReading[] {
     base.resolved = missing.length === 0;
     return base;
   });
-  const lv=installationReading(model,item);
+  const lv=installationReading(model,item,lookup);
   const local=(item.installationGeometry?.services??[]).map(p=>{
-    const r=localPointReading(model,item,p);
+    const r=localPointReading(model,item,p,lookup);
     const up=r.level!==undefined && lv.finishedFloorLevel!==undefined ? quantize(r.level-lv.finishedFloorLevel) : undefined;
     return {pointId:`local:${p.id}`,label:p.label,service:p.service,status:r.basis==="unknown"?p.status:r.basis,source:r.source,entered:{face:"fixture-back",across:p.x??undefined,out:p.y??undefined,up:p.z??undefined},resolved:r.resolved,missing:r.missing,fromFaces:[],...(r.x!==undefined?{x:r.x,y:r.y}:{}),...(up!==undefined?{up}:{}),...(r.level!==undefined?{level:r.level}:{})};
   });
@@ -234,7 +234,7 @@ export interface Clearance {
 export function clearances(model: PlanModel, item: Item): Clearance[] {
   const pose = anchorPose(model, item);
   const a = item.anchor;
-  const cat = catalogByKind(item.kind);
+  const cat = catalogForItem(item);
   const wall = a ? model.walls.find((w) => w.id === a.wallId) : undefined;
   if (!pose.resolved || !a || !cat || !wall) return [];
   const d = dirOf(wall);
@@ -280,12 +280,12 @@ export function clearances(model: PlanModel, item: Item): Clearance[] {
 }
 
 /** Problems with anchors and service points, for get_issues. */
-export function fixtureProblems(model: PlanModel): { severity: "error" | "warning"; code: string; message: string; refs: string[] }[] {
+export function fixtureProblems(model: PlanModel, lookup: CatalogLookup = catalogByKind): { severity: "error" | "warning"; code: string; message: string; refs: string[] }[] {
   const out: { severity: "error" | "warning"; code: string; message: string; refs: string[] }[] = [];
   for (const it of model.items) {
-    const label = catalogByKind(it.kind)?.label ?? it.kind;
+    const label = catalogForItem(it, lookup)?.label ?? it.kind;
     if (it.anchor) {
-      const pose = anchorPose(model, it);
+      const pose = anchorPose(model, it, lookup);
       const wall = model.walls.find((w) => w.id === it.anchor!.wallId);
       if (!wall) {
         out.push({ severity: "error", code: "fixture_anchor_wall_missing", message: `${label} is set out from wall ${it.anchor.wallId}, which no longer exists.`, refs: [it.id] });
@@ -295,7 +295,7 @@ export function fixtureProblems(model: PlanModel): { severity: "error" | "warnin
         out.push({ severity: "warning", code: "fixture_anchor_unresolved", message: `${label}'s position is unresolved: missing ${pose.missing.join(", ")}. It stays where it was until they are entered.`, refs: [it.id, it.anchor.wallId] });
       }
     }
-    for (const r of roughIn(model, it)) {
+    for (const r of roughIn(model, it, lookup)) {
       if (!r.resolved) out.push({ severity: "warning", code: "service_point_unresolved", message: `${label} ${r.label}: missing ${r.missing.join(", ")}.`, refs: [it.id] });
     }
   }

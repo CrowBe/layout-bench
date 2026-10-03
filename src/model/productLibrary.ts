@@ -14,6 +14,7 @@ import { safeUrl } from "./products";
 import { isPhysicalItem, isProductSpecification, unknownMeasurementFields, validateMeasurementFields, type PhysicalItem } from "./productMeasurements";
 import { currentReview, prepareReviewRevision, productReviewSummary, requiredReviewKeys, reviewEvidence, REVIEW_GROUPS } from "./productReview";
 import type { FieldGroup } from "./products";
+import { revisionOf, revisionVariantProblems, validProductRevision, type ProductRevision } from "./productRevision";
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 import { ATTACHMENT_PREFIX, categoryById, roughInPoints, validateSubmission, type FieldValue, type RoughInPoint, type SpecProblem, type SpecSubmission } from "./products";
@@ -72,6 +73,8 @@ export interface ProductRequest {
   createdAt: number;
   submission?: SpecSubmission & { at: number; warnings: SpecProblem[] };
   reviews: Record<string, FieldReview>;
+  /** Human-started correction of this accepted product; exact variants stay separate. */
+  revisionOf?: string;
   /** Unchanged approvals require an explicit human reuse action after revision. */
   reuseCandidates?: Record<string, FieldReview>;
   /** Previously rejected fields must be reviewed individually, even after correction. */
@@ -102,6 +105,7 @@ export interface LibraryProduct extends ExactProduct {
   installationGeometry?: InstallationGeometry;
   requestId: string;
   acceptedAt: number;
+  revision?: ProductRevision;
   recordingMode?: "human-measurement";
 }
 
@@ -219,6 +223,7 @@ export function initializeProductLibrary(force = false): void {
         && isExactProduct({ manufacturer: "", model: "", identity: r.known.identity, components: r.known.components, componentsStatus: r.known.componentsStatus, physicalItem: r.known.physicalItem })
         && (r.submission === undefined || isExactProduct(r.submission) && (r.submission.installationGeometry === undefined || validInstallationGeometry(r.submission.installationGeometry))))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
       if (!doc.products.every(p => isProductSpecification({ category: p.category, fields: p.fields, acceptedAt: p.acceptedAt, recordingMode: p.recordingMode })) || !doc.requests.every(r => (!r.mode || r.mode === "human-measurement") && (r.evidenceOriginRequestId === undefined || typeof r.evidenceOriginRequestId === "string") && (r.submission === undefined || isProductSpecification({ category: r.category, fields: r.submission.fields, acceptedAt: r.submission.at, recordingMode: r.mode })) && (!r.measurementDraft || isProductSpecification({ category: r.category, fields: r.measurementDraft, acceptedAt: r.createdAt, recordingMode: r.mode })))) throw new Error("Invalid product measurement evidence. Original browser data was kept.");
+      if (!doc.products.every(p => p.revision === undefined || validProductRevision(p.revision)) || !doc.requests.every(r => r.revisionOf === undefined || typeof r.revisionOf === "string")) throw new Error("Invalid product revision history. Original browser data was kept.");
       productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r, doc.requests) } } : {}) })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
     }
     ready = true;
@@ -313,6 +318,22 @@ export const products = {
   show(open = true) { productStore.setState({ open }); },
   select(id: string | null) { productStore.setState({ selectedRequestId: id }); },
 
+  /** Human only: preserve the accepted request and open a separate correction draft. */
+  reviseProduct(productId: string): LibraryResult {
+    const product = productStore.getState().products.find(p => p.id === productId);
+    if (!product) return fail("Accepted product not found.");
+    const origin = findRequest(product.requestId);
+    if (!origin?.submission || origin.status !== "accepted") return fail("The original accepted evidence is unavailable; do not invent revision history.");
+    const req: ProductRequest = {
+      ...structuredClone(origin), id: uid("preq"), status: "open", createdAt: Date.now(), productId: undefined,
+      revisionOf: product.id, evidenceOriginRequestId: origin.id, attachments: [],
+      ...(origin.mode ? { measurementDraft: structuredClone(product.fields) } : {}),
+      feedback: `Correction draft of catalogue revision ${revisionOf(product).number}. Preserve the exact variant; changed identity requires a distinct product.`,
+    };
+    productStore.setState(s => ({ requests: [...s.requests, req], selectedRequestId: req.id }));
+    return ok("Revision draft opened. The accepted specification and placed fixtures remain unchanged.", { requestId: req.id });
+  },
+
   /** Human only; a physical label identifies the fitting without manufacturing a SKU. */
   openMeasurements(category: string, physicalItem: PhysicalItem, initial?: Record<string, FieldValue>, evidenceOriginRequestId?: string): LibraryResult {
     const cat = categoryById(category);
@@ -386,7 +407,7 @@ export const products = {
     if (req.mode === "human-measurement") return fail("This is an explicit human measurement record. An agent cannot submit measurements; use the human page controls.");
     if (req.status !== "open") return fail(`Request ${req.id} is ${req.status}; only an open request takes a submission.`);
     const cat = categoryById(req.category)!;
-    const problems = validateSubmission(cat, submission, { attachments: req.attachments ?? [] });
+    const problems = validateSubmission(cat, submission, { attachments: requestEvidenceAttachments(req) });
     const errors = problems.filter((p) => p.severity === "error");
     if (errors.length) {
       return fail(`Submission rejected, nothing stored: ${errors.map((e) => e.message).join(" ")}`, { problems: errors });
@@ -470,8 +491,18 @@ export const products = {
     if (errors.length) return fail(`Submission needs correction: ${errors.map(e => e.message).join(" ")}`);
     const pending = requiredReviewKeys(req).filter((k) => currentReview(req, k)?.decision !== "accepted");
     if (pending.length) return fail(`Review every field first. Not accepted: ${pending.join(", ")}.`);
+    const parent = req.revisionOf ? productStore.getState().products.find(p => p.id === req.revisionOf) : undefined;
+    if (req.revisionOf && !parent) return fail("The accepted parent revision is missing; nothing changed.");
+    if (parent) {
+      const different = revisionVariantProblems(parent, req.submission);
+      if (different.length) return fail(`Exact variant changed (${different.join(", ")}). Open a distinct product request instead of revising this product.`);
+      const number = revisionOf(parent).number;
+      if (productStore.getState().products.some(p => revisionOf(p).seriesId === revisionOf(parent).seriesId && revisionOf(p).number > number)) return fail("A newer accepted revision exists. Start from that revision so evidence history cannot silently branch.");
+    }
+    const productId = uid("product");
     const product: LibraryProduct = {
-      id: uid("product"),
+      id: productId,
+      revision: parent ? { seriesId: revisionOf(parent).seriesId, number: revisionOf(parent).number + 1, parentProductId: parent.id } : { seriesId: productId, number: 1 },
       category: req.category,
       manufacturer: req.submission.manufacturer.trim(),
       model: req.submission.model.trim(),
@@ -576,6 +607,8 @@ export const products = {
 
   removeProduct(id: string): LibraryResult {
     if (!productStore.getState().products.some((p) => p.id === id)) return fail("Product not found.");
+    const product = productStore.getState().products.find(p => p.id === id)!;
+    if (productStore.getState().products.some(p => p.id !== id && revisionOf(p).seriesId === revisionOf(product).seriesId)) return fail("This product has accepted revision history. Its evidence must remain available to pinned fixtures and later revisions.");
     productStore.setState((s) => ({ products: s.products.filter((p) => p.id !== id) }));
     return ok("Product removed from the library.");
   },

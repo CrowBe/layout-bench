@@ -543,3 +543,11 @@ Synthetic verification: `ALZA_BASE_URL=http://127.0.0.1:5251 node tests/installa
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+### Accepted catalogue revisions (#53)
+
+The Products page opens a separate correction draft from an accepted specification. Human review produces a new revision of the same exact variant; changed SKU/finish/hand remains a distinct product. Accepted source records and their reviews remain available. Accepting a revision leaves every placed fixture unchanged.
+
+Choose existing instances on the new revision card, preview dimensions, outlines, services, source evidence and resulting clashes, then acknowledge and apply the selected update. Preview cancellation makes no model change. Anchors and installation height/orientation remain project decisions. Changed measured/site-confirmed service axes are retained and identified for reconciliation; geometry overrides differing from pinned product evidence require individual reconciliation before update. Unknown anchors, floor datums and source axes stay unresolved. No tool accepts a revision or applies instance updates.
+
+Placed fixtures carry independent accepted-product and geometry snapshots, including installation geometry, so a project backup renders old and new revisions without the browser library. Undo restores the selected update. Issued sheet SVGs and stage diagram/specification archives retain their original content, dates, acknowledgements and planning-evidence references; the Sheets page identifies historical outputs after later changes and offers downloads after reload or import. Older issuance records without content remain identifiable as legacy records.
