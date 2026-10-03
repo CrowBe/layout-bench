@@ -7,6 +7,7 @@ import type { LibraryProduct } from "./productLibrary";
 import { productPlacement } from "./productPlacement";
 import { evidenceFingerprint, revisionOf } from "./productRevision";
 import type { FieldValue } from "./products";
+import type { InstallationGeometry, LocalService } from "./installation";
 import type { Item, PlanModel, ServicePoint } from "./types";
 
 type Axis = "across" | "out" | "outMax" | "up";
@@ -107,6 +108,68 @@ function preserveServices(
   return { points, preserved, unresolved };
 }
 
+function preserveLocalServices(
+  before: InstallationGeometry | undefined,
+  proposed: InstallationGeometry | undefined,
+  source: InstallationGeometry | undefined,
+) {
+  if (!before)
+    return {
+      geometry: proposed,
+      preserved: [] as string[],
+      unresolved: [] as string[],
+    };
+  const convert = (p: LocalService): ServicePoint => ({
+    id: p.id,
+    label: p.label,
+    service: p.service,
+    face: "fixture-back",
+    across: p.x ?? undefined,
+    out: p.y ?? undefined,
+    up: p.z ?? undefined,
+    status: p.status,
+    source: p.sources.map((s) => `${s.url} (${s.locator})`).join("; "),
+    axisEvidence: p.axisEvidence,
+  });
+  // An unchanged copied measured point is product evidence, not a later site override.
+  const edited = (before.services ?? []).filter(
+    (p) =>
+      evidenceFingerprint(p) !==
+      evidenceFingerprint(source?.services?.find((s) => s.id === p.id)),
+  );
+  const result = preserveServices(
+    edited.map(convert),
+    (proposed?.services ?? []).map(convert),
+    (source?.services ?? []).map(convert),
+  );
+  const services = result.points.map((p) => {
+    const original = before.services?.find((s) => s.id === p.id),
+      next = proposed?.services?.find((s) => s.id === p.id);
+    return {
+      ...(next ?? original!),
+      id: p.id,
+      label: p.label,
+      service: p.service,
+      x: p.across ?? null,
+      y: p.out ?? null,
+      z: p.up ?? null,
+      status: p.status,
+      axisEvidence: p.axisEvidence,
+      sources: [...(next?.sources ?? []), ...(original?.sources ?? [])],
+    };
+  });
+  const geometry = proposed
+    ? { ...structuredClone(proposed), services }
+    : services.length
+      ? { ...structuredClone(before), services }
+      : undefined;
+  return {
+    geometry,
+    preserved: result.preserved.map((s) => `Local service ${s}`),
+    unresolved: result.unresolved.map((s) => `Local service ${s}`),
+  };
+}
+
 export interface InstanceUpdate {
   id: string;
   before: Item;
@@ -156,20 +219,49 @@ export function previewProductUpdate(
         "Original wall anchor is unresolved; establish it explicitly before updating.";
       continue;
     }
-    const placement = productPlacement(target, item.anchor, wall);
+    const placement = productPlacement(
+      target,
+      item.anchor,
+      wall,
+      item.installation,
+    );
     if (!placement.ok) {
       row.blocked = placement.summary;
       continue;
     }
     entries.push(placement.entry, ...placement.additionalEntries);
-    const original = productPlacement(current, item.anchor, wall);
+    const original = productPlacement(
+      current,
+      item.anchor,
+      wall,
+      item.installation,
+    );
+    if (
+      original.ok &&
+      row.geometryBefore &&
+      ["w", "d", "h", "outline"].some(
+        (key) =>
+          evidenceFingerprint(
+            row.geometryBefore![key as keyof CatalogEntry],
+          ) !== evidenceFingerprint(original.entry[key as keyof CatalogEntry]),
+      )
+    ) {
+      row.blocked =
+        "The placed geometry differs from its pinned product evidence. Reconcile that instance override individually before applying a catalogue revision.";
+      continue;
+    }
     const services = preserveServices(
       item.servicePoints ?? [],
       placement.servicePoints,
       original.ok ? original.servicePoints : [],
     );
-    row.preserved = services.preserved;
-    row.unresolved = services.unresolved;
+    const local = preserveLocalServices(
+      item.installationGeometry,
+      placement.installationGeometry,
+      original.ok ? original.installationGeometry : undefined,
+    );
+    row.preserved = [...services.preserved, ...local.preserved];
+    row.unresolved = [...services.unresolved, ...local.unresolved];
     row.geometryAfter = structuredClone(placement.entry);
     row.after = {
       ...structuredClone(item),
@@ -185,6 +277,9 @@ export function previewProductUpdate(
         acceptedAt: target.acceptedAt,
       }),
       servicePoints: services.points,
+      installationGeometry: local.geometry
+        ? structuredClone(local.geometry)
+        : undefined,
       corner: placement.corner,
     };
   }

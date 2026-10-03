@@ -620,9 +620,9 @@ function genericPiece(w: number, d: number, h: number, color: string): THREE.Gro
 
 export function buildFurniture(kind: string, snapshot?: CatalogEntry): THREE.Group | null {
   const cat = snapshot ?? catalogByKind(kind);
-  const custom = CUSTOM_PARTS.get(kind);
+  const custom = snapshot ? undefined : CUSTOM_PARTS.get(kind);
   if (custom) return buildCustom(custom, cat?.color ?? "#9a9186");
-  const b = FURNITURE_BUILDERS[kind];
+  const b = snapshot ? undefined : FURNITURE_BUILDERS[kind];
   if (b) return b();
   if (cat?.outline) return outlinePiece(kindPolygon(cat), cat.h, cat.color);
   return cat ? genericPiece(cat.w, cat.d, cat.h, cat.color) : null;

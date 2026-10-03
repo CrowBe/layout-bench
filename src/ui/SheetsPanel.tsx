@@ -38,6 +38,11 @@ function StageViewCard({ projectId, fileBase }: { projectId: string | null; file
           <div className="sheets-preview" aria-label="Stage preview" dangerouslySetInnerHTML={{ __html: preview }} />
         </>
       )}
+      {(model.sheetSet?.stageExports??[]).map((output,index)=><div className="sheets-actions" key={`${output.at}-${index}`} aria-label="Archived stage output">
+        <span className="hint">{output.label} · {output.date} · {output.modelEvidence === planningEvidence(model) ? "Export matches current planning evidence." : "Historical export: current planning evidence differs."}</span>
+        <button type="button" onClick={()=>download(`${fileBase}-${slug(output.label)}-${index}-diagram.svg`,output.svg,"image/svg+xml")}>Download archived diagram {index+1} (SVG)</button>
+        <button type="button" onClick={()=>download(`${fileBase}-${slug(output.label)}-${index}-spec.html`,output.specHtml,"text/html")}>Download archived specification {index+1} (HTML)</button>
+      </div>)}
       {exported && (
         <div className="sheets-actions">
           <span className="hint">{exported.modelEvidence === planningEvidence(model) ? "Export matches current planning evidence." : "Historical export: current planning evidence differs or its legacy reference was not captured."}</span>

@@ -519,6 +519,24 @@ the actual purchased-product end-to-end acceptance check.
 Run the heating browser check with a local studio server:
 `ALZA_BASE_URL=http://127.0.0.1:5208 node tests/heating.e2e.mjs`.
 
+## Sourced fixture installation geometry
+
+Accepted products may include optional `installationGeometry`, reviewed separately by the human. It retains source/status for the geometry, line/arc outline, fixing and service coordinates and access requirements. Point coordinates use x across the fixture centreline, y out from the physical back, and z above its bottom, in metres. Outline coordinates explicitly use `datum: {across: "fixture-centreline", out: "footprint-centre"}`: x within ±width/2, y within ±depth/2. This is the existing line/arc representation; unsupported curves retain a sourced limitation and use the documented envelope, without fitting a curve by eye.
+
+`place_product` supports wall-mounted surface mirrors and wall towel rails through explicit `installation: {mounting: "wall", roomId, floorDatum: "finished-floor" | "substrate-top", height?: {value, status, source}, orientation, mirror}`. Height is the **product bottom above that named room floor datum**, separate from published installation requirements. Use proposed status for a proposed project height. Missing height, floor level or wall face stays unknown and omits the fixture's vertical 3D geometry. Existing unsupported recess, ceiling and moving/swing modes remain explicit limitations. New mounted catalogue kinds cannot be generically dropped without their placement evidence.
+
+The Inspector and `set_fixture_installation` edit the same placement. `get_rough_in` returns installed levels, transformed fixing/service points and access regions; source dimensions are unchanged. Mirroring requires documented reversibility and transforms all of them together. The physical back midpoint stays at the declared wall-face gap and along-wall distance through orientation; unsupported flush mounting and resulting wall intersections are reported rather than moving the back datum. Bottom placement basis and top basis are distinct: top additionally includes the portable accepted product height evidence, and access regions starting at that top retain it too. Plan, 3D extrusion, spatial clash checks and stage diagram/spec use the same instance. Access is drawn separately from physical footprint and retains both requirement source/status and placement basis. Geometry/placement snapshots travel with project export/import; no browser product library is required to read them. These are planning representations, not manufacturer CAD or installation/compliance approval.
+
+Synthetic verification: `ALZA_BASE_URL=http://127.0.0.1:5251 node tests/installation.e2e.mjs` exercises real human geometry review and height/orientation controls, transformed points, rendered 3D OBJ, stage outputs, reload/portable import and unresolved floor output. Fixtures are explicitly synthetic evidence, not a catalogue of actual products.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+### Accepted catalogue revisions (#53)
+
+The Products page opens a separate correction draft from an accepted specification. Human review produces a new revision of the same exact variant; changed SKU/finish/hand remains a distinct product. Accepted source records and their reviews remain available. Accepting a revision leaves every placed fixture unchanged.
+
+Choose existing instances on the new revision card, preview dimensions, outlines, services, source evidence and resulting clashes, then acknowledge and apply the selected update. Preview cancellation makes no model change. Anchors and installation height/orientation remain project decisions. Changed measured/site-confirmed service axes are retained and identified for reconciliation; geometry overrides differing from pinned product evidence require individual reconciliation before update. Unknown anchors, floor datums and source axes stay unresolved. No tool accepts a revision or applies instance updates.
+
+Placed fixtures carry independent accepted-product and geometry snapshots, including installation geometry, so a project backup renders old and new revisions without the browser library. Undo restores the selected update. Issued sheet SVGs and stage diagram/specification archives retain their original content, dates, acknowledgements and planning-evidence references; the Sheets page identifies historical outputs after later changes and offers downloads after reload or import. Older issuance records without content remain identifiable as legacy records.

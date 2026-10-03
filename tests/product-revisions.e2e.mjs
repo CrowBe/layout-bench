@@ -42,9 +42,9 @@ try {
   await page.getByRole("button", { name: /^Products/ }).click();
   const form = page.getByRole("form", { name: "New product request" }),
     detail = page.getByRole("region", { name: "Selected request" });
-  await form.getByLabel("Category", { exact: true }).selectOption("vanity");
-  await form.getByLabel("Brand", { exact: true }).fill(spec.manufacturer);
-  await form.getByLabel("Model", { exact: true }).fill(spec.model);
+  await form.getByLabel("Category").selectOption("vanity");
+  await form.getByLabel("Brand").fill(spec.manufacturer);
+  await form.getByLabel("Model").fill(spec.model);
   await form.getByRole("button", { name: "Open request", exact: true }).click();
   let requests = (await run("list_product_requests")).requests,
     request = requests.at(-1);
@@ -154,7 +154,8 @@ try {
   });
   assert.equal(issued.ok, true, issued.summary);
   const before = (await run("get_model")).model,
-    issuedHistory = before.sheetSet.revisions[0];
+    issuedHistory = before.sheetSet.revisions[0],
+    stageHistory = before.sheetSet.stageExports[0];
   assert.equal(typeof issuedHistory.content.svg, "string");
   const firstCard = page.locator(`[data-product="${first.id}"]`);
   await firstCard.locator("summary").click();
@@ -293,11 +294,11 @@ try {
   await page.getByRole("button", { name: "Back to plan", exact: true }).click();
   await page.getByRole("button", { name: /^Sheets/ }).click();
   assert.match(
-    await page.textContent(),
+    await page.textContent("body"),
     /Historical export: current planning evidence differs/,
   );
   assert.match(
-    await page.textContent(),
+    await page.textContent("body"),
     /historical: planning evidence has changed/,
   );
   await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -328,7 +329,7 @@ try {
       exact: true,
     })
     .click();
-  changed = (await run("get_model")).model;
+  changed = JSON.parse(JSON.stringify((await run("get_model")).model));
   await page.reload();
   await page
     .locator(".project-card")
@@ -349,13 +350,11 @@ try {
     fp = await fresh.newPage();
   fp.on("pageerror", (error) => errors.push(String(error)));
   await fp.goto(base);
-  await fp
-    .getByLabel("Import project JSON")
-    .setInputFiles({
-      name: "revisions.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(raw),
-    });
+  await fp.getByLabel("Import project JSON").setInputFiles({
+    name: "revisions.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(raw),
+  });
   await fp
     .getByRole("button", { name: "Import as new project", exact: true })
     .click();
@@ -368,6 +367,12 @@ try {
   const imported = (await frun("get_model")).model;
   assert.deepEqual(imported.items, changed.items);
   assert.deepEqual(imported.sheetSet.revisions[0], issuedHistory);
+  assert.deepEqual(imported.sheetSet.stageExports[0], stageHistory);
+  await fp.getByRole("button", { name: /^Sheets/ }).click();
+  assert.match(
+    await fp.locator('[aria-label="Archived stage output"]').textContent(),
+    /Historical export/,
+  );
   assert.equal((await frun("build_3d")).ok, true);
   await fresh.close();
   assert.deepEqual(errors, []);

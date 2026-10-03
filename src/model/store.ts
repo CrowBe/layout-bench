@@ -1,3 +1,4 @@
+import { validInstallation, installationReading, mirroringProblem, type FixtureInstallation } from "./installation";
 /**
  * Single source of truth. The UI buttons and the WebMCP tools call THE SAME actions,
  * so human and agent truly co-edit one model. Vanilla zustand store (usable outside React).
@@ -26,6 +27,7 @@ import type {
   FixtureAnchor,
   ServicePoint,
   SheetRevision,
+  StageExport,
   FloorAssembly,
   FloorLayer,
   FloorLayerKind,
@@ -54,7 +56,6 @@ import { productStore, type LibraryProduct } from "./productLibrary";
 import { productPlacement } from "./productPlacement";
 import { previewProductUpdate, type ProductUpdatePreview } from "./productUpdates";
 import { planningEvidence, revisionOf } from "./productRevision";
-import { categoryById, cornerBathOutline, envelopeOf, productPlacementProblem } from "./products";
 import { outlineExtents, outlineProblems, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
@@ -314,8 +315,9 @@ function pushUndo() {
 /** Carry issued sheet revisions into a model being restored or cleared: issued sheets cannot be un-issued. */
 function withIssued(next: PlanModel, current: PlanModel): PlanModel {
   const revisions = current.sheetSet?.revisions ?? [];
-  if (!revisions.length) return next;
-  return { ...next, sheetSet: { titleBlock: next.sheetSet?.titleBlock ?? current.sheetSet!.titleBlock, revisions } };
+  const stageExports = current.sheetSet?.stageExports;
+  if (!revisions.length && !stageExports?.length) return next;
+  return { ...next, sheetSet: { titleBlock: next.sheetSet?.titleBlock ?? current.sheetSet!.titleBlock, revisions, ...(stageExports ? {stageExports} : {}) } };
 }
 
 function setModel(model: PlanModel) {
@@ -483,6 +485,7 @@ export interface AnchorInput {
   distance: number;
   status: ValueStatus;
   source?: string;
+  installation?: FixtureInstallation;
 }
 
 /** Service point as a caller supplies it. Omitted or null numbers are unknown. */
@@ -1377,6 +1380,7 @@ export const actions = {
   placeItem(kind: string, x: number, y: number, rotation = 0): ActionResult {
     const cat = catalogByKind(kind);
     if (!cat) return fail(`Unknown furniture kind "${kind}". Use get_item_catalog.`);
+    if(cat.installationMounting) return fail("This mounted product needs explicit placement with place_product and its room/floor datum; generic catalogue drop would omit that evidence.");
     const r = rounding();
     const item: Item = { id: uid("item"), kind: cat.kind, x: r.q(x, "x"), y: r.q(y, "y"), rotation };
     pushUndo();
@@ -1554,7 +1558,7 @@ export const actions = {
   placeProduct(product: LibraryProduct, anchorInput: AnchorInput): ActionResult {
     const built = buildAnchor(anchorInput);
     if (!built.ok) return built.result;
-    const placement = productPlacement(product, built.anchor, built.wall);
+    const placement = productPlacement(product, built.anchor, built.wall, anchorInput.installation);
     if (!placement.ok) return fail(placement.summary);
     for (const entry of [...placement.additionalEntries, placement.entry]) {
       const result = this.defineItemKind(entry);
@@ -1566,11 +1570,18 @@ export const actions = {
       productSnapshot: structuredClone(product), productGeometry: structuredClone(placement.entry),
       productSpecification: structuredClone({ category: product.category, fields: product.fields, recordingMode: product.recordingMode, acceptedAt: product.acceptedAt }),
       selectionStatus: "unknown", servicePoints: placement.servicePoints,
+      ...(placement.installationGeometry ? { installationGeometry: structuredClone(placement.installationGeometry) } : {}),
+      ...(anchorInput.installation ? { installation: structuredClone(anchorInput.installation) } : {}),
       ...(placement.corner ? { corner: placement.corner } : {}),
     };
     pushUndo(); setModel({ ...store.getState().model, items: [...store.getState().model.items, item] });
     const pose = anchorPose(store.getState().model,item);
     return built.r.ok(`${placement.entry.label} placed; ${pose.resolved ? "anchor resolved" : `anchor unresolved: ${pose.missing.join(", ")}`}.`, { id: item.id, kind: item.kind, resolved: pose.resolved });
+  },
+
+  recordStageExport(output: StageExport) {
+    const model=store.getState().model;
+    setModel({...model,sheetSet:{...(model.sheetSet ?? {titleBlock:{},revisions:[]}),stageExports:[...(model.sheetSet?.stageExports??[]),structuredClone(output)]}});
   },
 
   /** Read-only preview; acceptance and selected instance updates are separate human decisions. */
@@ -1595,6 +1606,17 @@ export const actions = {
     }) };
     pushUndo(); setModel(model);
     return ok(`${next.rows.length} selected instance(s) updated explicitly. Preserved project confirmations and reconciliation notes remain in instance history. Issued outputs remain historical.`, { ids: next.selected });
+  },
+
+  setFixtureInstallation(itemRef: string, placement: FixtureInstallation): ActionResult {
+    const hit=resolveItem(itemRef);if(!hit.ok)return rejected(hit);
+    if(!validInstallation(placement))return fail("Invalid installation placement: height is metres above a named floor datum with status and source.");
+    const it=hit.entity;
+    if(placement.mirror){const problem=mirroringProblem(it.productIdentity ?? {},it.installationGeometry);if(problem)return fail(problem);}
+    if(placement.mounting!==it.installation?.mounting && it.installation) return fail("Mounting mode is part of the placed product contract; place a supported mounting variant instead.");
+    pushUndo();setModel({...store.getState().model,items:store.getState().model.items.map(x=>x.id===it.id?{...x,installation:structuredClone(placement)}:x)});
+    const next=store.getState().model.items.find(x=>x.id===it.id)!;const r=installationReading(store.getState().model,next);
+    return {ok:true,summary:r.resolved?`Explicit installation placement updated.${r.limitations.length?` Limitation: ${r.limitations.join(" ")}`:""}`:`Placement retained with unresolved datum: ${r.missing.join(", ")}.`,id:it.id};
   },
 
   setFixtureSelection(itemRef: string, status: SelectionStatus): ActionResult {
@@ -1760,6 +1782,7 @@ export const actions = {
     category?: string;
     parts?: PartSpec[];
     outline?: Outline;
+    installationMounting?: "wall";
   }): ActionResult {
     const kind = spec.kind.trim().toLowerCase().replace(/[^a-z0-9_:-]+/g, "_");
     if (!kind) return fail("A kind id is required.");
@@ -1769,7 +1792,7 @@ export const actions = {
       const problems = outlineProblems(spec.outline, spec.w, spec.d);
       if (problems.length) return fail(`Outline rejected: ${problems.join("; ")}.`);
     }
-    const outline = spec.outline ? { outline: structuredClone(spec.outline) } : {};
+    const outline = { ...(spec.outline ? { outline: structuredClone(spec.outline) } : {}), ...(spec.installationMounting ? {installationMounting: spec.installationMounting} : {}) };
     const known: CatalogEntry["category"][] = ["living", "bedroom", "kitchen", "bath", "office", "decor"];
     const category = known.includes(spec.category as CatalogEntry["category"])
       ? (spec.category as CatalogEntry["category"])
@@ -1783,6 +1806,7 @@ export const actions = {
       existing.h = spec.h;
       existing.color = color;
       existing.category = category;
+      if(spec.installationMounting)existing.installationMounting=spec.installationMounting;
       if (spec.outline) existing.outline = structuredClone(spec.outline);
       else delete existing.outline;
     } else {

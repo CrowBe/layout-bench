@@ -1,3 +1,5 @@
+import { installationReading as installationReadingForTest } from "../src/model/installation";
+import { buildFixture as buildFixtureForTest } from "../src/three/build";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   configureProductStorage,
@@ -435,4 +437,196 @@ describe("accepted catalogue revision history (#53)", () => {
       configureProductStorage(old);
     }
   });
+});
+
+it("keeps mounted revision previews pure, pins vertical geometry and reconciles local site axes", () => {
+  const evidence = { status: "published" as const, sources: [source] };
+  const geometry = {
+    ...evidence,
+    datum: {
+      across: "fixture-centreline" as const,
+      out: "fixture-back" as const,
+      up: "fixture-bottom" as const,
+    },
+    handedness: "reversible" as const,
+    services: [
+      {
+        ...evidence,
+        id: "power",
+        label: "Power",
+        service: "power" as const,
+        x: 0.1,
+        y: 0,
+        z: 0.2,
+        axisEvidence: { across: pub(0.1), out: pub(0), up: pub(0.2) },
+      },
+    ],
+  };
+  const first = {
+    ...original(),
+    category: "mirror",
+    fields: {
+      width: pub(0.6),
+      depth: pub(0.03),
+      height: pub(0.8),
+      mounting: pub("surface"),
+    },
+    roughIn: [],
+    installationGeometry: geometry,
+  };
+  const second = {
+    ...structuredClone(first),
+    id: "mirror-r2",
+    revision: { seriesId: first.id, number: 2, parentProductId: first.id },
+    fields: { ...first.fields, height: pub(1) },
+    installationGeometry: {
+      ...geometry,
+      services: [
+        {
+          ...geometry.services[0],
+          z: 0.3,
+          axisEvidence: { ...geometry.services[0].axisEvidence, up: pub(0.3) },
+        },
+      ],
+    },
+  };
+  const room = actions.addRoom(0, 0, 3, 3, "Synthetic", "tile").id as string;
+  const q = (value: number) => ({
+    value,
+    status: "site-confirmed" as const,
+    source: "Synthetic confirmed placement",
+  });
+  actions.setRoomFloor(room, { substrateTop: q(0), layers: [] });
+  const wall = actions.addWall(0, 0, 3, 0, 0.1, 2.4).id as string;
+  actions.setWallSide(wall, "right", {
+    existing: q(0),
+    frame: q(0),
+    layers: [],
+  });
+  const placed = actions.placeProduct(first, {
+    wallId: wall,
+    side: "right",
+    face: "existing",
+    distance: 1,
+    status: "site-confirmed",
+    installation: {
+      mounting: "wall",
+      roomId: room,
+      floorDatum: "finished-floor",
+      height: q(0.9),
+      mirror: false,
+      orientation: 0,
+    },
+  });
+  expect(placed.ok, placed.summary).toBe(true);
+  const id = placed.id as string,
+    model = structuredClone(store.getState().model),
+    item = model.items[0];
+  item.installationGeometry!.services![0].x = 0.12;
+  item.installationGeometry!.services![0].axisEvidence!.across = {
+    value: 0.12,
+    status: "measured",
+    sources: [{ ...source, locator: "Synthetic site axis" }],
+  };
+  const before = structuredClone(model),
+    kinds = structuredClone(store.getState().kinds);
+  const preview = previewProductUpdate(model, second, [id], [first, second]);
+  expect(preview.applicable).toBe(true);
+  expect(model).toEqual(before);
+  expect(store.getState().kinds).toEqual(kinds);
+  const next = preview.model.items[0];
+  expect(next.installation).toEqual(item.installation);
+  expect(next.installationGeometry!.services![0]).toMatchObject({
+    x: 0.12,
+    z: 0.3,
+  });
+  expect(preview.rows[0].preserved.join(" ")).toContain("site-edited measured");
+  expect(preview.issues.some((i) => i.code === "item_unknown")).toBe(false);
+  expect(installationReadingForTest(preview.model, next)).toMatchObject({
+    bottom: 0.9,
+    top: 1.9,
+    topBasis: "published",
+  });
+  expect(installationReadingForTest(model, item)).toMatchObject({ top: 1.7 });
+  const imported = parseImport(
+    JSON.stringify({
+      version: 2,
+      notes: [],
+      presentation: "planning",
+      id: "mounted-revision",
+      name: "Mounted revision",
+      createdAt: 0,
+      updatedAt: 0,
+      model: preview.model,
+      kinds: [],
+    }),
+  );
+  expect(
+    installationReadingForTest(imported.model, imported.model.items[0]).top,
+  ).toBe(1.9);
+  expect(
+    buildFixtureForTest(imported.model, imported.model.items[0]),
+  ).not.toBeNull();
+  const unresolved = { ...structuredClone(model), rooms: [] };
+  const unknown = previewProductUpdate(
+    unresolved,
+    second,
+    [id],
+    [first, second],
+  );
+  expect(
+    installationReadingForTest(unknown.model, unknown.model.items[0]).top,
+  ).toBeUndefined();
+  expect(
+    unknown.issues.some((i) => i.code === "fixture_installation_unresolved"),
+  ).toBe(true);
+});
+
+it("retains archived stage content through update, undo and project import while refusing malformed archives", () => {
+  const model = store.getState().model;
+  const archive = {
+    label: "Original",
+    date: "2026-10-03",
+    svg: "<svg>Synthetic immutable output</svg>",
+    specHtml: "Synthetic spec",
+    elements: [],
+    at: 1,
+    modelEvidence: planningEvidence(model),
+    acknowledged: [],
+  };
+  actions.recordStageExport(archive);
+  actions.addWall(0, 0, 3, 0, 0.1, 2.4);
+  expect(planningEvidence(store.getState().model)).not.toBe(
+    archive.modelEvidence,
+  );
+  actions.undo();
+  expect(store.getState().model.sheetSet!.stageExports).toEqual([archive]);
+  const project = {
+    version: 2,
+    notes: [],
+    presentation: "planning",
+    id: "stage-archive",
+    name: "Stage archive",
+    createdAt: 0,
+    updatedAt: 0,
+    model: store.getState().model,
+    kinds: [],
+  };
+  expect(
+    parseImport(JSON.stringify(project)).model.sheetSet!.stageExports,
+  ).toEqual([archive]);
+  expect(() =>
+    parseImport(
+      JSON.stringify({
+        ...project,
+        model: {
+          ...project.model,
+          sheetSet: {
+            ...project.model.sheetSet,
+            stageExports: [{ ...archive, elements: [null] }],
+          },
+        },
+      }),
+    ),
+  ).toThrow();
 });

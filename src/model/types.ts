@@ -1,3 +1,4 @@
+import type { FixtureInstallation, InstallationGeometry } from "./installation";
 import type { ExactProduct, SelectionStatus } from "./productIdentity";
 import type { ProductSpecification } from "./productMeasurements";
 import type { FieldValue } from "./products";
@@ -252,6 +253,8 @@ export interface Item {
   anchor?: FixtureAnchor;
   /** Service connections (#5): entered, or copied from a library product's rough-in. */
   servicePoints?: ServicePoint[];
+  installation?: FixtureInstallation;
+  installationGeometry?: InstallationGeometry;
   /** The product-library entry this fixture was placed from. */
   productId?: string;
   /** Exact identity evidence at placement; travels with project export/import. */
@@ -373,9 +376,14 @@ export interface SheetRevision {
   content?: { svg: string; modelEvidence: string; productRefs: { itemId: string; productId?: string; revision?: number }[] };
 }
 
+export interface StageExport {
+  label: string; date: string; svg: string; specHtml: string; elements: string[]; at: number; modelEvidence: string; acknowledged: Acknowledgement[]; note?: string;
+}
+
 export interface SheetSet {
   titleBlock: { project?: string; site?: string; preparedBy?: string };
   revisions: SheetRevision[];
+  stageExports?: StageExport[];
 }
 
 export interface ActivityEntry {

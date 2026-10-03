@@ -15,6 +15,12 @@ import { outlineExtents, outlineProblems } from "./outline";
 import { facingRotation } from "./fixtures";
 import { sideNormal } from "./faces";
 import { quantize, segLen } from "./geometry";
+import {
+  validInstallation,
+  mirroringProblem,
+  geometryForPlacement,
+  type FixtureInstallation,
+} from "./installation";
 import { revisionOf } from "./productRevision";
 
 export function productCornerSide(
@@ -37,6 +43,7 @@ export function productPlacement(
   product: LibraryProduct,
   anchor: FixtureAnchor,
   wall: Wall,
+  installation?: FixtureInstallation,
 ) {
   const category = categoryById(product.category);
   const invalid = category
@@ -52,7 +59,44 @@ export function productPlacement(
   const unsupported = category
     ? productPlacementProblem(category, product.fields)
     : null;
-  if (unsupported) return { ok: false as const, summary: unsupported };
+  const wallMounted =
+    (product.category === "mirror" &&
+      product.fields.mounting?.value === "surface") ||
+    (product.category === "towel-rail" &&
+      product.fields.mounting?.value === "wall");
+  if (unsupported && !wallMounted)
+    return { ok: false as const, summary: unsupported };
+  if (installation !== undefined && !validInstallation(installation))
+    return {
+      ok: false as const,
+      summary:
+        "Invalid installation placement: name the mounting, floor datum, room, orientation and optional height with status/source.",
+    };
+  if (wallMounted && installation?.mounting !== "wall")
+    return {
+      ok: false as const,
+      summary:
+        "Unsupported product placement: this wall-mounted fitting requires explicit installation.mounting wall and an entered room/floor datum; omitted height remains unknown.",
+    };
+  if (product.installationGeometry && !installation)
+    return {
+      ok: false as const,
+      summary:
+        "Sourced installation geometry requires explicit placement above a named room/floor datum; no ground height is assumed.",
+    };
+  if (installation?.mounting === "wall" && !wallMounted)
+    return {
+      ok: false as const,
+      summary:
+        "Unsupported wall mounting for this category/mode; detailed installation geometry is not represented.",
+    };
+  if (installation?.mirror) {
+    const problem = mirroringProblem(product, product.installationGeometry);
+    if (problem) return { ok: false as const, summary: problem };
+  }
+  const installationGeometry = installation
+    ? geometryForPlacement(product)
+    : product.installationGeometry;
   const envelope = category ? envelopeOf(category, product.fields) : null;
   if (!envelope)
     return {
@@ -99,7 +143,12 @@ export function productPlacement(
       ...box,
       category: "bath",
       color: "#9a9186",
-      ...(shape ? { outline: shape } : {}),
+      ...(product.installationGeometry?.outline?.shape
+        ? { outline: product.installationGeometry.outline.shape }
+        : shape
+          ? { outline: shape }
+          : {}),
+      ...(wallMounted ? { installationMounting: "wall" as const } : {}),
     };
   };
   const entry = entryFor(corner && outline ? corner : null);
@@ -114,6 +163,7 @@ export function productPlacement(
       : [];
   const source = `${label}, product library ${product.id}`;
   const servicePoints: ServicePoint[] = (product.roughIn ?? [])
+    .filter((p) => !installationGeometry?.services?.some((s) => s.id === p.id))
     .filter(
       (point) =>
         product.recordingMode !== "human-measurement" ||
@@ -196,6 +246,7 @@ export function productPlacement(
     entry,
     additionalEntries,
     servicePoints,
+    installationGeometry,
     ...(corner && outline
       ? {
           corner: {

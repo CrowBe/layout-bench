@@ -90,9 +90,9 @@ export function toWorld(local: Pt[], item: { x: number; y: number; rotation: num
 }
 
 /** An item's footprint on the plan, or null for an unknown kind. */
-export function itemPolygon(item: { kind: string; x: number; y: number; rotation: number; productGeometry?: CatalogEntry }, lookup: CatalogLookup = catalogByKind): Pt[] | null {
+export function itemPolygon(item: { kind: string; x: number; y: number; rotation: number; productGeometry?: CatalogEntry; installation?: { mirror: boolean } }, lookup: CatalogLookup = catalogByKind): Pt[] | null {
   const cat = catalogForItem(item, lookup);
-  return cat ? toWorld(kindPolygon(cat), item) : null;
+  return cat ? toWorld(kindPolygon(cat).map(p=>({...p,x:item.installation?.mirror?-p.x:p.x})), item) : null;
 }
 
 /** Convex hull (monotone chain), counter-clockwise. */

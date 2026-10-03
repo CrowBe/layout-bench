@@ -1,3 +1,4 @@
+import { validInstallationGeometry } from "./installation";
 /** Catalogue revisions are application history, never manufacturer revision claims. */
 import {
   identityOf,
@@ -48,6 +49,8 @@ export function validProductSnapshot(value: unknown): value is LibraryProduct {
     }) ||
     (product.revision !== undefined &&
       !validProductRevision(product.revision)) ||
+    (product.installationGeometry !== undefined &&
+      !validInstallationGeometry(product.installationGeometry)) ||
     !Array.isArray(product.roughIn)
   )
     return false;
