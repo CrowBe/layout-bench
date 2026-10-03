@@ -488,6 +488,7 @@ export function Editor() {
             )}
             {(it.installationGeometry?.fixings??[]).map(p=>{const r=localPointReading(model,it,p);return r.x!==undefined && r.y!==undefined?<circle key={p.id} data-fixing={p.id} cx={(it.installation?.mirror?-1:1)*p.x!*S} cy={(p.y!-cat.d/2)*S} r={3} fill="#8c6496"/>:null;})}
             <text
+              pointerEvents="none"
               x={0}
               y={0}
               fontSize={planFontPx(S, 0.2, 8, 16)}
