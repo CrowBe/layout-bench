@@ -301,6 +301,17 @@ A few design notes:
   library is still reported. `tests/product-measurements.e2e.mjs` covers the recorded existing
   910 × 465 mm vanity footprint with unknown height/connections, then explicitly synthetic
   extra geometry/services for acceptance, 3D, specification and fresh-browser transfer.
+- **Transfer catalogue evidence** manually exports selected accepted products and pending
+  requests with their dependent history and original PDF/image bytes in a versioned JSON
+  bundle (up to 80 MB). SHA-256 checks and fresh PDF extraction validate originals before
+  import. Preview shows contents, additions and ID collisions; a separate human action
+  commits it. Conflicting local IDs receive a coherent remap across records and citations,
+  while unchanged reimports add nothing. Historical review decisions retain their source
+  binding and remap provenance. Missing originals, unsupported schemas and storage failures
+  refuse the transfer; failed commits restore the previous catalogue and remove only their
+  newly staged files. Project JSON remains separate and carries its own placed evidence.
+  `tests/catalogue-bundles.e2e.mjs` verifies actual download/import across independent browsers,
+  reopened originals, pending human review, explicit mounting, reload and project transfer.
 - Fitting briefs distinguish powered/unpowered and fixed/hinged variants, and product-local
   mounting dimensions from proposed project heights. Unknown fields remain explicit through
   human review and library storage. The existing placement path supports generic envelopes

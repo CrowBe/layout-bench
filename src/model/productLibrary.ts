@@ -9,6 +9,7 @@ import { validInstallationGeometry, type InstallationGeometry } from "./installa
  */
 
 import { identityOf, validateIdentity, isExactProduct, type ProductIdentity, type ProductComponent, type ExactProduct } from "./productIdentity";
+import { exportCatalogueBundle, previewCatalogueBundle, recordsFingerprint, stableBundleValue, bundleHash, validateBundleRecords, type BundlePreview, type ImportProvenance } from "./productBundles";
 import { safeUrl } from "./products";
 import { isPhysicalItem, isProductSpecification, unknownMeasurementFields, validateMeasurementFields, type PhysicalItem } from "./productMeasurements";
 import { currentReview, prepareReviewRevision, productReviewSummary, requiredReviewKeys, reviewEvidence, REVIEW_GROUPS } from "./productReview";
@@ -64,6 +65,7 @@ export interface ProductAttachment {
 }
 
 export interface ProductRequest {
+  bundleImport?: ImportProvenance;
   id: string;
   category: string;
   known: KnownDetails;
@@ -91,6 +93,7 @@ export interface ProductRequest {
 }
 
 export interface LibraryProduct extends ExactProduct {
+  bundleImport?: ImportProvenance;
   id: string;
   category: string;
   manufacturer: string;
@@ -172,7 +175,7 @@ export function requestEvidenceAttachments(request: ProductRequest, requests = p
 }
 export const useProductStore = <T>(selector: (s: LibraryState) => T): T => useStore(productStore, selector);
 
-type KeyValueStore = Pick<Storage, "getItem" | "setItem">;
+type KeyValueStore = Pick<Storage, "getItem" | "setItem"> & Partial<Pick<Storage,"removeItem">>;
 
 /** Where the library and its files live. Tests swap these for in-memory ones. */
 const io: { local: () => KeyValueStore | null; files: FileStore; extract: (data: ArrayBuffer) => Promise<PageText[]> } = {
@@ -190,8 +193,27 @@ export function configureProductStorage(next: Partial<typeof io>): typeof io {
 
 const hasStorage = () => io.local() !== null;
 let ready = false;
+let bundleCommitInFlight = false;
+const bundlePreviews = new WeakMap<BundlePreview, string>();
+const previewSignature = (p: BundlePreview) => stableBundleValue({ base:p.base, rawBase:p.rawBase, maps:p.maps, additions:p.additions, files:p.files.map(f=>({id:f.id,sha256:f.sha256,originalId:f.originalId})), reused:p.reused });
 
 const docOf = (s: Pick<LibraryDoc, "requests" | "products">) => JSON.stringify({ version: 1, requests: s.requests, products: s.products });
+
+/** Compare the saved and canonical catalogue after the same version-1 display defaults.
+ * A fresh raw document alone does not mean this tab has incorporated another tab's work. */
+const normalizedRecords = (records: Pick<LibraryDoc, "requests" | "products">) => ({
+  requests: records.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r, records.requests) } } : {}) })),
+  products: records.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })),
+});
+function savedCatalogueMatches(state: Pick<LibraryDoc, "requests" | "products">, raw: string | null): boolean {
+  if(raw === null) return state.requests.length === 0 && state.products.length === 0;
+  try {
+    const doc = JSON.parse(raw) as Partial<LibraryDoc>;
+    return doc.version === 1 && Array.isArray(doc.requests) && Array.isArray(doc.products)
+      && recordsFingerprint(normalizedRecords(state)) === recordsFingerprint(normalizedRecords(doc as LibraryDoc));
+  } catch { return false; }
+}
+
 
 /** Browsers report a full store as QuotaExceededError (code 22, or 1014 in old Firefox). */
 export function isQuotaError(error: unknown): boolean {
@@ -218,7 +240,7 @@ export function initializeProductLibrary(force = false): void {
         && (r.submission === undefined || isExactProduct(r.submission) && (r.submission.installationGeometry === undefined || validInstallationGeometry(r.submission.installationGeometry))))) throw new Error("Invalid product identity evidence. Original browser data was kept.");
       if (!doc.products.every(p => isProductSpecification({ category: p.category, fields: p.fields, acceptedAt: p.acceptedAt, recordingMode: p.recordingMode })) || !doc.requests.every(r => (!r.mode || r.mode === "human-measurement") && (r.evidenceOriginRequestId === undefined || typeof r.evidenceOriginRequestId === "string") && (r.submission === undefined || isProductSpecification({ category: r.category, fields: r.submission.fields, acceptedAt: r.submission.at, recordingMode: r.mode })) && (!r.measurementDraft || isProductSpecification({ category: r.category, fields: r.measurementDraft, acceptedAt: r.createdAt, recordingMode: r.mode })))) throw new Error("Invalid product measurement evidence. Original browser data was kept.");
       if (!doc.products.every(p => p.revision === undefined || validProductRevision(p.revision)) || !doc.requests.every(r => r.revisionOf === undefined || typeof r.revisionOf === "string")) throw new Error("Invalid product revision history. Original browser data was kept.");
-      productStore.setState({ loadError: null, requests: doc.requests.map(r => ({ ...r, known: { ...r.known, identity: identityOf(r.known) }, ...(r.status === "submitted" && r.submission ? { submission: { ...r.submission, warnings: productReviewWarnings(r, doc.requests) } } : {}) })), products: doc.products.map(p => ({ ...p, identity: identityOf(p), components: p.components ?? [], componentsStatus: p.componentsStatus ?? "unknown" })) });
+      productStore.setState({ loadError: null, ...normalizedRecords(doc as LibraryDoc) });
     }
     ready = true;
   } catch (error) {
@@ -241,6 +263,75 @@ const updateRequest = (id: string, patch: Partial<ProductRequest>) =>
 const findRequest = (id: string): ProductRequest | undefined => productStore.getState().requests.find((r) => r.id === id);
 
 export const products = {
+  /** Manual human transfer only. No catalogue/import write capability is exposed to agents. */
+  async exportBundle(selection: { requestIds: string[]; productIds: string[] }): Promise<LibraryResult> {
+    try {
+      if (productStore.getState().loadError) return fail("Resolve the unreadable library before exporting evidence.");
+      const state = productStore.getState(), before = recordsFingerprint(state);
+      const bundle = await exportCatalogueBundle(state, selection, id => io.files.get(id));
+      if (recordsFingerprint(productStore.getState()) !== before) return fail("Catalogue changed while exporting. Export the current evidence again.");
+      return ok(`Original-file bundle ready: ${bundle.products.length} products, ${bundle.requests.length} requests and ${bundle.files.length} original files.`, { bundle });
+    } catch(error) { return fail(error instanceof Error ? error.message : String(error)); }
+  },
+
+  async previewBundle(raw: string): Promise<LibraryResult> {
+    try {
+      if (!io.local() || productStore.getState().loadError) return fail("Readable browser storage is required before importing catalogue evidence.");
+      const state = productStore.getState(), local = io.local()!, before = recordsFingerprint(state), rawBase = local.getItem(PRODUCTS_KEY);
+      if (!savedCatalogueMatches(state, rawBase)) return fail("The saved catalogue changed in another tab or no longer matches this tab. Reload the page to read the saved catalogue before previewing; nothing was imported or overwritten.");
+      const preview = await previewCatalogueBundle(raw, state, rawBase, id => io.files.get(id), io.extract);
+      if (recordsFingerprint(productStore.getState()) !== before || local.getItem(PRODUCTS_KEY) !== rawBase) return fail("Catalogue changed during preview. Preview the bundle again.");
+      bundlePreviews.set(preview, previewSignature(preview));
+      return ok(`Preview: ${preview.additions.products.length} products, ${preview.additions.requests.length} requests and ${preview.files.length} original files to add${preview.reused ? "; already present unchanged" : ""}.`, { preview });
+    } catch(error) { return fail(error instanceof Error ? error.message : String(error)); }
+  },
+
+  async importBundle(preview: BundlePreview): Promise<LibraryResult> {
+    const local = io.local(), state = productStore.getState(), staged: string[] = [];
+    let attemptedPersistence = false, attemptedPublication = false;
+    let attemptedDocument: string | null = null;
+    if (bundleCommitInFlight) return fail("Another catalogue import is still committing.");
+    if (!local || state.loadError || bundlePreviews.get(preview) !== previewSignature(preview)) return fail("This import preview is unavailable or changed. Preview the original bundle again.");
+    const unchanged = () => recordsFingerprint(productStore.getState()) === preview.base && local.getItem(PRODUCTS_KEY) === preview.rawBase;
+    if (!unchanged()) return fail("Catalogue changed after preview. Preview again before committing.");
+    if (preview.reused) return ok("The same records and original bytes already exist. Nothing was duplicated or overwritten.");
+    bundleCommitInFlight = true;
+    try {
+      validateBundleRecords(preview.additions);
+      for (const file of preview.files) {
+        if (await io.files.get(file.id)) throw new Error("A staged file ID is already occupied. Preview again; existing bytes were preserved.");
+        if (await bundleHash(new Uint8Array(await file.blob.arrayBuffer())) !== file.sha256) throw new Error("Preview original-file bytes changed. Preview again.");
+        if (!io.files.add) throw new Error("This file store cannot create original evidence without overwriting existing bytes. Import is unavailable.");
+        await io.files.add(file.id, file.blob);
+        staged.push(file.id);
+      }
+      if (!unchanged()) throw new Error("Catalogue changed while staging original files. Preview again.");
+      const next = { requests: [...state.requests, ...preview.additions.requests], products: [...state.products, ...preview.additions.products] };
+      // Persist once before publishing. The normal subscription must not issue a second write.
+      attemptedPersistence = true; attemptedDocument = docOf(next);
+      local.setItem(PRODUCTS_KEY, attemptedDocument);
+      const wasReady = ready; ready = false;
+      try { attemptedPublication = true; productStore.setState({ ...next, loadError: null, selectedRequestId: preview.additions.requests.at(-1)?.id ?? state.selectedRequestId }); }
+      finally { ready = wasReady; }
+      bundlePreviews.delete(preview);
+      return ok(`Imported ${preview.additions.products.length} accepted products, ${preview.additions.requests.length} requests and ${staged.length} original files. Existing project instances and selection statuses were preserved.`, { imported: preview.maps });
+    } catch(error) {
+      const rollbackErrors: string[] = [];
+      if (attemptedPublication) {
+        const wasReady = ready; ready = false;
+        // Zustand assigns state before notifying subscribers. A throwing subscriber must
+        // not leave records visible after their bytes/document are rolled back.
+        try { productStore.setState(state, true); } catch { /* Assignment already restored; subscriber errors cannot veto it. */ }
+        finally { ready = wasReady; }
+      }
+      for (const id of staged) try { await io.files.remove(id); } catch { rollbackErrors.push(id); }
+      // A conforming localStorage write is atomic. Recover write-after-save faults only
+      // while the document still belongs to this attempt; cleanup can allow newer work.
+      if (attemptedPersistence) try { if (local.getItem(PRODUCTS_KEY) === attemptedDocument) { if (preview.rawBase === null && local.removeItem) local.removeItem(PRODUCTS_KEY); else local.setItem(PRODUCTS_KEY, preview.rawBase ?? docOf(state)); } } catch { rollbackErrors.push("library document"); }
+      return fail(`${error instanceof Error ? error.message : String(error)} Catalogue was not published.${rollbackErrors.length ? ` Cleanup failed for ${rollbackErrors.join(", ")}; retained staged bytes are not visible catalogue evidence.` : " Staged files were rolled back."}`);
+    } finally { bundleCommitInFlight = false; }
+  },
+
   show(open = true) { productStore.setState({ open }); },
   select(id: string | null) { productStore.setState({ selectedRequestId: id }); },
 
