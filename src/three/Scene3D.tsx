@@ -18,7 +18,7 @@ import { buildPlan } from "./build";
 import { buildFurniture } from "./furniture";
 import { nameMeshes } from "./build";
 import { bus, EVENTS, type SetDoorsPayload } from "./exportBus";
-import { catalogByKind } from "../model/catalog";
+import { catalogForItem, catalogByKind } from "../model/catalog";
 import { itemPolygon, pointNearPolygon } from "../model/outline";
 
 export function Scene3D() {
@@ -80,7 +80,7 @@ export function Scene3D() {
     const radius = Math.max(size.x, size.z, 4);
 
     for (const it of model.items) {
-      const fg = buildFurniture(it.kind);
+      const fg = buildFurniture(it.kind, it.productGeometry);
       if (!fg) continue;
       fg.position.set(it.x, 0.04, it.y);
       fg.rotation.y = (it.rotation * Math.PI) / 180;
@@ -295,7 +295,7 @@ export function Scene3D() {
     });
 
     const itemBlockers = model.items.flatMap((it) => {
-      const c = catalogByKind(it.kind);
+      const c = catalogForItem(it);
       if (!c || c.isRug || c.h < STEP_OVER) return [];
       const th = (it.rotation * Math.PI) / 180;
       // an outlined piece (#37) blocks by its outline, so the open corner of a corner bath is walkable

@@ -11,7 +11,7 @@
 
 import type { Acknowledgement, PlanModel, Quantity, Room, Wall, WallSideName } from "../model/types";
 import type { LibraryProduct } from "../model/productLibrary";
-import { catalogByKind, isBuiltInKind } from "../model/catalog";
+import { catalogForItem, catalogByKind, isBuiltInKind } from "../model/catalog";
 import { rectCorners, segLen, type Pt } from "../model/geometry";
 import { openingSpan } from "../model/issues";
 import { input, known, layerLabel, resolveFace, sideFaces, sideNormal, wallBody, weakest } from "../model/faces";
@@ -118,7 +118,7 @@ export function catalogue(model: PlanModel): Catalogue {
     for (const p of r.drainage?.planes ?? []) add({ id: `room:${r.id}:plane:${p.id}`, layer: "drainage-planes", type: "floor-plane", label: `${r.label}: ${p.label}`, ref: r.id, sub: p.id });
   }
   for (const it of model.items) {
-    const label = catalogByKind(it.kind)?.label ?? it.kind;
+    const label = catalogForItem(it)?.label ?? it.kind;
     add({ id: `item:${it.id}`, layer: "fixtures", type: "fixture", label: `${label} (${it.id})`, ref: it.id });
     for (const sp of it.servicePoints ?? []) add({ id: `item:${it.id}:sp:${sp.id}`, layer: `services-${sp.service}` as LayerId, type: "service-point", label: `${label}: ${sp.label}`, ref: it.id, sub: sp.id });
   }
@@ -282,7 +282,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   // fixtures and service points
   const it = model.items.find((x) => x.id === el.ref)!;
   if (el.type === "fixture") {
-    const cat = catalogByKind(it.kind);
+    const cat = catalogForItem(it);
     row("footprint w × d (mm)", cat ? { value: `${mm(cat.w)} × ${mm(cat.d)}`, status: it.productId ? "published" : isBuiltInKind(it.kind) ? "defaulted" : "entered" } : { value: "?", status: "unknown", missing: [`kind ${it.kind}`] });
     if (it.anchor) {
       const pose = anchorPose(model, it);

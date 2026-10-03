@@ -11,7 +11,7 @@ import { tilingLayout } from "../model/tiling";
 import type { Item, LayerKind, Opening, PlanModel, Room, Wall } from "../model/types";
 import { liningSlabs, resolveFace, sideNormal, wallBody } from "../model/faces";
 import { roughIn } from "../model/fixtures";
-import { catalogByKind } from "../model/catalog";
+import { catalogForItem, catalogByKind } from "../model/catalog";
 import { segLen } from "../model/geometry";
 import { openingSpan } from "../model/issues";
 
@@ -599,7 +599,7 @@ function blockedInFront(wall: Wall, o: Opening, items: Item[]): boolean {
   const cx = wall.ax + dx * o.t * len;
   const cy = wall.ay + dy * o.t * len;
   for (const it of items) {
-    const cat = catalogByKind(it.kind);
+    const cat = catalogForItem(it);
     if (!cat || cat.isRug) continue;
     const radius = Math.max(cat.w, cat.d) / 2;
     const vx = it.x - cx;

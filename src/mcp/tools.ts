@@ -9,12 +9,13 @@ import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { SHEETS, checkSheet, reconcile, type AckInput } from "../sheets/check";
 import { catalogue, renderStageDiagram, renderStageSpec } from "../sheets/stageView";
 import { applyView, composeView, currentView, recordExport, savedViews } from "../sheets/viewState";
+import { planningEvidence } from "../model/productRevision";
 import { recordIssued } from "../sheets/issued";
 import { floorTileLayout } from "../model/floorTiling";
 import { floorCutRows, renderFloorTilingSheet } from "../sheets/floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "../model/tiling";
 import { cutRows, renderTilingSheet } from "../sheets/tiling";
-import { catalogByKind } from "../model/catalog";
+import { catalogForItem, catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
 import type { WallSideName } from "../model/types";
 import { drainageProblems, heightAt, planeSurface, sectionAlong, surfaces, thresholds } from "../model/drainage";
@@ -787,7 +788,7 @@ export const TOOLS: ToolDef[] = [
       const opts = { label: view.label, findings: c.findings, acknowledged: result.acknowledged, date: new Date().toISOString().slice(0, 10), note, products };
       const svg = renderStageDiagram(s.model, c.resolution.elements, opts);
       const spec = renderStageSpec(s.model, c.resolution.elements, opts);
-      recordExport({ projectId: s.activeProjectId, label: view.label, date: opts.date, svg, specHtml: spec.html, elements: c.resolution.elements.map((e) => e.id), at: Date.now() });
+      recordExport({ projectId: s.activeProjectId, label: view.label, date: opts.date, svg, specHtml: spec.html, elements: c.resolution.elements.map((e) => e.id), at: Date.now(), modelEvidence: planningEvidence(s.model) });
       const advisory = c.findings.filter((f) => f.severity === "advisory").length;
       return {
         ok: true,
@@ -864,7 +865,7 @@ export const TOOLS: ToolDef[] = [
         const points = roughIn(model, it);
         return {
           id: it.id,
-          label: catalogByKind(it.kind)?.label ?? it.kind,
+          label: catalogForItem(it)?.label ?? it.kind,
           ...(it.productId ? { productId: it.productId } : {}),
           productIdentity: it.productIdentity ?? null,
           selectionStatus: it.selectionStatus ?? "unknown",

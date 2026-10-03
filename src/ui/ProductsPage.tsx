@@ -7,6 +7,7 @@
 import { Link, viewAttachment } from "./ProductSource";
 import { ExactIdentity, IdentityEditor } from "./ProductIdentity";
 import { ProductReviewSummary } from "./ProductReviewSummary";
+import { ProductRevisionActions, RevisionDraftEvidence } from "./ProductRevisions";
 import { currentReview } from "../model/productReview";
 import { unknownIdentity, identityOf, identityText, type ProductComponent } from "../model/productIdentity";
 import { useEffect, useState } from "react";
@@ -253,6 +254,7 @@ function RequestDetail({ req }: { req: ProductRequest }) {
       <span className="hint">Request <code>{req.id}</code> · status <b data-status={req.status}>{req.status}</b></span>
       {Object.entries(req.known).filter(([k]) => !["identity", "components", "componentsStatus"].includes(k)).map(([k, v]) => <span key={k} className="hint">{k}: {k === "link" ? <Link url={String(v)}>{String(v)}</Link> : String(v)}</span>)}
       {req.feedback && <div className="inspector-warn">Returned to the agent: {req.feedback}</div>}
+      <RevisionDraftEvidence request={req}/>
       <span>Request evidence</span>
       <ExactIdentity product={{ manufacturer: req.known.brand ?? "", model: req.known.model ?? "", identity: req.known.identity, components: req.known.components, componentsStatus: req.known.componentsStatus }} />
       <Attachments req={req} />
@@ -321,6 +323,7 @@ function ProductCard({ p }: { p: LibraryProduct }) {
         </table>
       )}
       <button type="button" onClick={() => human("remove_product", products.removeProduct(p.id))}>Remove from library</button>
+      <ProductRevisionActions product={p}/>
     </details>
   );
 }

@@ -6,7 +6,7 @@
  */
 
 import type { PlanModel, SheetRevision, Wall, WallSideName } from "../model/types";
-import { catalogByKind } from "../model/catalog";
+import { catalogForItem, catalogByKind } from "../model/catalog";
 import { pointSegDist, rectCorners, segLen, type ORect, type Pt } from "../model/geometry";
 import { openingSpan } from "../model/issues";
 import { resolveFace, sideFaces, sideNormal, layerLabel } from "../model/faces";
@@ -174,10 +174,10 @@ export function renderFloorPlan(model: PlanModel, opts: RenderOptions): string {
   }
 
   // ---- fixtures, set-out, service points ----
-  const fixtures = model.items.filter((it) => catalogByKind(it.kind));
+  const fixtures = model.items.filter((it) => catalogForItem(it));
   const fixtureNo = new Map(fixtures.map((it, i) => [it.id, `F${i + 1}`]));
   for (const it of fixtures) {
-    const cat = catalogByKind(it.kind)!;
+    const cat = catalogForItem(it)!;
     poly(itemPolygon(it)!.map(P), `fill="#fff" stroke="#444" stroke-width="0.3" data-item="${esc(it.id)}"`);
     const c = P({ x: it.x, y: it.y });
     text(c.x, c.y, fixtureNo.get(it.id)!, 2.6, `text-anchor="middle" dominant-baseline="middle" font-weight="bold"`);
@@ -256,7 +256,7 @@ export function renderFloorPlan(model: PlanModel, opts: RenderOptions): string {
   heading("Rough-in (mm out from face · along from A · up from FFL)");
   const roughRows: string[] = [];
   for (const it of fixtures) {
-    const label = catalogByKind(it.kind)!.label;
+    const label = catalogForItem(it)!.label;
     roughRows.push(`${fixtureNo.get(it.id)} ${label}${it.anchor ? "" : " (not set out)"}`);
     roughIn(model, it).forEach((r, i) => {
       const fv = (face: string) => {

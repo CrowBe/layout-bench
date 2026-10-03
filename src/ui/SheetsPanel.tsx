@@ -13,6 +13,7 @@ import { recordIssued, useIssued } from "../sheets/issued";
 import { composeView, useDiagramView, useLastExport } from "../sheets/viewState";
 import { renderStageDiagram } from "../sheets/stageView";
 import { useProductStore } from "../model/productLibrary";
+import { planningEvidence } from "../model/productRevision";
 
 /**
  * The stage view an agent composed (#41): what it shows, a preview, and the last exported
@@ -39,6 +40,7 @@ function StageViewCard({ projectId, fileBase }: { projectId: string | null; file
       )}
       {exported && (
         <div className="sheets-actions">
+          <span className="hint">{exported.modelEvidence === planningEvidence(model) ? "Export matches current planning evidence." : "Historical export: current planning evidence differs or its legacy reference was not captured."}</span>
           <button type="button" onClick={() => download(`${fileBase}-${slug(exported.label)}-diagram.svg`, exported.svg, "image/svg+xml")}>Download "{exported.label}" diagram (SVG)</button>
           <button type="button" onClick={() => download(`${fileBase}-${slug(exported.label)}-spec.html`, exported.specHtml, "text/html")}>Download "{exported.label}" spec (HTML)</button>
         </div>
@@ -140,7 +142,9 @@ export function SheetsPanel() {
         <strong>Issued</strong>
         {revisions.length === 0 && <span className="hint">Nothing issued yet.</span>}
         {revisions.map((r) => (
-          <span key={r.rev} className="hint">Rev {r.rev} · {r.date}{r.note ? ` · ${r.note}` : ""}{r.acknowledged.length ? ` · ${r.acknowledged.length} acknowledged` : ""}</span>
+          <div key={r.rev} className="hint">Rev {r.rev} · {r.date}{r.note ? ` · ${r.note}` : ""}{r.acknowledged.length ? ` · ${r.acknowledged.length} acknowledged` : ""}
+            {r.content ? <><span> · {r.content.modelEvidence === planningEvidence(model) ? "matches current planning evidence" : "historical: planning evidence has changed"}</span><button type="button" onClick={() => download(`${model.name.replace(/[^\w-]+/g, "-")}-${r.sheet}-rev-${r.rev}.svg`,r.content!.svg,"image/svg+xml")}>Download issued rev {r.rev}</button><button type="button" onClick={() => printSheet(r.content!.svg)}>Print issued rev {r.rev}</button></> : <span> · legacy issue metadata; original content was not stored</span>}
+          </div>
         ))}
         {issued && (
           <div className="sheets-actions">

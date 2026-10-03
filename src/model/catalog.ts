@@ -16,6 +16,12 @@ export interface CatalogEntry {
   outline?: Outline;
 }
 
+export type CatalogLookup = (kind: string) => CatalogEntry | undefined;
+
+/** A placed product keeps the geometry accepted for that instance. */
+export const catalogForItem = (item: { kind: string; productGeometry?: CatalogEntry }, lookup: CatalogLookup = catalogByKind): CatalogEntry | undefined =>
+  item.productGeometry?.kind === item.kind ? item.productGeometry : lookup(item.kind);
+
 export const CATALOG: CatalogEntry[] = [
   { kind: "sofa", label: "Sofa", w: 2.1, d: 0.9, h: 0.85, color: "#7a8ba0", category: "living" },
   { kind: "sofa_3", label: "Sofa (3-seat)", w: 2.6, d: 0.95, h: 0.82, color: "#6f8095", category: "living" },

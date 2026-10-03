@@ -7,7 +7,7 @@
  */
 
 import type { CatalogEntry } from "./catalog";
-import { catalogByKind } from "./catalog";
+import { catalogForItem, catalogByKind, type CatalogLookup } from "./catalog";
 import type { Pt } from "./geometry";
 
 export interface OutlineSegment {
@@ -90,8 +90,8 @@ export function toWorld(local: Pt[], item: { x: number; y: number; rotation: num
 }
 
 /** An item's footprint on the plan, or null for an unknown kind. */
-export function itemPolygon(item: { kind: string; x: number; y: number; rotation: number }): Pt[] | null {
-  const cat = catalogByKind(item.kind);
+export function itemPolygon(item: { kind: string; x: number; y: number; rotation: number; productGeometry?: CatalogEntry }, lookup: CatalogLookup = catalogByKind): Pt[] | null {
+  const cat = catalogForItem(item, lookup);
   return cat ? toWorld(kindPolygon(cat), item) : null;
 }
 

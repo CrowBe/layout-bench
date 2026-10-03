@@ -21,7 +21,7 @@ import {
   type ORect,
   type Pt,
 } from "./geometry";
-import { catalogByKind } from "./catalog";
+import { catalogForItem, catalogByKind, type CatalogLookup } from "./catalog";
 import { sideProblems } from "./faces";
 import { floorProblems } from "./floor";
 import { heatingProblems } from "./heating";
@@ -60,7 +60,7 @@ export function clampOpeningT(wall: Wall, width: number, t: number): number | nu
   return Math.min(hi, Math.max(lo, t));
 }
 
-export function checkModel(model: PlanModel): Issue[] {
+export function checkModel(model: PlanModel, lookup: CatalogLookup = catalogByKind): Issue[] {
   const issues: Issue[] = [];
   const { walls, openings, rooms, items } = model;
 
@@ -308,10 +308,10 @@ export function checkModel(model: PlanModel): Issue[] {
   // ---- Furniture ---------------------------------------------------------------
   // every piece is checked by its real footprint: its outline (#37) or its w × d rectangle,
   // built once per check rather than once per pair
-  const footprint = new Map(items.map((it) => [it.id, itemPolygon(it)]));
+  const footprint = new Map(items.map((it) => [it.id, itemPolygon(it, lookup)]));
 
   for (const it of items) {
-    const cat = catalogByKind(it.kind);
+    const cat = catalogForItem(it, lookup);
     if (!cat) {
       issues.push({
         severity: "error",
@@ -368,7 +368,7 @@ export function checkModel(model: PlanModel): Issue[] {
     // vs other furniture (rugs exempt)
     for (const other of items) {
       if (other.id <= it.id) continue;
-      const oc = catalogByKind(other.kind);
+      const oc = catalogForItem(other, lookup);
       if (!oc) continue;
       if (cat.isRug || oc.isRug) continue;
       const or2 = footprint.get(other.id)!;
@@ -398,6 +398,6 @@ export function checkModel(model: PlanModel): Issue[] {
   }
 
   for (const room of rooms) issues.push(...heatingProblems(room).map((p) => ({ ...p, refs: [room.id] })));
-  issues.push(...fixtureProblems(model));
+  issues.push(...fixtureProblems(model, lookup));
   return issues;
 }
