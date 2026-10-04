@@ -451,7 +451,7 @@ export const TOOLS: ToolDef[] = [
     name: "set_floor_tiling",
     title: "Propose a floor tile set-out",
     description:
-      "Record a proposed floor pattern for one rectangular room or explicit drainage plane. Units metres with {value,status,source?}. tileLength/Width are long/short edges; axis x or y aligns the long edge in plan. zone is room or a drainage plane id. originX/Y locate a tile's upper-left edge from finished west/north faces. Nothing defaults: missing wall face build-ups, tile inputs and drain cuts stay unresolved. null clears a field; clear removes the proposal. Never an ordering quantity or trade approval.",
+      "Record a proposed floor pattern for one rectangular room or explicit drainage plane. Units metres with {value,status,source?}. tileLength/Width are long/short edges; axis x or y aligns the long edge in plan. zone is room or a drainage plane id. originX/Y locate a tile's edge from the finished west/north faces, or from east/south with originXFrom/originYFrom (e.g. full tiles at a south doorway). Nothing defaults: missing wall face build-ups, tile inputs and drain cuts stay unresolved. null clears a field; clear removes the proposal. Never an ordering quantity or trade approval.",
     inputSchema: obj(
       {
         room: str,
@@ -460,6 +460,8 @@ export const TOOLS: ToolDef[] = [
         joint: quantitySchema,
         originX: quantitySchema,
         originY: quantitySchema,
+        originXFrom: { type: ["string", "null"], enum: ["west", "east", null], description: "face originX is taken from (default west: a tile's west edge; east: its east edge)" },
+        originYFrom: { type: ["string", "null"], enum: ["north", "south", null], description: "face originY is taken from (default north: a tile's north edge; south: its south edge)" },
         axis: { type: ["string", "null"], enum: ["x", "y", null] },
         zone: { type: ["string", "null"] },
         note: { type: ["string", "null"] },
@@ -522,7 +524,7 @@ export const TOOLS: ToolDef[] = [
     name: "set_wall_tiling",
     title: "Propose a wall tile set-out",
     description:
-      "Record a PROPOSED tile set-out on one side of one wall, for review with a tiler. Lengths are metres, each { value, status }; tile sizes, joint, origin and tiled height are the user's choices, so record them as proposed (or published for a manufacturer's nominal size) and never invent them: leave out what the user has not given and the set-out reports it as unresolved. tileLength is the long edge, tileWidth the short edge; orientation landscape lays the long edge along the wall, portrait up it. reference: the face of each return wall the run is cut to, board (the fixed board face, e.g. Villaboard) or finished (tile face); it comes from set_wall_side build-ups, so record those first. floor: the level the courses are measured from, finished (top of the room's floor build-up), screed, substrate, or datum (0). Origin: one full tile sits originAlong from originFrom: a, its A-side edge from end A's reference face; b, its B-side edge from end B's reference face (both positive into the run); centre, its A-side edge from the run's centre (negative toward A), and the bottom of one full course is originUp above the floor reference. tiledHeight: top of tiling above the floor reference. Fields sent replace what is stored; null clears one; clear: true removes the side's set-out. Read the cuts with get_wall_tiling. This is not as-built, not a procurement list and not a waterproofing compliance statement.",
+      "Record a PROPOSED tile set-out on one side of one wall, for review with a tiler. Lengths are metres, each { value, status }; tile sizes, joint, origin and tiled height are the user's choices, so record them as proposed (or published for a manufacturer's nominal size) and never invent them: leave out what the user has not given and the set-out reports it as unresolved. tileLength is the long edge, tileWidth the short edge; orientation landscape lays the long edge along the wall, portrait up it. reference: the face of each return wall the run is cut to, board (the fixed board face, e.g. Villaboard) or finished (tile face); it comes from set_wall_side build-ups, so record those first. floor: the level the courses are measured from, finished (top of the room's floor build-up), screed, substrate, or datum (0). Origin: one full tile sits originAlong from originFrom: a, its A-side edge from end A's reference face; b, its B-side edge from end B's reference face (both positive into the run); centre, its A-side edge from the run's centre (negative toward A); jamb-a / jamb-b, from that jamb of originOpening (the jamb nearer end A / B) to the edge of a tile beside it, the tiles running away from the opening toward that end (full tiles start at a door, cuts go to the far corner), and the bottom of one full course is originUp above the floor reference. tiledHeight: top of tiling above the floor reference. Fields sent replace what is stored; null clears one; clear: true removes the side's set-out. Read the cuts with get_wall_tiling. This is not as-built, not a procurement list and not a waterproofing compliance statement.",
     inputSchema: obj({
       wallId: str, side: sideSchema,
       tileLength: quantitySchema, tileWidth: quantitySchema,
@@ -531,6 +533,7 @@ export const TOOLS: ToolDef[] = [
       reference: { type: ["string", "null"], enum: [...TILE_REFERENCES, null] },
       floor: { type: ["string", "null"], enum: [...TILE_FLOOR_REFERENCES, null] },
       originFrom: { type: ["string", "null"], enum: [...TILE_ORIGIN_FROM, null] },
+      originOpening: { type: ["string", "null"], description: "with originFrom jamb-a / jamb-b: the id of an opening on this wall" },
       originAlong: quantitySchema, originUp: quantitySchema, tiledHeight: quantitySchema,
       note: { type: ["string", "null"] }, clear: { type: "boolean" },
     }, ["wallId", "side"]),

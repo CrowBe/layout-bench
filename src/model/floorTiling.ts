@@ -270,10 +270,11 @@ export function floorTileLayout(model: PlanModel, room: Room): FloorTileLayout {
         ? { x: t.tileLength.value, y: t.tileWidth.value }
         : { x: t.tileWidth.value, y: t.tileLength.value };
   if (known(t.joint)) l.joint = t.joint.value;
-  if (l.bounds && known(t.originX) && known(t.originY))
+  if (l.bounds && known(t.originX) && known(t.originY) && (l.tile || (t.originXFrom !== "east" && t.originYFrom !== "south")))
     l.origin = {
-      x: quantize(fv("west")! + t.originX.value),
-      y: quantize(fv("north")! + t.originY.value),
+      // from the east or south face, originX/Y run back into the room to the tile's far edge
+      x: quantize(t.originXFrom === "east" ? fv("east")! - t.originX.value - l.tile!.x : fv("west")! + t.originX.value),
+      y: quantize(t.originYFrom === "south" ? fv("south")! - t.originY.value - l.tile!.y : fv("north")! + t.originY.value),
     };
   if (
     !l.bounds ||

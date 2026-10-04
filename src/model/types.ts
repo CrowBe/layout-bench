@@ -35,7 +35,9 @@ export type TileFloorReference = "finished" | "screed" | "substrate" | "datum";
  *
  * The origin is one full tile `originAlong` from `originFrom`: from end A's limit face to the
  * tile's A-side edge, from end B's limit face to its B-side edge (both positive into the run),
- * or from the run's centre to its A-side edge (negative toward A). Its bottom edge is one full
+ * or from the run's centre to its A-side edge (negative toward A). From an opening's jamb
+ * (jamb-a: the jamb nearer end A, tiles running toward A; jamb-b likewise toward B) it is
+ * the distance from that jamb to the tile's edge facing it. Its bottom edge is one full
  * course `originUp` above the floor reference.
  */
 export interface WallTiling {
@@ -47,7 +49,10 @@ export interface WallTiling {
   joint?: Quantity;
   reference?: TileReferenceFace;
   floor?: TileFloorReference;
-  originFrom?: "a" | "b" | "centre";
+  /** jamb-a / jamb-b: from that jamb of `originOpening`, tiles running away from the opening toward that end */
+  originFrom?: "a" | "b" | "centre" | "jamb-a" | "jamb-b";
+  /** the opening a jamb origin is measured from */
+  originOpening?: string;
   originAlong?: Quantity;
   originUp?: Quantity;
   /** top of the tiling above the floor reference */
@@ -190,6 +195,10 @@ export interface FloorTiling {
   zone?: "room" | string;
   originX?: Quantity;
   originY?: Quantity;
+  /** which finished face originX is measured from (default west: a tile's west edge; east: its east edge) */
+  originXFrom?: "west" | "east";
+  /** which finished face originY is measured from (default north: a tile's north edge; south: its south edge) */
+  originYFrom?: "north" | "south";
   note?: string;
 }
 

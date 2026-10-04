@@ -38,13 +38,17 @@ describe("owner's construction spec in the sample", () => {
     for (const id of ["wall_e", "wall_s", "wall_w"]) expect(wall(m, id).tiling!.right).toMatchObject({ tileLength: { value: 0.6 }, tileWidth: { value: 0.6 } });
     expect(wall(m, "wall_n").tiling!.right).toMatchObject({ tileLength: { value: 0.6 }, tileWidth: { value: 0.3 }, orientation: "portrait" });
     expect(m.rooms[0].floorTiling).toMatchObject({ tileLength: { value: 0.6 }, tileWidth: { value: 0.3 }, axis: "y", joint: { value: 0.004 } });
-    for (const w of m.walls) expect(w.tiling!.right!.tiledHeight!.value).toBeCloseTo(2.412, 6);
+    // four full courses on a thin base joint
+    for (const w of m.walls) expect([w.tiling!.right!.originUp!.value, w.tiling!.right!.tiledHeight!.value]).toEqual([0.004, 2.416]);
+    // full tiles start at the door end
+    expect(wall(m, "wall_s").tiling!.right).toMatchObject({ originFrom: "jamb-a", originOpening: "door_s" });
+    expect(m.rooms[0].floorTiling).toMatchObject({ originXFrom: "west", originYFrom: "south" });
     // unknown floor and wall thicknesses: no courses or cuts are given yet
     expect(tilingLayout(m, wall(m, "wall_e"), "right").cuts).toBeUndefined();
     expect(floorTileLayout(m, m.rooms[0]).resolved).toBe(false);
   });
 
-  it("gives four full 600 mm courses on every wall once the thicknesses are entered", () => {
+  it("gives four full courses and full tiles at the door end once the thicknesses are entered", () => {
     const m = sample();
     const t = (value: number) => ({ value, status: "proposed" as const, source: "test" });
     const fb = m.rooms[0].floorBuildUp!;
@@ -52,11 +56,19 @@ describe("owner's construction spec in the sample", () => {
     fb.layers.forEach((l, i) => (l.thickness = t([0.001, 0.035, 0.004, 0.01][i])));
     for (const w of m.walls) w.sides!.right!.layers.forEach((l) => l.kind !== "board" && (l.thickness = t(l.kind === "adhesive" ? 0.004 : 0.01)));
     for (const w of m.walls) {
-      w.tiling!.right = { ...w.tiling!.right, reference: "board", originFrom: "centre", originAlong: t(0) };
       w.height = 2.6; // a ceiling that clears four courses
       const l = tilingLayout(m, w, "right");
       expect(l.rows, w.id).toBe(4);
       expect(l.cuts!.bottom.full && l.cuts!.top.full, w.id).toBe(true);
     }
+    // side walls: the full tile is at the door-wall corner, the cut at the window wall
+    expect(tilingLayout(m, wall(m, "wall_w"), "right").cuts!.a.full).toBe(true);
+    expect(tilingLayout(m, wall(m, "wall_e"), "right").cuts!.b.full).toBe(true);
+    // door wall: a full tile stands against the door's jamb, on the far side from the corner
+    const door = tilingLayout(m, wall(m, "wall_s"), "right").openings.find((o) => o.openingId === "door_s")!;
+    expect(door.jambA!.full).toBe(true);
+    // floor: full row at the doorway, full column along the left wall
+    const floor = floorTileLayout(m, m.rooms[0]);
+    expect(floor.cuts!.south.full && floor.cuts!.west.full).toBe(true);
   });
 });

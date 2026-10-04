@@ -189,7 +189,22 @@ const WHITE = "600 × 600 white gloss, a few light grey streaks";
 const BEIGE = "300 × 600 sandy beige matte";
 const JOINT = proposed(0.004, "owner: \"glue probably 4mm gaps\", read as the joint between tiles; adhesive bed thickness not given");
 /** Four full 600 mm courses and the three joints between them, from the finished floor. */
-const FOUR_COURSES = proposed(4 * 0.6 + 3 * 0.004, "owner: four full 600 mm courses; the rest of the height gets a timber trim later");
+/** A thin joint of silicone or tile adhesive under the bottom course; its width is not given, so 4 mm (as the tile joints) is an estimate. */
+const BASE_JOINT: Quantity = { value: 0.004, status: "estimated", source: "owner: a thin joint of silicone or tile glue at the floor; 4 mm assumed, the same as the tile joints" };
+/** Four full 600 mm courses above that joint, with the three joints between them. */
+const FOUR_COURSES: Quantity = { value: 0.004 + 4 * 0.6 + 3 * 0.004, status: "estimated", source: "owner: four full 600 mm courses on the base joint; the rest of the height gets a timber trim later" };
+/**
+ * Full tiles start at the door end so the cuts land away from the door: the side walls from
+ * their door-wall corner, the door wall from the door's jamb toward the far corner, and the
+ * window wall from the corner nearer the door (the door sits by the left wall), in line with
+ * the floor's columns. Runs are cut to the tile faces of the walls they meet.
+ */
+const START: Record<string, Pick<WallTiling, "reference" | "originFrom" | "originOpening" | "originAlong">> = {
+  wall_w: { reference: "finished", originFrom: "a", originAlong: proposed(0, "owner: start near the door with full tiles") },
+  wall_e: { reference: "finished", originFrom: "b", originAlong: proposed(0, "owner: start near the door with full tiles") },
+  wall_s: { reference: "finished", originFrom: "jamb-a", originOpening: "door_s", originAlong: proposed(0, "owner: start near the door with full tiles") },
+  wall_n: { reference: "finished", originFrom: "a", originAlong: proposed(0, "owner: start near the door with full tiles; columns in line with the floor") },
+};
 
 const side = (wall: string, tile: string): WallSide => ({
   existing: { value: 0.05, status: "measured", source: SURVEY },
@@ -200,13 +215,13 @@ const side = (wall: string, tile: string): WallSide => ({
     { id: `${wall}_tile`, kind: "tile", name: tile, thickness: unknown() },
   ],
 });
-/** Vertical set-out only: four full 600 mm courses on every wall. The horizontal set-out is not chosen yet. */
-const courses = (tile: "white" | "beige"): WallTiling => tile === "white"
-  ? { tileLength: proposed(0.6), tileWidth: proposed(0.6), orientation: "landscape", joint: JOINT, floor: "finished", originUp: proposed(0), tiledHeight: FOUR_COURSES, note: `${WHITE}. Four full courses; timber trim above, later.` }
-  : { tileLength: proposed(0.6), tileWidth: proposed(0.3), orientation: "portrait", joint: JOINT, floor: "finished", originUp: proposed(0), tiledHeight: FOUR_COURSES, note: `${BEIGE}, the floor tile carried up the window wall: long side vertical so its courses match the 600 mm courses on the other walls. Timber trim above, later.` };
+/** Four full 600 mm courses on every wall, starting from the door end. */
+const courses = (wall: string, tile: "white" | "beige"): WallTiling => tile === "white"
+  ? { tileLength: proposed(0.6), tileWidth: proposed(0.6), orientation: "landscape", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${WHITE}. Four full courses; full tiles start at the door end; timber trim above, later.` }
+  : { tileLength: proposed(0.6), tileWidth: proposed(0.3), orientation: "portrait", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${BEIGE}, the floor tile carried up the window wall: long side vertical so its courses match the 600 mm courses on the other walls. Timber trim above, later.` };
 const wall = (id: string, ax: number, ay: number, bx: number, by: number, tile: "white" | "beige"): Wall => ({
   id, ax, ay, bx, by, thickness: 0.1, height: 2.4,
-  sides: { right: side(id, tile === "white" ? WHITE : BEIGE) }, tiling: { right: courses(tile) },
+  sides: { right: side(id, tile === "white" ? WHITE : BEIGE) }, tiling: { right: courses(id, tile) },
 });
 
 export const seedBathroom = (): PlanModel => ({
@@ -236,7 +251,13 @@ export const seedBathroom = (): PlanModel => ({
       ],
     },
     // long side runs toward the window wall, then carries on up it
-    floorTiling: { tileLength: proposed(0.6), tileWidth: proposed(0.3), joint: JOINT, axis: "y", zone: "room", note: `${BEIGE}. Long side runs toward the window wall and continues up it. Origin not chosen yet.` },
+    // full tiles at the doorway (south) and along the left wall the door sits beside; the cut row lands at the window wall
+    floorTiling: {
+      tileLength: proposed(0.6), tileWidth: proposed(0.3), joint: JOINT, axis: "y", zone: "room",
+      originX: proposed(0, "owner: start near the door with full tiles"), originXFrom: "west",
+      originY: proposed(0, "owner: start near the door with full tiles"), originYFrom: "south",
+      note: `${BEIGE}. Long side runs toward the window wall and continues up it. Full tiles start at the doorway.`,
+    },
     heating: {
       model: "SCK0765L", length: { value: 42.5, status: "published", source: "carton label" }, ratedOutput: { value: 765, status: "published", source: "carton label" },
       screedLayerId: "floor_screed", zoneIds: ["bathroom"], path: [], keepouts: [],
@@ -285,11 +306,11 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-tiles", author: "human", at: at + 7,
-      text: "Tiles: left, right and door walls 600 × 600 white gloss with a few light grey streaks. Floor and window wall 300 × 600 sandy beige matte: on the floor the long side runs toward the window wall, and it carries on up the window wall with the long side vertical so its courses match the other walls. Every wall gets four full 600 mm courses (2412 mm with 4 mm joints, from the finished floor); the rest of the height is a timber trim, later. Joints about 4 mm.",
+      text: "Tiles: left, right and door walls 600 × 600 white gloss with a few light grey streaks. Floor and window wall 300 × 600 sandy beige matte: on the floor the long side runs toward the window wall, and it carries on up the window wall with the long side vertical so its courses match the other walls. Every wall gets four full 600 mm courses on a thin joint of silicone or tile glue at the floor (about 2416 mm in all with 4 mm joints); the rest of the height is a timber trim, later. Joints about 4 mm. To keep cuts down, full tiles start at the door: at the doorway on the floor, at the door-wall corner on the side walls, at the door's jamb on the door wall, and at the corner nearer the door on the window wall.",
     },
     {
       id: "note-tiles-open", author: "agent", at: at + 8,
-      text: "Open before the tile cuts can be worked out: tile, adhesive, screed and membrane thicknesses, and the concrete level; whether the 4 mm is the joint (as recorded) or the adhesive bed; whether the bottom course sits on the floor tile or leaves a gap; where the horizontal set-out starts on each wall and on the floor; the real ceiling height (the 2400 mm wall height is entered, not measured, and four courses reach 2412 mm above the finished floor). No wall membrane is recorded: only the floor was named.",
+      text: "Open before the tile cuts can be worked out: tile, adhesive, screed and membrane thicknesses, and the concrete level; whether the 4 mm is the joint (as recorded) or the adhesive bed; the width of the silicone or glue joint under the bottom course (4 mm assumed); the real ceiling height (the 2400 mm wall height is entered, not measured, and four courses reach about 2416 mm above the finished floor). No wall membrane is recorded: only the floor was named.",
     },
     {
       id: "note-screen", author: "human", at: at + 5,

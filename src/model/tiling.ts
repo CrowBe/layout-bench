@@ -29,7 +29,7 @@ import { pointSegDist, quantize, segLen, type Pt } from "./geometry";
 export const TILE_ORIENTATIONS: TileOrientation[] = ["landscape", "portrait"];
 export const TILE_REFERENCES: TileReferenceFace[] = ["board", "finished"];
 export const TILE_FLOOR_REFERENCES: TileFloorReference[] = ["finished", "screed", "substrate", "datum"];
-export const TILE_ORIGIN_FROM = ["a", "b", "centre"] as const;
+export const TILE_ORIGIN_FROM = ["a", "b", "centre", "jamb-a", "jamb-b"] as const;
 
 export const REFERENCE_LABELS: Record<TileReferenceFace, string> = { board: "board face", finished: "finished (tile) face" };
 export const FLOOR_LABELS: Record<TileFloorReference, string> = {
@@ -144,6 +144,12 @@ export interface TilingLayout {
 const q = quantize;
 const mmText = (m: number) => `${Math.round(m * 10000) / 10} mm`;
 
+/** An opening's clear span along the drawn line from end A, metres. */
+function openingSpanOf(wall: Wall, o: Opening): [number, number] {
+  const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
+  return [o.t * len - o.width / 2, o.t * len + o.width / 2];
+}
+
 /** The room whose interior lies just off this side of the wall. */
 export function roomBeside(model: PlanModel, wall: Wall, side: WallSideName): Room | undefined {
   const n = sideNormal(wall, side);
@@ -247,7 +253,9 @@ export function tilingLayout(model: PlanModel, wall: Wall, side: WallSideName): 
   ];
   const missing = inputs.filter((i) => i.status === "unknown").map((i) => i.field);
   if (!t.orientation) missing.push("orientation (landscape or portrait)");
-  if (!t.originFrom) missing.push("origin measured from (end A, end B or centre)");
+  if (!t.originFrom) missing.push("origin measured from (end A, end B, centre or an opening jamb)");
+  const jambOpening = t.originFrom?.startsWith("jamb") ? model.openings.find((o) => o.id === t.originOpening && o.wallId === wall.id) : undefined;
+  if (t.originFrom?.startsWith("jamb") && !jambOpening) missing.push(t.originOpening ? `origin opening ${t.originOpening} (not on this wall)` : "origin opening (which opening's jamb)");
   const faceOwn = t.reference ? resolveFace(wall.sides?.[side], t.reference) : undefined;
   const limits = { a: runLimit(model, wall, side, "a", t.reference), b: runLimit(model, wall, side, "b", t.reference) };
   const floor = floorReference(model, wall, side, t.floor);
@@ -288,9 +296,13 @@ export function tilingLayout(model: PlanModel, wall: Wall, side: WallSideName): 
   if (out.tile && known(t.originAlong) && t.originFrom) {
     const from = t.originFrom;
     const ref = from === "a" ? limits.a : from === "b" ? limits.b : undefined;
-    const base = from === "centre" ? (out.run !== undefined ? limits.a.s! + out.run / 2 : undefined) : ref!.resolved ? ref!.s! : undefined;
+    const span = jambOpening ? openingSpanOf(wall, jambOpening) : undefined;
+    const base = from === "centre" ? (out.run !== undefined ? limits.a.s! + out.run / 2 : undefined)
+      : from === "jamb-a" ? span?.[0] : from === "jamb-b" ? span?.[1]
+      : ref!.resolved ? ref!.s! : undefined;
     if (base !== undefined) {
-      const s = from === "b" ? base - t.originAlong.value - out.tile.along : base + t.originAlong.value;
+      // jamb-a: the tile's B-side edge sits originAlong toward A from the jamb; jamb-b: its A-side edge toward B
+      const s = from === "b" || from === "jamb-a" ? base - t.originAlong.value - out.tile.along : from === "jamb-b" ? base + t.originAlong.value : base + t.originAlong.value;
       if (floor.resolved && known(t.originUp)) out.origin = { s: q(s), z: q(floor.level! + t.originUp.value) };
     }
   }

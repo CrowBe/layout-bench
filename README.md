@@ -212,7 +212,9 @@ A few design notes:
   (`set_wall_tiling` does the same): tile size and orientation, grout joint, whether each end is
   cut to the return wall's board (Villaboard) face or its finished face, the floor level the
   courses start from (finished, screed, substrate or the datum, read from the room's floor
-  build-up), the origin tile and the tiled height. Nothing is defaulted: an unknown input, an
+  build-up), the origin tile and the tiled height. The origin can sit at either end, the run
+  centre, or against a door or window jamb with tiles running away from it, so full tiles start
+  at the door and the cuts land in the far corner. Nothing is defaulted: an unknown input, an
   unresolved board thickness on a return wall, or a window whose size is a placeholder leaves
   the cuts unresolved and listed. The elevation shows full and cut pieces around openings; drag
   the origin tile or nudge it 10 mm and the end, opening, bottom and top cuts update with the 3D
@@ -230,7 +232,8 @@ A few design notes:
   tab previews it, issues revisions, downloads the SVG and prints to PDF.
 
 - Select a room to propose floor tile set-out at its finished wall faces. Choose the whole
-  room or one existing drainage plane, enter tile format, grout, X/Y axis and origin, then
+  room or one existing drainage plane, enter tile format, grout, X/Y axis and origin (from the
+  west or east face, and the north or south face, so full tiles can start at a doorway), then
   nudge the origin 10 mm to compare visible cuts and the exported plan. Blank or ambiguous
   wall faces stay unresolved. The diagram shows doorway transitions, wastes and fall-plane
   boundaries and flags narrow pieces or tiles crossing slope breaks. Waste aperture sizes
@@ -340,7 +343,9 @@ A few design notes:
   Villaboard; the floor back to the concrete footings layer with waterproofing under the screed and
   the heating cable in it. Left, right and door walls take 600 × 600 white gloss; the floor and
   window wall take 300 × 600 sandy beige matte, long side toward the window wall and vertical on it,
-  so every wall has four full 600 mm courses (2412 mm with 4 mm joints) and a timber trim above.
+  so every wall has four full 600 mm courses on a thin silicone or glue joint (about 2416 mm) and a
+  timber trim above. Full tiles start at the door end: the doorway on the floor, the door-wall corner
+  on the side walls, the door's jamb on the door wall, the corner nearer the door on the window wall.
   Thicknesses nobody has supplied stay unknown, so no cut is worked out until they are entered.
   The shower screen is the owner's fixed glass panel, 900 wide × 2100 high on black clips, 1200 mm
   from the window wall; the face that 1200 mm is taken to is not recorded.

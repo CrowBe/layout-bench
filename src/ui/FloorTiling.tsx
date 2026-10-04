@@ -23,8 +23,10 @@ export function FloorTiling({ room }: { room: Room }) {
     logActivity("human", "set_floor_tiling", r.summary, r.ok);
     return r;
   };
-  const move = (axis: "originX" | "originY", delta: number) => {
+  const move = (axis: "originX" | "originY", screenDelta: number) => {
     const q = t?.[axis];
+    // measured from the east or south face, moving right or down shortens the distance
+    const delta = (axis === "originX" ? t?.originXFrom === "east" : t?.originYFrom === "south") ? -screenDelta : screenDelta;
     if (q?.value !== undefined)
       set({
         [axis]: {
@@ -88,13 +90,27 @@ export function FloorTiling({ room }: { room: Room }) {
         q={t?.joint}
         onCommit={(q) => set({ joint: q })}
       />
+      <label className="field inspector-field">
+        Floor origin X measured from
+        <select aria-label="Floor origin X measured from" value={t?.originXFrom ?? "west"} onChange={(e) => set({ originXFrom: e.target.value as "west" | "east" })}>
+          <option value="west">finished west face</option>
+          <option value="east">finished east face</option>
+        </select>
+      </label>
       <QuantityField
-        label="Floor origin X from finished west (mm)"
+        label={`Floor origin X from finished ${t?.originXFrom ?? "west"} (mm)`}
         q={t?.originX}
         onCommit={(q) => set({ originX: q })}
       />
+      <label className="field inspector-field">
+        Floor origin Y measured from
+        <select aria-label="Floor origin Y measured from" value={t?.originYFrom ?? "north"} onChange={(e) => set({ originYFrom: e.target.value as "north" | "south" })}>
+          <option value="north">finished north face</option>
+          <option value="south">finished south face</option>
+        </select>
+      </label>
       <QuantityField
-        label="Floor origin Y from finished north (mm)"
+        label={`Floor origin Y from finished ${t?.originYFrom ?? "north"} (mm)`}
         q={t?.originY}
         onCommit={(q) => set({ originY: q })}
       />

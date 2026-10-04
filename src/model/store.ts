@@ -590,6 +590,7 @@ export interface DrainagePatch {
 export interface FloorTilingPatch {
   tileLength?: QuantityInput | null; tileWidth?: QuantityInput | null; joint?: QuantityInput | null;
   originX?: QuantityInput | null; originY?: QuantityInput | null; axis?: "x" | "y" | null;
+  originXFrom?: "west" | "east" | null; originYFrom?: "north" | "south" | null;
   zone?: string | null; note?: string | null; clear?: boolean;
 }
 
@@ -601,7 +602,9 @@ export interface TilingPatch {
   joint?: QuantityInput | null;
   reference?: TileReferenceFace | null;
   floor?: TileFloorReference | null;
-  originFrom?: "a" | "b" | "centre" | null;
+  originFrom?: "a" | "b" | "centre" | "jamb-a" | "jamb-b" | null;
+  /** the opening on this wall whose jamb a jamb origin is measured from */
+  originOpening?: string | null;
   originAlong?: QuantityInput | null;
   originUp?: QuantityInput | null;
   tiledHeight?: QuantityInput | null;
@@ -890,6 +893,13 @@ export const actions = {
         ...(v.source ? { source: String(v.source) } : {}),
       };
     }
+    for (const [key, allowed] of [["originXFrom", ["west", "east"]], ["originYFrom", ["north", "south"]]] as const) {
+      const v = patch[key];
+      if (v === undefined) continue;
+      if (v === null) { delete current[key]; continue; }
+      if (!(allowed as readonly string[]).includes(v)) return fail(`${key} must be ${allowed.join(" or ")}.`);
+      (current as Record<string, unknown>)[key] = v;
+    }
     if (patch.axis !== undefined) {
       if (patch.axis === null) delete current.axis;
       else if (patch.axis !== "x" && patch.axis !== "y")
@@ -976,6 +986,12 @@ export const actions = {
       choice("floor", TILE_FLOOR_REFERENCES, "floor reference"),
       choice("originFrom", TILE_ORIGIN_FROM, "originFrom"),
     ]) if (err) return fail(err);
+    if (patch.originOpening !== undefined) {
+      if (patch.originOpening === null) delete current.originOpening;
+      else if (!store.getState().model.openings.some((o) => o.id === patch.originOpening && o.wallId === wall.id)) return fail(`Rejected: originOpening must be an opening on wall ${wall.id} (${store.getState().model.openings.filter((o) => o.wallId === wall.id).map((o) => o.id).join(", ") || "none"}).`);
+      else current.originOpening = patch.originOpening;
+    }
+    if (current.originFrom?.startsWith("jamb") && !current.originOpening) return fail("Rejected: a jamb origin needs originOpening, an opening on this wall.");
     if (patch.note !== undefined) {
       if (patch.note === null || !String(patch.note).trim()) delete current.note; else current.note = String(patch.note).trim().slice(0, 500);
     }

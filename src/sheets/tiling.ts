@@ -161,7 +161,7 @@ export function renderTilingSheet(model: PlanModel, wallId: string, side: WallSi
   row(`Cut to: ${t.reference ? REFERENCE_LABELS[t.reference] : "?"} of each return wall`);
   row(`This wall's ${l.face.label}: ${l.face.offset !== undefined ? `${mm(l.face.offset)} from drawn line` : "?"}`);
   row(`Floor reference: ${l.floor.label}${l.floor.level !== undefined ? ` = +${mm(l.floor.level)} above ${l.floor.datum}` : " ?"}`);
-  row(`Origin: ${qv(t.originAlong)} from ${t.originFrom === "centre" ? "run centre" : t.originFrom ? `end ${t.originFrom.toUpperCase()} ${t.reference ?? "?"} face` : "?"}`);
+  row(`Origin: ${qv(t.originAlong)} from ${t.originFrom === "centre" ? "run centre" : t.originFrom?.startsWith("jamb") ? `${t.originOpening ?? "?"} ${t.originFrom === "jamb-a" ? "A" : "B"}-side jamb, tiles toward ${t.originFrom === "jamb-a" ? "A" : "B"}` : t.originFrom ? `end ${t.originFrom.toUpperCase()} ${t.reference ?? "?"} face` : "?"}`);
   row(`        ${qv(t.originUp)} above ${l.floor.label}`);
   row(`Tiled height: ${qv(t.tiledHeight)} above ${l.floor.label}`);
   if (l.columns !== undefined) row(`${l.columns} columns × ${l.rows} courses, ${l.pieces.filter((p) => p.cut).length} cut pieces of ${l.pieces.length}`);
