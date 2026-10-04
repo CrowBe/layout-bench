@@ -11,7 +11,7 @@
 
 import type { Acknowledgement, PlanModel } from "../model/types";
 import { checkModel } from "../model/issues";
-import { catalogByKind } from "../model/catalog";
+import { catalogForItem, catalogByKind } from "../model/catalog";
 
 export const SHEETS = [
   { id: "floor-plan", number: "A-01", title: "Floor plan, faces and rough-in" },
@@ -74,8 +74,8 @@ export function checkSheet(model: PlanModel, sheet: string): SheetFinding[] {
   }
 
   for (const it of model.items) {
-    const label = catalogByKind(it.kind)?.label ?? it.kind;
-    if (!it.anchor && (catalogByKind(it.kind)?.category === "bath" || it.servicePoints?.length)) {
+    const label = catalogForItem(it)?.label ?? it.kind;
+    if (!it.anchor && (catalogForItem(it)?.category === "bath" || it.servicePoints?.length)) {
       out.push({
         code: "fixture_not_set_out", severity: "advisory", ref: it.id,
         message: `${label} is drawn where it sits, but not set out from a wall face, so the sheet gives no set-out dimension for it.`,

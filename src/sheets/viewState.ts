@@ -20,6 +20,7 @@ export interface DiagramView {
 }
 
 export interface ExportedView {
+  modelEvidence?: string;
   projectId: string | null;
   label: string;
   date: string;

@@ -5,7 +5,7 @@ import { categoryById, type SourceRef, type FieldValue } from "./products";
 import { evidenceText } from "./productMeasurements";
 import { identityOf, type ExactProduct } from "./productIdentity";
 import type { LibraryProduct } from "./productLibrary";
-import { catalogByKind } from "./catalog";
+import { catalogByKind, catalogForItem, type CatalogLookup } from "./catalog";
 import { floorLevels, finishedLevel } from "./floor";
 import { heightAt } from "./drainage";
 import { input, known, resolveFace, weakest, VALUE_STATUSES } from "./faces";
@@ -92,8 +92,8 @@ export function geometryForPlacement(product:LibraryProduct):InstallationGeometr
   return {...(g??{status:"published",sources:evidence,datum:{across:"fixture-centreline",out:"fixture-back",up:"fixture-bottom"},handedness:"unknown"}),services:[...g?.services??[],...services]};
 }
 
-export function installationReading(model: PlanModel, item: Item) {
-  const p = item.installation, cat = catalogByKind(item.kind);
+export function installationReading(model: PlanModel, item: Item, lookup: CatalogLookup = catalogByKind) {
+  const p = item.installation, cat = catalogForItem(item,lookup);
   const limitations: string[]=[];
   if(p?.mounting === "wall" && Math.abs(((p.orientation % 360) + 360) % 360)>1e-6)limitations.push("Physical back midpoint remains on the named wall-face gap; this yaw does not represent supported flush wall mounting. Check wall intersections.");
   if (!p) return {resolved:true,bottom:0.04,top:cat ? cat.h+.04 : undefined,basis:"estimated" as ValueStatus | "unknown",missing:[] as string[],datum:"legacy display ground",limitations,topBasis:"estimated" as ValueStatus | "unknown",heightEvidence:undefined as FieldValue | undefined,bottomSource:"Legacy display ground; no entered installation datum",topSource:"Legacy catalogue height; evidence unknown",floorLevel:0.04,finishedFloorLevel:0.04};
@@ -128,8 +128,8 @@ export function installationReading(model: PlanModel, item: Item) {
   if(room?.drainage?.planes.length)finishedFloorLevel=heightAt(room.drainage,item.x,item.y).level;
   return {resolved,limitations,topBasis,heightEvidence,bottomSource,topSource,...(bottom!==undefined?{bottom,top:quantize(bottom+cat!.h)}:{}),basis,missing:[...new Set(missing)],datum:`${room?.label??"unknown room"}: ${p.floorDatum}; ${room?.floorBuildUp?.datum??"unknown floor datum"}`,floorLevel:floor?.resolved?floor.top:undefined,finishedFloorLevel};
 }
-export function localPointReading(model: PlanModel,item:Item,p:LocalPoint) {
-  const cat=catalogByKind(item.kind),lv=installationReading(model,item),missing=[...lv.missing];
+export function localPointReading(model: PlanModel,item:Item,p:LocalPoint, lookup: CatalogLookup = catalogByKind) {
+  const cat=catalogForItem(item,lookup),lv=installationReading(model,item,lookup),missing=[...lv.missing];
   if (p.x===null || p.y===null || !cat) missing.push("local plan coordinates");
   if (p.z===null)missing.push("local height");
   const face=item.anchor && model.walls.find(w=>w.id===item.anchor!.wallId);
@@ -138,14 +138,18 @@ export function localPointReading(model: PlanModel,item:Item,p:LocalPoint) {
   const level=lv.bottom!==undefined && p.z!==null ? quantize(lv.bottom+p.z):undefined;
   return {id:p.id,label:p.label,...(xy?{x:quantize(xy.x),y:quantize(xy.y)}:{}),...(level!==undefined?{level}:{}),basis:lv.resolved?weakest([input("local coordinate",{value:0,status:p.status}),{field:"placement",value:0,status:lv.basis}]):"unknown",resolved:missing.length===0,missing,source:p.sources.map(s=>`${s.url} (${s.locator})`).join("; "),local:p};
 }
-export function clearanceRegions(model:PlanModel,item:Item) {
-  const c=catalogByKind(item.kind),lv=installationReading(model,item);
+export function clearanceRegions(model:PlanModel,item:Item, lookup: CatalogLookup = catalogByKind) {
+  const c=catalogForItem(item,lookup),lv=installationReading(model,item,lookup);
   if(!c)return [];
   return (item.installationGeometry?.clearances??[]).map(r=>{
     const d=r.distance;
     let x0=-c.w/2,x1=c.w/2,y0=-c.d/2,y1=c.d/2,bottom=lv.bottom,top=lv.top;
     if(d!==null){if(r.direction==="left"){x1=x0;x0-=d;}if(r.direction==="right"){x0=x1;x1+=d;}if(r.direction==="front"){y0=y1;y1+=d;}if(r.direction==="above"){bottom=top;top=top===undefined?undefined:top+d;}if(r.direction==="below"){top=bottom;bottom=bottom===undefined?undefined:bottom-d;}}
     const polygon=toWorld([{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}].map(p=>({...p,x:item.installation?.mirror?-p.x:p.x})),item);
-    return {...r,polygon,bottom,top,placementBasis:r.direction==="below"?lv.basis:lv.topBasis,placementSource:r.direction==="below"?lv.bottomSource:lv.topSource,resolved:d!==null && lv.resolved,missing:d===null?["specified clearance distance"]:lv.missing};
+    const placementBasis=r.direction==="below"?lv.basis:lv.topBasis;
+    const placementSource=r.direction==="below"?lv.bottomSource:lv.topSource;
+    const levelBasis=weakest([{field:"installed extent",value:bottom??null,status:placementBasis},{field:"access distance",value:d,status:d===null?"unknown":r.status}]);
+    const levelSource=[placementSource,...r.sources.map(s=>`${s.url} (${s.locator})`)].filter(Boolean).join("; ");
+    return {...r,polygon,bottom,top,placementBasis,placementSource,levelBasis,levelSource,resolved:d!==null && lv.resolved,missing:d===null?["specified clearance distance"]:lv.missing};
   });
 }

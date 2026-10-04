@@ -4,12 +4,14 @@
  * product is only possible here: it is not a tool.
  */
 
+import { ProductBundles } from "./ProductBundles";
 import { Link, viewAttachment } from "./ProductSource";
 import { ExactIdentity, IdentityEditor } from "./ProductIdentity";
 import { MeasurementEditor, NewMeasurements } from "./ProductMeasurements";
 import { evidenceText, measurementFields } from "../model/productMeasurements";
 import { unknownIdentity, identityOf, identityText, exactProductLabel, type ProductComponent } from "../model/productIdentity";
 import { ProductReviewSummary } from "./ProductReviewSummary";
+import { ProductRevisionActions, RevisionDraftEvidence } from "./ProductRevisions";
 import { currentReview } from "../model/productReview";
 import { useEffect, useState } from "react";
 import { logActivity } from "../model/store";
@@ -284,6 +286,7 @@ function RequestDetail({ req }: { req: ProductRequest }) {
       {Object.entries(req.known).filter(([k]) => !["identity", "components", "componentsStatus", "physicalItem"].includes(k)).map(([k, v]) => <span key={k} className="hint">{k}: {k === "link" ? <Link url={String(v)}>{String(v)}</Link> : String(v)}</span>)}
       {req.known.physicalItem && <p className="hint">Physical item: {req.known.physicalItem.label} · manufacturer/model unknown · {req.known.physicalItem.notes}</p>}
       {req.feedback && <div className="inspector-warn">Returned to the agent: {req.feedback}</div>}
+      <RevisionDraftEvidence request={req}/>
       <span>Request evidence</span>
       <ExactIdentity product={{ manufacturer: req.known.brand ?? "", model: req.known.model ?? "", identity: req.known.identity, components: req.known.components, componentsStatus: req.known.componentsStatus }} />
       <Attachments req={req} />
@@ -353,6 +356,7 @@ function ProductCard({ p }: { p: LibraryProduct }) {
         </table>
       )}
       <button type="button" onClick={() => human("remove_product", products.removeProduct(p.id))}>Remove from library</button>
+      <ProductRevisionActions product={p}/>
       {p.physicalItem && <button type="button" onClick={() => human("open_human_measurements", products.openMeasurements(p.category, p.physicalItem!, p.fields, p.requestId))}>Record more measurements</button>}
     </details>
   );
@@ -373,6 +377,7 @@ export function ProductsPage() {
       {loadError && <div className="save-banner" role="alert">{loadError}</div>}
       <div className="products-body">
         <div className="products-col">
+          <ProductBundles />
           <NewRequest />
           <NewMeasurements />
           <section className="products-card" aria-label="Requests">

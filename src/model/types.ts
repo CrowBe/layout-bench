@@ -240,6 +240,10 @@ export interface Drainage {
 }
 
 export interface Item {
+  /** Accepted catalogue evidence and geometry pinned to this instance, independent of library edits. */
+  productSnapshot?: import("./productLibrary").LibraryProduct;
+  productGeometry?: import("./catalog").CatalogEntry;
+  productUpdates?: { from: string; to: string; at: number; preserved: string[]; unresolved: string[] }[];
   id: string;
   kind: string; // catalog key
   x: number; // center
@@ -368,11 +372,18 @@ export interface SheetRevision {
   sheet: string;
   note?: string;
   acknowledged: Acknowledgement[];
+  /** Immutable issued content and the exact planning evidence it represents. Legacy records omit it. */
+  content?: { svg: string; modelEvidence: string; productRefs: { itemId: string; productId?: string; revision?: number }[] };
+}
+
+export interface StageExport {
+  label: string; date: string; svg: string; specHtml: string; elements: string[]; at: number; modelEvidence: string; acknowledged: Acknowledgement[]; note?: string;
 }
 
 export interface SheetSet {
   titleBlock: { project?: string; site?: string; preparedBy?: string };
   revisions: SheetRevision[];
+  stageExports?: StageExport[];
 }
 
 export interface ActivityEntry {

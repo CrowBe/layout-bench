@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { actions, logActivity, useAppStore, type ActionResult } from "../model/store";
 import { formatMm, segLen } from "../model/geometry";
-import { catalogByKind } from "../model/catalog";
+import { catalogForItem, catalogByKind } from "../model/catalog";
 import { roomOnSide } from "../model/faces";
 import { WallFaces } from "./WallFaces";
 import { WallTiling } from "./WallTiling";
@@ -145,7 +145,7 @@ export function Inspector() {
   }
 
   if (item) {
-    const cat = catalogByKind(item.kind);
+    const cat = catalogForItem(item);
     const move = (x?: number, y?: number, rotation?: number) => human("move_item", () => actions.moveItem(item.id, x, y, rotation))();
     return (
       <aside className="inspector" aria-label="Selected item">

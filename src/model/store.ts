@@ -1,4 +1,4 @@
-import { validInstallation, installationReading, geometryForPlacement, mirroringProblem, type FixtureInstallation } from "./installation";
+import { validInstallation, installationReading, mirroringProblem, type FixtureInstallation } from "./installation";
 /**
  * Single source of truth. The UI buttons and the WebMCP tools call THE SAME actions,
  * so human and agent truly co-edit one model. Vanilla zustand store (usable outside React).
@@ -27,6 +27,7 @@ import type {
   FixtureAnchor,
   ServicePoint,
   SheetRevision,
+  StageExport,
   FloorAssembly,
   FloorLayer,
   FloorLayerKind,
@@ -51,14 +52,15 @@ import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
 import { exactProductLabel, exactSnapshot, identityOf, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
-import type { LibraryProduct } from "./productLibrary";
-import { evidenceStatus, evidenceText } from "./productMeasurements";
-import { categoryById, cornerBathOutline, envelopeOf, validateProductGeometry, productPlacementProblem } from "./products";
+import { productStore, type LibraryProduct } from "./productLibrary";
+import { productPlacement } from "./productPlacement";
+import { previewProductUpdate, type ProductUpdatePreview } from "./productUpdates";
+import { evidenceFingerprint, planningEvidence, revisionOf } from "./productRevision";
 import { outlineExtents, outlineProblems, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
 import { SNAP, dist, formatMm, quantize, segLen, segPoint } from "./geometry";
-import { catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogEntry } from "./catalog";
+import { catalogForItem, catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogEntry } from "./catalog";
 import { defineCustomKind, FURNITURE_BUILDERS, resetCustomKinds, type PartSpec } from "../three/furniture";
 import { DEMO_ID, DOCUMENT_VERSION, STORAGE_KEY, demoProject, emptyLibrary, parseImport, parseLibrary, type ProjectDocument, type ProjectKind } from "./projects";
 
@@ -313,8 +315,9 @@ function pushUndo() {
 /** Carry issued sheet revisions into a model being restored or cleared: issued sheets cannot be un-issued. */
 function withIssued(next: PlanModel, current: PlanModel): PlanModel {
   const revisions = current.sheetSet?.revisions ?? [];
-  if (!revisions.length) return next;
-  return { ...next, sheetSet: { titleBlock: next.sheetSet?.titleBlock ?? current.sheetSet!.titleBlock, revisions } };
+  const stageExports = current.sheetSet?.stageExports;
+  if (!revisions.length && !stageExports?.length) return next;
+  return { ...next, sheetSet: { titleBlock: next.sheetSet?.titleBlock ?? current.sheetSet!.titleBlock, revisions, ...(stageExports ? {stageExports} : {}) } };
 }
 
 function setModel(model: PlanModel) {
@@ -420,16 +423,16 @@ function resolveItem(ref: string): Resolved<Item> {
   return resolveRef("Item", ref, store.getState().model.items, {
     id: (item) => item.id,
     names: (item) => {
-      const label = catalogByKind(item.kind)?.label;
+      const label = catalogForItem(item)?.label;
       return label ? [item.kind, label] : [item.kind];
     },
     partial: (item, hint) => {
       const q = hint.toLowerCase();
-      const label = catalogByKind(item.kind)?.label ?? "";
+      const label = catalogForItem(item)?.label ?? "";
       return item.id.includes(hint) || item.kind.toLowerCase().includes(q) || label.toLowerCase().includes(q);
     },
     candidate: (item) => {
-      const label = catalogByKind(item.kind)?.label;
+      const label = catalogForItem(item)?.label;
       return { id: item.id, kind: item.kind, ...(label ? { label } : {}) };
     },
   });
@@ -1445,6 +1448,7 @@ export const actions = {
       acknowledged: result.acknowledged,
     };
     const svg = renderFloorPlan(model, { sheet, findings, revision });
+    revision.content = { svg, modelEvidence: planningEvidence(model), productRefs: model.items.map(item => ({ itemId: item.id, productId: item.productId, ...(item.productSnapshot ? { revision: revisionOf(item.productSnapshot).number } : {}) })) };
     // an issued revision has left the building: it is not undoable, and undo keeps it (see withIssued)
     setModel({ ...model, sheetSet: { ...current, revisions: [...current.revisions, revision] } });
     const advisory = findings.filter((f) => f.severity === "advisory").length;
@@ -1481,8 +1485,23 @@ export const actions = {
       if (side !== item.corner.side) {
         const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
         if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) return fail(`This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`);
+        const oldWall=item.anchor && store.getState().model.walls.find(w=>w.id===item.anchor!.wallId);
+        const sourcePlacement=item.productSnapshot && item.anchor && oldWall ? productPlacement(item.productSnapshot,item.anchor,oldWall,item.installation) : undefined;
+        const confirmed=(status?:string)=>status === "measured" || status === "site-confirmed";
+        const conflict=(item.servicePoints??[]).find(point=>{
+          if(point.across === undefined || point.across === 0)return false;
+          const copied=sourcePlacement?.ok ? sourcePlacement.servicePoints.find(p=>p.id===point.id) : undefined;
+          return (!point.axisEvidence && confirmed(point.status) && evidenceFingerprint(point)!==evidenceFingerprint(copied)) ||
+            (confirmed(point.axisEvidence?.across?.status) && (point.across!==copied?.across || evidenceFingerprint(point.axisEvidence?.across)!==evidenceFingerprint(copied?.axisEvidence?.across)));
+        });
+        if(conflict)return fail(`Changing corner hand would reflect the measured/site-confirmed project axis on ${conflict.id}. Reconcile that instance connection individually; its coordinate, evidence and anchor remain unchanged.`);
+        if(item.installationGeometry) return fail("Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged.");
+        const pinned = item.productGeometry;
+        const mirrorPoint = (point: {x:number;y:number}) => ({x:-point.x,y:point.y});
+        const geometry = pinned ? {...structuredClone(pinned),kind:item.corner[side],...(pinned.outline ? {outline:{...structuredClone(pinned.outline),start:mirrorPoint(pinned.outline.start),segments:pinned.outline.segments.map(segment=>({...segment,to:mirrorPoint(segment.to),...(segment.via ? {via:mirrorPoint(segment.via)} : {})}))}} : {})} : undefined;
         next = {
           ...next, kind: item.corner[side], corner: { ...item.corner, side },
+          ...(geometry ? {productGeometry:geometry} : {}),
           ...(item.servicePoints ? { servicePoints: item.servicePoints.map((p) => (p.across === undefined ? p : { ...p, across: quantize(-p.across) })) } : {}),
         };
       }
@@ -1552,100 +1571,56 @@ export const actions = {
    * whose datum this plan cannot express is copied with that axis unknown.
    */
   placeProduct(product: LibraryProduct, anchorInput: AnchorInput): ActionResult {
-    const cat = categoryById(product.category);
-    const geometryProblems = cat ? validateProductGeometry(cat, product.fields).filter(p => p.severity === "error") : [];
-    if (geometryProblems.length) return fail(`Product geometry is invalid: ${geometryProblems.map(p => p.message).join(" ")}`);
-    const unsupported = cat ? productPlacementProblem(cat, product.fields) : null;
-    const wallMounted = (product.category === "mirror" && product.fields.mounting?.value === "surface") || (product.category === "towel-rail" && product.fields.mounting?.value === "wall");
-    if (unsupported && !wallMounted) return fail(unsupported);
-    if (anchorInput.installation !== undefined && !validInstallation(anchorInput.installation)) return fail("Invalid installation placement: name the mounting, floor datum, room, orientation and optional height with status/source.");
-    if (wallMounted && anchorInput.installation?.mounting !== "wall") return fail("Unsupported product placement: this wall-mounted fitting requires explicit installation.mounting wall and an entered room/floor datum; omitted height remains unknown.");
-    if(product.installationGeometry && !anchorInput.installation)return fail("Sourced installation geometry requires explicit placement above a named room/floor datum; no ground height is assumed.");
-    if (anchorInput.installation?.mounting === "wall" && !wallMounted) return fail("Unsupported wall mounting for this category/mode; detailed installation geometry is not represented.");
-    if (anchorInput.installation?.mirror) {const problem=mirroringProblem(product,product.installationGeometry);if(problem)return fail(problem);}
-    const env = cat ? envelopeOf(cat, product.fields) : null;
-    if (!env) return fail(`${product.manufacturer} ${product.model} has no known overall size on supported datums, so it cannot be placed without inventing one.`);
-    // validate everything before anything changes, then apply as one undo step
     const built = buildAnchor(anchorInput);
     if (!built.ok) return built.result;
-    const { anchor } = built;
-    const label = exactProductLabel(product);
-    const corner = product.category === "bath" && product.fields.shape?.value === "corner-round" ? cornerSide(anchor, built.wall) : null;
-    const hand = identityOf(product).handedness;
-    const fixedHand = hand.state === "known" && ["left", "right"].includes(hand.value ?? "");
-    if (corner && fixedHand && hand.value !== corner) return fail(`This exact product is ${hand.value}-handed; it cannot be mirrored into the ${corner} corner.`);
-    // a corner bath gets its real outline, mirrored to the corner it sits in; the box is
-    // the larger of the printed sizes and the outline, so clearance is never understated
-    const outline = corner ? cornerBathOutline(product.fields, env.w, env.d, corner) : null;
-    let box = { ...env };
-    if (outline) {
-      const e = outlineExtents(outline);
-      box = { w: Math.max(env.w, e.maxX - e.minX), d: Math.max(env.d, e.maxY - e.minY), h: env.h };
+    const placement = productPlacement(product, built.anchor, built.wall, anchorInput.installation);
+    if (!placement.ok) return fail(placement.summary);
+    for (const entry of [...placement.additionalEntries, placement.entry]) {
+      const result = this.defineItemKind(entry);
+      if (!result.ok) return result;
     }
-    // Legacy/reversible baths keep both shapes. A documented fixed hand exposes only its
-    // own kind: the generic catalogue placement path must not offer an invented opposite SKU.
-    const handed = (side: "left" | "right") => (box.w !== env.w || box.d !== env.d || side !== corner ? cornerBathOutline(product.fields, box.w, box.d, side) : outline);
-    const kindFor = (side: "left" | "right" | null) => `product_${product.id}${side ? `_${side}` : ""}`;
-    if (corner && outline && !fixedHand) {
-      const other = corner === "left" ? "right" : "left";
-      const r = this.defineItemKind({ kind: kindFor(other), label, w: box.w, d: box.d, h: box.h, category: "bath", outline: handed(other)! });
-      if (!r.ok) return r;
-    }
-    const shaped = product.installationGeometry?.outline?.shape ?? (corner && outline ? handed(corner) : null);
-    const defined = this.defineItemKind({
-      kind: kindFor(corner && outline ? corner : null), label, w: box.w, d: box.d, h: box.h, category: "bath",
-      ...(shaped ? { outline: shaped } : {}),
-      ...(wallMounted ? { installationMounting: "wall" as const } : {}),
-    });
-    if (!defined.ok) return defined;
-    const installationGeometry = anchorInput.installation ? geometryForPlacement(product) : product.installationGeometry;
-    const source = `${label}, product library ${product.id}`;
-    const servicePoints: ServicePoint[] = (product.roughIn ?? []).filter(rp=>!installationGeometry?.services?.some(p=>p.id===rp.id)).filter(rp => product.recordingMode !== "human-measurement" || evidenceStatus([rp.across?.evidence, rp.out?.evidence, rp.out?.maxEvidence, rp.up?.evidence])).map((rp) => {
-      // from the fixture end: convert to the centreline only when the product says which end
-      // a corner bath's "end" is its back edge on the other wall: the corner it sits in
-      const end = corner ?? product.fields.wasteEnd?.value;
-      const across = rp.across?.from === "fixture-centreline" ? rp.across.value
-        : rp.across?.from === "fixture-end" && rp.across.value !== undefined && (end === "left" || end === "right")
-          ? quantize(end === "left" ? -box.w / 2 + rp.across.value : box.w / 2 - rp.across.value)
-          : undefined;
-      let face = "finished";
-      let out: number | undefined;
-      let outMax: number | undefined;
-      if (rp.out?.from === "finished-wall") {
-        out = rp.out.value ?? rp.out.min;
-        outMax = rp.out.max !== undefined && rp.out.min !== undefined ? rp.out.max : undefined;
-      } else if (rp.out?.from === "fixture-side") {
-        // measured from the fixture's back edge, which sits `gap` in front of the anchor face
-        face = anchor.face;
-        out = rp.out.value !== undefined ? quantize(rp.out.value + anchor.gap) : undefined;
-      }
-      const up = rp.up?.from === "finished-floor" ? rp.up.value : undefined;
-      const unconverted = [rp.across && across === undefined ? `across from ${rp.across.from}` : "", rp.out && out === undefined ? `out from ${rp.out.from}` : "", rp.up && up === undefined ? `up from ${rp.up.from}` : ""].filter(Boolean);
-      const evidence = { ...(rp.across?.evidence ? { across: rp.across.evidence } : {}), ...(rp.out?.evidence ? { out: rp.out.evidence } : {}), ...(rp.out?.maxEvidence ? { outMax: rp.out.maxEvidence } : {}), ...(rp.up?.evidence ? { up: rp.up.evidence } : {}) };
-      const status = evidenceStatus(Object.values(evidence)) ?? "published";
-      const sourced = [source, ...Object.values(evidence).map(evidenceText)].filter(Boolean).join("; ");
-      return {
-        id: rp.id, label: rp.label, service: rp.service, face,
-        ...(out !== undefined ? { out } : {}), ...(outMax !== undefined ? { outMax } : {}),
-        ...(across !== undefined ? { across } : {}), ...(up !== undefined ? { up } : {}),
-        status,
-        ...(Object.keys(evidence).length ? { axisEvidence: structuredClone(evidence) } : {}),
-        source: unconverted.length ? `${sourced}; not converted: ${unconverted.join(", ")}` : sourced,
-      };
-    });
     const item: Item = {
-      id: uid("item"), kind: defined.kind as string, x: 0, y: 0, rotation: 0, anchor, productId: product.id, productIdentity: exactSnapshot(product), productSpecification: structuredClone({ category: product.category, fields: product.fields, recordingMode: product.recordingMode, acceptedAt: product.acceptedAt }), selectionStatus: "unknown", servicePoints,
-      ...(installationGeometry ? { installationGeometry: structuredClone(installationGeometry) } : {}),
+      id: uid("item"), kind: placement.entry.kind, x: 0, y: 0, rotation: 0,
+      anchor: built.anchor, productId: product.id, productIdentity: exactSnapshot(product),
+      productSnapshot: structuredClone(product), productGeometry: structuredClone(placement.entry),
+      productSpecification: structuredClone({ category: product.category, fields: product.fields, recordingMode: product.recordingMode, acceptedAt: product.acceptedAt }),
+      selectionStatus: "unknown", servicePoints: placement.servicePoints,
+      ...(placement.installationGeometry ? { installationGeometry: structuredClone(placement.installationGeometry) } : {}),
       ...(anchorInput.installation ? { installation: structuredClone(anchorInput.installation) } : {}),
-      ...(corner && outline ? { corner: { left: kindFor(fixedHand ? corner : "left"), right: kindFor(fixedHand ? corner : "right"), side: corner } } : {}),
+      ...(placement.corner ? { corner: placement.corner } : {}),
     };
-    pushUndo();
-    setModel({ ...store.getState().model, items: [...store.getState().model.items, item] });
-    const pose = anchorPose(store.getState().model, item);
-    return built.r.ok(
-      `${label} placed${pose.resolved ? ` ${formatMm(anchor.gap)} mm off the ${anchor.face} face of ${anchor.wallId} (${anchor.side}), centre ${formatMm(anchor.distance)} mm from end ${anchor.from.toUpperCase()}` : `, but its position is unresolved: missing ${pose.missing.join(", ")}`}. ${servicePoints.length} service point(s) copied from the library.`,
-      { id: item.id, kind: item.kind, resolved: pose.resolved },
-    );
+    pushUndo(); setModel({ ...store.getState().model, items: [...store.getState().model.items, item] });
+    const pose = anchorPose(store.getState().model,item);
+    return built.r.ok(`${placement.entry.label} placed; ${pose.resolved ? "anchor resolved" : `anchor unresolved: ${pose.missing.join(", ")}`}.`, { id: item.id, kind: item.kind, resolved: pose.resolved });
+  },
+
+  recordStageExport(output: StageExport) {
+    const model=store.getState().model;
+    setModel({...model,sheetSet:{...(model.sheetSet ?? {titleBlock:{},revisions:[]}),stageExports:[...(model.sheetSet?.stageExports??[]),structuredClone(output)]}});
+  },
+
+  /** Read-only preview; acceptance and selected instance updates are separate human decisions. */
+  previewProductRevision(productId: string, selected: string[]): ProductUpdatePreview | null {
+    const product = productStore.getState().products.find(p => p.id === productId);
+    return product ? previewProductUpdate(store.getState().model, product, selected, productStore.getState().products) : null;
+  },
+
+  /** Human page action only. Recompute evidence and selection; never trust supplied projection rows. */
+  applyProductRevision(preview: ProductUpdatePreview): ActionResult {
+    const next = this.previewProductRevision(preview.targetId, preview.selected);
+    if (!next || next.fingerprint !== preview.fingerprint) return fail("The project or accepted evidence changed. Preview the selected instances again before applying.");
+    if (!next.applicable) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
+    for (const entry of next.entries) {
+      const result = this.defineItemKind(entry);
+      if (!result.ok) return result;
+    }
+    const at = Date.now();
+    const model = { ...next.model, items: next.model.items.map(item => {
+      const row = next.rows.find(row => row.id === item.id);
+      return row ? { ...item, productUpdates: [...(item.productUpdates ?? []), { from: row.before.productId!, to: next.targetId, at, preserved: row.preserved, unresolved: row.unresolved }] } : item;
+    }) };
+    pushUndo(); setModel(model);
+    return ok(`${next.rows.length} selected instance(s) updated explicitly. Preserved project confirmations and reconciliation notes remain in instance history. Issued outputs remain historical.`, { ids: next.selected });
   },
 
   setFixtureInstallation(itemRef: string, placement: FixtureInstallation): ActionResult {

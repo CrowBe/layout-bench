@@ -203,6 +203,11 @@ it("keeps confirmed bottom placement separate from published top height after po
   const top=specRows(model,catalogue(model).elements.find(e=>e.type==="fixture")!).find(r=>r.property==="installed top level (mm)")!;
   expect(top.status).toBe("published");expect(top.source).toContain("example.com");
   const above=clearanceRegions(model,it)[0];expect(above.placementBasis).toBe("published");expect(above.placementSource).toContain("example.com");
+  // A separately published clearance distance cannot become confirmed with its placement.
+  const confirmedHeight={...it,productSpecification:{...it.productSpecification!,fields:{...it.productSpecification!.fields,height:{value:.8,status:"site-confirmed" as const,measurement:{date:"2026-10-03",unit:"metres" as const,evidence:"Synthetic height confirmation",recordedBy:"human" as const}}}}};
+  const confirmedAbove=clearanceRegions(model,confirmedHeight)[0];
+  expect(confirmedAbove).toMatchObject({placementBasis:"site-confirmed",levelBasis:"published"});
+  expect(confirmedAbove.levelSource).toContain("synthetic-mirror.pdf");
   const parsed=parseImport(JSON.stringify({...demoProject(),id:"confirmed-placement",model,kinds:store.getState().kinds}));
   expect(installationReading(parsed.model,parsed.model.items[0])).toMatchObject({topBasis:"published",heightEvidence:pub(.8)});
   productStore.setState({products:[],requests:[]});

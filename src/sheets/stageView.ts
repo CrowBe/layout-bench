@@ -12,7 +12,7 @@ import { installationReading, localPointReading, clearanceRegions } from "../mod
 
 import type { Acknowledgement, PlanModel, Quantity, Room, Wall, WallSideName } from "../model/types";
 import type { LibraryProduct } from "../model/productLibrary";
-import { catalogByKind, isBuiltInKind } from "../model/catalog";
+import { catalogForItem, catalogByKind, isBuiltInKind } from "../model/catalog";
 import { rectCorners, segLen, type Pt } from "../model/geometry";
 import { openingSpan } from "../model/issues";
 import { input, known, layerLabel, resolveFace, sideFaces, sideNormal, wallBody, weakest } from "../model/faces";
@@ -120,7 +120,7 @@ export function catalogue(model: PlanModel): Catalogue {
     for (const p of r.drainage?.planes ?? []) add({ id: `room:${r.id}:plane:${p.id}`, layer: "drainage-planes", type: "floor-plane", label: `${r.label}: ${p.label}`, ref: r.id, sub: p.id });
   }
   for (const it of model.items) {
-    const label = catalogByKind(it.kind)?.label ?? it.kind;
+    const label = catalogForItem(it)?.label ?? it.kind;
     add({ id: `item:${it.id}`, layer: "fixtures", type: "fixture", label: `${label} (${it.id})`, ref: it.id });
     for (const sp of roughIn(model,it).map(r=>({id:r.pointId,label:r.label,service:r.service}))) add({ id: `item:${it.id}:sp:${sp.id}`, layer: `services-${sp.service}` as LayerId, type: "service-point", label: `${label}: ${sp.label}`, ref: it.id, sub: sp.id });
   }
@@ -284,7 +284,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   // fixtures and service points
   const it = model.items.find((x) => x.id === el.ref)!;
   if (el.type === "fixture") {
-    const cat = catalogByKind(it.kind);
+    const cat = catalogForItem(it);
     const envelope = it.productSpecification ? categoryById(it.productSpecification.category)?.envelope : undefined;
     const footprintStatus = envelope ? evidenceStatus([it.productSpecification!.fields[envelope.w], it.productSpecification!.fields[envelope.d]]) : undefined;
     row("footprint w × d (mm)", cat ? { value: `${mm(cat.w)} × ${mm(cat.d)}`, status: footprintStatus ?? (it.productId ? "published" : isBuiltInKind(it.kind) ? "defaulted" : "entered") } : { value: "?", status: "unknown", missing: [`kind ${it.kind}`] });
@@ -316,7 +316,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
         }
         for(const r of clearanceRegions(model,it)){
           row(`access ${r.id} (distinct from footprint)`,{value:`${r.label}; ${r.direction}; ${r.distance===null?"?":mm(r.distance)} mm`,status:r.status,source:r.sources.map(s=>`${s.url} (${s.locator})`).join("; "),...(r.resolved?{}:{missing:r.missing})});
-          row(`access ${r.id} installed levels (mm)`,{value:`bottom ${r.bottom===undefined?"?":mm(r.bottom)} / top ${r.top===undefined?"?":mm(r.top)}`,status:r.placementBasis as RowStatus,source:r.placementSource,datum:lv.datum,...(r.resolved?{}:{missing:r.missing})});
+          row(`access ${r.id} installed levels (mm)`,{value:`bottom ${r.bottom===undefined?"?":mm(r.bottom)} / top ${r.top===undefined?"?":mm(r.top)}`,status:r.levelBasis as RowStatus,source:r.levelSource,datum:lv.datum,...(r.resolved?{}:{missing:r.missing})});
         }
       }
     }

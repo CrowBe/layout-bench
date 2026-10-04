@@ -301,6 +301,17 @@ A few design notes:
   library is still reported. `tests/product-measurements.e2e.mjs` covers the recorded existing
   910 × 465 mm vanity footprint with unknown height/connections, then explicitly synthetic
   extra geometry/services for acceptance, 3D, specification and fresh-browser transfer.
+- **Transfer catalogue evidence** manually exports selected accepted products and pending
+  requests with their dependent history and original PDF/image bytes in a versioned JSON
+  bundle (up to 80 MB). SHA-256 checks and fresh PDF extraction validate originals before
+  import. Preview shows contents, additions and ID collisions; a separate human action
+  commits it. Conflicting local IDs receive a coherent remap across records and citations,
+  while unchanged reimports add nothing. Historical review decisions retain their source
+  binding and remap provenance. Missing originals, unsupported schemas and storage failures
+  refuse the transfer; failed commits restore the previous catalogue and remove only their
+  newly staged files. Project JSON remains separate and carries its own placed evidence.
+  `tests/catalogue-bundles.e2e.mjs` verifies actual download/import across independent browsers,
+  reopened originals, pending human review, explicit mounting, reload and project transfer.
 - Fitting briefs distinguish powered/unpowered and fixed/hinged variants, and product-local
   mounting dimensions from proposed project heights. Unknown fields remain explicit through
   human review and library storage. The existing placement path supports generic envelopes
@@ -546,3 +557,11 @@ Synthetic verification: `ALZA_BASE_URL=http://127.0.0.1:5251 node tests/installa
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+### Accepted catalogue revisions (#53)
+
+The Products page opens a separate correction draft from an accepted specification. Human review produces a new revision of the same exact variant; changed SKU/finish/hand remains a distinct product. Accepted source records and their reviews remain available. Accepting a revision leaves every placed fixture unchanged.
+
+Choose existing instances on the new revision card, preview dimensions, outlines, services, source evidence and resulting clashes, then acknowledge and apply the selected update. Preview cancellation makes no model change. Anchors and installation height/orientation remain project decisions. Changed measured/site-confirmed service axes are retained and identified for reconciliation; geometry overrides differing from pinned product evidence require individual reconciliation before update. Unknown anchors, floor datums and source axes stay unresolved. No tool accepts a revision or applies instance updates.
+
+Placed fixtures carry independent accepted-product and geometry snapshots, including installation geometry, so a project backup renders old and new revisions without the browser library. Undo restores the selected update. Issued sheet SVGs and stage diagram/specification archives retain their original content, dates, acknowledgements and planning-evidence references; the Sheets page identifies historical outputs after later changes and offers downloads after reload or import. Older issuance records without content remain identifiable as legacy records.

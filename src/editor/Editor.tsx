@@ -16,7 +16,7 @@ import type { Opening, Wall } from "../model/types";
 import { formatMm, snap as snapTo, segLen, segPoint } from "../model/geometry";
 import { labelFits, DIM_FONT_FAMILY, DIM_OFFSET_M, dimensionFontPx, layoutRoomLabel, planFontPx, ROOM_FONT_FAMILY, wallDimensionAnchor } from "./planLabels";
 import { openingSpan } from "../model/issues";
-import { catalogByKind } from "../model/catalog";
+import { catalogForItem, catalogByKind } from "../model/catalog";
 
 interface View {
   x: number; // world coords at top-left
@@ -31,9 +31,9 @@ const FLOOR_FILL: Record<string, string> = {
   concrete: "#d4d4d0",
 };
 
-/** Service point colours: waste, water, power. */
 const itemFont = (scale: number) => planFontPx(scale, 0.2, 8, 16);
 
+/** Service point colours: waste, water, power. */
 const SERVICE_COLOR = { waste: "#7a5230", water: "#2f78b7", power: "#c0392b" } as const;
 
 /** How each reference face is drawn on the plan. */
@@ -226,7 +226,7 @@ export function Editor() {
     if (panning) setPanning(null);
     if (dragItem) {
       const it = model.items.find((i) => i.id === dragItem.id);
-      if (it) logActivity("human", "move_item", `Moved ${catalogByKind(it.kind)?.label ?? it.kind} to (${formatMm(it.x)}, ${formatMm(it.y)}) mm.`);
+      if (it) logActivity("human", "move_item", `Moved ${catalogForItem(it)?.label ?? it.kind} to (${formatMm(it.x)}, ${formatMm(it.y)}) mm.`);
       setDragItem(null);
     }
     if (dragRoom) setDragRoom(null);
@@ -454,7 +454,7 @@ export function Editor() {
 
       {/* furniture */}
       {model.items.map((it) => {
-        const cat = catalogByKind(it.kind);
+        const cat = catalogForItem(it);
         if (!cat) return null;
         const selected = editor.selectedItemId === it.id;
         return (
@@ -490,6 +490,7 @@ export function Editor() {
             )}
             {(it.installationGeometry?.fixings??[]).map(p=>{const r=localPointReading(model,it,p);return r.x!==undefined && r.y!==undefined?<circle key={p.id} data-fixing={p.id} cx={(it.installation?.mirror?-1:1)*p.x!*S} cy={(p.y!-cat.d/2)*S} r={3} fill="#8c6496"/>:null;})}
             <text
+              pointerEvents="none"
               x={0}
               y={0}
               fontSize={itemFont(S)}
