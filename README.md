@@ -335,6 +335,13 @@ A few design notes:
   height is a placeholder named in the kind's data. A kind may carry an `elevation` (define_item_kind),
   so a wall mixer over a bath is not an `items_overlap` once their heights differ. The corner bath
   is a right-angle isosceles triangle with a rounded hypotenuse; the arc depth is a placeholder.
+  The owner's build-up and tiles are recorded against the surveyed 2110 × 3020 existing surfaces:
+  walls stripped to the frame (about 45 mm behind the surface, estimated) and lined with 6 mm
+  Villaboard; the floor back to the concrete footings layer with waterproofing under the screed and
+  the heating cable in it. Left, right and door walls take 600 × 600 white gloss; the floor and
+  window wall take 300 × 600 sandy beige matte, long side toward the window wall and vertical on it,
+  so every wall has four full 600 mm courses (2412 mm with 4 mm joints) and a timber trim above.
+  Thicknesses nobody has supplied stay unknown, so no cut is worked out until they are entered.
   The shower screen is the owner's fixed glass panel, 900 wide × 2100 high on black clips, 1200 mm
   from the window wall; the face that 1200 mm is taken to is not recorded.
 

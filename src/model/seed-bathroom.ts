@@ -4,7 +4,7 @@ import type { Outline } from "./outline";
 import type { ExactProduct, ProductComponent } from "./productIdentity";
 import type { PartSpec } from "../three/furniture";
 import type { ProjectKind } from "./projects";
-import type { Item, Note, PlanModel } from "./types";
+import type { Item, Note, PlanModel, Quantity, Wall, WallSide, WallTiling } from "./types";
 
 /**
  * A rough bathroom concept sample. Geometry and placements are illustrative, not set-out.
@@ -175,19 +175,74 @@ export const purchasedFittings: PurchasedFitting[] = [
   },
 ];
 
+// ---- Construction spec from the owner ------------------------------------------------------
+// Survey (#1): existing internal surfaces 2110 × 3020 mm, measured. Each wall's drawn line sits
+// 50 mm behind its existing surface. The frame is about 45 mm behind the surface where it was
+// seen once: an estimate. Walls are stripped to the frame and lined with 6 mm Villaboard.
+// No wall membrane is recorded: the owner named waterproofing under the screed only.
+const SURVEY = "owner survey (#1): existing internal surfaces 2110 × 3020 mm";
+const OWNER = "owner's tile and build-up choices";
+const proposed = (value: number, source = OWNER): Quantity => ({ value, status: "proposed", source });
+/** Thicknesses nobody has supplied yet: recorded as unknown, never filled in. */
+const unknown = (): Quantity => ({});
+const WHITE = "600 × 600 white gloss, a few light grey streaks";
+const BEIGE = "300 × 600 sandy beige matte";
+const JOINT = proposed(0.004, "owner: \"glue probably 4mm gaps\", read as the joint between tiles; adhesive bed thickness not given");
+/** Four full 600 mm courses and the three joints between them, from the finished floor. */
+const FOUR_COURSES = proposed(4 * 0.6 + 3 * 0.004, "owner: four full 600 mm courses; the rest of the height gets a timber trim later");
+
+const side = (wall: string, tile: string): WallSide => ({
+  existing: { value: 0.05, status: "measured", source: SURVEY },
+  frame: { value: 0.005, status: "estimated", source: "surface-to-frame about 45 mm, seen in one place (#1)" },
+  layers: [
+    { id: `${wall}_board`, kind: "board", name: "Villaboard 6 mm", thickness: proposed(0.006) },
+    { id: `${wall}_adhesive`, kind: "adhesive", name: "Tile adhesive", thickness: unknown() },
+    { id: `${wall}_tile`, kind: "tile", name: tile, thickness: unknown() },
+  ],
+});
+/** Vertical set-out only: four full 600 mm courses on every wall. The horizontal set-out is not chosen yet. */
+const courses = (tile: "white" | "beige"): WallTiling => tile === "white"
+  ? { tileLength: proposed(0.6), tileWidth: proposed(0.6), orientation: "landscape", joint: JOINT, floor: "finished", originUp: proposed(0), tiledHeight: FOUR_COURSES, note: `${WHITE}. Four full courses; timber trim above, later.` }
+  : { tileLength: proposed(0.6), tileWidth: proposed(0.3), orientation: "portrait", joint: JOINT, floor: "finished", originUp: proposed(0), tiledHeight: FOUR_COURSES, note: `${BEIGE}, the floor tile carried up the window wall: long side vertical so its courses match the 600 mm courses on the other walls. Timber trim above, later.` };
+const wall = (id: string, ax: number, ay: number, bx: number, by: number, tile: "white" | "beige"): Wall => ({
+  id, ax, ay, bx, by, thickness: 0.1, height: 2.4,
+  sides: { right: side(id, tile === "white" ? WHITE : BEIGE) }, tiling: { right: courses(tile) },
+});
+
 export const seedBathroom = (): PlanModel => ({
   name: "Bathroom Concept",
   walls: [
-    { id: "wall_n", ax: -0.05, ay: -0.05, bx: 2.15, by: -0.05, thickness: 0.1, height: 2.4 },
-    { id: "wall_e", ax: 2.15, ay: -0.05, bx: 2.15, by: 3.05, thickness: 0.1, height: 2.4 },
-    { id: "wall_s", ax: 2.15, ay: 3.05, bx: -0.05, by: 3.05, thickness: 0.1, height: 2.4 },
-    { id: "wall_w", ax: -0.05, ay: 3.05, bx: -0.05, by: -0.05, thickness: 0.1, height: 2.4 },
+    wall("wall_n", -0.05, -0.05, 2.16, -0.05, "beige"), // window wall
+    wall("wall_e", 2.16, -0.05, 2.16, 3.07, "white"),
+    wall("wall_s", 2.16, 3.07, -0.05, 3.07, "white"), // door wall
+    wall("wall_w", -0.05, 3.07, -0.05, -0.05, "white"),
   ],
   openings: [
-    { id: "window_n", kind: "window", wallId: "wall_n", t: 0.5, width: 1.81, sill: 1.52, height: 0.6 },
-    { id: "door_s", kind: "door", wallId: "wall_s", t: 0.7409090909090909, width: 0.8, sill: 0, height: 1.9, hinge: "b", side: "left" },
+    // 1755 internal width, centred; sill 1520 above the existing floor (#1). The height is still a placeholder.
+    { id: "window_n", kind: "window", wallId: "wall_n", t: 0.5, width: 1.755, sill: 1.52, height: 0.6 },
+    // 800 jamb to jamb, one jamb 120 mm from the left wall (#1)
+    { id: "door_s", kind: "door", wallId: "wall_s", t: 1.64 / 2.21, width: 0.8, sill: 0, height: 1.9, hinge: "b", side: "left" },
   ],
-  rooms: [{ id: "bathroom", x: 0, y: 0, w: 2.1, h: 3, label: "Bathroom", floor: "tile" }],
+  rooms: [{
+    id: "bathroom", x: 0, y: 0, w: 2.11, h: 3.02, label: "Bathroom", floor: "tile",
+    // stripped back to the concrete footings layer; membrane on the concrete, the heating cable in the screed
+    floorBuildUp: {
+      datum: "existing floor surface", substrate: "concrete (footings layer, after strip-out)", substrateTop: unknown(),
+      layers: [
+        { id: "floor_membrane", kind: "waterproofing", name: "Waterproofing under the screed", thickness: unknown() },
+        { id: "floor_screed", kind: "screed", name: "Screed (heating cable inside)", thickness: unknown() },
+        { id: "floor_adhesive", kind: "adhesive", name: "Tile adhesive", thickness: unknown() },
+        { id: "floor_tile", kind: "tile", name: BEIGE, thickness: unknown() },
+      ],
+    },
+    // long side runs toward the window wall, then carries on up it
+    floorTiling: { tileLength: proposed(0.6), tileWidth: proposed(0.3), joint: JOINT, axis: "y", zone: "room", note: `${BEIGE}. Long side runs toward the window wall and continues up it. Origin not chosen yet.` },
+    heating: {
+      model: "SCK0765L", length: { value: 42.5, status: "published", source: "carton label" }, ratedOutput: { value: 765, status: "published", source: "carton label" },
+      screedLayerId: "floor_screed", zoneIds: ["bathroom"], path: [], keepouts: [],
+      requirements: "Owner: laid in a snaking pattern on the membrane, before rough-in and screed. Route not drawn yet.",
+    },
+  }],
   items: [
     ...purchasedFittings.flatMap((f) => [f.placement, ...(f.extra ?? [])].filter((p): p is Item_ => !!p).map((p): Item => ({
       ...p, productIdentity: structuredClone(f.product), selectionStatus: "purchased",
@@ -219,10 +274,22 @@ export const bathroomNotes = (): Note[] => {
   return [
     { id: "note-concept", author: "human", text: "Approximate concept sample for exploring a bathroom layout. Dimensions and geometry have been simplified for this editor.", at },
     { id: "note-placeholders", author: "human", text: "Wall sizes, opening details, fixture positions, and clearances include placeholders or proposals. Confirm them before relying on the plan.", at: at + 1 },
-    { id: "note-limits", author: "human", text: "This sample is not measured set-out or a trade drawing. Drainage, services, falls, and construction layers are not represented.", at: at + 2 },
+    { id: "note-limits", author: "human", text: "This sample is not measured set-out or a trade drawing. Drainage, services and falls are not represented; construction layers are recorded with their unknown thicknesses left unknown.", at: at + 2 },
     {
       id: "note-purchased", author: "agent", at: at + 3,
       text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle isosceles corner bath, 1000 mm legs, rounded hypotenuse; carton 1000 × 1000 × 630 mm, so height and arc depth are unmeasured); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); two Thermorail VS900HBN 142 × 900 × 100 mm; OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L. Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
+    },
+    {
+      id: "note-sequence", author: "human", at: at + 6,
+      text: "Construction order: (1) strip the walls to the timber frame and the floor back to the concrete footings layer; (2) fix 6 mm Villaboard to the frame; (3) waterproof the floor, under the screed; (4) lay the heating cable in a snaking pattern; (5) plumbing and electrical rough-in; (6) screed; (7) tiles. A thin timber trim panel goes above the tiles later.",
+    },
+    {
+      id: "note-tiles", author: "human", at: at + 7,
+      text: "Tiles: left, right and door walls 600 × 600 white gloss with a few light grey streaks. Floor and window wall 300 × 600 sandy beige matte: on the floor the long side runs toward the window wall, and it carries on up the window wall with the long side vertical so its courses match the other walls. Every wall gets four full 600 mm courses (2412 mm with 4 mm joints, from the finished floor); the rest of the height is a timber trim, later. Joints about 4 mm.",
+    },
+    {
+      id: "note-tiles-open", author: "agent", at: at + 8,
+      text: "Open before the tile cuts can be worked out: tile, adhesive, screed and membrane thicknesses, and the concrete level; whether the 4 mm is the joint (as recorded) or the adhesive bed; whether the bottom course sits on the floor tile or leaves a gap; where the horizontal set-out starts on each wall and on the floor; the real ceiling height (the 2400 mm wall height is entered, not measured, and four courses reach 2412 mm above the finished floor). No wall membrane is recorded: only the floor was named.",
     },
     {
       id: "note-screen", author: "human", at: at + 5,
