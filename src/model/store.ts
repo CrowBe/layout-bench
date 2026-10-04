@@ -45,7 +45,7 @@ import { emptyModel } from "./types";
 import { validHeating, heatingEvidence } from "./heating";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
-import { anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
+import { placementLimitations, anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
 import { sideNormal } from "./faces";
 import { drainageProblems, planeSurface } from "./drainage";
 import { floorTileLayout } from "./floorTiling";
@@ -1591,7 +1591,8 @@ export const actions = {
     };
     pushUndo(); setModel({ ...store.getState().model, items: [...store.getState().model.items, item] });
     const pose = anchorPose(store.getState().model,item);
-    return built.r.ok(`${placement.entry.label} placed; ${pose.resolved ? "anchor resolved" : `anchor unresolved: ${pose.missing.join(", ")}`}.`, { id: item.id, kind: item.kind, resolved: pose.resolved });
+    const simplified = placementLimitations(item);
+    return built.r.ok(`${placement.entry.label} placed; ${pose.resolved ? "anchor resolved" : `anchor unresolved: ${pose.missing.join(", ")}`}.${simplified.length ? ` Limitation: ${simplified.join(" ")}` : ""}`, { id: item.id, kind: item.kind, resolved: pose.resolved });
   },
 
   recordStageExport(output: StageExport) {

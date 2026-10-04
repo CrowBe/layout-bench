@@ -1,4 +1,5 @@
 import type { CatalogEntry } from "./catalog";
+import { cornerBathOutline } from "./products";
 import type { Outline } from "./outline";
 import type { ExactProduct } from "./productIdentity";
 import type { PartSpec } from "../three/furniture";
@@ -44,10 +45,15 @@ const fitting = (m: string, code: string, label: string, notes: string, manufact
 // triangle with a rounded hypotenuse. The 1000 mm legs sit along the two walls (right angle at
 // the back-right, so the NE corner); the arc's bulge is a placeholder, not a measured sagitta.
 // Its outline is extruded in 3D with a recessed basin, so it has no hand-built parts.
-const bathOutline: Outline = {
-  start: { x: -0.5, y: -0.5 },
-  segments: [{ to: { x: 0.5, y: -0.5 } }, { to: { x: 0.5, y: 0.5 } }, { to: { x: -0.5, y: -0.5 }, via: { x: -0.085, y: 0.085 } }],
+// The outline comes from the same function the product library uses for a corner bath: 1000 mm
+// legs mean a 1414 mm chord across the front, and the bulge past the chord is the placeholder.
+const BATH_LEG = 1;
+const BATH_BULGE = 0.12;
+const bathFields = {
+  frontWidth: { value: Math.SQRT2 * BATH_LEG, status: "estimated" as const },
+  frontProjection: { value: (Math.SQRT2 * BATH_LEG) / 2 + BATH_BULGE, status: "estimated" as const },
 };
+const bathOutline: Outline = cornerBathOutline(bathFields, BATH_LEG, BATH_LEG, "right")!;
 
 // ---- Enflair wall set for the bath: K1132-31 outside part + K1150-31-0-150 spout ---------------
 const wallMixer: PartSpec[] = [

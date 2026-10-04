@@ -11,7 +11,7 @@ import { useState } from "react";
 import { actions, logActivity, type ActionResult, type ServicePointInput } from "../model/store";
 import { formatMm } from "../model/geometry";
 import { VALUE_STATUSES } from "../model/faces";
-import { anchorPose, clearances, faceChoices, roughIn, type FaceDistance } from "../model/fixtures";
+import { placementLimitations, anchorPose, clearances, faceChoices, roughIn, type FaceDistance } from "../model/fixtures";
 import type { Item, PlanModel, ValueStatus, WallSideName } from "../model/types";
 
 const human = (tool: string, r: ActionResult) => {
@@ -171,6 +171,7 @@ export function FixturePanel({ model, item }: { model: PlanModel; item: Item }) 
       )}
       {/* keyed on the stored anchor, so an edit made elsewhere (the agent) resets the form */}
       {item.productIdentity && <ExactIdentity product={item.productIdentity} />}
+      {placementLimitations(item).map((message, i) => <p className="inspector-warn" data-placement-limitation key={i}>{message}</p>)}
       <label className="field inspector-field">Project selection<select aria-label="Project selection" value={item.selectionStatus ?? "unknown"} onChange={e => human("set_fixture_selection", actions.setFixtureSelection(item.id, e.target.value as SelectionStatus))}>{SELECTION_STATUSES.map(status => <option key={status}>{status}</option>)}</select></label>
       <AnchorForm key={`${item.id}:${JSON.stringify(item.anchor ?? null)}`} model={model} item={item} />
       {item.installation && <InstallationForm key={JSON.stringify(item.installation)} model={model} item={item}/>}
