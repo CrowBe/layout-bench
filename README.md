@@ -343,6 +343,14 @@ A few design notes:
   accessory whose host is gone, or that falls outside it, is a warning. The sample's Ahrok waste
   is fitted inside the bath.
 
+- Tapware and shower fittings take optional working limits (minimum and maximum pressure in kPa,
+  maximum hot water temperature in °C). When sources disagree, the working value keeps the others
+  as alternatives, the disagreement is flagged, and the spec sheet prints the limit used for checks:
+  the lowest of the sourced maximums (highest of the minimums). A figure whose datum a source does
+  not make clear is recorded with the `unresolved` datum and an explanation; it is kept as
+  written and is never used as a dimension or set-out. A set's parts are components, and a part
+  that was not seen stays `unresolved` on the sheet, as the sample's K1130 trim does.
+
 - A spec sheet you already hold can be attached to a request (PDF or image, up to 10 MB). It
   stays in this browser: the file in IndexedDB, its record with the library. A PDF's text is
   read in the browser with pdf.js, page by page, and `get_product_brief` hands it to the agent,

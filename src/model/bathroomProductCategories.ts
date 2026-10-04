@@ -11,6 +11,12 @@ const text = (key: string, label: string, definition: string, when?: When): Fiel
   ({ type: "text", key, label, definition, group: "installation", required: true, ...(when ? { when } : {}) });
 const quantity = (key: string, label: string, unit: string, definition: string, min: number, max: number, when?: When, group: FieldSpec["group"] = "installation"): QuantityField =>
   ({ type: "quantity", key, label, unit, definition, min, max, group, required: true, ...(when ? { when } : {}) });
+/** Working limits are useful for an installer but not needed for a trade drawing, so they may stay blank. */
+const limits = (when?: When): FieldSpec[] => [
+  { ...quantity("pressureMin", "Working pressure, minimum", "kPa", "Lowest supply pressure the product works at, as published. Convert MPa to kPa (1 MPa = 1000 kPa) and cite the source figure; a conflicting figure goes under alternatives.", 0, 2000, when), required: false },
+  { ...quantity("pressureMax", "Working pressure, maximum", "kPa", "Highest static inlet pressure the product is rated for, as published. Where sources differ, submit the one you trust with the others under alternatives; the lowest is used for checks.", 0, 2000, when), required: false },
+  { ...quantity("temperatureMax", "Hot water temperature, maximum", "°C", "Highest supply temperature, as published. Where sources differ, submit the one you trust with the others under alternatives; the lowest is used for checks.", 0, 120, when), required: false },
+];
 const when = (field: string, ...values: string[]): When => ({ field, in: values });
 const envelope = (): FieldSpec[] => [
   { ...length("width", "Overall width", "Maximum product width, across its own left and right ends; metres.", "fixture-end", 0.001), group: "envelope" },
@@ -42,6 +48,7 @@ export const BATHROOM_PRODUCT_CATEGORIES: ProductCategory[] = [
       { type: "count", key: "tapHoles", label: "Mounting hole count", group: "installation", required: true, min: 1, max: 5, when: when("mounting", "deck"), definition: "Number of required holes in the deck or basin; count." },
       text("holeLayout", "Mounting hole layout", "Published hole diameters and centres relative to the product centreline or named deck edge, with units; do not infer a layout from hole count.", when("mounting", "deck")),
       fixing(),
+      ...limits(),
       choice("inletMode", "Water inlet arrangement", ["single", "hot-cold", "other"], "Whether the exact product has one inlet or separate hot and cold inlets."),
       length("inletSpacing", "Hot / cold inlet centres", "Centre-to-centre inlet spacing across the product; metres.", "fixture-centreline", 0, 1, when("inletMode", "hot-cold")),
       text("waterConnection", "Water connection details", "Published inlet size/thread, hot/cold orientation and flexible/concealed connection arrangement; retain named source datums and units."),
@@ -66,6 +73,7 @@ export const BATHROOM_PRODUCT_CATEGORIES: ProductCategory[] = [
       length("armProjection", "Arm projection", "Arm exposed extent from its mounting plane to its furthest end; metres.", "fixture-side", 0, 1.5, when("fittingType", "arm", "system")),
       length("railLength", "Rail length", "Rail length from its lower end; metres.", "fixture-bottom", 0, 2, when("fittingType", "rail", "system")),
       fixing(),
+      ...limits(),
       choice("adjustment", "Adjustment mode", ["fixed", "adjustable"], "Whether the supplied assembly has published dimensional adjustment."),
       length("adjustmentMin", "Minimum adjustable position", "Minimum head/carriage position along the rail from its lower end; metres.", "fixture-bottom", 0, 2, when("adjustment", "adjustable")),
       length("adjustmentMax", "Maximum adjustable position", "Maximum head/carriage position along the rail from its lower end; metres.", "fixture-bottom", 0, 2, when("adjustment", "adjustable")),
