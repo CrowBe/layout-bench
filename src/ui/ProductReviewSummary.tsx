@@ -102,7 +102,9 @@ export function ProductReviewSummary({ request }: { request: ProductRequest }) {
                           : spec.type === "length" &&
                               typeof value.value === "number"
                             ? `${formatMm(value.value)} mm`
-                            : String(value.value)}
+                            : spec.type === "quantity"
+                              ? `${value.value} ${spec.unit}`
+                              : String(value.value)}
                       </td>
                       <td>
                         {value.status ?? "unknown"}
@@ -110,7 +112,7 @@ export function ProductReviewSummary({ request }: { request: ProductRequest }) {
                       </td>
                       <td>
                         {value.measurement && <div>{evidenceText(value)}</div>}
-                        {value.observations?.map((observation, index) => <div key={`observation-${index}`}>Observation {index + 1}: {observation.value === null ? "unknown" : spec.type === "length" && typeof observation.value === "number" ? `${formatMm(observation.value)} mm` : String(observation.value)} · {observation.status ?? "unknown"} · {observation.reference ?? "not spatial"} · {evidenceText(observation)} · {observation.note}</div>)}
+                        {value.observations?.map((observation, index) => <div key={`observation-${index}`}>Observation {index + 1}: {observation.value === null ? "unknown" : spec.type === "length" && typeof observation.value === "number" ? `${formatMm(observation.value)} mm` : spec.type === "quantity" ? `${observation.value} ${spec.unit}` : String(observation.value)} · {observation.status ?? "unknown"} · {observation.reference ?? "not spatial"} · {evidenceText(observation)} · {observation.note}</div>)}
                         {(value.sources ?? []).map((source, index) => (
                           <div key={index}>
                             <Link url={source.url} locator={source.locator} />
