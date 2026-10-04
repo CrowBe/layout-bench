@@ -171,6 +171,7 @@ export function FixturePanel({ model, item }: { model: PlanModel; item: Item }) 
       )}
       {/* keyed on the stored anchor, so an edit made elsewhere (the agent) resets the form */}
       {item.productIdentity && <ExactIdentity product={item.productIdentity} />}
+      {item.fittedTo && <p className="hint" data-fitted-to>Fitted inside {item.fittedTo.hostId}: {formatMm(item.fittedTo.across)} mm across, {formatMm(item.fittedTo.out)} mm from its back edge. It moves with that fixture.</p>}
       {placementLimitations(item).map((message, i) => <p className="inspector-warn" data-placement-limitation key={i}>{message}</p>)}
       <label className="field inspector-field">Project selection<select aria-label="Project selection" value={item.selectionStatus ?? "unknown"} onChange={e => human("set_fixture_selection", actions.setFixtureSelection(item.id, e.target.value as SelectionStatus))}>{SELECTION_STATUSES.map(status => <option key={status}>{status}</option>)}</select></label>
       <AnchorForm key={`${item.id}:${JSON.stringify(item.anchor ?? null)}`} model={model} item={item} />

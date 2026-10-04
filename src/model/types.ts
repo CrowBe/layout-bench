@@ -255,6 +255,12 @@ export interface Item {
   servicePoints?: ServicePoint[];
   installation?: FixtureInstallation;
   installationGeometry?: InstallationGeometry;
+  /**
+   * An accessory fitted inside another fixture (a bath waste, a basket): where it sits in its
+   * host's own frame, across the host's centreline and out from the host's back edge, in metres.
+   * Its x, y and rotation are derived from the host, so it moves and turns with it.
+   */
+  fittedTo?: { hostId: string; across: number; out: number };
   /** The product-library entry this fixture was placed from. */
   productId?: string;
   /** Exact identity evidence at placement; travels with project export/import. */

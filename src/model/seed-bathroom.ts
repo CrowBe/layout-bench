@@ -13,7 +13,7 @@ import type { Item, Note, PlanModel } from "./types";
  * position is a placeholder and says so in the kind's label.
  */
 
-type Item_ = Pick<Item, "id" | "kind" | "x" | "y" | "rotation">;
+type Item_ = Pick<Item, "id" | "kind" | "x" | "y" | "rotation"> & Partial<Pick<Item, "fittedTo">>;
 
 const NICKEL = { color: "#b9bbbb", metalness: 0.85, roughness: 0.3 } as const;
 
@@ -64,6 +64,14 @@ const wallMixer: PartSpec[] = [
 const spout: PartSpec[] = [
   box(0, 0.8, -0.015, 0.045, 0.045, 0.03),
   box(0, 0.815, 0.075, 0.025, 0.025, 0.15), // 150 mm projection, as the label names it
+];
+
+// ---- Ahrok SDP-40BN bath waste, dome pop with pull-out basket, 40 mm -------------------------
+// Fitted inside the bath. The 40 mm is the connection size printed on the carton; the visible
+// dome, its height and where it sits in the tub are placeholders.
+const waste: PartSpec[] = [
+  tube(0, 0.59, 0, 0.07, 0.012),
+  tube(0, 0.602, 0, 0.05, 0.008),
 ];
 
 // ---- Basin: Enflair K1110-31 petite basin mixer, on the vanity top ----------------------------
@@ -117,6 +125,14 @@ export const purchasedFittings: PurchasedFitting[] = [
       "Carton label: 304 stainless steel, brushed SS nickel, 150 mm.", "Enflair"),
     size: { w: 0.045, d: 0.15, h: 0.045, printed: ["d"], elevation: 0.8, caveat: "only the 150 mm reach is printed" },
     parts: spout, placement: { id: "bath_spout", kind: "spout_k1150_31_0_150", x: 1.55, y: 0.075, rotation: 0 },
+  },
+  {
+    kind: "waste_sdp40bn", label: "Bath waste",
+    product: fitting("Dome Pop Short Bath Waste 40mm, with pull out basket", "SDP-40BN", "Ahrok SDP-40BN dome pop short bath waste, 40 mm, pull-out basket, brushed nickel",
+      "Carton label: WaterMark licence WM-022812, AS 1589-2001.", "Ahrok"),
+    size: { w: 0.07, d: 0.07, h: 0.02, printed: [], elevation: 0.59, caveat: "dome size and its place in the tub are placeholders" },
+    // 0.15 m across and 0.3 m from the back edge puts it inside the triangular bath, near the corner
+    parts: waste, placement: { id: "bath_waste", kind: "waste_sdp40bn", x: 1.75, y: 0.3, rotation: 0, fittedTo: { hostId: "bath", across: 0.15, out: 0.3 } },
   },
   {
     kind: "mixer_k1110_31", label: "Basin mixer",
@@ -194,7 +210,7 @@ export const bathroomNotes = (): Note[] => {
     { id: "note-limits", author: "human", text: "This sample is not measured set-out or a trade drawing. Drainage, services, falls, and construction layers are not represented.", at: at + 2 },
     {
       id: "note-purchased", author: "agent", at: at + 3,
-      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle isosceles corner bath, 1000 mm legs, rounded hypotenuse; carton 1000 × 1000 × 630 mm, so height and arc depth are unmeasured); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (not drawn); Thermorail VS900HBN 142 × 900 × 100 mm; OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L. Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
+      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle isosceles corner bath, 1000 mm legs, rounded hypotenuse; carton 1000 × 1000 × 630 mm, so height and arc depth are unmeasured); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); Thermorail VS900HBN 142 × 900 × 100 mm; OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L. Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
     },
     {
       id: "note-purchased-open", author: "agent", at: at + 4,

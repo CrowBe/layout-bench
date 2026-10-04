@@ -299,6 +299,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     } else {
       row("set-out", { value: "?", status: "unknown", missing: ["not set out from a wall face"] });
     }
+    if(it.fittedTo)row("fitted inside",{value:`${it.fittedTo.hostId}: ${mm(it.fittedTo.across)} across its centreline, ${mm(it.fittedTo.out)} from its back edge`,status:"proposed"});
     for(const message of placementLimitations(it))row("placement limitation",{value:message,status:"unknown"});
     if(it.installation || it.installationGeometry){
       const lv=installationReading(model,it),p=it.installation,g=it.installationGeometry;

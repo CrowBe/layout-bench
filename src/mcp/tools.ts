@@ -818,6 +818,14 @@ export const TOOLS: ToolDef[] = [
     execute: (i) => i.release ? actions.anchorFixture(i.itemId as string, null) : actions.anchorFixture(i.itemId as string, i as unknown as AnchorInput),
   },
   {
+    name: "fit_item",
+    title: "Fit an accessory inside a fixture",
+    description:
+      "Fit a placed accessory (a bath waste, a basket) inside a host fixture so it moves, turns and is removed with it, and does not count as overlapping it. `across` is metres from the host's centreline (left negative, facing the host) and `out` is metres from the host's back edge; the point must lie inside the host's real footprint. Set `release` to leave the accessory where it stands. An accessory cannot be anchored to a wall, and a host cannot itself be fitted inside another.",
+    inputSchema: obj({ id: str, host: str, across: num, out: num, release: { type: "boolean" } }, ["id"]),
+    execute: (i) => i.release ? actions.fitItem(i.id as string, null) : actions.fitItem(i.id as string, i.host as string, i.across as number | undefined, i.out as number | undefined),
+  },
+  {
     name: "set_service_point",
     title: "Enter a fixture's service point",
     description:
