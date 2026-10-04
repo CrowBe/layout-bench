@@ -9,6 +9,7 @@ import { actions, lookupItem, lookupWall, lookupRoom, store, type ActionResult, 
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { SHEETS, checkSheet, reconcile, type AckInput } from "../sheets/check";
 import { catalogue, renderStageDiagram, renderStageSpec } from "../sheets/stageView";
+import { elevationSurfaces, renderStageElevation } from "../sheets/stageElevation";
 import { applyView, composeView, currentView, recordExport, savedViews } from "../sheets/viewState";
 import { planningEvidence } from "../model/productRevision";
 import { recordIssued } from "../sheets/issued";
@@ -738,8 +739,8 @@ export const TOOLS: ToolDef[] = [
     name: "get_diagram_view",
     title: "Inspect the current stage view",
     description:
-      "Inspect the current stage view before exporting: its label, the ids as given, every visible element with its layer, the specification rows the sheet will print (value in mm, status, the face or datum it is measured from, source, and what is missing when unknown), and the preflight findings scoped to this view (blocking: title block, broken geometry or a default that would print as a dimension, on visible content; advisory: values printed as \"?\"). Optionally pass includeSvg to preview the diagram. Read-only.",
-    inputSchema: obj({ includeSvg: { type: "boolean" } }),
+      "Inspect the current stage view before exporting: its label, the ids as given, every visible element with its layer, the specification rows the sheet will print (value in mm, status, the face or datum it is measured from, source, and what is missing when unknown), and the preflight findings scoped to this view (blocking: title block, broken geometry or a default that would print as a dimension, on visible content; advisory: values printed as \"?\"). surfaces lists the drawings it can export: plan and one <wallId>:<side> elevation per room-facing wall side shown. Optionally pass includeSvg (with surface) to preview one. Read-only.",
+    inputSchema: obj({ includeSvg: { type: "boolean" }, surface: { type: "string", description: "with includeSvg: \"plan\" (default) or a wall surface id from surfaces, e.g. \"wall_n:right\"" } }),
     annotations: { readOnlyHint: true },
     execute: (i) => {
       const s = store.getState();
@@ -758,7 +759,12 @@ export const TOOLS: ToolDef[] = [
         spec: rows,
         findings: c.findings,
         ...(c.resolution.unknown.length ? { staleIds: c.resolution.unknown } : {}),
-        ...(i.includeSvg ? { svg: renderStageDiagram(s.model, c.resolution.elements, { label: view.label, findings: c.findings, products }) } : {}),
+        surfaces: ["plan", ...elevationSurfaces(s.model, c.resolution.elements).map((x) => x.id)],
+        ...(i.includeSvg ? (() => {
+          const surface = typeof i.surface === "string" && i.surface !== "plan" ? elevationSurfaces(s.model, c.resolution.elements).find((x) => x.id === i.surface) : undefined;
+          if (typeof i.surface === "string" && i.surface !== "plan" && !surface) return { svgError: `No elevation "${i.surface}" in this view. Surfaces: ${["plan", ...elevationSurfaces(s.model, c.resolution.elements).map((x) => x.id)].join(", ")}.` };
+          return { svg: surface ? renderStageElevation(s.model, c.resolution.elements, surface.wallId, surface.side, { label: view.label, findings: c.findings, products }) : renderStageDiagram(s.model, c.resolution.elements, { label: view.label, findings: c.findings, products }) };
+        })() : {}),
       };
     },
   },
@@ -766,10 +772,11 @@ export const TOOLS: ToolDef[] = [
     name: "export_diagram_view",
     title: "Generate the stage diagram and specification sheet",
     description:
-      "Generate, from the current stage view only, the dimensioned A3 diagram (SVG) and the matching specification sheet (HTML table). Both list the same visible elements; unknown values print as \"?\" with what is missing and are never shown as measurements, and every value keeps its status tag and datum. The A-01 sheet rules apply to the visible content: blocking findings refuse the export until fixed, or acknowledged with acknowledge: [{ code, ref, reason }] (10+ characters, printed on both outputs). This records an immutable stage-output archive, separate from A-01 sheet revisions. The person can download both from the Sheets tab; pass includeOutputs: true to get the text back.",
+      "Generate, from the current stage view only, the dimensioned A3 plan diagram (SVG), one A3 wall elevation (SVG) per room-facing wall side the view shows, and the matching specification sheet (HTML table). An elevation looks at the face from the room: it shows the outermost visible face or layer, openings, the proposed tile set-out when the tile layer is shown, visible floor levels and falls along the wall, fixtures against that face at their heights, and service points dimensioned from the return wall's face and above the finished floor; a height or position that is not known is listed as \"?\" and never drawn. surfaces limits which drawings are generated. Both list the same visible elements; unknown values print as \"?\" with what is missing and are never shown as measurements, and every value keeps its status tag and datum. The A-01 sheet rules apply to the visible content: blocking findings refuse the export until fixed, or acknowledged with acknowledge: [{ code, ref, reason }] (10+ characters, printed on both outputs). This records an immutable stage-output archive, separate from A-01 sheet revisions. The person can download both from the Sheets tab; pass includeOutputs: true to get the text back.",
     inputSchema: obj({
       acknowledge: { type: "array", items: obj({ code: str, ref: str, reason: str }, ["code", "ref", "reason"]) },
       note: str,
+      surfaces: { type: "array", items: str, description: "which drawings to generate: \"plan\" and/or wall surface ids from get_diagram_view (e.g. \"wall_n:right\"); default all of them" },
       includeOutputs: { type: "boolean" },
     }),
     execute: (i) => {
@@ -789,18 +796,24 @@ export const TOOLS: ToolDef[] = [
       const rawNote = i.note as unknown;
       const note = typeof rawNote === "string" && rawNote.trim() ? rawNote.trim().slice(0, 160) : undefined;
       const opts = { label: view.label, findings: c.findings, acknowledged: result.acknowledged, date: new Date().toISOString().slice(0, 10), note, products };
+      const all = elevationSurfaces(s.model, c.resolution.elements);
+      const wanted = Array.isArray(i.surfaces) ? (i.surfaces as unknown[]).map(String) : ["plan", ...all.map((x) => x.id)];
+      const unknownSurfaces = wanted.filter((id) => id !== "plan" && !all.some((x) => x.id === id));
+      if (unknownSurfaces.length || !wanted.length) return { ok: false, summary: `Not exported. ${wanted.length ? `No such surface in this view: ${unknownSurfaces.join(", ")}.` : "No surfaces requested."} Surfaces: ${["plan", ...all.map((x) => x.id)].join(", ")}.` };
       const svg = renderStageDiagram(s.model, c.resolution.elements, opts);
       const spec = renderStageSpec(s.model, c.resolution.elements, opts);
-      const output = {label:view.label,date:opts.date,svg,specHtml:spec.html,elements:c.resolution.elements.map(e=>e.id),at:Date.now(),modelEvidence:planningEvidence(s.model),acknowledged:result.acknowledged,...(note ? {note} : {})};
+      const elevations = all.filter((x) => wanted.includes(x.id)).map((x) => ({ surface: x.id, room: x.room, svg: renderStageElevation(s.model, c.resolution.elements, x.wallId, x.side, opts) }));
+      const output = {label:view.label,date:opts.date,svg,specHtml:spec.html,elements:c.resolution.elements.map(e=>e.id),at:Date.now(),modelEvidence:planningEvidence(s.model),acknowledged:result.acknowledged,...(note ? {note} : {}),...(wanted.includes("plan") ? {} : {planOmitted:true}),elevations};
       actions.recordStageExport(output);
       recordExport({projectId:s.activeProjectId,...output});
       const advisory = c.findings.filter((f) => f.severity === "advisory").length;
       return {
         ok: true,
-        summary: `Exported "${view.label}": diagram and specification sheet, ${c.resolution.elements.length} element(s), ${spec.rows.length} row(s), ${advisory} unresolved item(s) listed${result.acknowledged.length ? `, past ${result.acknowledged.length} acknowledged finding(s)` : ""}.`,
+        summary: `Exported "${view.label}": ${wanted.includes("plan") ? "plan diagram, " : ""}${elevations.length} wall elevation(s) (${elevations.map((e) => e.surface).join(", ") || "none"}) and specification sheet, ${c.resolution.elements.length} element(s), ${spec.rows.length} row(s), ${advisory} unresolved item(s) listed${result.acknowledged.length ? `, past ${result.acknowledged.length} acknowledged finding(s)` : ""}.`,
         elements: c.resolution.elements.map((e) => e.id),
         acknowledged: result.acknowledged,
-        ...(i.includeOutputs ? { svg, specHtml: spec.html } : { svgBytes: svg.length, specBytes: spec.html.length }),
+        surfaces: [...(wanted.includes("plan") ? ["plan"] : []), ...elevations.map((e) => e.surface)],
+        ...(i.includeOutputs ? { ...(wanted.includes("plan") ? { svg } : {}), specHtml: spec.html, elevations } : { svgBytes: svg.length, specBytes: spec.html.length, elevationBytes: elevations.map((e) => ({ surface: e.surface, bytes: e.svg.length })) }),
       };
     },
   },

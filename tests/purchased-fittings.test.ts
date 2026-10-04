@@ -37,6 +37,16 @@ describe("purchased fittings in the sample project", () => {
     expect(model.items.some((i) => i.id === "thermostat")).toBe(true);
   });
 
+  it("carries both purchased towel rails and the owner's 900 × 2100 fixed screen", () => {
+    const { model, kinds } = demoProject();
+    const rails = model.items.filter((i) => i.kind === "towel_rail_vs900hbn");
+    expect(rails.map((r) => r.id)).toEqual(["towel_rail", "towel_rail_2"]);
+    expect(rails.every((r) => r.selectionStatus === "purchased" && r.productIdentity?.code === "VS900HBN")).toBe(true);
+    const screen = kinds.find((k) => k.entry.kind === "screen_proposed")!.entry;
+    expect([screen.w, screen.h]).toEqual([0.9, 2.1]);
+    expect(model.items.find((i) => i.id === "screen")!.y).toBe(1.2);
+  });
+
   it("copies printed dimensions only where a label gives them", () => {
     const rail = purchasedFittings.find((f) => f.kind === "towel_rail_vs900hbn")!.size;
     expect([rail.w, rail.d, rail.h]).toEqual([0.142, 0.1, 0.9]);

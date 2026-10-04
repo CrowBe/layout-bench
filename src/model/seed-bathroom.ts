@@ -35,6 +35,8 @@ export interface PurchasedFitting {
   outline?: Outline;
   /** present when the seed places it */
   placement?: Item_;
+  /** further purchased units of the same fitting, placed separately */
+  extra?: Item_[];
 }
 
 const fitting = (m: string, code: string, label: string, notes: string, manufacturer = "", components?: ProductComponent[]): ExactProduct =>
@@ -160,7 +162,9 @@ export const purchasedFittings: PurchasedFitting[] = [
     product: fitting("VS900HBN", "VS900HBN", "Thermorail VS900HBN, 12 V vertical rail, round, brushed nickel, concealed wiring",
       "Carton label: 142 × 900 × 100 mm. 12 V: a low-voltage supply is needed and is not in the photos.", "Thermorail"),
     size: { w: 0.142, d: 0.1, h: 0.9, printed: ["w", "d", "h"], elevation: 0.5, caveat: "mounting height is a placeholder" },
-    parts: rail, placement: { id: "towel_rail", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.8, rotation: 90 },
+    parts: rail, placement: { id: "towel_rail", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.825, rotation: 90 },
+    // the owner bought two; the second hangs beside the first on the left wall
+    extra: [{ id: "towel_rail_2", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.575, rotation: 90 }],
   },
   {
     kind: "thermostat_mwd5_1999_cbp3", label: "Thermostat",
@@ -185,9 +189,9 @@ export const seedBathroom = (): PlanModel => ({
   ],
   rooms: [{ id: "bathroom", x: 0, y: 0, w: 2.1, h: 3, label: "Bathroom", floor: "tile" }],
   items: [
-    ...purchasedFittings.filter((f) => f.placement).map((f): Item => ({
-      ...f.placement!, productIdentity: structuredClone(f.product), selectionStatus: "purchased",
-    })),
+    ...purchasedFittings.flatMap((f) => [f.placement, ...(f.extra ?? [])].filter((p): p is Item_ => !!p).map((p): Item => ({
+      ...p, productIdentity: structuredClone(f.product), selectionStatus: "purchased",
+    }))),
     { id: "vanity", kind: "vanity_recorded", x: 1.85, y: 1.7, rotation: 270 },
     { id: "toilet", kind: "toilet_proxy", x: 1.7, y: 2.6, rotation: 270 },
     { id: "screen", kind: "screen_proposed", x: 0.45, y: 1.2, rotation: 0 },
@@ -206,7 +210,8 @@ export const bathroomKinds: ProjectKind[] = [
   })),
   { entry: { kind: "vanity_recorded", label: "Vanity", w: 0.91, d: 0.465, h: 0.85, color: "#b59c7f", category: "bath" } },
   { entry: { kind: "toilet_proxy", label: "Toilet", w: 0.48, d: 0.7, h: 0.8, color: "#e2ded4", category: "bath" } },
-  { entry: { kind: "screen_proposed", label: "Screen", w: 0.9, d: 0.01, h: 2, color: "#77b8d6", category: "bath" } },
+  // owner: fixed glass panel 900 wide × 2100 high, black clips, 1200 mm from the window wall (face not stated)
+  { entry: { kind: "screen_proposed", label: "Fixed glass screen", w: 0.9, d: 0.01, h: 2.1, color: "#77b8d6", category: "bath" } },
 ];
 
 export const bathroomNotes = (): Note[] => {
@@ -217,7 +222,11 @@ export const bathroomNotes = (): Note[] => {
     { id: "note-limits", author: "human", text: "This sample is not measured set-out or a trade drawing. Drainage, services, falls, and construction layers are not represented.", at: at + 2 },
     {
       id: "note-purchased", author: "agent", at: at + 3,
-      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle isosceles corner bath, 1000 mm legs, rounded hypotenuse; carton 1000 × 1000 × 630 mm, so height and arc depth are unmeasured); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); Thermorail VS900HBN 142 × 900 × 100 mm; OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L. Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
+      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle isosceles corner bath, 1000 mm legs, rounded hypotenuse; carton 1000 × 1000 × 630 mm, so height and arc depth are unmeasured); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); two Thermorail VS900HBN 142 × 900 × 100 mm; OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L. Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
+    },
+    {
+      id: "note-screen", author: "human", at: at + 5,
+      text: "Shower screen: fixed glass panel, 900 mm wide × 2100 mm high, fixed with black clips, set 1200 mm from the window wall. Which face the 1200 mm is measured to, the glass thickness and the clip positions are not recorded.",
     },
     {
       id: "note-purchased-open", author: "agent", at: at + 4,

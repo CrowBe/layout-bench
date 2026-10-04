@@ -12,6 +12,7 @@ import { renderFloorPlan } from "../sheets/floorPlan";
 import { recordIssued, useIssued } from "../sheets/issued";
 import { composeView, useDiagramView, useLastExport } from "../sheets/viewState";
 import { renderStageDiagram } from "../sheets/stageView";
+import { elevationSurfaces, renderStageElevation } from "../sheets/stageElevation";
 import { useProductStore } from "../model/productLibrary";
 import { planningEvidence } from "../model/productRevision";
 
@@ -26,7 +27,14 @@ function StageViewCard({ projectId, fileBase }: { projectId: string | null; file
   const exported = last && last.projectId === projectId ? last : null;
   const products = useProductStore((s) => s.products);
   const composed = useMemo(() => (view ? composeView(model, view, products) : null), [model, view, products]);
-  const preview = useMemo(() => (view && composed ? renderStageDiagram(model, composed.resolution.elements, { label: view.label, findings: composed.findings, products }) : ""), [model, view, composed, products]);
+  const surfaces = useMemo(() => (composed ? elevationSurfaces(model, composed.resolution.elements) : []), [model, composed]);
+  const [surfaceId, setSurfaceId] = useState("plan");
+  const surface = surfaces.find((x) => x.id === surfaceId);
+  const preview = useMemo(() => {
+    if (!view || !composed) return "";
+    const opts = { label: view.label, findings: composed.findings, products };
+    return surface ? renderStageElevation(model, composed.resolution.elements, surface.wallId, surface.side, opts) : renderStageDiagram(model, composed.resolution.elements, opts);
+  }, [model, view, composed, products, surface]);
   const slug = (s: string) => s.replace(/[^\w-]+/g, "-");
   return (
     <div className="sheets-card stage-view-card" aria-label="Stage view">
@@ -35,6 +43,10 @@ function StageViewCard({ projectId, fileBase }: { projectId: string | null; file
       {view && composed && (
         <>
           <span className="hint" data-stage-label>{view.label}: {composed.resolution.elements.length} element(s) visible. {composed.findings.filter((f) => f.severity === "blocking").length} blocking, {composed.findings.filter((f) => f.severity === "advisory").length} unresolved.</span>
+          <label className="hint">Drawing <select aria-label="Stage drawing" value={surface ? surface.id : "plan"} onChange={(e) => setSurfaceId(e.target.value)}>
+            <option value="plan">Plan</option>
+            {surfaces.map((x) => <option key={x.id} value={x.id}>Elevation: {x.id.replace(/^wall_/, "wall ").replace(":", ", ")} side ({x.room})</option>)}
+          </select></label>
           <div className="sheets-preview" aria-label="Stage preview" dangerouslySetInnerHTML={{ __html: preview }} />
         </>
       )}
@@ -42,12 +54,14 @@ function StageViewCard({ projectId, fileBase }: { projectId: string | null; file
         <span className="hint">{output.label} · {output.date} · {output.modelEvidence === planningEvidence(model) ? "Export matches current planning evidence." : "Historical export: current planning evidence differs."}</span>
         <button type="button" onClick={()=>download(`${fileBase}-${slug(output.label)}-${index}-diagram.svg`,output.svg,"image/svg+xml")}>Download archived diagram {index+1} (SVG)</button>
         <button type="button" onClick={()=>download(`${fileBase}-${slug(output.label)}-${index}-spec.html`,output.specHtml,"text/html")}>Download archived specification {index+1} (HTML)</button>
+        {(output.elevations??[]).map((e)=><button type="button" key={e.surface} onClick={()=>download(`${fileBase}-${slug(output.label)}-${index}-${slug(e.surface)}-elevation.svg`,e.svg,"image/svg+xml")}>Download archived elevation {e.surface} {index+1} (SVG)</button>)}
       </div>)}
       {exported && (
         <div className="sheets-actions">
           <span className="hint">{exported.modelEvidence === planningEvidence(model) ? "Export matches current planning evidence." : "Historical export: current planning evidence differs or its legacy reference was not captured."}</span>
           <button type="button" onClick={() => download(`${fileBase}-${slug(exported.label)}-diagram.svg`, exported.svg, "image/svg+xml")}>Download "{exported.label}" diagram (SVG)</button>
           <button type="button" onClick={() => download(`${fileBase}-${slug(exported.label)}-spec.html`, exported.specHtml, "text/html")}>Download "{exported.label}" spec (HTML)</button>
+          {(exported.elevations ?? []).map((e) => <button type="button" key={e.surface} onClick={() => download(`${fileBase}-${slug(exported.label)}-${slug(e.surface)}-elevation.svg`, e.svg, "image/svg+xml")}>Download "{exported.label}" elevation {e.surface} (SVG)</button>)}
         </div>
       )}
     </div>

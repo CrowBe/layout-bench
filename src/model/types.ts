@@ -384,6 +384,10 @@ export interface SheetRevision {
 
 export interface StageExport {
   label: string; date: string; svg: string; specHtml: string; elements: string[]; at: number; modelEvidence: string; acknowledged: Acknowledgement[]; note?: string;
+  /** one elevation per wall side shown, from the same visible set; absent on older exports */
+  elevations?: { surface: string; room: string; svg: string }[];
+  /** the plan diagram was not requested; svg still holds it for older readers */
+  planOmitted?: boolean;
 }
 
 export interface SheetSet {

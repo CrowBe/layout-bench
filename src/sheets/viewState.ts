@@ -28,6 +28,8 @@ export interface ExportedView {
   specHtml: string;
   elements: string[];
   at: number;
+  elevations?: { surface: string; room: string; svg: string }[];
+  planOmitted?: boolean;
 }
 
 interface ViewStoreState {
