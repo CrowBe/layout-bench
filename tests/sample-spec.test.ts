@@ -39,6 +39,12 @@ describe("owner's construction spec in the sample", () => {
     expect(levels.at(-1)).toMatchObject({ top: 0, fromTarget: true, resolved: true });
     expect(levels.at(-2)).toMatchObject({ top: -0.01, fromTarget: true }); // adhesive top = target − tile
     expect(levels[1].resolved).toBe(false); // membrane top: neither way reaches it
+    // the bought drains: linear along the left wall in the shower, the square waste centred in the dry area
+    const [linear, square] = m.rooms[0].drainage!.wastes;
+    expect(linear).toMatchObject({ kind: "linear", ax: 0.05, bx: 0.05, ay: 0.15, by: 1.05 });
+    expect(Math.round((linear.by - linear.ay) * 1000)).toBe(900);
+    expect(square).toMatchObject({ kind: "point", ax: 1.055, ay: 2.11 });
+    expect(m.rooms[0].drainage!.planes.every((p) => p.fall === undefined)).toBe(true); // falls not chosen
     expect(m.rooms[0].heating).toMatchObject({ model: "SCK0765L", screedLayerId: "floor_screed", path: [] });
     expect(() => parseImport(JSON.stringify(demoProject()))).not.toThrow();
   });

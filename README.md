@@ -353,6 +353,10 @@ A few design notes:
   timber trim above to the cornice, about 2700 mm up (about 284 mm of trim). Full tiles start at the door end: the doorway on the floor, the door-wall corner
   on the side walls, the door's jamb on the door wall, the corner nearer the door on the window wall.
   The tiler's floor screed and adhesive stay unknown; the target alone sets the finished floor.
+  The owner's drains are recorded as proposed positions: a 900 mm linear tile-insert drain along the
+  left wall of the shower, centred on it, and a Kano 316 120 × 120 tile-insert waste centred in the dry
+  area, each feeding its fall planes. Falls and waste levels are not chosen yet, so the planes stay
+  unresolved and the finished floor is the flat target.
   The shower screen is the owner's fixed glass panel, 900 wide × 2100 high on black clips, 1200 mm
   from the window wall; the face that 1200 mm is taken to is not recorded.
 

@@ -258,6 +258,21 @@ export const seedBathroom = (): PlanModel => ({
         { id: "floor_tile", kind: "tile", name: BEIGE, thickness: TILE },
       ],
     },
+    // Owner's drains (both bought, brushed nickel, from the same supplier). The linear tile-insert
+    // drain runs along the left wall beneath the shower head, a small distance off it, centred on
+    // the 1200 mm shower; the Kano 316 120 × 120 tile-insert waste is centred in the dry area.
+    // Positions are proposals; falls and waste levels are not chosen, so the planes stay unresolved.
+    drainage: {
+      wastes: [
+        { id: "linear_drain", label: "Linear tile-insert drain 900 mm, brushed nickel (model to confirm)", kind: "linear", ax: 0.05, ay: 0.15, bx: 0.05, by: 1.05 },
+        { id: "square_waste", label: "Kano 316 tile-insert waste 120 × 120, brushed nickel", kind: "point", ax: 1.055, ay: 2.11, bx: 1.055, by: 2.11 },
+      ],
+      planes: [
+        { id: "shower", label: "Shower", x: 0, y: 0, w: 0.9, h: 1.2, wasteId: "linear_drain", controls: [] },
+        { id: "bath_side", label: "Beside the shower (under the bath)", x: 0.9, y: 0, w: 1.21, h: 1.2, wasteId: "square_waste", controls: [] },
+        { id: "dry", label: "Dry area", x: 0, y: 1.2, w: 2.11, h: 1.82, wasteId: "square_waste", controls: [] },
+      ],
+    },
     // long side runs toward the window wall, then carries on up it
     // full tiles at the doorway (south) and along the left wall the door sits beside; the cut row lands at the window wall
     floorTiling: {
@@ -319,6 +334,14 @@ export const bathroomNotes = (): Note[] => {
     {
       id: "note-tiles-open", author: "agent", at: at + 8,
       text: "Still to confirm: the slab level after demolition (about 120 mm below the current tile, estimated); the finished-level target (set to the current tile level); the tile thickness (10 mm porcelain, estimated); the tiler's wall adhesive bed (4 mm, estimated); the frame positions (estimated); the width of the silicone or glue joint under the bottom course (4 mm assumed); the wall height (about 2700 mm from the current floor to the cornice, owner's estimate; about 2850 mm from the slab after stripping, which would put the slab nearer 150 mm down than 120 mm). Four courses reach about 2416 mm above the finished floor, leaving about 284 mm to the cornice for the timber trim. No wall membrane is recorded: only the floor was named.",
+    },
+    {
+      id: "note-drains", author: "human", at: at + 9,
+      text: "Drains (bought, brushed nickel, Surreal Solutions): a 900 mm linear tile-insert drain along the left wall of the shower, opposite the bath and beneath the shower head, a small distance off the wall and centred on the shower; and a Kano 316 120 × 120 mm tile-insert smart waste centred in the dry area (surrealsolutions.com.au/shop/kano-316-brushed-nickel-tile-insert-smart-waste/). Which linear drain model is still being worked out.",
+    },
+    {
+      id: "note-drains-open", author: "agent", at: at + 10,
+      text: "Drains, still open: the linear drain model and its channel width, outlet and position; the gap from the left wall (recorded as the drain centreline about 75 mm in front of the estimated finished wall face); both outlet sizes; the falls in the shower and dry area and the finished level at each drain (none recorded, so the fall planes stay unresolved and the finished floor is the flat target). The product sheets could not be read from here; sizes come from the owner.",
     },
     {
       id: "note-screen", author: "human", at: at + 5,
