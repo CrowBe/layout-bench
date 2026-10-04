@@ -8,12 +8,12 @@
  *
  * Run against dev or production: ALZA_BASE_URL=http://127.0.0.1:5316/ node tests/plan-labels.e2e.mjs
  */
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 
 const baseUrl = process.env.ALZA_BASE_URL ?? "http://127.0.0.1:5316/";
 
-const browser = await chromium.launch({ headless: true });
+const browser = await launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));

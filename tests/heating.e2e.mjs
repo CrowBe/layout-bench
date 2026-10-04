@@ -1,12 +1,9 @@
 /** Synthetic planning verification only. Purchased-product acceptance waits for the actual cable data. */
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 import { mkdir, readFile } from "node:fs/promises";
-const browser = await chromium.launch({
+const browser = await launch({
   headless: true,
-  ...(process.env.CHROMIUM_PATH
-    ? { executablePath: process.env.CHROMIUM_PATH }
-    : {}),
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }),
   errors = [];

@@ -11,6 +11,7 @@
     "plugin:pack": "mkdir -p dist && cd plugins/reno-layouts && python3 -m zipfile -c ../../dist/reno-layouts-plugin.zip .codex-plugin skills",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "node tests/run-e2e.mjs",
     "partner": "vite --port 5200 --strictPort",
     "deploy:studio": "wrangler pages deploy dist --project-name alza-dev --branch main",
     "deploy:partner": "npx netlify deploy --prod --dir dist"

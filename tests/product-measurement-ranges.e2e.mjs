@@ -1,7 +1,7 @@
 /** #48 reviewer regressions: synthetic human toilet ranges; no real fitting claims. */
-import {chromium} from 'playwright';
+import { launch } from "./browser.mjs";
 import {strict as assert} from 'node:assert';
-const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1100}}),errors=[];
+const browser=await launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1100}}),errors=[];
 page.on('pageerror',e=>errors.push(String(e)));const run=(name,args={})=>page.evaluate(([n,a])=>window.__alza.runTool(n,a),[name,args]);
 try{
  await page.goto(process.env.ALZA_BASE_URL??'http://127.0.0.1:5348/');await page.getByLabel('New project name').fill('Synthetic measured ranges');await page.getByRole('button',{name:'Create blank'}).click();await page.getByRole('button',{name:/^Products/}).click();

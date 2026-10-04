@@ -360,6 +360,15 @@ A few design notes:
 - Without a WebMCP runtime the app loses nothing. The built-in ToolRunner executes the
   same tools manually.
 
+## Tests
+
+`npm test` runs the unit tests. `npm run test:e2e` starts a dev server and runs every browser
+suite in `tests/*.e2e.mjs` (three at a time; `E2E_JOBS`, `E2E_PORT` and `ALZA_BASE_URL` adjust
+that), printing PASS, SKIP or FAIL for each. Every suite finds its browser through
+`tests/browser.mjs`: Playwright's own Chromium when installed, otherwise set `CHROMIUM_PATH`.
+`mm-geometry` drives the real WebMCP runtime and reports SKIP, with the reason, on a Chromium
+that lacks `navigator.modelContextTesting`.
+
 ## Two things WebMCP makes possible that I had not seen elsewhere
 
 ### 1. The human approves what the agent destroys

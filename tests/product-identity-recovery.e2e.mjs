@@ -1,9 +1,9 @@
 /** #47 regression story. All sources and fitting identities below are synthetic. */
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 
 const base = process.env.ALZA_BASE_URL ?? "http://127.0.0.1:5248/";
-const browser = await chromium.launch({ headless: true });
+const browser = await launch({ headless: true });
 const errors = [];
 const source = { url: "https://example.com/synthetic-components.pdf", locator: "p. 2, components" };
 const pub = value => ({ value, status: "published", sources: [source] });

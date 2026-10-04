@@ -1,8 +1,8 @@
 /** #53: real human revision acceptance, cancellation and selected updates with immutable history. */
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
-const browser = await chromium.launch({ headless: true });
+const browser = await launch({ headless: true });
 const context = await browser.newContext({
     viewport: { width: 1500, height: 1100 },
   }),

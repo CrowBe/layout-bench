@@ -1,10 +1,10 @@
 /** Explicitly synthetic #51 evidence: real human review, canonical placement/edit, 3D OBJ,
  * source geometry transforms, stage exports, persistence and project roundtrip. */
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 import { readFile, mkdir } from "node:fs/promises";
 import { fittingCases, powered } from "./bathroom-products-fixtures.mjs";
-const browser=await chromium.launch({headless:true});
+const browser=await launch({headless:true});
 const page=await browser.newPage({viewport:{width:1500,height:1100}}), errors=[];
 page.on('pageerror',e=>errors.push(String(e)));
 const q=value=>({value,status:'proposed',source:'Explicitly synthetic project set-out'});

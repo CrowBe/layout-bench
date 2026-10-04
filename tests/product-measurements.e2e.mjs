@@ -1,10 +1,10 @@
 /** #48: human-only recording, field review, actual persistence and project JSON transfer.
  * Only 910×465 is recorded existing-fitting evidence. Height/services/source conflict are synthetic. */
-import { chromium } from 'playwright';
+import { launch } from "./browser.mjs";
 import { strict as assert } from 'node:assert';
 import { readFileSync } from 'node:fs';
 const base=process.env.ALZA_BASE_URL??'http://127.0.0.1:5348/';
-const browser=await chromium.launch({headless:true});
+const browser=await launch({headless:true});
 const page=await browser.newPage({viewport:{width:1440,height:1100}}),errors=[];
 page.on('pageerror',e=>{errors.push(String(e));console.error('Browser error:',e);});
 const run=(name,args={})=>page.evaluate(([n,a])=>window.__alza.runTool(n,a),[name,args]);
