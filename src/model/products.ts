@@ -26,6 +26,7 @@ export const REFERENCES = {
   "fixture-bottom": "the product's own bottom edge; not a project mounting height",
   "frame": "the wall frame face",
   "packaging": "the shipping carton or pack, not the product itself; an upper bound on the product, never its size",
+  "unresolved": "the source does not make clear what this is measured from; the figure is kept as written, never used as a dimension or set-out",
   "other": "some other point; say which in the note",
 } as const;
 export type ReferenceId = keyof typeof REFERENCES;
@@ -267,7 +268,7 @@ export function safeUrl(url: unknown): string | null {
   }
 }
 
-const show = (f: FieldSpec, x: number | string) => (f.type === "length" && typeof x === "number" ? `${formatMm(x)} mm` : String(x));
+const show = (f: FieldSpec, x: number | string) => (f.type === "length" && typeof x === "number" ? `${formatMm(x)} mm` : f.type === "quantity" ? `${x} ${f.unit}` : String(x));
 
 /**
  * Every source needs an http(s) link, or an attachment on this request, and where on it the
@@ -361,6 +362,7 @@ export function validateSubmission(category: ProductCategory, s: SpecSubmission,
     if (sourceProblem) err(f.key, "source_invalid", `${f.label}: ${sourceProblem}`);
     const valueProblem = checkValue(f, v.value);
     if (valueProblem) err(f.key, valueProblem.code, `${f.label} ${valueProblem.message}`);
+    if (f.type === "length" && v.reference === "unresolved" && !v.note?.trim()) err(f.key, "datum_unresolved_without_note", `${f.label}: say in note what the source shows and why its datum is unclear.`);
     if (f.type === "length" && v.reference && v.reference !== f.reference) {
       warn(f.key, "reference_mismatch", `${f.label} is measured from ${REFERENCES[v.reference] ?? v.reference}, but the brief asks for ${f.reference ? REFERENCES[f.reference] : "no particular datum"}.`);
     }
@@ -410,7 +412,7 @@ export function validateProductGeometry(category: ProductCategory, fields: Recor
     const minDatum = fields[f.key]?.reference ?? (f.type === "length" ? f.reference : undefined);
     const maxDatum = fields[maxKey]?.reference ?? (maxSpec?.type === "length" ? maxSpec.reference : undefined);
     if (applies(f, fields) && typeof lo === "number" && typeof hi === "number") {
-      if (!minDatum || minDatum === "other" || minDatum !== maxDatum) {
+      if (!minDatum || minDatum === "other" || minDatum === "unresolved" || minDatum !== maxDatum) {
         warn(f.key, "range_datum_mismatch", `${f.key} and ${maxKey} cannot be ordered without a common named datum. Their sourced values are retained for human review; no conversion is inferred.`);
       } else if (lo > hi) {
         err(f.key, "range_reversed", `${f.label} exceeds ${maxKey}; check the range.`);
@@ -507,6 +509,17 @@ export function cornerBathLimitation(fields: Record<string, FieldValue>): string
   return null;
 }
 
+/**
+ * The limit to use when sources disagree: the most conservative figure among the working value
+ * and every published alternative (the lowest maximum, the highest minimum). Null unless a
+ * number is known. `sources` counts the figures compared.
+ */
+export function conservativeLimit(value: FieldValue | undefined, kind: "max" | "min"): { value: number; sources: number } | null {
+  const figures = [value?.value, ...(value?.alternatives ?? []).map((a) => a.value)].filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+  if (!figures.length) return null;
+  return { value: kind === "max" ? Math.min(...figures) : Math.max(...figures), sources: figures.length };
+}
+
 /** The envelope for a 3D block, only when all three are known. */
 export function envelopeOf(category: ProductCategory, fields: Record<string, FieldValue>): { w: number; d: number; h: number } | null {
   const pick = (k: string) => {
@@ -568,7 +581,7 @@ export function roughInPoints(category: ProductCategory, fields: Record<string, 
         const [lo, hi] = a.range;
         const from = fields[lo]?.reference ?? spec(lo)?.reference ?? "other";
         const maxFrom = fields[hi]?.reference ?? spec(hi)?.reference ?? "other";
-        if (from === "other" || from !== maxFrom) {
+        if (from === "other" || from === "unresolved" || from !== maxFrom) {
           missing.push(`${lo}..${hi}: different datums`);
           return { from, field: `${lo}..${hi}`, ...(fields[lo] ? { evidence: structuredClone(fields[lo]) } : {}), ...(fields[hi] ? { maxEvidence: structuredClone(fields[hi]) } : {}) };
         }

@@ -51,7 +51,7 @@ export function validateMeasurementFields(category: ProductCategory, fields: Rec
     if (invalidValue) add(field.key, "error", invalidValue.code, `${prefix} ${invalidValue.message}`);
     if (!VALUE_STATUSES.includes(value.status as ValueStatus)) add(field.key, "error", "measurement_status", `${prefix}: explicitly choose measured, estimated, proposed, site-confirmed or published.`);
     if (field.type === "length" && (!value.reference || !Object.hasOwn(REFERENCES, value.reference))) add(field.key, "error", "measurement_datum", `${prefix}: name the physical datum.`);
-    if (value.reference === "other" && !(typeof value.note === "string" && value.note.trim())) add(field.key, "error", "measurement_datum", `${prefix}: explain the other physical datum in the note.`);
+    if ((value.reference === "other" || value.reference === "unresolved") && !(typeof value.note === "string" && value.note.trim())) add(field.key, "error", "measurement_datum", `${prefix}: ${value.reference === "other" ? "explain the other physical datum" : "say what the source shows and why its datum is unclear"} in the note.`);
     if (value.status === "published") {
       const bad = Array.isArray(value.sources) ? checkSources(value.sources, ctx) : "sources must be a list.";
       if (bad) add(field.key, "error", "source_invalid", `${prefix}: ${bad}`);

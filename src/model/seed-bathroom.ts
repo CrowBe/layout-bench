@@ -1,7 +1,7 @@
 import type { CatalogEntry } from "./catalog";
 import { cornerBathOutline } from "./products";
 import type { Outline } from "./outline";
-import type { ExactProduct } from "./productIdentity";
+import type { ExactProduct, ProductComponent } from "./productIdentity";
 import type { PartSpec } from "../three/furniture";
 import type { ProjectKind } from "./projects";
 import type { Item, Note, PlanModel } from "./types";
@@ -37,8 +37,12 @@ export interface PurchasedFitting {
   placement?: Item_;
 }
 
-const fitting = (m: string, code: string, label: string, notes: string, manufacturer = ""): ExactProduct =>
-  ({ manufacturer, model: m, code, physicalItem: { label, notes } });
+const fitting = (m: string, code: string, label: string, notes: string, manufacturer = "", components?: ProductComponent[]): ExactProduct =>
+  ({ manufacturer, model: m, code, physicalItem: { label, notes }, ...(components ? { components, componentsStatus: "documented" as const } : {}) });
+
+/** A part of a set that was seen, or not seen, in the photos. Its code and quantity stay unknown: nothing sourced says it ships with this fitting. */
+const part = (name: string, note: string): ProductComponent =>
+  ({ name, code: { state: "unknown", value: null, note }, quantity: null, provision: "unresolved", note });
 
 // ---- Bath: Angie Corner 1000, SB184-1000GW ---------------------------------------------------
 // Carton 1000 × 1000 × 630 mm, 36 kg net. Shape as reported by the owner: a right-angle isosceles
@@ -115,7 +119,8 @@ export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "mixer_k1132_31", label: "Bath mixer",
     product: fitting("Profile III wall basin/bath mixer", "K1132-31", "Enflair K1132-31 outside part (K1132 inner part is the in-wall body)",
-      "Label: brushed SS nickel, max static inlet pressure 500 kPa, max hot water 80°, WaterMark AS 3718:2021 WM-080082.", "Enflair"),
+      "Label: brushed SS nickel, max static inlet pressure 500 kPa, max hot water 80°, WaterMark AS 3718:2021 WM-080082.", "Enflair",
+      [part("K1132 inner part (in-wall body)", "Its carton was photographed; whether it is the body for this trim is not confirmed by a sourced sheet.")]),
     size: { w: 0.07, d: 0.06, h: 0.07, printed: [], elevation: 0.8, caveat: "size and height are placeholders" },
     parts: wallMixer, placement: { id: "bath_mixer", kind: "mixer_k1132_31", x: 1.85, y: 0.03, rotation: 0 },
   },
@@ -144,7 +149,9 @@ export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "shower_y1173_31_11_250", label: "Shower system",
     product: fitting("Profile round twin shower system with adjustable rail", "Y1173-31-11-250", "Y1173-31-11-250 twin shower, 250 mm rain head, 3F handpiece, brushed nickel",
-      "Label: 9.0 L/min WELS licence 1281 (Kaiping Huipu Shower Metalwork Industrial Co Ltd), WaterMark AS/NZS 3662 WMKT25262. Brand is not printed on the label."),
+      "Label: 9.0 L/min WELS licence 1281 (Kaiping Huipu Shower Metalwork Industrial Co Ltd), WaterMark AS/NZS 3662 WMKT25262. Brand is not printed on the label.", "",
+      [part("K1130 wall shower/bath mixer, inner part", "Its carton was photographed; the shower mixer instruction sheet shows its 45 mm and 60 mm dimensions without a clear datum."),
+        part("K1130 outside part (handle trim)", "No carton for the trim was photographed; not confirmed as held.")]),
     size: { w: 0.25, d: 0.4, h: 2, printed: ["w"], caveat: "only the 250 mm head is printed; arm reach, rail and height are placeholders" },
     parts: shower, placement: { id: "shower_system", kind: "shower_y1173_31_11_250", x: 0.2, y: 0.6, rotation: 90 },
   },

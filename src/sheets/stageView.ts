@@ -22,7 +22,7 @@ import { planeSurface } from "../model/drainage";
 import { placementLimitations, anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
 import { IDENTITY_FIELDS, identityOf, identityText, type IdentityKey } from "../model/productIdentity";
-import { categoryById } from "../model/products";
+import { categoryById, conservativeLimit } from "../model/products";
 import { evidenceStatus, evidenceText } from "../model/productMeasurements";
 import { checkSheet, type SheetFinding } from "./check";
 import { PAPER, TAGS, esc, f1, joinedRect, mm, tag } from "./floorPlan";
@@ -357,6 +357,9 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
           ...(datum ? { datum } : {}),
           ...(evidenceText(fv) ? { source: evidenceText(fv) } : {}),
         });
+        const limitKind = field?.type === "quantity" && fv.alternatives?.length ? (key.endsWith("Max") ? "max" : key.endsWith("Min") ? "min" : null) : null;
+        const used = limitKind ? conservativeLimit(fv, limitKind) : null;
+        if (used && used.sources > 1) row(`${key} used for checks`, { value: plain(key, used.value), status: "published", source: `${limitKind === "max" ? "lowest" : "highest"} of ${used.sources} sourced figures` });
         for (const [index, alternative] of (fv.alternatives ?? []).entries()) row(`${key} published alternative ${index + 1}`, { value: typeof alternative.value === "number" && lengthKeys.has(key) ? mm(alternative.value) : plain(key, alternative.value), status: "published", source: evidenceText({ value: alternative.value, sources: [alternative.source] }), ...(datum ? { datum } : {}) });
         for (const [index, observation] of (fv.observations ?? []).entries()) row(`${key} observation ${index + 1}`, {
           value: observation.value === null ? "?" : typeof observation.value === "number" && (lengthKeys.has(key) || key.startsWith("service.")) ? mm(observation.value) : plain(key, observation.value),
