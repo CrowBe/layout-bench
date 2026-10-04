@@ -147,3 +147,8 @@ export function layoutRoomLabel(room: Room, walls: Wall[], scale: number): RoomL
 
   return { x: left, y: inkTop + ascent, fontSize, lines, lineDy, box: { x: left, y: inkTop, w: blockW, h: blockH } };
 }
+
+/** A fixture's name is drawn inside its footprint only when it fits there; a small wall fitting would spill over its neighbours. */
+export function labelFits(label: string, widthPx: number, depthPx: number, fontPx: number): boolean {
+  return textWidthPx(label, fontPx, ROOM_FONT_FAMILY) <= widthPx - 4 && fontPx * 1.2 <= depthPx;
+}

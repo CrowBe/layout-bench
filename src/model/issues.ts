@@ -382,6 +382,9 @@ export function checkModel(model: PlanModel, lookup: CatalogLookup = catalogByKi
       const oc = catalogForItem(other, lookup);
       if (!oc) continue;
       if (cat.isRug || oc.isRug) continue;
+      // pieces mounted at different heights share a footprint without touching
+      const [lo, hi] = [cat.elevation ?? 0, oc.elevation ?? 0];
+      if (lo >= hi + oc.h || hi >= lo + cat.h) continue;
       const iv=installationReading(model,it,lookup),ov=installationReading(model,other,lookup);
       if((it.installation || other.installation) && iv.bottom!==undefined && iv.top!==undefined && ov.bottom!==undefined && ov.top!==undefined && Math.min(iv.top,ov.top)-Math.max(iv.bottom,ov.bottom)<=.001)continue;
       const or2 = footprint.get(other.id)!;

@@ -14,7 +14,7 @@ import { kindPolygon } from "../model/outline";
 import { useAppStore, actions, logActivity } from "../model/store";
 import type { Opening, Wall } from "../model/types";
 import { formatMm, snap as snapTo, segLen, segPoint } from "../model/geometry";
-import { DIM_FONT_FAMILY, DIM_OFFSET_M, dimensionFontPx, layoutRoomLabel, planFontPx, ROOM_FONT_FAMILY, wallDimensionAnchor } from "./planLabels";
+import { labelFits, DIM_FONT_FAMILY, DIM_OFFSET_M, dimensionFontPx, layoutRoomLabel, planFontPx, ROOM_FONT_FAMILY, wallDimensionAnchor } from "./planLabels";
 import { openingSpan } from "../model/issues";
 import { catalogForItem, catalogByKind } from "../model/catalog";
 
@@ -30,6 +30,8 @@ const FLOOR_FILL: Record<string, string> = {
   carpet: "#cfd6c4",
   concrete: "#d4d4d0",
 };
+
+const itemFont = (scale: number) => planFontPx(scale, 0.2, 8, 16);
 
 /** Service point colours: waste, water, power. */
 const SERVICE_COLOR = { waste: "#7a5230", water: "#2f78b7", power: "#c0392b" } as const;
@@ -491,14 +493,14 @@ export function Editor() {
               pointerEvents="none"
               x={0}
               y={0}
-              fontSize={planFontPx(S, 0.2, 8, 16)}
+              fontSize={itemFont(S)}
               fill="#fff"
               textAnchor="middle"
               dominantBaseline="middle"
               fontFamily="Inter, sans-serif"
               transform={`rotate(${it.rotation})`}
             >
-              {S > 55 ? cat.label : ""}
+              {S > 55 && labelFits(cat.label, cat.w * S, cat.d * S, itemFont(S)) ? cat.label : ""}
             </text>
           </g>
         );

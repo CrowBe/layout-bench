@@ -1,12 +1,13 @@
 /** Explicit human evidence for reused fittings (#48). No measurements come from photos or
  * the research tool. Published observations keep their separately located source. */
-import { REFERENCES, applies, validateProductGeometry, checkSources, checkValue, type FieldObservation, type FieldSpec, type FieldValue, type ProductCategory, type SpecProblem, type SubmissionContext } from "./products";
+import { REFERENCES, applies, categoryById, validateProductGeometry, checkSources, checkValue, type FieldObservation, type FieldSpec, type FieldValue, type ProductCategory, type SpecProblem, type SubmissionContext } from "./products";
 import { VALUE_STATUSES } from "./faces";
 import type { ValueStatus } from "./types";
 
 export interface PhysicalItem { label: string; notes?: string }
 export interface MeasurementRecord {
-  unit: "metres" | "count" | "choice" | "text";
+  /** metres, count, choice, text, or the unit of a quantity field (W, V, A, Ω…) */
+  unit: string;
   date: string | null;
   dateNote?: string;
   evidence: string;
@@ -18,7 +19,7 @@ export interface ProductSpecification {
   recordingMode?: "human-measurement";
   acceptedAt: number;
 }
-export const measurementUnit = (field: FieldSpec): MeasurementRecord["unit"] => field.type === "length" ? "metres" : field.type;
+export const measurementUnit = (field: FieldSpec): MeasurementRecord["unit"] => field.type === "length" ? "metres" : field.type === "quantity" ? field.unit : field.type;
 const dateValid = (date: unknown) => typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
 export const isPhysicalItem = (p: unknown): p is PhysicalItem => !!p && typeof p === "object" && typeof (p as PhysicalItem).label === "string" && !!(p as PhysicalItem).label.trim() && ((p as PhysicalItem).notes === undefined || typeof (p as PhysicalItem).notes === "string");
 
@@ -104,6 +105,8 @@ export function isProductSpecification(value: unknown): value is ProductSpecific
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const spec = value as ProductSpecification;
   if (typeof spec.category !== "string" || !spec.fields || typeof spec.fields !== "object" || Array.isArray(spec.fields) || !Number.isFinite(spec.acceptedAt) || (spec.recordingMode !== undefined && spec.recordingMode !== "human-measurement")) return false;
-  const valid = (v: FieldObservation | FieldValue): boolean => !!v && typeof v === "object" && !Array.isArray(v) && (v.value === null || typeof v.value === "string" || typeof v.value === "number" && Number.isFinite(v.value)) && (v.status === undefined || VALUE_STATUSES.includes(v.status)) && (v.note === undefined || typeof v.note === "string") && (v.reference === undefined || typeof v.reference === "string" && Object.hasOwn(REFERENCES, v.reference)) && (v.sources === undefined || Array.isArray(v.sources) && v.sources.every(s => !!s && typeof s.url === "string" && (s.locator === undefined || typeof s.locator === "string"))) && (v.measurement === undefined || !!v.measurement && typeof v.measurement === "object" && v.measurement.recordedBy === "human" && typeof v.measurement.evidence === "string" && !!v.measurement.evidence.trim() && (dateValid(v.measurement.date) || v.measurement.date === null && typeof v.measurement.dateNote === "string" && !!v.measurement.dateNote.trim()) && ["metres", "count", "choice", "text"].includes(v.measurement.unit));
+  // the fixed units, plus the units this category's quantity fields are recorded in
+  const units = new Set<string>(["metres", "count", "choice", "text", ...(categoryById(spec.category)?.fields ?? []).flatMap((f) => f.type === "quantity" ? [f.unit] : [])]);
+  const valid = (v: FieldObservation | FieldValue): boolean => !!v && typeof v === "object" && !Array.isArray(v) && (v.value === null || typeof v.value === "string" || typeof v.value === "number" && Number.isFinite(v.value)) && (v.status === undefined || VALUE_STATUSES.includes(v.status)) && (v.note === undefined || typeof v.note === "string") && (v.reference === undefined || typeof v.reference === "string" && Object.hasOwn(REFERENCES, v.reference)) && (v.sources === undefined || Array.isArray(v.sources) && v.sources.every(s => !!s && typeof s.url === "string" && (s.locator === undefined || typeof s.locator === "string"))) && (v.measurement === undefined || !!v.measurement && typeof v.measurement === "object" && v.measurement.recordedBy === "human" && typeof v.measurement.evidence === "string" && !!v.measurement.evidence.trim() && (dateValid(v.measurement.date) || v.measurement.date === null && typeof v.measurement.dateNote === "string" && !!v.measurement.dateNote.trim()) && typeof v.measurement.unit === "string" && units.has(v.measurement.unit));
   return Object.values(spec.fields).every(v => valid(v) && (v.observations === undefined || Array.isArray(v.observations) && v.observations.every(valid)) && (v.alternatives === undefined || Array.isArray(v.alternatives) && v.alternatives.every(a => !!a && typeof a === "object" && valid({ ...a, status: "published", sources: [a.source] }))));
 }

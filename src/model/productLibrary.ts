@@ -262,6 +262,9 @@ const updateRequest = (id: string, patch: Partial<ProductRequest>) =>
 
 const findRequest = (id: string): ProductRequest | undefined => productStore.getState().requests.find((r) => r.id === id);
 
+/** Reused fittings, and printed-label capture for items bought but not yet fitted. */
+export const HUMAN_MEASURABLE = ["vanity", "toilet", "bath", "heating-cable", "thermostat", "waste"];
+
 export const products = {
   /** Manual human transfer only. No catalogue/import write capability is exposed to agents. */
   async exportBundle(selection: { requestIds: string[]; productIds: string[] }): Promise<LibraryResult> {
@@ -354,7 +357,7 @@ export const products = {
   /** Human only; a physical label identifies the fitting without manufacturing a SKU. */
   openMeasurements(category: string, physicalItem: PhysicalItem, initial?: Record<string, FieldValue>, evidenceOriginRequestId?: string): LibraryResult {
     const cat = categoryById(category);
-    if (!cat || !["toilet", "vanity", "bath"].includes(category)) return fail("The human measurement flow currently supports toilet, vanity and bath categories.");
+    if (!cat || !HUMAN_MEASURABLE.includes(category)) return fail(`The human measurement flow supports ${HUMAN_MEASURABLE.join(", ")}.`);
     if (!isPhysicalItem(physicalItem)) return fail("Give the physical fitting a label; manufacturer and model can stay unknown.");
     if (evidenceOriginRequestId && findRequest(evidenceOriginRequestId)?.status !== "accepted") return fail("Original accepted evidence request is missing from this browser.");
     const req: ProductRequest = { ...(evidenceOriginRequestId ? { evidenceOriginRequestId } : {}), id: uid("preq"), category, known: { physicalItem: structuredClone(physicalItem) }, mode: "human-measurement", status: "open", createdAt: Date.now(), reviews: {}, measurementDraft: structuredClone(initial ?? unknownMeasurementFields(cat)) };

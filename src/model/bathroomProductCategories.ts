@@ -1,6 +1,6 @@
 /** Bounded fitting briefs (#50). All figures describe the exact product, never a proposed
  * project mounting height. Text layouts retain the source's datums until #51 can model them. */
-import type { FieldSpec, LengthField, ProductCategory, ReferenceId } from "./products";
+import type { FieldSpec, LengthField, QuantityField, ProductCategory, ReferenceId } from "./products";
 
 type When = { field: string; in: string[] };
 const length = (key: string, label: string, definition: string, reference: ReferenceId, min = 0, max = 3, when?: When): LengthField =>
@@ -9,6 +9,8 @@ const choice = (key: string, label: string, options: string[], definition: strin
   ({ type: "choice", key, label, options, definition, group: "installation", required: true, ...(when ? { when } : {}) });
 const text = (key: string, label: string, definition: string, when?: When): FieldSpec =>
   ({ type: "text", key, label, definition, group: "installation", required: true, ...(when ? { when } : {}) });
+const quantity = (key: string, label: string, unit: string, definition: string, min: number, max: number, when?: When, group: FieldSpec["group"] = "installation"): QuantityField =>
+  ({ type: "quantity", key, label, unit, definition, min, max, group, required: true, ...(when ? { when } : {}) });
 const when = (field: string, ...values: string[]): When => ({ field, in: values });
 const envelope = (): FieldSpec[] => [
   { ...length("width", "Overall width", "Maximum product width, across its own left and right ends; metres.", "fixture-end", 0.001), group: "envelope" },
@@ -133,5 +135,52 @@ export const BATHROOM_PRODUCT_CATEGORIES: ProductCategory[] = [
       text("accessRequirements", "Door / servicing access", "Published door swing, removal, maintenance and ventilation clearance requirements, with units and datums. For a plain mirror record explicit no-access requirement only when sourced."),
       ...powerFields(),
     ], roughIn: [localPower()],
+  },
+  {
+    id: "heating-cable", label: "Floor heating cable", envelope: box,
+    placement: unsupported("A floor heating cable is a length of cable, not an envelope. Its proposed route is entered with the heating tools, which hold its own product and length evidence."),
+    fields: [
+      choice("cableType", "Installation type", ["in-screed", "under-tile", "other"], "Where the exact product is designed to be embedded; a label naming a screed is not under-tile."),
+      length("cableLength", "Heating cable length", "Heated cable length from its cold joint to its end, excluding cold tails; metres.", "fixture-end", 1, 300),
+      quantity("outputPerMetre", "Output per metre", "W/m", "Rated output per metre at the rated voltage.", 1, 100),
+      quantity("totalPower", "Total power", "W", "Rated power of the whole cable at the rated voltage.", 10, 10000),
+      quantity("ratedVoltage", "Rated voltage", "V", "Supply voltage the rating is given at.", 12, 480),
+      quantity("ratedCurrent", "Rated current", "A", "Current at the rated power and voltage.", 0.05, 80),
+      quantity("resistance", "Cable resistance", "Ω", "Resistance of the whole cable as printed; useful for commissioning checks.", 1, 10000),
+      quantity("coverageAreaMin", "Coverage area, minimum", "m²", "Smallest floor area the sheet or label says this cable should cover.", 0.1, 100),
+      quantity("coverageAreaMax", "Coverage area, maximum", "m²", "Largest floor area the sheet or label says this cable should cover.", 0.1, 100),
+      length("coldTailLength", "Cold tail length", "Length of each unheated supply lead, from its free end to the cold joint; metres.", "fixture-end", 0, 20),
+      text("installationRequirements", "Installation requirements", "Published cover, minimum bend radius, spacing, crossing and sensor rules, with units and source datums."),
+    ], roughIn: [],
+  },
+  {
+    id: "thermostat", label: "Thermostat / controller", envelope: box,
+    placement: unsupported("A wall controller's flush box depth, mounting height and bathroom-zone rules are not represented by a floor-based envelope."),
+    fields: [
+      ...envelope(),
+      choice("mounting", "Mounting", ["flush", "surface", "din-rail", "other"], "Published mounting method."),
+      length("flushBoxDepth", "Flush box depth", "Depth the flush back box needs behind the finished wall, as published; metres.", "finished-wall", 0.001, 0.2, when("mounting", "flush")),
+      quantity("ratedVoltageMin", "Rated voltage, minimum", "V", "Lowest supply voltage of the printed range.", 5, 480),
+      quantity("ratedVoltageMax", "Rated voltage, maximum", "V", "Highest supply voltage of the printed range.", 5, 480),
+      quantity("ratedCurrent", "Rated switching current", "A", "Maximum load current as printed.", 0.1, 100),
+      quantity("tempRangeMin", "Setpoint range, minimum", "°C", "Lowest settable temperature.", -50, 150),
+      quantity("tempRangeMax", "Setpoint range, maximum", "°C", "Highest settable temperature.", -50, 150),
+      text("ingressProtection", "Ingress protection", "The printed IP code of the housing, exactly as printed (e.g. IP21); no zone suitability is inferred."),
+      choice("floorSensor", "Floor sensor / limitation sensor", ["included", "separately-required", "none"], "Whether a sensor probe is supplied with this exact variant."),
+      choice("connectivity", "Connectivity", ["none", "wifi", "other"], "Published connectivity of the exact variant."),
+      text("certification", "Certification marks", "Printed approval marks and numbers, exactly as printed."),
+    ], roughIn: [],
+  },
+  {
+    id: "waste", label: "Bath / basin waste", envelope: box,
+    placement: unsupported("Waste bodies sit inside a bath or basin and below the finished surface; they have no floor envelope of their own."),
+    fields: [
+      ...envelope(),
+      length("outletDiameter", "Nominal outlet diameter", "Published connection size through its centreline; metres (a '40 mm' waste is 0.04).", "fixture-centreline", 0.01, 0.2),
+      choice("style", "Style", ["dome-pop", "pop-up", "click-clack", "plug-and-chain", "other"], "Published operating style."),
+      choice("overflow", "Overflow", ["with", "without"], "Whether this waste takes an overflow."),
+      text("strainer", "Strainer / basket", "Published strainer or basket arrangement, e.g. a pull-out basket; as printed."),
+      text("certification", "Certification marks", "Printed approval marks, licence numbers and standards, exactly as printed."),
+    ], roughIn: [],
   },
 ];

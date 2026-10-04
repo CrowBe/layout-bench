@@ -339,6 +339,8 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     const specification = it.productSpecification ?? product;
     if (specification) {
       const fieldSpecs = categoryById(specification.category)?.fields ?? [];
+      const quantityUnit = new Map(fieldSpecs.flatMap((f) => f.type === "quantity" ? [[f.key, f.unit] as const] : []));
+      const plain = (key: string, v: string | number) => quantityUnit.has(key) ? `${v} ${quantityUnit.get(key)}` : String(v);
       const lengthKeys = new Set(fieldSpecs.filter((f) => f.type === "length").map((f) => f.key));
       if (product) row("product", { value: product.physicalItem?.label ?? [product.manufacturer, product.model].filter(Boolean).join(" "), status: product.recordingMode ? "entered" : "published" });
       for (const [key, fv] of Object.entries(specification.fields)) {
@@ -348,14 +350,14 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
         else
         row(key, {
           // only length fields are metres; a count (tap holes) or text prints as given
-          value: typeof fv.value === "number" && (lengthKeys.has(key) || key.startsWith("service.")) ? mm(fv.value) : String(fv.value),
+          value: typeof fv.value === "number" && (lengthKeys.has(key) || key.startsWith("service.")) ? mm(fv.value) : plain(key, fv.value),
           status: (fv.status ?? "unknown") as RowStatus,
           ...(datum ? { datum } : {}),
           ...(evidenceText(fv) ? { source: evidenceText(fv) } : {}),
         });
-        for (const [index, alternative] of (fv.alternatives ?? []).entries()) row(`${key} published alternative ${index + 1}`, { value: typeof alternative.value === "number" && lengthKeys.has(key) ? mm(alternative.value) : String(alternative.value), status: "published", source: evidenceText({ value: alternative.value, sources: [alternative.source] }), ...(datum ? { datum } : {}) });
+        for (const [index, alternative] of (fv.alternatives ?? []).entries()) row(`${key} published alternative ${index + 1}`, { value: typeof alternative.value === "number" && lengthKeys.has(key) ? mm(alternative.value) : plain(key, alternative.value), status: "published", source: evidenceText({ value: alternative.value, sources: [alternative.source] }), ...(datum ? { datum } : {}) });
         for (const [index, observation] of (fv.observations ?? []).entries()) row(`${key} observation ${index + 1}`, {
-          value: observation.value === null ? "?" : typeof observation.value === "number" && (lengthKeys.has(key) || key.startsWith("service.")) ? mm(observation.value) : String(observation.value),
+          value: observation.value === null ? "?" : typeof observation.value === "number" && (lengthKeys.has(key) || key.startsWith("service.")) ? mm(observation.value) : plain(key, observation.value),
           status: observation.value === null ? "unknown" : observation.status ?? "unknown", ...(observation.reference ? { datum: observation.reference } : {}),
           ...(evidenceText(observation) ? { source: evidenceText(observation) } : {}), ...(observation.value === null ? { missing: [observation.note ?? key] } : {}),
         });

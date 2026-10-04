@@ -26,6 +26,7 @@ const human = (tool: string, r: LibraryResult) => {
 
 function shown(f: FieldSpec, v: FieldValue | undefined): string {
   if (!v || v.value === null || v.value === undefined) return "unknown";
+  if (f.type === "quantity") return `${v.value} ${f.unit}`;
   return f.type === "length" && typeof v.value === "number" ? `${formatMm(v.value)} mm` : String(v.value);
 }
 
@@ -134,6 +135,7 @@ function unit(f: FieldSpec): string {
   if (f.type === "length") return `mm, ${formatMm(f.min)}–${formatMm(f.max)}`;
   if (f.type === "choice") return f.options.join(" / ");
   if (f.type === "count") return `${f.min}–${f.max}`;
+  if (f.type === "quantity") return `${f.unit}, ${f.min}–${f.max}`;
   return "text";
 }
 

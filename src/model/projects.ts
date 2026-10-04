@@ -180,7 +180,7 @@ export function parseProject(value: unknown): ProjectDocument {
         (v.corner === undefined || (object(v.corner) && typeof v.corner.left === "string" && typeof v.corner.right === "string" && (v.corner.side === "left" || v.corner.side === "right"))) &&
         (v.servicePoints === undefined || (Array.isArray(v.servicePoints) && v.servicePoints.every(validServicePoint)))) ||
       !notes.every((v) => object(v) && typeof v.id === "string" && typeof v.text === "string" && finite(v.at) && (v.author === "human" || v.author === "agent")) ||
-      !kinds.every((v) => object(v) && object(v.entry) && typeof v.entry.kind === "string" && typeof v.entry.label === "string" && ["w", "d", "h"].every((k) => finite((v.entry as Record<string, unknown>)[k])) && (v.parts === undefined || Array.isArray(v.parts)) && oneOf(v.entry.installationMounting,["wall"]) && validOutline(v.entry as Record<string, unknown>)) ||
+      !kinds.every((v) => object(v) && object(v.entry) && typeof v.entry.kind === "string" && typeof v.entry.label === "string" && ["w", "d", "h"].every((k) => finite((v.entry as Record<string, unknown>)[k])) && (v.parts === undefined || Array.isArray(v.parts)) && (v.entry.elevation === undefined || finite(v.entry.elevation) && v.entry.elevation >= 0) && oneOf(v.entry.installationMounting,["wall"]) && validOutline(v.entry as Record<string, unknown>)) ||
       !(model.sheetSet === undefined || validSheetSet(model.sheetSet)) ||
       !(model.underlay === null || (object(model.underlay) && typeof model.underlay.dataUrl === "string" && ["opacity", "x", "y", "w", "h"].every((k) => finite((model.underlay as Record<string, unknown>)[k]))))) {
     throw new Error("Project document contains invalid model data.");

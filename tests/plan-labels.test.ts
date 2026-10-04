@@ -80,3 +80,12 @@ describe("room labels", () => {
     inside(zoomedOut.box, { x: 0, y: 0, w: 8 * 15, h: 6 * 15 });
   });
 });
+
+import { labelFits } from "../src/editor/planLabels";
+describe("fixture labels", () => {
+  it("draws a name only where its footprint holds it", () => {
+    expect(labelFits("Bath mixer", 400, 300, 12)).toBe(true);
+    expect(labelFits("Bath mixer", 40, 300, 12)).toBe(false); // narrow wall fitting
+    expect(labelFits("Bath mixer", 400, 8, 12)).toBe(false); // thin screen
+  });
+});
