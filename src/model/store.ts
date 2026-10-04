@@ -45,6 +45,7 @@ import { emptyModel } from "./types";
 import { validHeating, heatingEvidence } from "./heating";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
+import { CABLE_CATEGORY, CONTROLLER_CATEGORY, cableFieldsFrom, snapshotOf } from "./heatingProduct";
 import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
 import { sideNormal } from "./faces";
 import { drainageProblems, planeSurface } from "./drainage";
@@ -1164,7 +1165,7 @@ export const actions = {
     if (patch.clear === true) delete nextRoom.heating;
     else {
       const next: Heating = structuredClone(room.heating ?? { zoneIds: [], path: [], keepouts: [] });
-      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts"] as (keyof Heating)[]) {
+      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts", "cableProduct", "controller"] as (keyof Heating)[]) {
         if (patch[key] === undefined) continue;
         if (patch[key] === null) {
           if (key === "path" || key === "zoneIds" || key === "keepouts") Object.assign(next, { [key]: [] });
@@ -1186,6 +1187,27 @@ export const actions = {
     pushUndo();
     setModel({ ...store.getState().model, rooms: store.getState().model.rooms.map((r) => r.id === room.id ? nextRoom : r) });
     return { ok: true, summary: `Room "${room.label}" proposed heating ${nextRoom.heating ? "updated" : "cleared"}; electrician/manufacturer review required.`, id: room.id, ...heatingEvidence(nextRoom) };
+  },
+
+  /**
+   * Pin an accepted library product to a room's heating record: a heating-cable product fills the
+   * cable's length, rated total power, requirements and source from its reviewed evidence, and a
+   * thermostat is kept as the controller the cable is checked against. Pass null to unpin (the
+   * figures already copied stay and can be edited). Nothing is defaulted and nothing is approved.
+   */
+  setHeatingProduct(roomRef: string, role: "cable" | "controller", product: LibraryProduct | null): ActionResult {
+    const hit = resolveRoom(roomRef);
+    if (!hit.ok) return rejected(hit);
+    if (!["cable", "controller"].includes(role)) return fail("Role must be cable or controller.");
+    const key = role === "cable" ? "cableProduct" : "controller";
+    if (product === null) return this.setRoomHeating(roomRef, { [key]: null } as HeatingPatch);
+    const want = role === "cable" ? CABLE_CATEGORY : CONTROLLER_CATEGORY;
+    if (product.category !== want) return fail(`${exactProductLabel(product)} is a ${product.category} product; the ${role} must be a ${want} product.`);
+    const patch: HeatingPatch = role === "cable"
+      ? (cableFieldsFrom(product) as HeatingPatch)
+      : ({ controller: snapshotOf(product) } as HeatingPatch);
+    const r = this.setRoomHeating(roomRef, patch);
+    return r.ok ? { ...r, summary: `${exactProductLabel(product)} pinned as the ${role} for "${hit.entity.label}". ${r.summary}` } : r;
   },
 
   // ---- floor assembly (#6) ----

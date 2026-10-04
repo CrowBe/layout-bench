@@ -4,6 +4,7 @@ import { floorLevels } from "./floor";
 import { heightAt } from "./drainage";
 import { VALUE_STATUSES, known, weakest, input } from "./faces";
 import { pointSegDist, quantize, segmentsCross, type Pt } from "./geometry";
+import { CABLE_CATEGORY, CONTROLLER_CATEGORY, productChecks, validHeatingProduct } from "./heatingProduct";
 
 type Rect = { x: number; y: number; w: number; h: number };
 const EPS = 1e-8;
@@ -457,6 +458,7 @@ export function heatingProblems(room: Room, section = heatingSection(room)): Hea
       `Proposed spatial route (sampled profile) ${routeLength.toFixed(4)} m exceeds confirmed cable length ${h.length.value} m. Do not cut or shorten a cable without manufacturer instructions.`,
       "error",
     );
+  for (const c of productChecks(h, union(heatingZones(room), h.keepouts).area, routeLengths(room, section).planRouteLength)) add(c.code, c.message, c.severity);
   if (section.some((p) => p.level === undefined) || !section.length)
     add(
       "heating_depth_unknown",
@@ -512,6 +514,8 @@ export function validHeating(v: unknown): v is Heating {
       "edgeClearance",
       "depthFromBottom",
     ].every((k) => q(h[k as keyof Heating] as Quantity | undefined)) &&
+    (h.cableProduct === undefined || validHeatingProduct(h.cableProduct, CABLE_CATEGORY)) &&
+    (h.controller === undefined || validHeatingProduct(h.controller, CONTROLLER_CATEGORY)) &&
     Array.isArray(h.zoneIds) &&
     h.zoneIds.length <= 100 &&
     h.zoneIds.every((id) => typeof id === "string") &&

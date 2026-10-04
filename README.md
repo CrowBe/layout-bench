@@ -351,6 +351,16 @@ A few design notes:
   written and is never used as a dimension or set-out. A set's parts are components, and a part
   that was not seen stays `unresolved` on the sheet, as the sample's K1130 trim does.
 
+- A room's heating record can pin an accepted heating-cable product and a thermostat
+  (`use_heating_product`, or the pickers in the heating panel). The cable's length, rated total
+  watts, requirements and source then come from its reviewed evidence with their statuses, and
+  the pinned products are snapshots kept with the project. The route is also checked against the
+  cable's label: the heated area against its coverage range, and the drawn pitch against the
+  pitch that coverage implies (shown on the sheet, about 87–120 mm for the SCK0765L). A controller
+  adds its printed ingress rating as a note for the electrician, and an error when the cable's
+  voltage or current is outside the controller's. An unknown figure produces no comparison, and
+  nothing approves an installation.
+
 - A spec sheet you already hold can be attached to a request (PDF or image, up to 10 MB). It
   stays in this browser: the file in IndexedDB, its record with the library. A PDF's text is
   read in the browser with pdf.js, page by page, and `get_product_brief` hands it to the agent,

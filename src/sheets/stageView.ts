@@ -23,6 +23,7 @@ import { placementLimitations, anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
 import { IDENTITY_FIELDS, identityOf, identityText, type IdentityKey } from "../model/productIdentity";
 import { categoryById, conservativeLimit } from "../model/products";
+import { impliedSpacing } from "../model/heatingProduct";
 import { evidenceStatus, evidenceText } from "../model/productMeasurements";
 import { checkSheet, type SheetFinding } from "./check";
 import { PAPER, TAGS, esc, f1, joinedRect, mm, tag } from "./floorPlan";
@@ -263,6 +264,12 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     row("zone ids", { value: h.zoneIds.join(", ") || "?", status: h.zoneIds.length ? "proposed" : "unknown" });
     row("available zone area (m²), not heat coverage", { value: String(e.availableArea), status: "proposed" });
     row("minimum non-adjacent spacing (mm)", { value: e.minimumNonAdjacentSpacing === undefined ? "?" : mm(e.minimumNonAdjacentSpacing), status: e.minimumNonAdjacentSpacing === undefined ? "unknown" : "proposed" });
+    if (h.cableProduct) {
+      row("cable product", { value: `${h.cableProduct.manufacturer || "unnamed maker"} ${h.cableProduct.model} (library ${h.cableProduct.productId})`, status: h.cableProduct.specification.recordingMode ? "entered" : "published" });
+      const pitch = impliedSpacing(h.cableProduct.specification);
+      row("spacing implied by the cable's label coverage (mm)", pitch ? { value: `${mm(pitch.min)} to ${mm(pitch.max)}`, status: "published", source: "coverage area range ÷ cable length, both from the cable's evidence" } : { value: "?", status: "unknown", missing: ["cable length or coverage area range"] });
+    }
+    if (h.controller) row("controller", { value: `${h.controller.manufacturer || "unnamed maker"} ${h.controller.model} (library ${h.controller.productId})`, status: h.controller.specification.recordingMode ? "entered" : "published" });
     row("installation approval", { value: "Pending manufacturer / electrician review", status: "proposed" });
     for (const [i, p] of h.path.entries()) row(`point ${i + 1} x / y (mm)`, { value: `${mm(p.x)} / ${mm(p.y)}`, status: "proposed", datum: "plan origin" });
     for (const p of e.section) row(`cable level at ${p.s} m along plan route (mm)`, p.level === undefined ? { value: "?", status: "unknown", missing: p.missing } : { value: mm(p.level), status: p.basis as RowStatus, datum: r.floorBuildUp?.datum || DEFAULT_DATUM });

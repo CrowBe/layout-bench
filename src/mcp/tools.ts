@@ -859,6 +859,19 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "use_heating_product",
+    title: "Pin a library product to a room's heating record",
+    description:
+      "Pin an accepted heating-cable product as a room's cable (fills its length, rated total watts, requirements and source from the reviewed evidence, each with its status) or an accepted thermostat as its controller. The route is then also checked against the cable's label coverage and implied spacing, and the cable's voltage and current against the controller's. Set `clear` to unpin. Checks compare recorded figures; they never approve an installation, and an unknown figure produces no comparison.",
+    inputSchema: obj({ room: str, role: { type: "string", enum: ["cable", "controller"] }, productId: str, clear: { type: "boolean" } }, ["room", "role"]),
+    execute: (i) => {
+      if (i.clear) return actions.setHeatingProduct(i.room as string, i.role as "cable" | "controller", null);
+      const product = productStore.getState().products.find((p) => p.id === i.productId);
+      if (!product) return { ok: false, summary: `No accepted product "${i.productId}" in the library.` };
+      return actions.setHeatingProduct(i.room as string, i.role as "cable" | "controller", product);
+    },
+  },
+  {
     name: "set_fixture_installation",
     title: "Set explicit fixture height and orientation",
     description: "Replace the explicit installation placement on a fixture. Height is product bottom above named room floor datum, never a product requirement or default. Missing height/floor levels remain unresolved and omitted from 3D. Mirroring requires documented reversibility and transforms the outline, fixing/service points and access regions together; source coordinates do not change.",

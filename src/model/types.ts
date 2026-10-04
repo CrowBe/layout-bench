@@ -1,4 +1,5 @@
 import type { FixtureInstallation, InstallationGeometry } from "./installation";
+import type { HeatingProduct } from "./heatingProduct";
 import type { ExactProduct, SelectionStatus } from "./productIdentity";
 import type { ProductSpecification } from "./productMeasurements";
 import type { FieldValue } from "./products";
@@ -148,6 +149,9 @@ export interface Heating {
   model?: string;
   productSource?: string;
   requirements?: string;
+  /** Accepted library products the cable's and the controller's figures came from (snapshots kept with the project). */
+  cableProduct?: HeatingProduct;
+  controller?: HeatingProduct;
   length?: Quantity;
   ratedOutput?: Quantity;
   minSpacing?: Quantity;

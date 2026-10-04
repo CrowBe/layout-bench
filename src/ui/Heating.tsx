@@ -12,6 +12,8 @@ import { heatingEvidence } from "../model/heating";
 import { heatingSectionSvg, renderHeatingReview } from "../sheets/heating";
 import { QuantityField } from "./WallFaces";
 import { download } from "./download";
+import { useProductStore } from "../model/productLibrary";
+import { impliedSpacing } from "../model/heatingProduct";
 
 export function Heating({ room }: { room: Room }) {
   const mode = useAppStore((s) => s.editor.drawMode);
@@ -27,6 +29,14 @@ export function Heating({ room }: { room: Room }) {
   });
   const h = room.heating,
     e = heatingEvidence(room);
+  const library = useProductStore((s) => s.products);
+  const pin = (role: "cable" | "controller", id: string) => {
+    const product = library.find((p) => p.id === id);
+    const r = actions.setHeatingProduct(room.id, role, id === "" ? null : product ?? null);
+    logActivity("human", "use_heating_product", r.summary, r.ok);
+    setError(r.ok ? "" : r.summary);
+  };
+  const pitch = impliedSpacing(h?.cableProduct?.specification);
   const run = (patch: HeatingPatch) => {
     const r = actions.setRoomHeating(room.id, patch);
     logActivity("human", "set_room_heating", r.summary, r.ok);
@@ -60,6 +70,21 @@ export function Heating({ room }: { room: Room }) {
         Blank = unknown. Enter product/trade information with its source.
         Manufacturer and electrician review pending.
       </span>
+      {(["cable", "controller"] as const).map((role) => {
+        const category = role === "cable" ? "heating-cable" : "thermostat";
+        const pinned = role === "cable" ? h?.cableProduct : h?.controller;
+        return (
+          <label className="field" key={role}>
+            {role === "cable" ? "Cable product from the library" : "Controller product from the library"}
+            <select aria-label={`Heating ${role} product`} value={pinned?.productId ?? ""} onChange={(ev) => pin(role, ev.target.value)}>
+              <option value="">none (enter figures by hand)</option>
+              {library.filter((p) => p.category === category).map((p) => <option key={p.id} value={p.id}>{p.manufacturer || "unnamed"} {p.model}</option>)}
+              {pinned && !library.some((p) => p.id === pinned.productId) && <option value={pinned.productId}>{pinned.manufacturer || "unnamed"} {pinned.model} (not in this browser's library)</option>}
+            </select>
+          </label>
+        );
+      })}
+      {pitch && <span className="hint" data-implied-spacing>Cable label coverage implies {formatMm(pitch.min)}–{formatMm(pitch.max)} mm between runs.</span>}
       {(
         ["manufacturer", "model", "productSource", "requirements"] as const
       ).map((k) => (
