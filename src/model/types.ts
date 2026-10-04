@@ -101,6 +101,11 @@ export interface FloorAssembly {
   /** What the substrate is, as found; free text, never assumed. */
   substrate?: string;
   substrateTop?: Quantity;
+  /**
+   * The finished floor level to aim for, above the datum, when the trade chooses the screed and
+   * adhesive themselves. Levels with unknown layers below them are read down from it.
+   */
+  finishedTarget?: Quantity;
   /** Ordered from the substrate upward. */
   layers: FloorLayer[];
 }

@@ -541,6 +541,8 @@ export interface FloorPatch {
   datum?: string;
   substrate?: string | null;
   substrateTop?: QuantityInput | null;
+  /** finished floor level to aim for above the datum; the trade's screed and adhesive fill to it */
+  finishedTarget?: QuantityInput | null;
   layers?: FloorLayerInput[];
 }
 
@@ -1244,6 +1246,12 @@ export const actions = {
       if (patch.substrateTop === null || (q.value === undefined && !q.source)) delete next.substrateTop;
       else next.substrateTop = q;
     }
+    if (patch.finishedTarget !== undefined) {
+      const q = quantity("Finished level target", patch.finishedTarget, false);
+      if (typeof q === "string") return fail(`Rejected: ${q}`);
+      if (patch.finishedTarget === null || (q.value === undefined && !q.source)) delete next.finishedTarget;
+      else next.finishedTarget = q;
+    }
     if (patch.layers !== undefined) {
       if (!Array.isArray(patch.layers)) return fail("Rejected: layers must be a list, ordered from the substrate upward.");
       const layers: FloorLayer[] = [];
@@ -1261,7 +1269,7 @@ export const actions = {
       }
       next.layers = layers;
     }
-    const empty = !next.substrateTop && !next.substrate && next.layers.length === 0 && next.datum === DEFAULT_DATUM;
+    const empty = !next.substrateTop && !next.finishedTarget && !next.substrate && next.layers.length === 0 && next.datum === DEFAULT_DATUM;
     const nextRoom: Room = { ...room };
     if (empty) delete nextRoom.floorBuildUp; else nextRoom.floorBuildUp = next;
     pushUndo();

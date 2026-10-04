@@ -16,7 +16,7 @@ import { catalogForItem, catalogByKind, isBuiltInKind } from "../model/catalog";
 import { rectCorners, segLen, type Pt } from "../model/geometry";
 import { openingSpan } from "../model/issues";
 import { input, known, layerLabel, resolveFace, sideFaces, sideNormal, wallBody, weakest } from "../model/faces";
-import { DEFAULT_DATUM, floorLayerLabel, floorLevels } from "../model/floor";
+import { DEFAULT_DATUM, floorFill, floorLayerLabel, floorLevels } from "../model/floor";
 import { heatingEvidence } from "../model/heating";
 import { planeSurface } from "../model/drainage";
 import { placementLimitations, anchorPose, roughIn } from "../model/fixtures";
@@ -235,13 +235,16 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
       row("substrate", fb.substrate ? { value: fb.substrate, status: "entered" } : { value: "?", status: "unknown", missing: ["substrate type (never assumed)"] });
       const lv = levels[0];
       row("substrate top level (mm)", lv.resolved ? { value: mm(lv.top!), status: lv.basis as RowStatus, datum, ...(fb.substrateTop?.source ? { source: fb.substrateTop.source } : {}) } : { value: "?", status: "unknown", datum, missing: lv.missing });
+      if (fb.finishedTarget) row("finished level target (mm)", { ...qRow(fb.finishedTarget), datum });
+      const fill = floorFill(fb);
+      if (fill) row(`${fill.layers.join(" + ")} together, to reach the target (mm)`, { value: mm(fill.thickness), status: fill.basis as RowStatus, datum: "substrate top to target" });
       return rows;
     }
     const layer = fb.layers.find((l) => l.id === el.sub)!;
     row("kind", { value: layer.kind, status: "entered" });
     row("thickness (mm)", qRow(layer.thickness));
     const lv = levels.find((l) => l.level === layer.id)!;
-    row("top level (mm)", lv.resolved ? { value: mm(lv.top!), status: lv.basis as RowStatus, datum } : { value: "?", status: "unknown", datum, missing: lv.missing });
+    row("top level (mm)", lv.resolved ? { value: mm(lv.top!), status: lv.basis as RowStatus, datum: lv.fromTarget ? `${datum}, read down from the finished-level target` : datum } : { value: "?", status: "unknown", datum, missing: lv.missing });
     return rows;
   }
   if (el.type === "waste") {

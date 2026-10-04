@@ -185,6 +185,10 @@ const OWNER = "owner's tile and build-up choices";
 const proposed = (value: number, source = OWNER): Quantity => ({ value, status: "proposed", source });
 /** Thicknesses nobody has supplied yet: recorded as unknown, never filled in. */
 const unknown = (): Quantity => ({});
+/** Porcelain, 10 mm by the owner's reckoning; to be checked against the tiles. */
+const TILE: Quantity = { value: 0.01, status: "estimated", source: "owner: 10 mm porcelain, to be checked" };
+/** The tiler chooses the bed; 4 mm is the owner's figure ("glue probably 4mm"). */
+const ADHESIVE: Quantity = { value: 0.004, status: "estimated", source: "owner: \"glue probably 4mm\"; the tiler's choice" };
 const WHITE = "600 × 600 white gloss, a few light grey streaks";
 const BEIGE = "300 × 600 sandy beige matte";
 const JOINT = proposed(0.004, "owner: \"glue probably 4mm gaps\", read as the joint between tiles; adhesive bed thickness not given");
@@ -208,11 +212,11 @@ const START: Record<string, Pick<WallTiling, "reference" | "originFrom" | "origi
 
 const side = (wall: string, tile: string): WallSide => ({
   existing: { value: 0.05, status: "measured", source: SURVEY },
-  frame: { value: 0.005, status: "estimated", source: "surface-to-frame about 45 mm, seen in one place (#1)" },
+  frame: { value: 0.005, status: "estimated", source: "surface-to-frame about 45 mm, seen in one place (#1); owner: guess the framing until demolition" },
   layers: [
     { id: `${wall}_board`, kind: "board", name: "Villaboard 6 mm", thickness: proposed(0.006) },
-    { id: `${wall}_adhesive`, kind: "adhesive", name: "Tile adhesive", thickness: unknown() },
-    { id: `${wall}_tile`, kind: "tile", name: tile, thickness: unknown() },
+    { id: `${wall}_adhesive`, kind: "adhesive", name: "Tile adhesive (tiler's)", thickness: ADHESIVE },
+    { id: `${wall}_tile`, kind: "tile", name: tile, thickness: TILE },
   ],
 });
 /** Four full 600 mm courses on every wall, starting from the door end. */
@@ -240,14 +244,17 @@ export const seedBathroom = (): PlanModel => ({
   ],
   rooms: [{
     id: "bathroom", x: 0, y: 0, w: 2.11, h: 3.02, label: "Bathroom", floor: "tile",
-    // stripped back to the concrete footings layer; membrane on the concrete, the heating cable in the screed
+    // stripped back to the concrete slab; membrane on it, the heating cable on that, then the tiler's
+    // own screed and adhesive up to the target. Only the target is ours to set.
     floorBuildUp: {
-      datum: "existing floor surface", substrate: "concrete (footings layer, after strip-out)", substrateTop: unknown(),
+      datum: "existing floor surface (current tile top)", substrate: "concrete slab, framed in place (house on piers)",
+      substrateTop: { value: -0.12, status: "estimated", source: "owner: about 120 mm below the current tile, seen from underneath; confirm after demolition" },
+      finishedTarget: { value: 0, status: "proposed", source: "finished tile back at the current tile level, so the doorway stays flush (to confirm)" },
       layers: [
-        { id: "floor_membrane", kind: "waterproofing", name: "Waterproofing under the screed", thickness: unknown() },
-        { id: "floor_screed", kind: "screed", name: "Screed (heating cable inside)", thickness: unknown() },
-        { id: "floor_adhesive", kind: "adhesive", name: "Tile adhesive", thickness: unknown() },
-        { id: "floor_tile", kind: "tile", name: BEIGE, thickness: unknown() },
+        { id: "floor_membrane", kind: "waterproofing", name: "Waterproofing on the slab", thickness: unknown() },
+        { id: "floor_screed", kind: "screed", name: "Tiler's screed (heating cable inside)", thickness: unknown() },
+        { id: "floor_adhesive", kind: "adhesive", name: "Tiler's adhesive", thickness: unknown() },
+        { id: "floor_tile", kind: "tile", name: BEIGE, thickness: TILE },
       ],
     },
     // long side runs toward the window wall, then carries on up it
@@ -261,7 +268,7 @@ export const seedBathroom = (): PlanModel => ({
     heating: {
       model: "SCK0765L", length: { value: 42.5, status: "published", source: "carton label" }, ratedOutput: { value: 765, status: "published", source: "carton label" },
       screedLayerId: "floor_screed", zoneIds: ["bathroom"], path: [], keepouts: [],
-      requirements: "Owner: laid in a snaking pattern on the membrane, before rough-in and screed. Route not drawn yet.",
+      requirements: "Owner: laid in a snaking pattern on the membrane, before the tiler's screed. Route not drawn yet.",
     },
   }],
   items: [
@@ -302,7 +309,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-sequence", author: "human", at: at + 6,
-      text: "Construction order: (1) strip the walls to the timber frame and the floor back to the concrete footings layer; (2) fix 6 mm Villaboard to the frame; (3) waterproof the floor, under the screed; (4) lay the heating cable in a snaking pattern; (5) plumbing and electrical rough-in; (6) screed; (7) tiles. A thin timber trim panel goes above the tiles later.",
+      text: "Construction order: (1) strip the walls to the timber frame and the floor right back to the concrete slab (about 120 mm below the current tile); (2) plumbing and electrical rough-in; (3) 6 mm Villaboard on the frame; (4) waterproofing; (5) the heating cable, laid in a snaking pattern; (6) the tiler's own screed and adhesive up to the finished-level target, then tiles. A thin timber trim panel goes above the tiles later.",
     },
     {
       id: "note-tiles", author: "human", at: at + 7,
@@ -310,7 +317,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-tiles-open", author: "agent", at: at + 8,
-      text: "Open before the tile cuts can be worked out: tile, adhesive, screed and membrane thicknesses, and the concrete level; whether the 4 mm is the joint (as recorded) or the adhesive bed; the width of the silicone or glue joint under the bottom course (4 mm assumed); the real ceiling height (the 2400 mm wall height is entered, not measured, and four courses reach about 2416 mm above the finished floor). No wall membrane is recorded: only the floor was named.",
+      text: "Still to confirm: the slab level after demolition (about 120 mm below the current tile, estimated); the finished-level target (set to the current tile level); the tile thickness (10 mm porcelain, estimated); the tiler's wall adhesive bed (4 mm, estimated); the frame positions (estimated); the width of the silicone or glue joint under the bottom course (4 mm assumed); the real ceiling height (the 2400 mm wall height is entered, not measured, and four courses reach about 2416 mm above the finished floor). No wall membrane is recorded: only the floor was named.",
     },
     {
       id: "note-screen", author: "human", at: at + 5,

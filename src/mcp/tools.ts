@@ -24,7 +24,7 @@ import { drainageProblems, heightAt, planeSurface, sectionAlong, surfaces, thres
 import { heatingEvidence } from "../model/heating";
 import { renderHeatingReview } from "../sheets/heating";
 import { finishedLevel } from "../model/floor";
-import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems } from "../model/floor";
+import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems, floorFill } from "../model/floor";
 import { IDENTITY_FIELDS, SELECTION_STATUSES, type SelectionStatus } from "../model/productIdentity";
 import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
 import { measurementFields } from "../model/productMeasurements";
@@ -284,13 +284,14 @@ export const TOOLS: ToolDef[] = [
     name: "set_room_floor",
     title: "Record a room's floor assembly and level datum",
     description:
-      "Record a room's proposed floor build-up: the datum, the top of the stripped substrate, and the layers above it from the substrate upward (waterproofing and screed in either order, then adhesive, then tile). Levels are metres, up positive, from the datum (default \"existing floor surface\" = 0); substrateTop is an offset from it and may be negative. Every value needs a status (site-confirmed, measured, published, proposed, estimated). Unknown values stay unknown: omit value, and levels above are reported unresolved rather than filled with a default or zero. Never assume the substrate type: pass it as free text only when known. Fields sent replace what is stored; layers replaces the whole list (send a layer's id to keep it). Out-of-order layers or negative thicknesses are rejected and nothing changes.",
+      "Record a room's proposed floor build-up: the datum, the top of the stripped substrate, and the layers above it from the substrate upward (waterproofing and screed in either order, then adhesive, then tile). Levels are metres, up positive, from the datum (default \"existing floor surface\" = 0); substrateTop is an offset from it and may be negative. Every value needs a status (site-confirmed, measured, published, proposed, estimated). Unknown values stay unknown: omit value, and levels above are reported unresolved rather than filled with a default or zero. Never assume the substrate type: pass it as free text only when known. finishedTarget is the finished floor level to aim for (above the datum) when the trade lays its own screed and adhesive: leave those thicknesses unknown, and levels are then read down from the target and get_floor_levels reports what the unknown layers must fill together. Fields sent replace what is stored; layers replaces the whole list (send a layer's id to keep it). Out-of-order layers or negative thicknesses are rejected and nothing changes.",
     inputSchema: obj(
       {
         room: str,
         datum: str,
         substrate: str,
         substrateTop: quantitySchema,
+        finishedTarget: { ...quantitySchema, description: "finished floor level to aim for, metres above the datum" },
         layers: {
           type: "array",
           items: obj({ id: str, kind: { type: "string", enum: FLOOR_LAYER_KINDS }, name: str, thickness: quantitySchema }, ["kind"]),
@@ -316,7 +317,8 @@ export const TOOLS: ToolDef[] = [
       const spec = room.floorBuildUp;
       const levels = floorLevels(spec);
       const summary = `Room "${room.label}" floor, datum ${spec?.datum ?? DEFAULT_DATUM}: ${spec ? `${levels.filter((l) => l.resolved).length}/${levels.length} levels resolved` : "nothing recorded"}.`;
-      return { ok: true, summary, roomId: room.id, datum: spec?.datum ?? DEFAULT_DATUM, substrate: spec?.substrate, recorded: !!spec, layers: spec?.layers ?? [], levels, problems: spec ? floorProblems(spec) : [] };
+      const fill = floorFill(spec);
+      return { ok: true, summary: `${summary}${fill ? ` ${fill.layers.join(" + ")} fill ${Math.round(fill.thickness * 10000) / 10} mm together to reach the target.` : ""}`, roomId: room.id, datum: spec?.datum ?? DEFAULT_DATUM, substrate: spec?.substrate, recorded: !!spec, finishedTarget: spec?.finishedTarget ?? null, ...(fill ? { fill } : {}), layers: spec?.layers ?? [], levels, problems: spec ? floorProblems(spec) : [] };
     },
   },
 

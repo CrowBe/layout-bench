@@ -8,6 +8,7 @@ import { demoProject, parseImport } from "../src/model/projects";
 import { tilingLayout } from "../src/model/tiling";
 import { floorTileLayout } from "../src/model/floorTiling";
 import { resolveFace } from "../src/model/faces";
+import { floorFill, floorLevels } from "../src/model/floor";
 import type { PlanModel } from "../src/model/types";
 
 const sample = () => demoProject().model;
@@ -23,12 +24,21 @@ describe("owner's construction spec in the sample", () => {
       expect(side.layers.map((l) => l.kind)).toEqual(["board", "adhesive", "tile"]);
       expect(side.layers[0].thickness).toMatchObject({ value: 0.006, status: "proposed" });
       expect(resolveFace(side, "board")).toMatchObject({ resolved: true, offset: 0.011, basis: "estimated" });
-      expect(resolveFace(side, "finished").resolved).toBe(false);
+      // frame 5 + Villaboard 6 + adhesive 4 + tile 10, all from estimates or proposals
+      expect(resolveFace(side, "finished")).toMatchObject({ resolved: true, offset: 0.025, basis: "estimated" });
     }
     const floor = m.rooms[0].floorBuildUp!;
-    expect(floor.substrate).toMatch(/concrete/);
+    expect(floor.substrate).toMatch(/concrete slab/);
+    expect(floor.substrateTop).toMatchObject({ value: -0.12, status: "estimated" });
+    expect(floor.finishedTarget).toMatchObject({ value: 0, status: "proposed" });
     expect(floor.layers.map((l) => l.kind)).toEqual(["waterproofing", "screed", "adhesive", "tile"]);
-    expect(floor.layers.every((l) => l.thickness.value === undefined)).toBe(true);
+    // the tiler's screed and adhesive, and the membrane, stay unknown: only the target is set
+    expect(floor.layers.map((l) => l.thickness.value)).toEqual([undefined, undefined, undefined, 0.01]);
+    expect(floorFill(floor)).toMatchObject({ thickness: 0.11, layers: ["Waterproofing on the slab", "Tiler's screed (heating cable inside)", "Tiler's adhesive"] });
+    const levels = floorLevels(floor);
+    expect(levels.at(-1)).toMatchObject({ top: 0, fromTarget: true, resolved: true });
+    expect(levels.at(-2)).toMatchObject({ top: -0.01, fromTarget: true }); // adhesive top = target − tile
+    expect(levels[1].resolved).toBe(false); // membrane top: neither way reaches it
     expect(m.rooms[0].heating).toMatchObject({ model: "SCK0765L", screedLayerId: "floor_screed", path: [] });
     expect(() => parseImport(JSON.stringify(demoProject()))).not.toThrow();
   });
@@ -43,20 +53,15 @@ describe("owner's construction spec in the sample", () => {
     // full tiles start at the door end
     expect(wall(m, "wall_s").tiling!.right).toMatchObject({ originFrom: "jamb-a", originOpening: "door_s" });
     expect(m.rooms[0].floorTiling).toMatchObject({ originXFrom: "west", originYFrom: "south" });
-    // unknown floor and wall thicknesses: no courses or cuts are given yet
-    expect(tilingLayout(m, wall(m, "wall_e"), "right").cuts).toBeUndefined();
-    expect(floorTileLayout(m, m.rooms[0]).resolved).toBe(false);
+    // the courses start from the target: the finished floor is known without the tiler's thicknesses
+    expect(tilingLayout(m, wall(m, "wall_e"), "right").band).toEqual({ z0: 0, z1: 2.416 });
   });
 
-  it("gives four full courses and full tiles at the door end once the thicknesses are entered", () => {
+  it("gives four full courses and full tiles at the door end from the estimates and the target", () => {
     const m = sample();
-    const t = (value: number) => ({ value, status: "proposed" as const, source: "test" });
-    const fb = m.rooms[0].floorBuildUp!;
-    fb.substrateTop = t(-0.04);
-    fb.layers.forEach((l, i) => (l.thickness = t([0.001, 0.035, 0.004, 0.01][i])));
-    for (const w of m.walls) w.sides!.right!.layers.forEach((l) => l.kind !== "board" && (l.thickness = t(l.kind === "adhesive" ? 0.004 : 0.01)));
+    // the 2400 mm wall height is entered, not measured: four courses on the base joint overrun it, and say so
+    expect(tilingLayout(m, wall(m, "wall_w"), "right").problems.map((p) => p.code)).toContain("tiling_above_wall");
     for (const w of m.walls) {
-      w.height = 2.6; // a ceiling that clears four courses
       const l = tilingLayout(m, w, "right");
       expect(l.rows, w.id).toBe(4);
       expect(l.cuts!.bottom.full && l.cuts!.top.full, w.id).toBe(true);

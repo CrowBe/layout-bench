@@ -6,6 +6,11 @@
  * layer is the substrate top plus every thickness up to and including it, and exists only when
  * all of those are known. Nothing here substitutes zero or a default thickness; an unknown
  * input leaves every level above it unresolved and names what is missing.
+ *
+ * A finished-level target (the trade lays its own screed and adhesive to reach it) resolves the
+ * stack from the top as well: a level whose layers above it are all known is the target less
+ * them. What the unknown layers must fill between the substrate and the target is reported, not
+ * shared out among them.
  */
 
 import type { FloorAssembly, FloorLayer, FloorLayerKind, ValueStatus } from "./types";
@@ -37,6 +42,8 @@ export interface FloorLevel {
   basis: ValueStatus | "unknown";
   inputs: FaceInput[];
   missing: string[];
+  /** read down from the finished-level target rather than up from the substrate */
+  fromTarget?: boolean;
 }
 
 function level(id: string, label: string, kind: FloorLevel["kind"], inputs: FaceInput[], top: number | undefined): FloorLevel {
@@ -51,13 +58,39 @@ export function floorLevels(assembly: FloorAssembly | undefined): FloorLevel[] {
   const out = [level("substrate", "Substrate top", "substrate", [substrate], assembly?.substrateTop?.value)];
   const inputs = [substrate];
   let top = known(assembly?.substrateTop) ? assembly!.substrateTop!.value : undefined;
-  for (const layer of assembly?.layers ?? []) {
+  const layers = assembly?.layers ?? [];
+  for (const layer of layers) {
     const t = input(`${floorLayerLabel(layer)} thickness`, layer.thickness);
     inputs.push(t);
     top = top !== undefined && t.value !== null ? top + t.value : undefined;
     out.push(level(layer.id, `${floorLayerLabel(layer)} top`, layer.kind, [...inputs], top));
   }
+  if (!known(assembly?.finishedTarget) || !layers.length) return out;
+  // read down from the target wherever building up from the substrate does not reach
+  const target = input("finished level target", assembly!.finishedTarget);
+  let down: number | undefined = target.value!;
+  const chain = [target];
+  for (let i = out.length - 1; i >= 0; i--) {
+    if (!out[i].resolved && down !== undefined) out[i] = { ...level(out[i].level, out[i].label, out[i].kind, [...chain], down), fromTarget: true };
+    if (i === 0) break;
+    const t = input(`${floorLayerLabel(layers[i - 1])} thickness`, layers[i - 1].thickness);
+    chain.push(t);
+    down = down !== undefined && t.value !== null ? down - t.value : undefined;
+  }
   return out;
+}
+
+/**
+ * With a finished-level target: what the layers of unknown thickness must fill together
+ * (target − substrate top − every known thickness), or undefined when that cannot be read.
+ */
+export function floorFill(assembly: FloorAssembly | undefined): { thickness: number; layers: string[]; basis: ValueStatus | "unknown" } | undefined {
+  if (!assembly || !known(assembly.finishedTarget) || !known(assembly.substrateTop)) return undefined;
+  const open = assembly.layers.filter((l) => !known(l.thickness));
+  if (!open.length) return undefined;
+  const knownLayers = assembly.layers.filter((l) => known(l.thickness));
+  const thickness = quantize(assembly.finishedTarget.value - assembly.substrateTop.value - knownLayers.reduce((a, l) => a + l.thickness.value!, 0));
+  return { thickness, layers: open.map(floorLayerLabel), basis: weakest([input("target", assembly.finishedTarget), input("substrate top", assembly.substrateTop), ...knownLayers.map((l) => input(floorLayerLabel(l), l.thickness))]) };
 }
 
 /** Top of the first layer of a kind, counted from the top of the stack (the finished tile, the screed). */
@@ -87,9 +120,18 @@ export function floorProblems(assembly: FloorAssembly): { severity: "error" | "w
       out.push({ severity: "error", code: "floor_layer_negative", message: `${floorLayerLabel(l)} thickness is negative.` });
     }
   }
+  if (known(assembly.finishedTarget) && layers.length && layers.every((l) => known(l.thickness)) && known(assembly.substrateTop)) {
+    const built = assembly.substrateTop.value + layers.reduce((a, l) => a + l.thickness.value!, 0);
+    if (Math.abs(built - assembly.finishedTarget.value) > 0.0005) out.push({ severity: "warning", code: "floor_target_mismatch", message: `The layers build up to ${Math.round(built * 10000) / 10} mm, not the ${Math.round(assembly.finishedTarget.value * 10000) / 10} mm finished-level target.` });
+  }
+  const fill = floorFill(assembly);
+  if (fill && fill.thickness < 0) out.push({ severity: "error", code: "floor_target_below", message: `The finished-level target is ${Math.round(-fill.thickness * 10000) / 10} mm below what the known layers already reach.` });
   const unresolved = floorLevels(assembly).filter((l) => !l.resolved);
   if (layers.length && unresolved.length) {
-    out.push({ severity: "warning", code: "floor_level_unresolved", message: `Unknown: ${[...new Set(unresolved.flatMap((l) => l.missing))].join(", ")}. Levels above them stay unresolved until entered.` });
+    const unknownInputs = [...new Set(unresolved.flatMap((l) => l.missing))].join(", ");
+    out.push({ severity: "warning", code: "floor_level_unresolved", message: fill
+      ? `Unknown: ${unknownInputs}. Read down from the finished-level target, only ${unresolved.map((l) => l.label.toLowerCase()).join(", ")} stay unresolved; ${fill.layers.join(" + ")} fill ${Math.round(fill.thickness * 10000) / 10} mm together.`
+      : `Unknown: ${unknownInputs}. Levels above them stay unresolved until entered.` });
   }
   return out;
 }

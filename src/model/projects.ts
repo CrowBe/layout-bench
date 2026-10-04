@@ -66,7 +66,7 @@ const floorTiling = (v: unknown) => v === undefined || (object(v) &&
   (v.note === undefined || typeof v.note === "string"));
 
 /** Floor assembly (#6): datum, optional substrate top, and a layer list with optional quantities. */
-const floorBuildUp = (v: unknown) => v === undefined || (object(v) && typeof v.datum === "string" && quantity(v.substrateTop) &&
+const floorBuildUp = (v: unknown) => v === undefined || (object(v) && typeof v.datum === "string" && quantity(v.substrateTop) && quantity(v.finishedTarget) &&
   Array.isArray(v.layers) && v.layers.every((l) => object(l) && typeof l.id === "string" && typeof l.kind === "string" && quantity(l.thickness)));
 
 /** Drainage (#7): wastes with plan coordinates, planes with rectangles, controls with positions and levels. */
