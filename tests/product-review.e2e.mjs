@@ -1,7 +1,7 @@
 /** #52: genuine human group review and revision/reload flow, with synthetic evidence only. */
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
-const browser = await chromium.launch({ headless: true });
+const browser = await launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(String(error)));

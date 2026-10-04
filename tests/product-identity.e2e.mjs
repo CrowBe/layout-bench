@@ -1,11 +1,11 @@
 /** #47: synthetic exact variants; genuine page requests/review/acceptance, agent tool submissions,
  * placement, project-owned selection, reload, JSON download/import into a browser with no catalogue,
  * then diagram/spec readback. example.com sources are synthetic, not researched product data. */
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 const base = process.env.ALZA_BASE_URL ?? "http://127.0.0.1:5247/";
-const browser = await chromium.launch({ headless: true });
+const browser = await launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1100 } });
 const page = await context.newPage();
 const errors = [];

@@ -5,10 +5,10 @@
  *
  * Run with the studio dev server up:  ALZA_BASE_URL=http://127.0.0.1:5199/ node tests/products.e2e.mjs
  */
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 
-const browser = await chromium.launch({ headless: true });
+const browser = await launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));

@@ -1,6 +1,6 @@
 /** #49: actual manual bundle download, independent-browser preview/import, original bytes,
  * pending research/human review, placement, reload and project JSON independence. All data synthetic. */
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -38,12 +38,9 @@ const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
 );
-const browser = await chromium.launch({
+const browser = await launch({
   headless: true,
   channel: "chromium",
-  ...(process.env.CHROMIUM_PATH
-    ? { executablePath: process.env.CHROMIUM_PATH }
-    : {}),
 });
 const source = await browser.newContext({
     viewport: { width: 1440, height: 1200 },

@@ -1,10 +1,10 @@
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 
 const baseUrl = process.env.ALZA_BASE_URL ?? "http://127.0.0.1:5199/";
 
-const browser = await chromium.launch({ headless: true });
+const browser = await launch({ headless: true });
 const context = await browser.newContext({ acceptDownloads: true });
 await context.addInitScript(() => {
   Object.defineProperty(document, "modelContext", { value: {

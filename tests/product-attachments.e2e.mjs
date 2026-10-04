@@ -10,7 +10,7 @@
  * Run with the studio dev server up:  ALZA_BASE_URL=http://127.0.0.1:5199/ node tests/product-attachments.e2e.mjs
  * (CHROMIUM_PATH=/path/to/chrome to use a browser other than Playwright's own.)
  */
-import { chromium } from "playwright";
+import { launch } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 
 /** A minimal text PDF, one array of lines per page. */
@@ -41,7 +41,7 @@ const sheet = makePdf([
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
 // Full Chromium has the PDF viewer; Playwright's default headless shell does not.
-const browser = await chromium.launch({ headless: true, channel: "chromium", ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
+const browser = await launch({ headless: true, channel: "chromium" });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage();
 const errors = [];
