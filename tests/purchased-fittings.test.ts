@@ -71,7 +71,11 @@ describe("purchased fittings in the sample project", () => {
     load();
     const entry = catalogByKind("bath_sb184_1000gw")!;
     expect(entry.outline?.segments).toHaveLength(3);
-    expect(entry.outline?.segments[2].via).toBeDefined(); // the arc
+    const arc = entry.outline!.segments.find((seg) => seg.via)!;
+    expect(arc).toBeDefined();
+    // the same shape as before: right angle at the back-right, arc bulging 0.12 m past the chord
+    expect(arc.via!.x).toBeCloseTo(-0.085, 3);
+    expect(arc.via!.y).toBeCloseTo(0.085, 3);
     expect(buildFurniture("bath_sb184_1000gw")!.children.length).toBeGreaterThan(0);
     const errors = checkModel(store.getState().model).filter((i) => i.severity === "error");
     expect(errors).toEqual([]);
@@ -135,5 +139,68 @@ describe("capturing a label's electrical figures", () => {
     expect(categoryById("thermostat")!.fields.map((f) => f.key)).toEqual(expect.arrayContaining(["ingressProtection", "ratedVoltageMin", "floorSensor"]));
     expect(categoryById("waste")!.fields.map((f) => f.key)).toContain("outletDiameter");
     expect(validateSubmission(categoryById("waste")!, { manufacturer: "Ahrok", model: "SDP-40BN", fields: {} }).some((p) => p.code === "field_missing")).toBe(true);
+  });
+});
+
+// ---- a corner bath whose curved front depth is unknown ---------------------------------------
+import { cornerBathLimitation, cornerBathOutline, roughInPoints } from "../src/model/products";
+import { placementLimitations } from "../src/model/fixtures";
+import { itemPolygon } from "../src/model/outline";
+import type { LibraryProduct } from "../src/model/productLibrary";
+
+describe("corner bath with unknown front depth", () => {
+  const src = [{ url: "https://example.com/angie", locator: "drawing" }];
+  const pub = (value: number | string): FieldValue => ({ value, status: "published", sources: src });
+  const unknownDepth = (note = "Not on the carton label."): Record<string, FieldValue> => ({
+    length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+    frontWidth: { value: null, note }, frontProjection: { value: null, note },
+    wasteFromEnd: { value: null, note }, wasteFromSide: { value: null, note }, surround: { value: null, note },
+  });
+  const product = (fields: Record<string, FieldValue>): LibraryProduct =>
+    ({ id: "angie", category: "bath", manufacturer: "", model: "Angie Corner 1000", fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0 });
+  const room = () => {
+    const ids = [[0, 0, 2.11, 0], [2.11, 0, 2.11, 3.02], [2.11, 3.02, 0, 3.02], [0, 3.02, 0, 0]].map(([a, b, c, d]) => actions.addWall(a, b, c, d, 0.1, 2.4).id as string);
+    actions.addRoom(0, 0, 2.11, 3.02, "Bathroom", "tile");
+    actions.setWallSide(ids[0], "right", { existing: { value: 0, status: "measured" }, frame: { value: -0.045, status: "site-confirmed" }, layers: [] });
+    return ids[0];
+  };
+
+  it("says why it is drawn as a box, and only while the depth is unknown", () => {
+    expect(cornerBathLimitation(unknownDepth())).toMatch(/Curved front depth unknown.*width across the front and the projection/);
+    expect(cornerBathLimitation({ ...unknownDepth(), frontWidth: pub(1.414), frontProjection: pub(0.83) })).toBeNull();
+    expect(cornerBathLimitation({ ...unknownDepth(), shape: pub("rectangular") })).toBeNull();
+    expect(cornerBathLimitation({ ...unknownDepth(), width: pub(1.2) })).toMatch(/Offset corner bath/);
+  });
+
+  it("warns on the brief and does not draw a curve by eye", () => {
+    const problems = validateSubmission(categoryById("bath")!, { manufacturer: "x", model: "y", fields: unknownDepth() });
+    expect(problems.find((p) => p.code === "front_depth_unknown")?.severity).toBe("warning");
+    expect(cornerBathOutline(unknownDepth(), 1, 1, "left")).toBeNull();
+  });
+
+  it("places as its box with the limitation shown, then drops it once the depth is recorded", () => {
+    const back = room();
+    const placed = actions.placeProduct(product(unknownDepth()), { wallId: back, side: "right", face: "finished", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    expect(placed.summary).toMatch(/Limitation: Curved front depth unknown/);
+    const bath = store.getState().model.items.find((i) => i.id === placed.id)!;
+    expect(catalogByKind(bath.kind)!.outline).toBeUndefined();
+    expect(itemPolygon(bath)).toHaveLength(4); // the box
+    expect(placementLimitations(bath)).toHaveLength(1);
+    // the same exact product with its depth recorded gets the arc and no limitation
+    store.setState({ model: emptyModel(), undoStack: [], kinds: [] }); resetRuntimeCatalog();
+    const back2 = room();
+    const known = actions.placeProduct(product({ ...unknownDepth(), frontWidth: pub(1.414), frontProjection: pub(0.83) }), { wallId: back2, side: "right", face: "finished", distance: 0.55, status: "proposed" });
+    const withArc = store.getState().model.items.find((i) => i.id === known.id)!;
+    expect(catalogByKind(withArc.kind)!.outline!.segments.some((seg) => seg.via)).toBe(true);
+    expect(placementLimitations(withArc)).toEqual([]);
+  });
+
+  it("records a carton size on the packaging datum and refuses to place it as the bath", () => {
+    const fields = { ...unknownDepth(), length: label(1, "metres", "packaging"), width: label(1, "metres", "packaging"), height: label(0.63, "metres", "packaging") };
+    const back = room();
+    const placed = actions.placeProduct(product(fields), { wallId: back, side: "right", face: "finished", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(false);
+    expect(store.getState().model.items).toHaveLength(0);
   });
 });

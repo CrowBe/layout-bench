@@ -7,6 +7,7 @@ import { localPointReading, installationReading } from "./installation";
  */
 
 import type { FixtureAnchor, Item, PlanModel, ServicePoint, ValueStatus, Wall, WallSideName } from "./types";
+import { cornerBathLimitation } from "./products";
 import { catalogForItem, catalogByKind, type CatalogLookup } from "./catalog";
 import { quantize, segLen, type ORect, type Pt } from "./geometry";
 import { VALUE_STATUSES, layerLabel, resolveFace, sideFaces, sideNormal, wallBody } from "./faces";
@@ -312,3 +313,11 @@ export const faceChoices = (wall: Wall, side: WallSideName): { face: string; lab
 ];
 
 export type { FixtureAnchor };
+
+/** What a placed fixture shows as simplified, from its own accepted specification: never stored, so it cannot go stale when the evidence changes. */
+export function placementLimitations(item: Item): string[] {
+  const spec = item.productSpecification;
+  if (spec?.category !== "bath" || catalogByKind(item.kind)?.outline) return [];
+  const limitation = cornerBathLimitation(spec.fields);
+  return limitation ? [limitation] : [];
+}

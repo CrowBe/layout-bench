@@ -442,6 +442,9 @@ export function validateProductGeometry(category: ProductCategory, fields: Recor
         }
       }
     }
+    if (typeof L === "number" && typeof W === "number" && Math.abs(L - W) <= 0.005 && !(typeof fw === "number" && typeof fp === "number")) {
+      warn("frontProjection", "front_depth_unknown", cornerBathLimitation(fields) ?? "Curved front depth unknown.");
+    }
     if (typeof L === "number" && typeof W === "number" && Math.abs(L - W) > 0.005) {
       warn("shape", "corner_asymmetric", `Length and width differ (${formatMm(L)} × ${formatMm(W)} mm): an offset corner bath. Its outline needs each straight side, which the brief does not ask for yet, so it is placed as its box.`);
     }
@@ -482,6 +485,26 @@ export function cornerBathOutline(fields: Record<string, FieldValue>, w: number,
       { to: at(0, 0) },
     ],
   };
+}
+
+/**
+ * Why a corner bath is drawn as its box rather than its curved front, or null when it can be
+ * drawn. A bath whose straight sides are known but whose front depth is not (the width across
+ * the front and the projection from the corner) has a front somewhere inside that box; the plan
+ * keeps the box, never a curve fitted by eye, and says so.
+ */
+export function cornerBathLimitation(fields: Record<string, FieldValue>): string | null {
+  if (fields.shape?.value !== "corner-round") return null;
+  const L = fields.length?.value, W = fields.width?.value, fw = fields.frontWidth?.value, fp = fields.frontProjection?.value;
+  if (typeof L !== "number" || typeof W !== "number") return null;
+  if (cornerBathOutline(fields, L, W, "left")) return null;
+  const box = `${formatMm(L)} × ${formatMm(W)} mm`;
+  if (Math.abs(L - W) > 0.005) return `Offset corner bath: its straight sides differ, so it is drawn as its ${box} box, not its curved front.`;
+  if (typeof fw !== "number" || typeof fp !== "number") {
+    const missing = [typeof fw !== "number" ? "the width across the front" : "", typeof fp !== "number" ? "the projection from the corner" : ""].filter(Boolean).join(" and ");
+    return `Curved front depth unknown (${missing}): drawn as its ${box} box, not a curve. The real front lies inside that box, so clearances are conservative.`;
+  }
+  return null;
 }
 
 /** The envelope for a 3D block, only when all three are known. */

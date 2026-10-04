@@ -19,7 +19,7 @@ import { input, known, layerLabel, resolveFace, sideFaces, sideNormal, wallBody,
 import { DEFAULT_DATUM, floorLayerLabel, floorLevels } from "../model/floor";
 import { heatingEvidence } from "../model/heating";
 import { planeSurface } from "../model/drainage";
-import { anchorPose, roughIn } from "../model/fixtures";
+import { placementLimitations, anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
 import { IDENTITY_FIELDS, identityOf, identityText, type IdentityKey } from "../model/productIdentity";
 import { categoryById } from "../model/products";
@@ -299,6 +299,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     } else {
       row("set-out", { value: "?", status: "unknown", missing: ["not set out from a wall face"] });
     }
+    for(const message of placementLimitations(it))row("placement limitation",{value:message,status:"unknown"});
     if(it.installation || it.installationGeometry){
       const lv=installationReading(model,it),p=it.installation,g=it.installationGeometry;
       for(const message of lv.limitations)row("installation limitation",{value:message,status:"unknown"});
