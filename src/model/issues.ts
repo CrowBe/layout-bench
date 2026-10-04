@@ -30,7 +30,7 @@ import { drainageProblems } from "./drainage";
 import { floorTilingProblems } from "./floorTiling";
 import { tilingProblems } from "./tiling";
 import { fixtureProblems, wallOccupiedRect } from "./fixtures";
-import { itemPolygon, polygonsOverlap } from "./outline";
+import { itemPolygon, pointNearPolygon, polygonsOverlap } from "./outline";
 
 const MIN_WALL_LEN = 0.2; // 20 cm
 const ENDPOINT_SNAP = 0.08; // endpoints closer than this count as connected
@@ -318,6 +318,13 @@ export function checkModel(model: PlanModel, lookup: CatalogLookup = catalogByKi
     }
   }
   const footprint = new Map(items.map((it) => [it.id, itemPolygon(it, lookup)]));
+  for (const it of items) {
+    if (!it.fittedTo) continue;
+    const host = items.find((x) => x.id === it.fittedTo!.hostId);
+    if (!host || host.fittedTo) { issues.push({ severity: "warning", code: "accessory_host_missing", message: `${it.id} is fitted to ${it.fittedTo.hostId}, which is not a fixture in this plan; its position is no longer derived.`, refs: [it.id] }); continue; }
+    const poly = footprint.get(host.id);
+    if (poly && !pointNearPolygon({ x: it.x, y: it.y }, poly, 0)) issues.push({ severity: "warning", code: "accessory_outside_host", message: `${it.id} is fitted to ${host.id} but its centre is outside the host's footprint; check the host's shape.`, refs: [it.id, host.id] });
+  }
 
   for (const it of items) {
     const cat = catalogForItem(it, lookup);
@@ -382,6 +389,8 @@ export function checkModel(model: PlanModel, lookup: CatalogLookup = catalogByKi
       const oc = catalogForItem(other, lookup);
       if (!oc) continue;
       if (cat.isRug || oc.isRug) continue;
+      // an accessory fitted inside a fixture occupies that fixture on purpose
+      if (it.fittedTo?.hostId === other.id || other.fittedTo?.hostId === it.id) continue;
       // pieces mounted at different heights share a footprint without touching
       const [lo, hi] = [cat.elevation ?? 0, oc.elevation ?? 0];
       if (lo >= hi + oc.h || hi >= lo + cat.h) continue;

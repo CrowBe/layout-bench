@@ -336,6 +336,13 @@ A few design notes:
   carton size without ever making it the product's envelope. The human capture form also covers
   these three, so a photographed label can be recorded with its evidence and date.
 
+- An accessory that sits inside another fixture (a bath waste, a basket) is fitted to it with
+  `fit_item`: its place is given in the host's own frame (across its centreline, out from its back
+  edge) and must lie inside the host's real outline. Its pose is derived from the host, so it
+  moves, turns and is removed with it, and it is not an `items_overlap` with that host. An
+  accessory whose host is gone, or that falls outside it, is a warning. The sample's Ahrok waste
+  is fitted inside the bath.
+
 - A spec sheet you already hold can be attached to a request (PDF or image, up to 10 MB). It
   stays in this browser: the file in IndexedDB, its record with the library. A PDF's text is
   read in the browser with pdf.js, page by page, and `get_product_brief` hands it to the agent,

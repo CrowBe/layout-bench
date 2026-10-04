@@ -171,6 +171,7 @@ export function parseProject(value: unknown): ProjectDocument {
       !model.rooms.every((v) => point(v, ["x", "y", "w", "h"]) && typeof v.label === "string" && typeof v.floor === "string" && floorBuildUp(v.floorBuildUp) && drainage(v.drainage) && validHeating(v.heating) && floorTiling(v.floorTiling)) ||
       !model.items.every((v) => point(v, ["x", "y", "rotation"]) && typeof v.kind === "string" &&
         (v.anchor === undefined || validAnchor(v.anchor)) &&
+        (v.fittedTo === undefined || (object(v.fittedTo) && typeof v.fittedTo.hostId === "string" && finite(v.fittedTo.across) && finite(v.fittedTo.out))) &&
         (v.installation === undefined || validInstallation(v.installation)) && (v.installationGeometry === undefined || validInstallationGeometry(v.installationGeometry)) &&
         oneOf(v.selectionStatus, SELECTION_STATUSES) && (v.productIdentity === undefined || isExactProduct(v.productIdentity)) &&
         (v.productSpecification === undefined || isProductSpecification(v.productSpecification)) &&

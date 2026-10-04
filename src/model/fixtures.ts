@@ -71,14 +71,32 @@ export function anchorPose(model: PlanModel, item: Item, lookup: CatalogLookup =
 /** Re-derive every anchored fixture. Returns the same model when nothing moved. */
 export function applyAnchors(model: PlanModel, lookup: CatalogLookup = catalogByKind): PlanModel {
   let changed = false;
-  const items = model.items.map((it) => {
+  const anchored = model.items.map((it) => {
     if (!it.anchor) return it;
     const pose = anchorPose(model, it, lookup);
     if (!pose.resolved || (it.x === pose.x && it.y === pose.y && it.rotation === pose.rotation)) return it;
     changed = true;
     return { ...it, x: pose.x!, y: pose.y!, rotation: pose.rotation! };
   });
+  // accessories follow their host's pose, taken after the host has been set out
+  const hosts = new Map(anchored.map((it) => [it.id, it]));
+  const items = anchored.map((it) => {
+    const pose = fittedPose(it, hosts.get(it.fittedTo?.hostId ?? ""), lookup);
+    if (!pose || (it.x === pose.x && it.y === pose.y && it.rotation === pose.rotation)) return it;
+    changed = true;
+    return { ...it, ...pose };
+  });
   return changed ? { ...model, items } : model;
+}
+
+/** Where an accessory sits on the plan: its host-local point carried through the host's pose, or null without a usable host. */
+export function fittedPose(it: Item, host: Item | undefined, lookup: CatalogLookup = catalogByKind): { x: number; y: number; rotation: number } | null {
+  if (!it.fittedTo || !host || host.fittedTo) return null;
+  const cat = catalogForItem(host, lookup);
+  if (!cat) return null;
+  const across = (host.installation?.mirror ? -1 : 1) * it.fittedTo.across;
+  const [p] = toWorld([{ x: across, y: it.fittedTo.out - cat.d / 2 }], host);
+  return { x: quantize(p.x), y: quantize(p.y), rotation: host.rotation };
 }
 
 /** A face offset of one side, by name, or unresolved. */

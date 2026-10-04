@@ -45,7 +45,7 @@ import { emptyModel } from "./types";
 import { validHeating, heatingEvidence } from "./heating";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
-import { placementLimitations, anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
+import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
 import { sideNormal } from "./faces";
 import { drainageProblems, planeSurface } from "./drainage";
 import { floorTileLayout } from "./floorTiling";
@@ -56,7 +56,7 @@ import { productStore, type LibraryProduct } from "./productLibrary";
 import { productPlacement } from "./productPlacement";
 import { previewProductUpdate, type ProductUpdatePreview } from "./productUpdates";
 import { evidenceFingerprint, planningEvidence, revisionOf } from "./productRevision";
-import { outlineExtents, outlineProblems, type Outline } from "./outline";
+import { itemPolygon, outlineExtents, outlineProblems, pointNearPolygon, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
 import { SNAP, dist, formatMm, quantize, segLen, segPoint } from "./geometry";
@@ -1392,6 +1392,9 @@ export const actions = {
     const hit = resolveItem(idOrKind);
     if (!hit.ok) return rejected(hit);
     const item = hit.entity;
+    if (item.fittedTo && (x !== undefined || y !== undefined || rotation !== undefined)) {
+      return fail(`${item.id} is fitted inside ${item.fittedTo.hostId}; it moves and turns with it. Change its place in the host with fit_item, or release it first.`);
+    }
     if (item.anchor && (x !== undefined || y !== undefined || rotation !== undefined)) {
       return fail(`${item.id} is set out from wall ${item.anchor.wallId} (${item.anchor.face} face); its position follows that face. Change it with anchor_fixture, or release the anchor first.`, { id: item.id, reason: "anchored" });
     }
@@ -1468,6 +1471,7 @@ export const actions = {
     const hit = resolveItem(itemRef);
     if (!hit.ok) return rejected(hit);
     const item = hit.entity;
+    if (input !== null && item.fittedTo) return fail(`${item.id} is fitted inside ${item.fittedTo.hostId}; release it with fit_item before setting it out from a wall.`);
     if (input === null) {
       const next: Item = { ...item };
       delete next.anchor;
@@ -1648,9 +1652,45 @@ export const actions = {
     const hit = resolveItem(idOrKind);
     if (!hit.ok) return rejected(hit);
     const item = hit.entity;
+    // what is fitted inside a fixture goes with it
+    const goes = new Set([item.id, ...store.getState().model.items.filter((i) => i.fittedTo?.hostId === item.id).map((i) => i.id)]);
     pushUndo();
-    setModel({ ...store.getState().model, items: store.getState().model.items.filter((i) => i.id !== item.id) });
-    return ok(`Item ${item.id} removed.`, { id: item.id });
+    setModel({ ...store.getState().model, items: store.getState().model.items.filter((i) => !goes.has(i.id)) });
+    return ok(goes.size > 1 ? `Item ${item.id} removed, with ${goes.size - 1} fitted inside it.` : `Item ${item.id} removed.`, { id: item.id });
+  },
+
+  /**
+   * Fit an accessory (a bath waste, a basket) inside a host fixture, at `across` the host's
+   * centreline and `out` from its back edge, in metres. Its centre must lie inside the host's
+   * footprint. Pass null to release it where it stands.
+   */
+  fitItem(accessoryRef: string, hostRef: string | null, across?: number, out?: number): ActionResult {
+    const acc = resolveItem(accessoryRef);
+    if (!acc.ok) return rejected(acc);
+    const item = acc.entity;
+    if (hostRef === null) {
+      if (!item.fittedTo) return fail(`${item.id} is not fitted inside anything.`);
+      pushUndo();
+      setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => { if (i.id !== item.id) return i; const { fittedTo: _released, ...rest } = i; return rest; }) });
+      return ok(`${item.id} released; it stays where it is.`, { id: item.id });
+    }
+    const hostHit = resolveItem(hostRef);
+    if (!hostHit.ok) return rejected(hostHit);
+    const host = hostHit.entity;
+    if (host.id === item.id) return fail("A fixture cannot be fitted inside itself.");
+    if (host.fittedTo) return fail(`${host.id} is itself fitted inside ${host.fittedTo.hostId}; fit to the outer fixture.`);
+    if (store.getState().model.items.some((i) => i.fittedTo?.hostId === item.id)) return fail(`${item.id} is a host for other accessories; fit it only after releasing them.`);
+    if (item.anchor) return fail(`${item.id} is set out from a wall face; release its anchor before fitting it inside a fixture.`);
+    if (typeof across !== "number" || typeof out !== "number" || !Number.isFinite(across) || !Number.isFinite(out)) return fail("Give across (metres from the host's centreline, left negative) and out (metres from the host's back edge).");
+    const r = rounding();
+    const fitted: Item = { ...item, fittedTo: { hostId: host.id, across: r.q(across, "across"), out: r.q(out, "out") } };
+    const pose = fittedPose(fitted, host);
+    if (!pose) return fail(`${host.id} has no known footprint to fit into.`);
+    const poly = itemPolygon(host);
+    if (!poly || !pointNearPolygon({ x: pose.x, y: pose.y }, poly, 0)) return fail(`That point is outside ${host.id}'s footprint (its real outline, not its box). Choose a point inside it.`);
+    pushUndo();
+    setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? { ...fitted, ...pose } : i)) });
+    return r.ok(`${item.id} fitted inside ${host.id}, ${formatMm(fitted.fittedTo!.across)} mm across and ${formatMm(fitted.fittedTo!.out)} mm from its back edge.`, { id: item.id, hostId: host.id });
   },
 
   // ---- model / view ----
