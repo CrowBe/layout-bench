@@ -59,8 +59,11 @@ describe("owner's construction spec in the sample", () => {
 
   it("gives four full courses and full tiles at the door end from the estimates and the target", () => {
     const m = sample();
-    // the 2400 mm wall height is entered, not measured: four courses on the base joint overrun it, and say so
-    expect(tilingLayout(m, wall(m, "wall_w"), "right").problems.map((p) => p.code)).toContain("tiling_above_wall");
+    // about 2700 mm to the cornice: four courses clear it, leaving about 284 mm for the timber trim
+    for (const w of m.walls) {
+      expect(tilingLayout(m, w, "right").problems.map((p) => p.code), w.id).not.toContain("tiling_above_wall");
+      expect(Math.round((w.height - tilingLayout(m, w, "right").band!.z1) * 1000)).toBe(284);
+    }
     for (const w of m.walls) {
       const l = tilingLayout(m, w, "right");
       expect(l.rows, w.id).toBe(4);

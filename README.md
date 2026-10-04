@@ -350,7 +350,7 @@ A few design notes:
   the current tile level. Tiles are 10 mm porcelain (estimated), the wall adhesive 4 mm (estimated). Left, right and door walls take 600 × 600 white gloss; the floor and
   window wall take 300 × 600 sandy beige matte, long side toward the window wall and vertical on it,
   so every wall has four full 600 mm courses on a thin silicone or glue joint (about 2416 mm) and a
-  timber trim above. Full tiles start at the door end: the doorway on the floor, the door-wall corner
+  timber trim above to the cornice, about 2700 mm up (about 284 mm of trim). Full tiles start at the door end: the doorway on the floor, the door-wall corner
   on the side walls, the door's jamb on the door wall, the corner nearer the door on the window wall.
   The tiler's floor screed and adhesive stay unknown; the target alone sets the finished floor.
   The shower screen is the owner's fixed glass panel, 900 wide × 2100 high on black clips, 1200 mm

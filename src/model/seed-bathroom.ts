@@ -224,7 +224,8 @@ const courses = (wall: string, tile: "white" | "beige"): WallTiling => tile === 
   ? { tileLength: proposed(0.6), tileWidth: proposed(0.6), orientation: "landscape", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${WHITE}. Four full courses; full tiles start at the door end; timber trim above, later.` }
   : { tileLength: proposed(0.6), tileWidth: proposed(0.3), orientation: "portrait", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${BEIGE}, the floor tile carried up the window wall: long side vertical so its courses match the 600 mm courses on the other walls. Timber trim above, later.` };
 const wall = (id: string, ax: number, ay: number, bx: number, by: number, tile: "white" | "beige"): Wall => ({
-  id, ax, ay, bx, by, thickness: 0.1, height: 2.4,
+  // owner: about 2700 mm from the current floor to the cornice (about 2850 from the slab once stripped)
+  id, ax, ay, bx, by, thickness: 0.1, height: 2.7,
   sides: { right: side(id, tile === "white" ? WHITE : BEIGE) }, tiling: { right: courses(id, tile) },
 });
 
@@ -317,7 +318,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-tiles-open", author: "agent", at: at + 8,
-      text: "Still to confirm: the slab level after demolition (about 120 mm below the current tile, estimated); the finished-level target (set to the current tile level); the tile thickness (10 mm porcelain, estimated); the tiler's wall adhesive bed (4 mm, estimated); the frame positions (estimated); the width of the silicone or glue joint under the bottom course (4 mm assumed); the real ceiling height (the 2400 mm wall height is entered, not measured, and four courses reach about 2416 mm above the finished floor). No wall membrane is recorded: only the floor was named.",
+      text: "Still to confirm: the slab level after demolition (about 120 mm below the current tile, estimated); the finished-level target (set to the current tile level); the tile thickness (10 mm porcelain, estimated); the tiler's wall adhesive bed (4 mm, estimated); the frame positions (estimated); the width of the silicone or glue joint under the bottom course (4 mm assumed); the wall height (about 2700 mm from the current floor to the cornice, owner's estimate; about 2850 mm from the slab after stripping, which would put the slab nearer 150 mm down than 120 mm). Four courses reach about 2416 mm above the finished floor, leaving about 284 mm to the cornice for the timber trim. No wall membrane is recorded: only the floor was named.",
     },
     {
       id: "note-screen", author: "human", at: at + 5,
