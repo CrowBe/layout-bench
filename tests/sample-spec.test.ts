@@ -45,7 +45,12 @@ describe("owner's construction spec in the sample", () => {
     expect(Math.round((linear.by - linear.ay) * 1000)).toBe(1000); // Lauxes Next Gen 35, 1000 long per the packing slip
     expect(square).toMatchObject({ kind: "point", ax: 1.055, ay: 2.11 });
     expect(m.rooms[0].drainage!.planes.every((p) => p.fall === undefined)).toBe(true); // falls not chosen
-    expect(m.rooms[0].heating).toMatchObject({ model: "SCK0765L", screedLayerId: "floor_screed", path: [] });
+    expect(m.rooms[0].heating).toMatchObject({ model: "SCK0765L", screedLayerId: "floor_screed" });
+    expect(m.rooms[0].heating!.length).toBeUndefined();
+    expect(m.rooms[0].heating!.ratedOutput).toBeUndefined();
+    expect(m.rooms[0].heating!.keepouts).toEqual([]);
+    expect(m.rooms[0].heating!.cableSpecification?.fields.cableLength).toMatchObject({ value: 42.5, status: "published" });
+    expect(m.rooms[0].heating!.path.length).toBeGreaterThan(2);
     expect(() => parseImport(JSON.stringify(demoProject()))).not.toThrow();
   });
 

@@ -42,7 +42,7 @@ import type {
   TileFloorReference,
 } from "./types";
 import { emptyModel } from "./types";
-import { validHeating, heatingEvidence } from "./heating";
+import { validHeating, heatingEvidence, heatingProductWriteGuard } from "./heating";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices } from "./fixtures";
@@ -1170,8 +1170,10 @@ export const actions = {
     const nextRoom = { ...room };
     if (patch.clear === true) delete nextRoom.heating;
     else {
+      const locked = heatingProductWriteGuard(room.heating, patch as Record<string, unknown>, productStore.getState().products);
+      if (locked) return fail(locked);
       const next: Heating = structuredClone(room.heating ?? { zoneIds: [], path: [], keepouts: [] });
-      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts"] as (keyof Heating)[]) {
+      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts", "cableProductId", "cableSpecification", "thermostatProductId", "thermostatSpecification", "thermostatLocation"] as (keyof Heating)[]) {
         if (patch[key] === undefined) continue;
         if (patch[key] === null) {
           if (key === "path" || key === "zoneIds" || key === "keepouts") Object.assign(next, { [key]: [] });
@@ -1183,7 +1185,7 @@ export const actions = {
         const quantity = next[key];
         if (quantity && quantity.value === null) delete quantity.value;
       }
-      if (!validHeating(next)) return fail("Heating rejected: finite non-negative quantities need provenance; paths need finite x/y; keep-outs need unique ids, labels and positive rectangles. Maximum 1000 points and 100 keep-outs.");
+      if (!validHeating(next)) return fail("Heating rejected: finite non-negative quantities need provenance; paths need finite x/y; keep-outs need unique ids, labels and positive rectangles; product snapshots must match their category. Maximum 1000 points and 100 keep-outs.");
       for (const key of ["length", "minSpacing", "edgeClearance", "depthFromBottom"] as const) if (next[key]?.value !== undefined) next[key]!.value = quantize(next[key]!.value!);
       next.path = next.path.map((p) => ({ x: quantize(p.x), y: quantize(p.y) }));
       next.keepouts = next.keepouts.map((r) => ({ ...r, x: quantize(r.x), y: quantize(r.y), w: quantize(r.w), h: quantize(r.h) }));
@@ -1192,7 +1194,7 @@ export const actions = {
     }
     pushUndo();
     setModel({ ...store.getState().model, rooms: store.getState().model.rooms.map((r) => r.id === room.id ? nextRoom : r) });
-    return { ok: true, summary: `Room "${room.label}" proposed heating ${nextRoom.heating ? "updated" : "cleared"}; electrician/manufacturer review required.`, id: room.id, ...heatingEvidence(nextRoom) };
+    return { ok: true, summary: `Room "${room.label}" proposed heating ${nextRoom.heating ? "updated" : "cleared"}; electrician/manufacturer review required. No electrical or compliance approval.`, id: room.id, ...heatingEvidence(nextRoom) };
   },
 
   // ---- floor assembly (#6) ----
@@ -1615,7 +1617,9 @@ export const actions = {
     return product ? previewProductUpdate(store.getState().model, product, selected, productStore.getState().products) : null;
   },
 
-  /** Human page action only. Recompute evidence and selection; never trust supplied projection rows. */
+  /** Human page action only. Recompute evidence and selection; never trust supplied projection rows.
+   * Item instances only: this does not retarget `room.heating` product references or copy brief
+   * fields onto the heating record. Heating checks re-read a live `cableProductId` themselves. */
   applyProductRevision(preview: ProductUpdatePreview): ActionResult {
     const next = this.previewProductRevision(preview.targetId, preview.selected);
     if (!next || next.fingerprint !== preview.fingerprint) return fail("The project or accepted evidence changed. Preview the selected instances again before applying.");

@@ -256,17 +256,38 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   }
   if (el.type === "heating") {
     const r = room(), h = r.heating!, e = heatingEvidence(r);
+    const fig = (f: (typeof e.cable)["length"], asMm = false) => {
+      const status = (TAGS[f.kind] ? f.kind : "unknown") as RowStatus;
+      const source = [f.formula, f.source, f.note].filter(Boolean).join(" · ") || undefined;
+      if (f.value === undefined) return { value: "?", status: "unknown" as RowStatus, ...(source ? { source } : {}), ...(f.datum ? { datum: f.datum } : {}), missing: [f.note ?? f.quantity] };
+      return { value: asMm ? mm(f.value) : String(f.value), status, ...(source ? { source } : {}), ...(f.datum ? { datum: f.datum } : {}) };
+    };
     for (const property of ["manufacturer", "model", "productSource", "requirements"] as const) row(property, { value: h[property] || "?", status: h[property] ? "entered" : "unknown" });
-    for (const property of ["length", "minSpacing", "edgeClearance", "depthFromBottom"] as const) row(`${property} (mm)`, qRow(h[property]));
-    row("rated output (W)", h.ratedOutput?.value !== undefined ? { value: String(h.ratedOutput.value), status: h.ratedOutput.status ?? "unknown", source: h.ratedOutput.source } : { value: "?", status: "unknown" });
-    row("plan route length (m)", { value: String(e.planRouteLength), status: "proposed" });
-    row("spatial route length, sampled profile (m)", { value: e.routeLength === undefined ? "?" : String(e.routeLength), status: e.routeLength === undefined ? "unknown" : "proposed" });
-    row("remaining confirmed product length (m)", { value: e.remainingProductLength === undefined ? "?" : String(e.remainingProductLength), status: e.remainingProductLength === undefined ? "unknown" : "proposed" });
+    row("product length (m)", fig(e.cable.length));
+    row("rated output (W)", fig(e.cable.ratedOutput));
+    row("coverage min (m²)", fig(e.cable.coverageMin));
+    row("coverage max (m²)", fig(e.cable.coverageMax));
+    row("derived spacing min (mm)", fig(e.cable.spacingMin, true));
+    row("derived spacing max (mm)", fig(e.cable.spacingMax, true));
+    row("cable rated current (A)", fig(e.cable.ratedCurrent));
+    row("cable rated voltage (V)", fig(e.cable.ratedVoltage));
+    row("thermostat switching current (A)", fig(e.thermostat.ratedCurrent));
+    row("thermostat voltage min (V)", fig(e.thermostat.voltageMin));
+    row("thermostat voltage max (V)", fig(e.thermostat.voltageMax));
+    row("thermostat printed IP", { value: e.thermostat.ingressProtection?.value || "?", status: (TAGS[e.thermostat.ingressProtection?.kind ?? ""] ? e.thermostat.ingressProtection!.kind : "unknown") as RowStatus, source: e.thermostat.ingressProtection?.source ?? e.thermostat.ingressProtection?.note });
+    for (const property of ["minSpacing", "edgeClearance", "depthFromBottom"] as const) row(`${property} (mm)`, qRow(h[property]));
+    row("cable depth datum", { value: e.datums.cableDepth, status: "entered" });
+    row("wall setback datum", { value: e.datums.wallSetback, status: "entered" });
+    row("plan route length (m)", fig(e.figures.planRouteLength));
+    row("spatial route length, sampled profile (m)", fig(e.figures.spatialRouteLength));
+    row("remaining confirmed product length (m)", fig(e.figures.remainingProductLength));
+    row("drawn-path envelope (m²), modelled not coverage", fig(e.figures.pathEnvelopeArea));
     row("length basis", { value: e.lengthNote, status: "proposed" });
+    row("spacing formula", { value: e.spacingNote, status: "derived" });
     row("zone ids", { value: h.zoneIds.join(", ") || "?", status: h.zoneIds.length ? "proposed" : "unknown" });
     row("available zone area (m²), not heat coverage", { value: String(e.availableArea), status: "proposed" });
-    row("minimum non-adjacent spacing (mm)", { value: e.minimumNonAdjacentSpacing === undefined ? "?" : mm(e.minimumNonAdjacentSpacing), status: e.minimumNonAdjacentSpacing === undefined ? "unknown" : "proposed" });
-    row("installation approval", { value: "Pending manufacturer / electrician review", status: "proposed" });
+    row("minimum non-adjacent spacing (mm)", { value: e.minimumNonAdjacentSpacing === undefined ? "?" : mm(e.minimumNonAdjacentSpacing), status: e.minimumNonAdjacentSpacing === undefined ? "unknown" : "modelled" });
+    row("installation approval", { value: "Pending manufacturer / electrician review. No electrical or compliance approval.", status: "proposed" });
     for (const [i, p] of h.path.entries()) row(`point ${i + 1} x / y (mm)`, { value: `${mm(p.x)} / ${mm(p.y)}`, status: "proposed", datum: "plan origin" });
     for (const p of e.section) row(`cable level at ${p.s} m along plan route (mm)`, p.level === undefined ? { value: "?", status: "unknown", missing: p.missing } : { value: mm(p.level), status: p.basis as RowStatus, datum: r.floorBuildUp?.datum || DEFAULT_DATUM });
     for (const k of h.keepouts) row(`keep-out ${k.label} x / y / w / h (mm)`, { value: [k.x, k.y, k.w, k.h].map(mm).join(" / "), status: "entered", source: k.source });

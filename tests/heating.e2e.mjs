@@ -273,7 +273,7 @@ try {
   assert.equal(read.remainingProductLength, undefined);
   assert.deepEqual(errors, []);
   console.log(
-    "heating e2e passed (synthetic capability only; actual purchased cable data remains pending)",
+    "heating e2e passed (synthetic length-edit path; product-brief checks are in vitest)",
   );
 } finally {
   await browser.close();

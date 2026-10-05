@@ -146,7 +146,7 @@ export const BATHROOM_PRODUCT_CATEGORIES: ProductCategory[] = [
   },
   {
     id: "heating-cable", label: "Floor heating cable", envelope: box,
-    placement: unsupported("A floor heating cable is a length of cable, not an envelope. Its proposed route is entered with the heating tools, which hold its own product and length evidence."),
+    placement: unsupported("A floor heating cable is a length of cable, not an envelope. Its proposed route is entered with the heating tools, which read length, output and coverage from a referenced heating-cable brief."),
     fields: [
       choice("cableType", "Installation type", ["in-screed", "under-tile", "other"], "Where the exact product is designed to be embedded; a label naming a screed is not under-tile."),
       length("cableLength", "Heating cable length", "Heated cable length from its cold joint to its end, excluding cold tails; metres.", "fixture-end", 1, 300),

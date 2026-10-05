@@ -6,12 +6,19 @@ import {
   uid,
   type HeatingPatch,
 } from "../model/store";
-import type { Heating as HeatingSpec, Room } from "../model/types";
+import type { Room, ThermostatLocationKind } from "../model/types";
 import { formatMm } from "../model/geometry";
-import { heatingEvidence } from "../model/heating";
+import {
+  CABLE_DEPTH_DATUM,
+  WALL_SETBACK_DATUM,
+  heatingEvidence,
+  heatingProductLocks,
+} from "../model/heating";
 import { heatingSectionSvg, renderHeatingReview } from "../sheets/heating";
 import { QuantityField } from "./WallFaces";
 import { download } from "./download";
+import { useProductStore } from "../model/productLibrary";
+import type { HeatingFigure } from "../model/heatingProduct";
 
 export function Heating({ room }: { room: Room }) {
   const mode = useAppStore((s) => s.editor.drawMode);
@@ -25,8 +32,16 @@ export function Heating({ room }: { room: Room }) {
     h: "",
     source: "",
   });
+  const library = useProductStore((s) => s.products);
   const h = room.heating,
-    e = heatingEvidence(room);
+    e = heatingEvidence(room, library);
+  const locks = heatingProductLocks(h, library);
+  const cables = library.filter((p) => p.category === "heating-cable");
+  const thermostats = library.filter((p) => p.category === "thermostat");
+  const figureText = (f: HeatingFigure | undefined, asMm = false) =>
+    !f || f.value === undefined
+      ? `unknown (${f?.kind ?? "unknown"}${f?.note ? `; ${f.note}` : ""})`
+      : `${asMm ? `${formatMm(f.value)} mm` : `${f.value} ${f.unit}`} · ${f.kind}${f.formula ? ` · ${f.formula}` : ""}${f.source ? ` · ${f.source}` : ""}`;
   const run = (patch: HeatingPatch) => {
     const r = actions.setRoomHeating(room.id, patch);
     logActivity("human", "set_room_heating", r.summary, r.ok);
@@ -46,20 +61,40 @@ export function Heating({ room }: { room: Room }) {
       ),
     });
   };
-  const quantities = [
-    ["length", "Cable product length (m)", 1],
-    ["ratedOutput", "Rated output (W)", 1],
-    ["minSpacing", "Minimum cable spacing (mm)", 1000],
-    ["edgeClearance", "Boundary / keep-out clearance (mm)", 1000],
-    ["depthFromBottom", "Cable centre above screed bottom (mm)", 1000],
-  ] as const;
   return (
     <section className="wall-faces heating-panel" aria-label="Heating cable">
       <strong>Proposed in-screed heating</strong>
       <span className="hint">
-        Blank = unknown. Enter product/trade information with its source.
-        Manufacturer and electrician review pending.
+        Blank = unknown. Length, output and coverage come from a referenced heating-cable
+        brief when one is set; they are not copied onto this record. Manufacturer and
+        electrician review pending. No electrical or compliance approval.
       </span>
+      <label className="field inspector-field">
+        Heating-cable product
+        <select
+          aria-label="Heating-cable product"
+          value={h?.cableProductId ?? ""}
+          onChange={(ev) => run({ cableProductId: ev.target.value || null })}
+        >
+          <option value="">{h?.cableSpecification ? "Project snapshot (no library id)" : "none — enter length on this record"}</option>
+          {cables.map((p) => (
+            <option key={p.id} value={p.id}>{p.physicalItem?.label || [p.manufacturer, p.model].filter(Boolean).join(" ") || p.id}</option>
+          ))}
+        </select>
+      </label>
+      <label className="field inspector-field">
+        Thermostat product
+        <select
+          aria-label="Thermostat product"
+          value={h?.thermostatProductId ?? ""}
+          onChange={(ev) => run({ thermostatProductId: ev.target.value || null })}
+        >
+          <option value="">{h?.thermostatSpecification ? "Project snapshot (no library id)" : "none"}</option>
+          {thermostats.map((p) => (
+            <option key={p.id} value={p.id}>{p.physicalItem?.label || [p.manufacturer, p.model].filter(Boolean).join(" ") || p.id}</option>
+          ))}
+        </select>
+      </label>
       {(
         ["manufacturer", "model", "productSource", "requirements"] as const
       ).map((k) => (
@@ -77,6 +112,7 @@ export function Heating({ room }: { room: Room }) {
             key={h?.[k] ?? ""}
             defaultValue={h?.[k] ?? ""}
             placeholder="unknown"
+            readOnly={k === "manufacturer" ? locks.manufacturer : k === "model" ? locks.model : false}
             onBlur={(event) => {
               if (event.target.value !== (h?.[k] ?? ""))
                 run({ [k]: event.target.value || null });
@@ -84,7 +120,23 @@ export function Heating({ room }: { room: Room }) {
           />
         </label>
       ))}
-      {quantities.map(([k, label, scale]) => (
+      {locks.length && (
+        <p className="hint" aria-label="Cable product length (m)">
+          Cable product length (m): {figureText(e.cable.length)} (locked to the heating-cable brief)
+        </p>
+      )}
+      {locks.ratedOutput && (
+        <p className="hint" aria-label="Rated output (W)">
+          Rated output (W): {figureText(e.cable.ratedOutput)} (locked to the heating-cable brief)
+        </p>
+      )}
+      {([
+        ...(locks.length ? [] : [["length", "Cable product length (m)", 1] as const]),
+        ...(locks.ratedOutput ? [] : [["ratedOutput", "Rated output (W)", 1] as const]),
+        ["minSpacing", "Minimum cable spacing (mm)", 1000] as const,
+        ["edgeClearance", "Boundary / keep-out clearance (mm)", 1000] as const,
+        ["depthFromBottom", "Cable centre above screed bottom (mm)", 1000] as const,
+      ]).map(([k, label, scale]) => (
         <div key={k}>
           <QuantityField
             label={label}
@@ -122,6 +174,66 @@ export function Heating({ room }: { room: Room }) {
                 {l.name}
               </option>
             ))}
+        </select>
+      </label>
+      <span className="hint">Cable centre datum: {CABLE_DEPTH_DATUM}.</span>
+      <span className="hint">Entered edge clearance datum: {WALL_SETBACK_DATUM}. Keep-outs are only those entered with a source; none are inferred from fixtures.</span>
+      <label className="field inspector-field">
+        Thermostat location
+        <textarea
+          aria-label="Thermostat location"
+          key={h?.thermostatLocation?.description ?? ""}
+          defaultValue={h?.thermostatLocation?.description ?? ""}
+          placeholder="unknown — not inferred from the IP code"
+          onBlur={(event) => {
+            const description = event.target.value.trim();
+            if (!description) {
+              if (h?.thermostatLocation) run({ thermostatLocation: null });
+              return;
+            }
+            run({
+              thermostatLocation: {
+                description,
+                source: h?.thermostatLocation?.source || "source not supplied",
+                ...(h?.thermostatLocation?.kind ? { kind: h.thermostatLocation.kind } : {}),
+              },
+            });
+          }}
+        />
+      </label>
+      <label className="field inspector-field">
+        Thermostat location source
+        <input
+          aria-label="Thermostat location source"
+          key={h?.thermostatLocation?.source ?? ""}
+          defaultValue={h?.thermostatLocation?.source ?? ""}
+          placeholder="unknown"
+          onBlur={(event) => {
+            if (!h?.thermostatLocation) return;
+            if (event.target.value !== h.thermostatLocation.source)
+              run({ thermostatLocation: { ...h.thermostatLocation, source: event.target.value } });
+          }}
+        />
+      </label>
+      <label className="field inspector-field">
+        Thermostat location kind
+        <select
+          aria-label="Thermostat location kind"
+          value={h?.thermostatLocation?.kind ?? ""}
+          onChange={(ev) => {
+            if (!h?.thermostatLocation) return;
+            const kind = ev.target.value as ThermostatLocationKind | "";
+            run({
+              thermostatLocation: {
+                ...h.thermostatLocation,
+                ...(kind ? { kind } : { kind: undefined }),
+              },
+            });
+          }}
+        >
+          <option value="">unknown (IP check stays required)</option>
+          <option value="outside-wet-room">outside a wet room</option>
+          <option value="wet-room">wet room</option>
         </select>
       </label>
       <span className="hint">
@@ -307,11 +419,13 @@ export function Heating({ room }: { room: Room }) {
         </span>
       )}
       <p aria-label="Heating evidence">
-        Plan route length: {e.planRouteLength} m · spatial route length (sampled profile): {e.routeLength === undefined ? "unknown" : `${e.routeLength} m`} · remaining confirmed cable length: {e.remainingProductLength === undefined ? "unknown" : `${e.remainingProductLength} m`} · selected {e.selectedArea} m² · excluding
+        Product length: {figureText(e.cable.length)} · rated output: {figureText(e.cable.ratedOutput)} · coverage {figureText(e.cable.coverageMin)}–{figureText(e.cable.coverageMax)} · derived spacing ({e.spacingNote}): {figureText(e.cable.spacingMin, true)}–{figureText(e.cable.spacingMax, true)}.
+        Cable current: {figureText(e.cable.ratedCurrent)} · thermostat switching current: {figureText(e.thermostat.ratedCurrent)} · cable voltage: {figureText(e.cable.ratedVoltage)} · thermostat voltage {figureText(e.thermostat.voltageMin)}–{figureText(e.thermostat.voltageMax)} · printed IP: {e.thermostat.ingressProtection?.value ?? "unknown"} ({e.thermostat.ingressProtection?.kind ?? "unknown"}).
+        Plan route length: {figureText(e.figures.planRouteLength)} · spatial route length (sampled profile): {figureText(e.figures.spatialRouteLength)} · remaining confirmed cable length: {figureText(e.figures.remainingProductLength)} · drawn-path envelope: {figureText(e.figures.pathEnvelopeArea)} · selected {e.selectedArea} m² · excluding
         keep-outs {e.availableArea} m². Minimum non-adjacent spacing:{" "}
         {e.minimumNonAdjacentSpacing === undefined
           ? "unknown"
-          : formatMm(e.minimumNonAdjacentSpacing) + " mm"}
+          : formatMm(e.minimumNonAdjacentSpacing) + " mm (modelled)"}
         . Boundary clearance:{" "}
         {e.edgeDistance === undefined
           ? "unknown"
