@@ -322,7 +322,10 @@ export interface ServicePoint {
   outMax?: number;
   across?: number;
   up?: number;
-  status: ValueStatus;
+  /** Converted host-frame coordinates are `derived`, never `published`. Published stays on the source-datum evidence. */
+  status: ValueStatus | "derived";
+  /** Present when across/out were converted from another datum (e.g. corner bisector). */
+  basis?: "derived";
   source?: string;
   /** Original per-axis evidence; unsupported datums never become resolved coordinates. */
   axisEvidence?: { across?: FieldValue; out?: FieldValue; outMax?: FieldValue; up?: FieldValue };

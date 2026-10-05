@@ -119,7 +119,7 @@ export interface RoughInReading {
   pointId: string;
   label: string;
   service: ServicePoint["service"];
-  status: ValueStatus;
+  status: ValueStatus | "derived";
   source?: string;
   axisEvidence?: ServicePoint["axisEvidence"];
   /** what the point was entered against */

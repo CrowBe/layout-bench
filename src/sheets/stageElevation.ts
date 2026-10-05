@@ -324,7 +324,7 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
   };
   heading(`Stage: ${opts.label}`);
   row(`Wall ${w.id.replace(/^wall_/, "")}, ${side} side, facing ${room?.label ?? "?"}. Same visible set as the stage plan; everything else hidden, not removed.`);
-  row("Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · ENT entered · DEF default · ? unknown", 1.8, `fill="#444"`);
+  row("Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ? unknown", 1.8, `fill="#444"`);
   y += 1.5;
   heading("This face");
   if (!face) row("No face or layer of this side is shown: the wall is drawn at its drawn length only.");

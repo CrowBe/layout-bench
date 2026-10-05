@@ -40,8 +40,8 @@ interface BaseField {
   /** needed for a trade view; must be found or explicitly reported unknown */
   required: boolean;
   definition: string;
-  /** only applies when another field has one of these values */
-  when?: { field: string; in: string[] };
+  /** only applies when another field has one of these values (`in`), or unless it has one of these values (`notIn`, including when that field is unknown) */
+  when?: { field: string; in: string[] } | { field: string; notIn: string[] };
 }
 export interface LengthField extends BaseField { type: "length"; reference?: ReferenceId; min: number; max: number }
 export interface ChoiceField extends BaseField { type: "choice"; options: string[] }
@@ -148,9 +148,9 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
       { type: "choice", key: "shape", label: "Plan shape", group: "envelope", required: true, options: ["rectangular", "corner-round", "other"], definition: "Rectangular, or a corner bath with two straight wall sides and a rounded front. For a corner bath, length and width are its extents along each wall." },
       len({ key: "frontWidth", label: "Width across the curved front", group: "envelope", required: true, min: 0.5, max: 2.5, when: { field: "shape", in: ["corner-round"] }, definition: "Straight-line distance between the two ends of the curved front, where it meets the straight wall sides." }),
       len({ key: "frontProjection", label: "Projection from the corner", group: "envelope", required: true, reference: "other", min: 0.5, max: 2.2, when: { field: "shape", in: ["corner-round"] }, definition: "From the corner where the walls meet to the front of the curve, along the line bisecting the corner." }),
-      len({ key: "wasteFromEnd", label: "Waste from end", group: "rough-in", required: true, reference: "fixture-end", min: 0, max: 2.2, when: { field: "shape", in: ["rectangular", "other"] }, definition: "From the outside of the end named in wasteEnd to the centre of the waste. Required when the sheet does not give wasteFromCorner (shape not corner-round). Not the sheet datum for a corner bath whose waste is on the bisector." }),
+      len({ key: "wasteFromEnd", label: "Waste from end", group: "rough-in", required: true, reference: "fixture-end", min: 0, max: 2.2, when: { field: "shape", notIn: ["corner-round"] }, definition: "From the outside of the end named in wasteEnd to the centre of the waste. Required whenever shape is not exactly corner-round, including when shape is unknown or unlisted. Not the sheet datum for a corner bath whose waste is on the bisector." }),
       { type: "choice", key: "wasteEnd", label: "Waste measured from end", group: "rough-in", required: false, options: ["left", "right"], definition: "Which end wasteFromEnd is measured from, facing the bath. Needed to place the waste in the plan when wasteFromEnd is the sheet datum." },
-      len({ key: "wasteFromSide", label: "Waste from side", group: "rough-in", required: true, reference: "fixture-side", min: 0, max: 1.2, when: { field: "shape", in: ["rectangular", "other"] }, definition: "From the outside of the back or wall-side edge to the centre of the waste. Required when the sheet does not give wasteFromCorner (shape not corner-round)." }),
+      len({ key: "wasteFromSide", label: "Waste from side", group: "rough-in", required: true, reference: "fixture-side", min: 0, max: 1.2, when: { field: "shape", notIn: ["corner-round"] }, definition: "From the outside of the back or wall-side edge to the centre of the waste. Required whenever shape is not exactly corner-round, including when shape is unknown or unlisted." }),
       len({ key: "wasteFromCorner", label: "Waste from corner (bisector)", group: "rough-in", required: true, reference: "other", min: 0, max: 2.2, when: { field: "shape", in: ["corner-round"] }, definition: "From the right-angle corner along the corner bisector to the waste centre, as a corner-bath sheet gives it. Required for corner-round baths. Not wasteFromEnd or wasteFromSide. Host-frame across/out are derived from this (along each wall = value/√2) and are never published." }),
       len({ key: "wasteHoleDiameter", label: "Waste hole diameter", group: "rough-in", required: false, reference: "other", min: 0.01, max: 0.15, definition: "Diameter of the waste hole in the fixture (a hole, not a pipe connection or outlet). Ø50 is 0.05 m. Compared only with another hole diameter." }),
       len({ key: "wasteConnectionDiameter", label: "Waste connection diameter", group: "rough-in", required: false, reference: "fixture-centreline", min: 0.01, max: 0.15, definition: "Pipe connection or outlet size at the waste, when the sheet names one. Not the waste-hole diameter. Compared with an accessory outlet or connection of the same kind." }),
@@ -199,7 +199,7 @@ export interface FieldValue {
   value: number | string | null;
   status?: ValueStatus;
   sources?: SourceRef[];
-  /** Carton/packaging published figure, matching Quantity (`carton label`). Not a web sheet. */
+  /** Carton/packaging published figure: exactly Quantity's `carton label` token, with a note that names the carton. Not a web sheet. */
   source?: string;
   reference?: ReferenceId;
   note?: string;
@@ -255,10 +255,11 @@ export interface SpecProblem {
 }
 
 
-/** Whether a field applies, given the choices submitted so far. */
+/** Whether a field applies, given the choices submitted so far. `notIn` stays applicable when the other field is unknown. */
 export function applies(field: FieldSpec, fields: Record<string, FieldValue>): boolean {
   if (!field.when) return true;
   const v = fields[field.when.field]?.value;
+  if ("notIn" in field.when) return typeof v !== "string" || !field.when.notIn.includes(v);
   return typeof v === "string" && field.when.in.includes(v);
 }
 
@@ -468,6 +469,13 @@ export function validateProductGeometry(category: ProductCategory, fields: Recor
 }
 
 /**
+ * Along each wall from a bisector distance: fromCorner / √2. The only source for this conversion.
+ */
+export function bisectorAlongEachWall(fromCornerM: number): number {
+  return fromCornerM / Math.SQRT2;
+}
+
+/**
  * Convert a bisector distance from the right-angle corner into the host frame: across the
  * centreline (left negative) and out from the back edge. Along each wall = fromCorner / √2.
  * The numbers are geometric; callers must label them derived, never published.
@@ -477,7 +485,7 @@ export function cornerBisectorToHostFrame(
   boxW: number,
   corner: "left" | "right",
 ): { across: number; out: number; alongEachWall: number } {
-  const alongEachWall = fromCornerM / Math.SQRT2;
+  const alongEachWall = bisectorAlongEachWall(fromCornerM);
   const across = corner === "right" ? boxW / 2 - alongEachWall : -(boxW / 2 - alongEachWall);
   return { across, out: alongEachWall, alongEachWall };
 }
@@ -623,7 +631,7 @@ export function roughInPoints(category: ProductCategory, fields: Record<string, 
     };
     const fromCorner = category.id === "bath" && r.id === "waste" && fields.shape?.value === "corner-round" ? num("wasteFromCorner") : undefined;
     if (fromCorner !== undefined) {
-      const { alongEachWall } = cornerBisectorToHostFrame(fromCorner, 0, "right");
+      const alongEachWall = bisectorAlongEachWall(fromCorner);
       const derived = (from: ReferenceId): AxisValue => ({
         from,
         field: "wasteFromCorner",

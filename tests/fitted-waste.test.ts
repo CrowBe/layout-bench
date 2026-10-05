@@ -6,8 +6,9 @@ import { catalogByKind, resetRuntimeCatalog } from "../src/model/catalog";
 import { purchasedFittings } from "../src/model/seed-bathroom";
 import { emptyModel, type PlanModel } from "../src/model/types";
 import { buildFurniture } from "../src/three/furniture";
-import { catalogue, renderStageDiagram, resolveVisible } from "../src/sheets/stageView";
+import { catalogue, renderStageDiagram, resolveVisible, specRows } from "../src/sheets/stageView";
 import { renderFloorPlan } from "../src/sheets/floorPlan";
+import { roughIn } from "../src/model/fixtures";
 import { toWorld } from "../src/model/outline";
 import { PRECISION, quantize } from "../src/model/geometry";
 import {
@@ -230,6 +231,23 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(validateSubmission(cat, missingCorner).some((p) => p.field === "wasteFromCorner" && p.code === "field_missing")).toBe(true);
   });
 
+  it("requires wasteFromEnd/wasteFromSide when shape is unknown, as required_unknown", () => {
+    const cat = categoryById("bath")!;
+    const unknownShape: SpecSubmission = {
+      manufacturer: "Example Co", model: "Unknown shape",
+      fields: {
+        length: pub(1.675), width: pub(0.75), height: pub(0.45), installation: pub("freestanding"),
+        shape: { value: null, note: "Sheet does not name the plan shape." },
+        wasteFromEnd: { value: null, note: "Unknown because the plan shape is unknown." },
+        wasteFromSide: { value: null, note: "Unknown because the plan shape is unknown." },
+      },
+    };
+    const problems = validateSubmission(cat, unknownShape);
+    expect(problems.some((p) => p.field === "wasteFromEnd" && p.code === "required_unknown")).toBe(true);
+    expect(problems.some((p) => p.field === "wasteFromSide" && p.code === "required_unknown")).toBe(true);
+    expect(problems.some((p) => p.field === "wasteFromCorner" && (p.code === "required_unknown" || p.code === "field_missing"))).toBe(false);
+  });
+
   it("requires wasteFromEnd/wasteFromSide for a rectangular bath and not wasteFromCorner", () => {
     const cat = categoryById("bath")!;
     const rect: SpecSubmission = {
@@ -279,6 +297,25 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(hostPt.out).toBeCloseTo(sp!.out! - 0, 3);
     expect(sp!.source).toMatch(/derived from wasteFromCorner/);
     expect(sp!.source).toMatch(/not published/);
+    expect(sp!.status).toBe("derived");
+    expect(sp!.status).not.toBe("published");
+    expect(sp!.basis).toBe("derived");
+    expect(sp!.axisEvidence?.across?.status).toBe("published");
+    expect(sp!.axisEvidence?.out?.status).toBe("published");
+    const model = store.getState().model;
+    expect(roughIn(model, bath).find((r) => r.pointId === "waste")?.status).toBe("derived");
+    const rows = specRows(model, {
+      id: `rough-in:${bath.id}:${sp!.id}`, layer: "services-waste", type: "service-point",
+      ref: bath.id, sub: sp!.id, label: "Bath waste",
+    });
+    expect(rows.find((r) => r.property.startsWith("out from"))).toMatchObject({ status: "derived" });
+    expect(rows.find((r) => r.property.startsWith("across"))).toMatchObject({ status: "derived" });
+    expect(rows.find((r) => r.property === "across source evidence")).toMatchObject({ status: "published" });
+    expect(rows.find((r) => r.property === "out source evidence")).toMatchObject({ status: "published" });
+    const floor = renderFloorPlan(model, { sheet: "floor-plan", findings: [], revision: null });
+    expect(floor).toMatch(/Bath waste:[^<\n]* DER/);
+    expect(floor).not.toMatch(/Bath waste:[^<\n]* PUB/);
+    expect(floor).toMatch(/DER derived/);
   });
 
   it("skips a non-waste accessory fitted in the same host", () => {

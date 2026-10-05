@@ -36,6 +36,14 @@ export function measurementFields(category: ProductCategory): FieldSpec[] {
 }
 export const unknownMeasurementFields = (category: ProductCategory): Record<string, FieldValue> => Object.fromEntries(measurementFields(category).map(field => [field.key, { value: null, note: "Not supplied for this physical item." }]));
 
+/** Quantity's carton/packaging token. The only string source that can stand in for a URL on a published measurement. */
+export const CARTON_LABEL_SOURCE = "carton label";
+
+/** Explicit carton evidence: the Quantity `carton label` token, plus a note that names the carton. */
+export function isCartonLabelEvidence(value: { source?: string; note?: string } | undefined): boolean {
+  return !!value && value.source?.trim() === CARTON_LABEL_SOURCE && typeof value.note === "string" && /\bcarton\b/i.test(value.note);
+}
+
 export function validateMeasurementFields(category: ProductCategory, fields: Record<string, FieldValue>, ctx: SubmissionContext = {}): SpecProblem[] {
   const problems: SpecProblem[] = [], specs = measurementFields(category);
   const add = (field: string, severity: "error" | "warning", code: string, message: string) => problems.push({ field, severity, code, message });
@@ -53,8 +61,7 @@ export function validateMeasurementFields(category: ProductCategory, fields: Rec
     if (field.type === "length" && (!value.reference || !Object.hasOwn(REFERENCES, value.reference))) add(field.key, "error", "measurement_datum", `${prefix}: name the physical datum.`);
     if ((value.reference === "other" || value.reference === "unresolved") && !(typeof value.note === "string" && value.note.trim())) add(field.key, "error", "measurement_datum", `${prefix}: ${value.reference === "other" ? "explain the other physical datum" : "say what the source shows and why its datum is unclear"} in the note.`);
     if (value.status === "published") {
-      const carton = typeof value.source === "string" && value.source.trim();
-      if (carton) {
+      if (isCartonLabelEvidence(value)) {
         if (value.measurement) add(field.key, "error", "measurement_provenance", `${prefix}: a published carton figure uses its source string, not a human measurement record.`);
       } else {
         const bad = Array.isArray(value.sources) ? checkSources(value.sources, ctx) : "sources must be a list.";

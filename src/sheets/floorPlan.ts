@@ -22,7 +22,7 @@ const SCALES = [10, 20, 25, 50, 100, 200];
 /** Status tags printed after every value; the legend spells them out. */
 export const TAGS: Record<string, string> = {
   "site-confirmed": "SC", measured: "M", published: "PUB", proposed: "P", estimated: "E",
-  entered: "ENT", defaulted: "DEF", unknown: "?",
+  derived: "DER", entered: "ENT", defaulted: "DEF", unknown: "?",
 };
 export const tag = (status: string | undefined) => TAGS[status ?? "unknown"] ?? "?";
 
@@ -234,7 +234,7 @@ export function renderFloorPlan(model: PlanModel, opts: RenderOptions): string {
 
   heading("Legend");
   row("Status: SC site-confirmed · M measured · PUB published · P proposed");
-  row("E estimated · ENT entered (not site-confirmed) · DEF default · ? unknown");
+  row("E estimated · DER derived (converted, not published) · ENT entered (not site-confirmed) · DEF default · ? unknown");
   row("Faces: blue dashed existing · brown dotted frame · black finished");
   row("Points: brown waste · blue water · red power. Grey = wall as built.");
   y += 2;

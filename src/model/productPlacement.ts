@@ -233,11 +233,12 @@ export function productPlacement(
         ...(point.out?.maxEvidence ? { outMax: point.out.maxEvidence } : {}),
         ...(point.up?.evidence ? { up: point.up.evidence } : {}),
       };
-      const status = evidenceStatus(Object.values(axisEvidence)) ?? "published";
+      const derivedHostFrame = converted !== null || point.across?.basis === "derived" || point.out?.basis === "derived";
+      const status = derivedHostFrame ? "derived" : (evidenceStatus(Object.values(axisEvidence)) ?? "published");
       const sourced = [
         source,
         ...Object.values(axisEvidence).map(evidenceText),
-        point.across?.basis === "derived" || point.out?.basis === "derived"
+        derivedHostFrame
           ? "host-frame across/out derived from wasteFromCorner (not published)"
           : "",
       ]
@@ -253,6 +254,7 @@ export function productPlacement(
         ...(across !== undefined ? { across } : {}),
         ...(up !== undefined ? { up } : {}),
         status,
+        ...(derivedHostFrame ? { basis: "derived" as const } : {}),
         ...(Object.keys(axisEvidence).length
           ? { axisEvidence: structuredClone(axisEvidence) }
           : {}),

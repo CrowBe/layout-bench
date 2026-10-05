@@ -210,7 +210,7 @@ export function FixturePanel({ model, item }: { model: PlanModel; item: Item }) 
           <tbody>
             {points.map((r) => (
               <tr key={r.pointId} data-point={r.pointId} title={r.missing.length ? `Missing: ${r.missing.join(", ")}` : `${r.status}${r.source ? ` · ${r.source}` : ""}`}>
-                <td>{r.label}<div className="hint">{r.service} · {r.status}</div>{!r.resolved && <div className="inspector-warn">missing {r.missing.join(", ")}</div>}</td>
+                <td>{r.label}<div className="hint">{r.service} · {r.status}{r.status === "derived" ? " (not published)" : ""}</div>{!r.resolved && <div className="inspector-warn">missing {r.missing.join(", ")}</div>}</td>
                 <td>{cell(r.fromFaces.find((f) => f.face === "frame"))}</td>
                 <td>{cell(r.fromFaces.find((f) => f.face === "board"))}</td>
                 <td>{cell(r.fromFaces.find((f) => f.face === "finished"))}</td>

@@ -78,12 +78,13 @@ const drainage = (v: unknown) => v === undefined || (object(v) && Array.isArray(
 
 /** Fixture set-out (#5): every field the derivation reads, with the values it allows. */
 const STATUS = ["site-confirmed", "measured", "published", "proposed", "estimated"];
+const SERVICE_POINT_STATUS = [...STATUS, "derived"];
 const optionalFinite = (v: unknown) => v === undefined || finite(v);
 const validAnchor = (v: unknown) => object(v) && typeof v.wallId === "string" && typeof v.face === "string" &&
   (v.side === "left" || v.side === "right") && (v.from === "a" || v.from === "b") && typeof v.status === "string" && STATUS.includes(v.status) &&
   finite(v.gap) && finite(v.distance);
 const validServicePoint = (v: unknown) => object(v) && typeof v.id === "string" && typeof v.label === "string" && typeof v.face === "string" &&
-  (v.service === "waste" || v.service === "water" || v.service === "power") && typeof v.status === "string" && STATUS.includes(v.status) &&
+  (v.service === "waste" || v.service === "water" || v.service === "power") && typeof v.status === "string" && SERVICE_POINT_STATUS.includes(v.status) &&
   optionalFinite(v.out) && optionalFinite(v.outMax) && optionalFinite(v.across) && optionalFinite(v.up) &&
   (v.axisEvidence === undefined || object(v.axisEvidence) && isProductSpecification({ category: "service", fields: v.axisEvidence, acceptedAt: 0 }));
 

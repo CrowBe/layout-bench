@@ -92,7 +92,8 @@ function preserveServices(
     ]
       .filter(Boolean)
       .join("; ");
-    // Keep the weakest participating status, without turning a proposed axis into confirmed.
+    // Keep the weakest participating status, without turning a proposed axis into confirmed
+    // or a derived host-frame conversion into published.
     const order = [
       "estimated",
       "proposed",
@@ -100,12 +101,17 @@ function preserveServices(
       "measured",
       "site-confirmed",
     ];
-    retained.status =
-      Object.values(retained.axisEvidence)
-        .filter((v) => v?.value !== null)
-        .map((v) => v!.status!)
-        .filter(Boolean)
-        .sort((a, b) => order.indexOf(a) - order.indexOf(b))[0] ?? prior.status;
+    if (prior.status === "derived" || next?.status === "derived") {
+      retained.status = "derived";
+      retained.basis = "derived";
+    } else {
+      retained.status =
+        Object.values(retained.axisEvidence)
+          .filter((v) => v?.value !== null)
+          .map((v) => v!.status!)
+          .filter(Boolean)
+          .sort((a, b) => order.indexOf(a) - order.indexOf(b))[0] ?? prior.status;
+    }
     if (index < 0) points.push(retained);
     else points[index] = retained;
   }
