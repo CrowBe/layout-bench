@@ -258,13 +258,14 @@ export const seedBathroom = (): PlanModel => ({
         { id: "floor_tile", kind: "tile", name: BEIGE, thickness: TILE },
       ],
     },
-    // Owner's drains (both bought, brushed nickel, from the same supplier). The linear tile-insert
-    // drain runs along the left wall beneath the shower head, a small distance off it, centred on
-    // the 1200 mm shower; the Kano 316 120 × 120 tile-insert waste is centred in the dry area.
+    // Owner's drains, from the packing slip (Surreal Solutions INV-211061): a Lauxes Next Gen 35
+    // channel, 1000 × 100 × 35 mm custom length, with end cap EC35-BN and 50 mm outlet WO50-BN, along
+    // the left wall beneath the shower head, a small distance off it, centred on the 1200 mm shower;
+    // and a Kano 316 120 × 120 tile-insert waste centred in the dry area.
     // Positions are proposals; falls and waste levels are not chosen, so the planes stay unresolved.
     drainage: {
       wastes: [
-        { id: "linear_drain", label: "Linear tile-insert drain 900 mm, brushed nickel (model to confirm)", kind: "linear", ax: 0.05, ay: 0.15, bx: 0.05, by: 1.05 },
+        { id: "linear_drain", label: "Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN", kind: "linear", ax: 0.05, ay: 0.1, bx: 0.05, by: 1.1 },
         { id: "square_waste", label: "Kano 316 tile-insert waste 120 × 120, brushed nickel", kind: "point", ax: 1.055, ay: 2.11, bx: 1.055, by: 2.11 },
       ],
       planes: [
@@ -337,11 +338,11 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-drains", author: "human", at: at + 9,
-      text: "Drains (bought, brushed nickel, Surreal Solutions): a 900 mm linear tile-insert drain along the left wall of the shower, opposite the bath and beneath the shower head, a small distance off the wall and centred on the shower; and a Kano 316 120 × 120 mm tile-insert smart waste centred in the dry area (surrealsolutions.com.au/shop/kano-316-brushed-nickel-tile-insert-smart-waste/). Which linear drain model is still being worked out.",
+      text: "Drains (bought from Surreal Solutions, packing slip INV-211061, 24 Sep 2026): Lauxes Aluminium Brushed Nickel Next Gen 35 Custom, 1000 × 100 × 35 mm, with 1× EC35-BN and 1× WO50-BN, along the left wall of the shower opposite the bath and beneath the shower head, a small distance off the wall and centred on the shower; and a KANO 316 Brushed Nickel Tile Insert Waste 120×120, centred in the dry area (surrealsolutions.com.au/shop/kano-316-brushed-nickel-tile-insert-smart-waste/).",
     },
     {
       id: "note-drains-open", author: "agent", at: at + 10,
-      text: "Drains, still open: the linear drain model and its channel width, outlet and position; the gap from the left wall (recorded as the drain centreline about 75 mm in front of the estimated finished wall face); both outlet sizes; the falls in the shower and dry area and the finished level at each drain (none recorded, so the fall planes stay unresolved and the finished floor is the flat target). The product sheets could not be read from here; sizes come from the owner.",
+      text: "Drains, still open: the gap from the left wall (recorded as the channel centreline about 75 mm in front of the estimated finished wall face, so its 100 mm body stands about 25 mm off the tile); where the 50 mm outlet sits along the channel; the Kano waste's outlet size (not on the slip); the puddle flanges both outlets sit in, which neither item lists (usually the plumber's, to confirm); the falls in the shower and dry area and the finished level at each drain (none recorded, so the fall planes stay unresolved and the finished floor is the flat target). The product sheets could not be read from here; sizes come from the owner.",
     },
     {
       id: "note-screen", author: "human", at: at + 5,
