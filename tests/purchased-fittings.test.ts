@@ -52,6 +52,7 @@ describe("purchased fittings in the sample project", () => {
     const vanity = catalogByKind("vanity_recorded")!, cabinet = catalogByKind("shaving_cabinet_recorded")!;
     expect([vanity.w, vanity.h, vanity.d]).toEqual([0.91, 0.85, 0.465]);
     expect([cabinet.w, cabinet.h, cabinet.d]).toEqual([0.75, 0.62, 0.16]);
+    expect(cabinet.elevation).toBe(1.2); // owner: bottom edge as now, to clear the tap
     expect(cabinet.elevation).toBeGreaterThan(vanity.h + 0.13); // clear of the basin mixer
     const items = store.getState().model.items.filter((i) => i.id === "vanity" || i.id === "shaving_cabinet");
     expect(items.map((i) => i.selectionStatus)).toEqual(["reused", "reused"]);
