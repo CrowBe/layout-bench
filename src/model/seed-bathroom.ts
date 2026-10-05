@@ -148,9 +148,9 @@ const bathFields = {
 // square, so the bath's box is the curve's own extent; the sides stay 1000 mm along the walls.
 const BATH_BOX = (({ maxX, minX }) => Math.ceil((maxX - minX) * 1000) / 1000)(outlineExtents(cornerBathOutline(bathFields, 10, 10, "right")!));
 const bathOutline: Outline = cornerBathOutline(bathFields, BATH_BOX, BATH_BOX, "right")!;
-/** Host-frame waste from the sheet's 520 mm on the bisector: along each wall = 520/√2. Rounded to 1 mm for the placed accessory. */
+/** Host-frame waste from the sheet's 520 mm on the bisector: along each wall = 520/√2. Quantized to the model's 0.1 mm so the sample sits on the derived host-frame point, not a 1 mm rounding of it. */
 const bathWasteConverted = cornerBisectorToHostFrame(BATH_WASTE_FROM_CORNER, BATH_BOX, "right");
-const bathWaste = { across: +bathWasteConverted.across.toFixed(3), out: +bathWasteConverted.out.toFixed(3) };
+const bathWaste = { across: quantize(bathWasteConverted.across), out: quantize(bathWasteConverted.out) };
 /** The square corner stays where it was drawn before: 2100 mm across, against the window wall. */
 const BATH_CORNER = { x: 2.1, y: 0 };
 

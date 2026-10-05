@@ -60,6 +60,8 @@ describe("fitted waste vs host waste point (#75)", () => {
 
   it("does not warn when the sample waste sits at the host waste point", () => {
     load();
+    const hostPt = hostWasteInHostFrame(item("bath"));
+    expect(item("bath_waste").fittedTo).toEqual({ hostId: "bath", across: hostPt.across, out: hostPt.out });
     expect(issues().map((i) => i.code)).not.toContain("fitted_waste_offset");
     expect(issues().map((i) => i.code)).not.toContain("fitted_waste_size");
     expect(fittedWasteProblems(store.getState().model)).toEqual([]);
