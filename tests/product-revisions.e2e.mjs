@@ -375,7 +375,7 @@ try {
   );
   assert.equal((await frun("build_3d")).ok, true);
   await fresh.close();
-  // A reversible corner reanchor must transform its pinned shape without consulting mutable kinds.
+  // Derived corner waste cannot be re-anchored; re-place the bath. Site-confirmed still refuses a later hand change.
   await page
     .locator(".project-card")
     .filter({ hasText: "Catalogue revisions #53" })
@@ -430,47 +430,14 @@ try {
   const left = (await run("get_model")).model.items.find(
     (i) => i.id === cornerPlacement.id,
   );
-  assert.equal(
-    (await run("anchor_fixture", { itemId: left.id, ...anchor, distance: 4.2 }))
-      .ok,
-    true,
-  );
-  const right = (await run("get_model")).model.items.find(
-    (i) => i.id === left.id,
-  );
-  assert.equal(right.kind, right.productGeometry.kind);
-  assert.equal(
-    right.productGeometry.outline.start.x,
-    -left.productGeometry.outline.start.x,
-  );
-  assert.equal(
-    (await run("define_item_kind", { ...right.productGeometry, w: 2 })).ok,
-    true,
-  );
-  await run("set_diagram_view", {
-    label: "Pinned reanchored corner",
-    visible: [`item:${right.id}`],
-  });
-  const pinned = await run("get_diagram_view");
-  assert.equal(
-    pinned.spec.find((row) => row.property === "footprint w × d (mm)").value,
-    `${Math.round(right.productGeometry.w * 1000)} × ${Math.round(right.productGeometry.d * 1000)}`,
-  );
-  await page.reload();
-  await page
-    .locator(".project-card")
-    .filter({ hasText: "Catalogue revisions #53" })
-    .getByRole("button", { name: "Open", exact: true })
-    .click();
-  const reloaded = (await run("get_model")).model.items.find(
-    (i) => i.id === right.id,
-  );
-  assert.equal(reloaded.productGeometry.kind, reloaded.kind);
-  assert.equal(reloaded.productGeometry.w, right.productGeometry.w);
+  const moved = await run("anchor_fixture", { itemId: left.id, ...anchor, distance: 4.2 });
+  assert.equal(moved.ok, false, moved.summary);
+  assert.match(moved.summary, /re-anchor not supported for derived corner waste; re-place the bath/);
+  assert.equal(left.kind, left.productGeometry.kind);
   assert.equal(
     (
       await run("set_service_point", {
-        itemId: right.id,
+        itemId: left.id,
         id: "waste",
         label: "Synthetic confirmed waste",
         service: "waste",
@@ -485,9 +452,9 @@ try {
   );
   const confirmedBefore = await run("get_model");
   const refusedReanchor = await run("anchor_fixture", {
-    itemId: right.id,
+    itemId: left.id,
     ...anchor,
-    distance: 0.8,
+    distance: 4.2,
   });
   assert.equal(refusedReanchor.ok, false);
   assert.match(refusedReanchor.summary, /Reconcile/);

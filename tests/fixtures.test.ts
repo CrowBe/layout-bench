@@ -6,6 +6,7 @@ import { clearances, roughIn } from "../src/model/fixtures";
 import { roughInPoints, categoryById, validateSubmission, type FieldValue } from "../src/model/products";
 import { itemPolygon, polygonsOverlap } from "../src/model/outline";
 import { catalogByKind } from "../src/model/catalog";
+import { DERIVED_CORNER_WASTE_REANCHOR, hostWasteInHostFrame } from "../src/model/fittedWaste";
 import type { LibraryProduct } from "../src/model/productLibrary";
 import { buildPlan } from "../src/three/build";
 import { demoProject, parseImport } from "../src/model/projects";
@@ -298,21 +299,28 @@ describe("fixtures set out from wall faces (#5)", () => {
       const bath = item(placed.id as string);
       const box = catalogByKind(bath.kind)!.w;
       expect(box).toBeGreaterThan(1.0);
+      const hostPt = hostWasteInHostFrame(bath, catalogByKind, model());
+      expect(hostPt.resolved).toBe(true);
+      const sp = bath.servicePoints!.find((p) => p.id === "waste")!;
+      expect(sp.status).toBe("derived");
+      expect(sp.across).toBe(hostPt.across);
       const [waste] = roughIn(model(), bath);
-      expect(waste.alongFromA! - (0.6 - box / 2)).toBeCloseTo(0.368, 4);
+      expect(waste.alongFromA! - (0.6 - box / 2)).toBeCloseTo(box / 2 + hostPt.across!, 4);
     });
 
-    it("swaps hands and mirrors its points when moved into the other corner", () => {
+    it("refuses to swap hands on a derived corner waste; re-place the bath", () => {
       const [back] = bathroom();
       faceBackWall(back);
       const placed = actions.placeProduct(cornerBath(), { wallId: back, side: "right", face: "finished", distance: 0.55, status: "proposed" });
       const id = placed.id as string;
       expect(item(id).kind).toBe("product_cb_left");
-      expect(actions.anchorFixture(id, { wallId: back, side: "right", face: "finished", from: "b", distance: 0.55, status: "proposed" }).ok).toBe(true);
-      expect(item(id).kind).toBe("product_cb_right");
-      const [waste] = roughIn(model(), item(id));
-      expect(waste.alongFromB).toBe(0.418); // 368 from the B-end corner
-      expect(codes()).not.toContain("item_through_wall");
+      const before = structuredClone(item(id));
+      const re = actions.anchorFixture(id, { wallId: back, side: "right", face: "finished", from: "b", distance: 0.55, status: "proposed" });
+      expect(re.ok).toBe(false);
+      expect(re.summary).toBe(DERIVED_CORNER_WASTE_REANCHOR);
+      expect(item(id).kind).toBe("product_cb_left");
+      expect(item(id).corner).toEqual(before.corner);
+      expect(item(id).servicePoints).toEqual(before.servicePoints);
     });
 
     it("keeps the inside of a concave outline free", () => {

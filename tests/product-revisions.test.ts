@@ -17,6 +17,7 @@ import { actions, store } from "../src/model/store";
 import { emptyModel } from "../src/model/types";
 import { catalogForItem, CATALOG } from "../src/model/catalog";
 import { previewProductUpdate } from "../src/model/productUpdates";
+import { DERIVED_CORNER_WASTE_REANCHOR } from "../src/model/fittedWaste";
 import { checkSheet } from "../src/sheets/check";
 import { planningEvidence } from "../src/model/productRevision";
 import { parseImport } from "../src/model/projects";
@@ -853,11 +854,10 @@ it("refuses to reflect a site-confirmed corner service while allowing unchanged 
   expect(placement.ok).toBe(true);
   expect(
     actions.anchorFixture(placement.id as string, { ...anchor, distance: 3.2 })
-      .ok,
-  ).toBe(true);
-  expect(actions.anchorFixture(placement.id as string, anchor).ok).toBe(true);
+      .summary,
+  ).toBe(DERIVED_CORNER_WASTE_REANCHOR);
   const item = store.getState().model.items[0],
-    point = item.servicePoints![0];
+    point = { ...item.servicePoints![0], basis: undefined, status: "published" as const };
   for (const edited of [
     {
       ...point,

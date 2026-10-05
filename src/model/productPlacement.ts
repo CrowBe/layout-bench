@@ -149,8 +149,8 @@ export function productPlacement(
   const source = `${label}, product library ${product.id}`;
   const hostWaste = resolveHostFrameWaste({
     fields: hostWasteFields(product),
-    boxW: box.w,
-    outlineStart: outline?.start,
+    boxW: entry.w,
+    outlineStart: entry.outline?.start ?? outline?.start,
     storedCorner: corner ?? undefined,
     anchor,
     wall,
@@ -168,19 +168,14 @@ export function productPlacement(
         ]),
     )
     .map((point) => {
-      const end = corner ?? product.fields.wasteEnd?.value;
-      const converted =
+      const wasteFromHost =
+        point.service === "waste" &&
         hostWaste.resolved &&
-        hostWaste.fromCorner !== undefined &&
         hostWaste.across !== undefined &&
-        hostWaste.out !== undefined &&
-        (point.across?.field === "wasteFromCorner" ||
-          point.out?.field === "wasteFromCorner" ||
-          point.across?.basis === "derived")
-          ? { across: hostWaste.across, out: hostWaste.out }
-          : null;
-      const across = converted
-        ? converted.across
+        hostWaste.out !== undefined;
+      const end = corner ?? product.fields.wasteEnd?.value;
+      const across = wasteFromHost
+        ? hostWaste.across
         : point.across?.from === "fixture-centreline"
           ? point.across.value
           : point.across?.from === "fixture-end" &&
@@ -195,9 +190,9 @@ export function productPlacement(
       let face = "finished",
         out: number | undefined,
         outMax: number | undefined;
-      if (converted && (point.out?.from === "fixture-side" || point.out?.field === "wasteFromCorner")) {
+      if (wasteFromHost) {
         face = anchor.face;
-        out = quantize(converted.out + anchor.gap);
+        out = quantize(hostWaste.out! + anchor.gap);
       } else if (point.out?.from === "finished-wall") {
         out = point.out.value ?? point.out.min;
         outMax =
@@ -226,13 +221,15 @@ export function productPlacement(
         ...(point.out?.maxEvidence ? { outMax: point.out.maxEvidence } : {}),
         ...(point.up?.evidence ? { up: point.up.evidence } : {}),
       };
-      const derivedHostFrame = converted !== null || point.across?.basis === "derived" || point.out?.basis === "derived";
+      const derivedHostFrame = wasteFromHost || point.across?.basis === "derived" || point.out?.basis === "derived";
       const status = derivedHostFrame ? "derived" : (evidenceStatus(Object.values(axisEvidence)) ?? "published");
       const sourced = [
         source,
         ...Object.values(axisEvidence).map(evidenceText),
         derivedHostFrame
-          ? "host-frame across/out derived from wasteFromCorner (not published)"
+          ? hostWaste.fromCorner !== undefined
+            ? "host-frame across/out derived from wasteFromCorner (not published)"
+            : "host-frame across/out derived (not published)"
           : "",
       ]
         .filter(Boolean)

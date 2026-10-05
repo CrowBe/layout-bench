@@ -1496,7 +1496,8 @@ export const actions = {
     if (!built.ok) return built.result;
     const { anchor, r, wall } = built;
     let next: Item = { ...item, anchor };
-    // a handed corner fixture moved into the other corner swaps hands; derived waste is recomputed
+    // a handed corner fixture moved into the other corner swaps hands, except derived
+    // corner waste which is refused (re-place the bath)
     if (item.corner) {
       const side = productCornerSide(anchor, wall);
       if (side !== item.corner.side) {
