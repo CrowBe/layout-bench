@@ -42,8 +42,7 @@ import type {
   TileFloorReference,
 } from "./types";
 import { emptyModel } from "./types";
-import { validHeating, heatingEvidence } from "./heating";
-import { checkModel } from "./issues";
+import { validHeating, heatingEvidence, heatingProductWriteGuard, heatingShadowedRecordKeys } from "./heating";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices } from "./fixtures";
 import { hostWasteInHostFrame, productCornerSide, applyCornerHandChange, derivedServicePointMutation, isDerivedServicePoint } from "./fittedWaste";
@@ -52,7 +51,9 @@ import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
 import { exactSnapshot, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
-import { productStore, type LibraryProduct } from "./productLibrary";
+import { heatingAlreadyOnProduct, heatingRevisionSummary, retargetHeatingInModel, specificationFromProduct } from "./heatingProduct";
+import { productStore, registerHeatingRevisionHook, type LibraryProduct } from "./productLibrary";
+import { checkModel } from "./issues";
 import { productPlacement } from "./productPlacement";
 import { previewProductUpdate, type ProductUpdatePreview } from "./productUpdates";
 import { planningEvidence, revisionOf } from "./productRevision";
@@ -534,7 +535,8 @@ export interface FloorLayerInput {
 
 /** Fields present replace what is stored; null clears back to unknown. */
 type HeatingQuantityKey = "length" | "ratedOutput" | "minSpacing" | "edgeClearance" | "depthFromBottom";
-export type HeatingPatch = { [K in Exclude<keyof Heating, HeatingQuantityKey>]?: Heating[K] | null } &
+type HeatingSpecKey = "cableSpecification" | "thermostatSpecification";
+export type HeatingPatch = { [K in Exclude<keyof Heating, HeatingQuantityKey | HeatingSpecKey>]?: Heating[K] | null } &
   { [K in HeatingQuantityKey]?: QuantityInput | null } & { clear?: boolean };
 
 export interface FloorPatch {
@@ -1161,17 +1163,72 @@ export const actions = {
     return r.ok(`Room "${next.label}" updated (${formatMm(next.w)} × ${formatMm(next.h)} mm at ${formatMm(next.x)}, ${formatMm(next.y)}).`, { id: room.id });
   },
 
-  /** Same canonical edit for UI and tools. Present fields replace; null restores unknown. */
+  /** Same canonical edit for UI and tools. Present fields replace; null restores unknown.
+   * Snapshots are written only from a referenced accepted product; specification objects are not patch keys. */
   setRoomHeating(roomRef: string, patch: HeatingPatch): ActionResult {
     const hit = resolveRoom(roomRef);
     if (!hit.ok) return rejected(hit);
     if (!patch || typeof patch !== "object" || Array.isArray(patch)) return fail("Heating patch must be an object.");
+    if ("cableSpecification" in patch || "thermostatSpecification" in patch) {
+      return fail("Heating rejected: cableSpecification and thermostatSpecification are not patch keys; reference an accepted product id. The snapshot is written from that product.");
+    }
     const room = hit.entity;
     const nextRoom = { ...room };
     if (patch.clear === true) delete nextRoom.heating;
     else {
+      const library = productStore.getState().products;
+      const validateProductId = (
+        key: "cableProductId" | "thermostatProductId",
+        category: "heating-cable" | "thermostat",
+        value: string | null,
+      ): string | null => {
+        if (value === null) return null;
+        if (typeof value !== "string" || !value.trim() || value.length > 200) {
+          return `Heating rejected: ${key} must be an accepted ${category} id or null.`;
+        }
+        const product = library.find((p) => p.id === value);
+        if (!product) return `Heating rejected: no accepted product "${value}" in this library.`;
+        if (product.category !== category) {
+          return `Heating rejected: "${value}" is category ${product.category}, not ${category}.`;
+        }
+        return null;
+      };
+      if (patch.cableProductId !== undefined) {
+        const err = validateProductId("cableProductId", "heating-cable", patch.cableProductId);
+        if (err) return fail(err);
+      }
+      if (patch.thermostatProductId !== undefined) {
+        const err = validateProductId("thermostatProductId", "thermostat", patch.thermostatProductId);
+        if (err) return fail(err);
+      }
+      const locked = heatingProductWriteGuard(room.heating, patch as Record<string, unknown>, library);
+      if (locked) return fail(locked);
       const next: Heating = structuredClone(room.heating ?? { zoneIds: [], path: [], keepouts: [] });
-      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts"] as (keyof Heating)[]) {
+      const bindProduct = (
+        key: "cableProductId" | "thermostatProductId",
+        specKey: "cableSpecification" | "thermostatSpecification",
+        category: "heating-cable" | "thermostat",
+        value: string | null,
+      ): string | null => {
+        if (value === null) {
+          delete next[key];
+          delete next[specKey];
+          return null;
+        }
+        const product = library.find((p) => p.id === value)!;
+        next[key] = product.id;
+        next[specKey] = specificationFromProduct(product);
+        return null;
+      };
+      if (patch.cableProductId !== undefined) {
+        const err = bindProduct("cableProductId", "cableSpecification", "heating-cable", patch.cableProductId);
+        if (err) return fail(err);
+      }
+      if (patch.thermostatProductId !== undefined) {
+        const err = bindProduct("thermostatProductId", "thermostatSpecification", "thermostat", patch.thermostatProductId);
+        if (err) return fail(err);
+      }
+      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts", "thermostatLocation"] as const) {
         if (patch[key] === undefined) continue;
         if (patch[key] === null) {
           if (key === "path" || key === "zoneIds" || key === "keepouts") Object.assign(next, { [key]: [] });
@@ -1183,7 +1240,11 @@ export const actions = {
         const quantity = next[key];
         if (quantity && quantity.value === null) delete quantity.value;
       }
-      if (!validHeating(next)) return fail("Heating rejected: finite non-negative quantities need provenance; paths need finite x/y; keep-outs need unique ids, labels and positive rectangles. Maximum 1000 points and 100 keep-outs.");
+      const shadowed = heatingShadowedRecordKeys(next, library);
+      if (shadowed.length) {
+        return fail(`Heating rejected: ${shadowed.join(", ")} is locked to the heating-cable brief; pass ${shadowed.map((k) => `${k}:null`).join(", ")} to clear the shadowed record value.`);
+      }
+      if (!validHeating(next)) return fail("Heating rejected: finite non-negative quantities need provenance; paths need finite x/y; keep-outs need unique ids, labels and positive rectangles; product snapshots must match their category and name the accepted productId they were written from. Maximum 1000 points and 100 keep-outs.");
       for (const key of ["length", "minSpacing", "edgeClearance", "depthFromBottom"] as const) if (next[key]?.value !== undefined) next[key]!.value = quantize(next[key]!.value!);
       next.path = next.path.map((p) => ({ x: quantize(p.x), y: quantize(p.y) }));
       next.keepouts = next.keepouts.map((r) => ({ ...r, x: quantize(r.x), y: quantize(r.y), w: quantize(r.w), h: quantize(r.h) }));
@@ -1192,7 +1253,7 @@ export const actions = {
     }
     pushUndo();
     setModel({ ...store.getState().model, rooms: store.getState().model.rooms.map((r) => r.id === room.id ? nextRoom : r) });
-    return { ok: true, summary: `Room "${room.label}" proposed heating ${nextRoom.heating ? "updated" : "cleared"}; electrician/manufacturer review required.`, id: room.id, ...heatingEvidence(nextRoom) };
+    return { ok: true, summary: `Room "${room.label}" proposed heating ${nextRoom.heating ? "updated" : "cleared"}; electrician/manufacturer review required. No electrical or compliance approval.`, id: room.id, ...heatingEvidence(nextRoom) };
   },
 
   // ---- floor assembly (#6) ----
@@ -1615,22 +1676,40 @@ export const actions = {
     return product ? previewProductUpdate(store.getState().model, product, selected, productStore.getState().products) : null;
   },
 
-  /** Human page action only. Recompute evidence and selection; never trust supplied projection rows. */
+  /** Human page action only. Recompute evidence and selection; never trust supplied projection rows.
+   * Also retargets `room.heating` product references and rewrites their snapshots from the accepted product. */
   applyProductRevision(preview: ProductUpdatePreview): ActionResult {
     const next = this.previewProductRevision(preview.targetId, preview.selected);
     if (!next || next.fingerprint !== preview.fingerprint) return fail("The project or accepted evidence changed. Preview the selected instances again before applying.");
-    if (!next.applicable) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
+    const product = productStore.getState().products.find((p) => p.id === next.targetId);
+    if (!next.applicable) {
+      if (!product || next.selected.length > 0) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
+      const heatingRooms = store.getState().model.rooms.filter((r) => r.heating);
+      if (heatingRooms.length && heatingRooms.every((r) => heatingAlreadyOnProduct(r.heating!, product))) {
+        return ok("0 selected instance(s) updated. Issued outputs remain historical.", { ids: next.selected });
+      }
+      const heating = retargetHeatingInModel(store.getState().model, product);
+      if (!heating.rooms.length) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
+      pushUndo();
+      setModel(heating.model);
+      return ok(`0 selected instance(s) updated. ${heatingRevisionSummary(product, heating.rooms, heating.changed, heating.cleared)} Issued outputs remain historical.`, { ids: next.selected });
+    }
     for (const entry of next.entries) {
       const result = this.defineItemKind(entry);
       if (!result.ok) return result;
     }
     const at = Date.now();
-    const model = { ...next.model, items: next.model.items.map(item => {
+    let model = { ...next.model, items: next.model.items.map(item => {
       const row = next.rows.find(row => row.id === item.id);
       return row ? { ...item, productUpdates: [...(item.productUpdates ?? []), { from: row.before.productId!, to: next.targetId, at, preserved: row.preserved, unresolved: row.unresolved }] } : item;
     }) };
+    const heating = product && model.rooms.some((r) => r.heating && !heatingAlreadyOnProduct(r.heating, product))
+      ? retargetHeatingInModel(model, product)
+      : { model, rooms: [] as string[], changed: [] as Array<"cable" | "thermostat">, cleared: [] as [] };
+    model = heating.model;
     pushUndo(); setModel(model);
-    return ok(`${next.rows.length} selected instance(s) updated explicitly. Preserved project confirmations and reconciliation notes remain in instance history. Issued outputs remain historical.`, { ids: next.selected });
+    const heatingLine = product && heating.rooms.length ? ` ${heatingRevisionSummary(product, heating.rooms, heating.changed, heating.cleared)}` : "";
+    return ok(`${next.rows.length} selected instance(s) updated explicitly. Preserved project confirmations and reconciliation notes remain in instance history. Issued outputs remain historical.${heatingLine}`, { ids: next.selected });
   },
 
   setFixtureInstallation(itemRef: string, placement: FixtureInstallation): ActionResult {
@@ -1958,6 +2037,14 @@ export const actions = {
     store.setState({ webmcpStatus: status });
   },
 };
+
+registerHeatingRevisionHook((_fromProductId, product) => {
+  const heating = retargetHeatingInModel(store.getState().model, product);
+  if (!heating.rooms.length) return undefined;
+  pushUndo();
+  setModel(heating.model);
+  return heatingRevisionSummary(product, heating.rooms, heating.changed, heating.cleared);
+});
 
 // Convenience re-exports for tools
 export { checkModel };

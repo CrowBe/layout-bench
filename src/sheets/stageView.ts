@@ -18,6 +18,7 @@ import { openingSpan } from "../model/issues";
 import { input, known, layerLabel, resolveFace, sideFaces, sideNormal, wallBody, weakest } from "../model/faces";
 import { DEFAULT_DATUM, floorFill, floorLayerLabel, floorLevels } from "../model/floor";
 import { heatingEvidence } from "../model/heating";
+import { heatingNameSource } from "../model/heatingProduct";
 import { planeSurface } from "../model/drainage";
 import { placementLimitations, anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
@@ -181,8 +182,9 @@ const dimStatus = (defaulted: boolean | undefined): RowStatus => (defaulted === 
 const qRow = (q: Quantity | undefined) => (known(q) ? { value: mm(q.value), status: q.status as RowStatus, ...(q.source ? { source: q.source } : {}) } : { value: "?", status: "unknown" as RowStatus, ...(q?.source ? { source: q.source } : {}) });
 
 /** The specification rows for one element: every property with its status and source. */
-export function specRows(model: PlanModel, el: ViewElement, products: LibraryProduct[] = []): SpecRow[] {
+export function specRows(model: PlanModel, el: ViewElement, products?: LibraryProduct[]): SpecRow[] {
   const rows: SpecRow[] = [];
+  const library = products ?? [];
   const row = (property: string, r: Omit<SpecRow, "element" | "layer" | "label" | "property">) =>
     rows.push({ element: el.id, layer: el.layer, label: el.label, property, ...r, ...(r.value === "?" && !r.missing ? { missing: [property] } : {}) });
 
@@ -255,18 +257,44 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     return rows;
   }
   if (el.type === "heating") {
-    const r = room(), h = r.heating!, e = heatingEvidence(r);
-    for (const property of ["manufacturer", "model", "productSource", "requirements"] as const) row(property, { value: h[property] || "?", status: h[property] ? "entered" : "unknown" });
-    for (const property of ["length", "minSpacing", "edgeClearance", "depthFromBottom"] as const) row(`${property} (mm)`, qRow(h[property]));
-    row("rated output (W)", h.ratedOutput?.value !== undefined ? { value: String(h.ratedOutput.value), status: h.ratedOutput.status ?? "unknown", source: h.ratedOutput.source } : { value: "?", status: "unknown" });
-    row("plan route length (m)", { value: String(e.planRouteLength), status: "proposed" });
-    row("spatial route length, sampled profile (m)", { value: e.routeLength === undefined ? "?" : String(e.routeLength), status: e.routeLength === undefined ? "unknown" : "proposed" });
-    row("remaining confirmed product length (m)", { value: e.remainingProductLength === undefined ? "?" : String(e.remainingProductLength), status: e.remainingProductLength === undefined ? "unknown" : "proposed" });
+    const r = room(), h = r.heating!, e = heatingEvidence(r, products);
+    const fig = (f: (typeof e.cable)["length"], asMm = false) => {
+      const status = (TAGS[f.kind] ? f.kind : "unknown") as RowStatus;
+      const source = [f.formula, f.source, f.note].filter(Boolean).join(" · ") || undefined;
+      if (f.value === undefined) return { value: "?", status: "unknown" as RowStatus, ...(source ? { source } : {}), ...(f.datum ? { datum: f.datum } : {}), missing: [f.note ?? f.quantity] };
+      return { value: asMm ? mm(f.value) : String(f.value), status, ...(source ? { source } : {}), ...(f.datum ? { datum: f.datum } : {}) };
+    };
+    for (const property of ["manufacturer", "model"] as const) {
+      const value = e.cable[property];
+      const origin = property === "manufacturer" ? e.cable.manufacturerOrigin : e.cable.modelOrigin;
+      const source = heatingNameSource(origin);
+      row(property, { value: value || "?", status: value ? "entered" : "unknown", ...(source ? { source } : {}) });
+    }
+    for (const property of ["productSource", "requirements"] as const) row(property, { value: h[property] || "?", status: h[property] ? "entered" : "unknown" });
+    row("product length (m)", fig(e.cable.length));
+    row("rated output (W)", fig(e.cable.ratedOutput));
+    row("coverage min (m²)", fig(e.cable.coverageMin));
+    row("coverage max (m²)", fig(e.cable.coverageMax));
+    row("derived spacing min (mm)", fig(e.cable.spacingMin, true));
+    row("derived spacing max (mm)", fig(e.cable.spacingMax, true));
+    row("cable rated current (A)", fig(e.cable.ratedCurrent));
+    row("cable rated voltage (V)", fig(e.cable.ratedVoltage));
+    row("thermostat switching current (A)", fig(e.thermostat.ratedCurrent));
+    row("thermostat voltage min (V)", fig(e.thermostat.voltageMin));
+    row("thermostat voltage max (V)", fig(e.thermostat.voltageMax));
+    row("thermostat printed IP", { value: e.thermostat.ingressProtection?.value || "?", status: (TAGS[e.thermostat.ingressProtection?.kind ?? ""] ? e.thermostat.ingressProtection!.kind : "unknown") as RowStatus, source: e.thermostat.ingressProtection?.source ?? e.thermostat.ingressProtection?.note });
+    for (const property of ["minSpacing", "edgeClearance", "depthFromBottom"] as const) row(`${property} (mm)`, qRow(h[property]));
+    row("cable depth datum", { value: e.datums.cableDepth, status: "named" });
+    row("wall setback datum", { value: e.datums.wallSetback, status: "named" });
+    row("plan route length (m)", fig(e.figures.planRouteLength));
+    row("spatial route length, sampled profile (m)", fig(e.figures.spatialRouteLength));
+    row("remaining confirmed product length (m)", fig(e.figures.remainingProductLength));
     row("length basis", { value: e.lengthNote, status: "proposed" });
+    row("spacing formula", { value: e.spacingNote, status: "derived" });
     row("zone ids", { value: h.zoneIds.join(", ") || "?", status: h.zoneIds.length ? "proposed" : "unknown" });
     row("available zone area (m²), not heat coverage", { value: String(e.availableArea), status: "proposed" });
-    row("minimum non-adjacent spacing (mm)", { value: e.minimumNonAdjacentSpacing === undefined ? "?" : mm(e.minimumNonAdjacentSpacing), status: e.minimumNonAdjacentSpacing === undefined ? "unknown" : "proposed" });
-    row("installation approval", { value: "Pending manufacturer / electrician review", status: "proposed" });
+    row("minimum non-adjacent spacing (mm)", { value: e.minimumNonAdjacentSpacing === undefined ? "?" : mm(e.minimumNonAdjacentSpacing), status: e.minimumNonAdjacentSpacing === undefined ? "unknown" : "modelled" });
+    row("installation approval", { value: "Pending manufacturer / electrician review. No electrical or compliance approval.", status: "proposed" });
     for (const [i, p] of h.path.entries()) row(`point ${i + 1} x / y (mm)`, { value: `${mm(p.x)} / ${mm(p.y)}`, status: "proposed", datum: "plan origin" });
     for (const p of e.section) row(`cable level at ${p.s} m along plan route (mm)`, p.level === undefined ? { value: "?", status: "unknown", missing: p.missing } : { value: mm(p.level), status: p.basis as RowStatus, datum: r.floorBuildUp?.datum || DEFAULT_DATUM });
     for (const k of h.keepouts) row(`keep-out ${k.label} x / y / w / h (mm)`, { value: [k.x, k.y, k.w, k.h].map(mm).join(" / "), status: "entered", source: k.source });
@@ -326,7 +354,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
       }
     }
     row("project selection", { value: it.selectionStatus ?? "unknown", status: it.selectionStatus && it.selectionStatus !== "unknown" ? "entered" : "unknown" });
-    const product = it.productId ? products.find((p) => p.id === it.productId) : undefined;
+    const product = it.productId ? library.find((p) => p.id === it.productId) : undefined;
     const exact = it.productIdentity ?? product;
     if (exact) {
       row("exact product", { value: exact.physicalItem ? `${exact.physicalItem.label} · manufacturer ${exact.manufacturer || "unknown"} · model ${exact.model || "unknown"}` : `${exact.manufacturer} ${exact.model}`, status: exact.physicalItem ? "entered" : "published" });
@@ -567,7 +595,7 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     const points = r.heating.path.map(P);
     parts.push(`<polyline points="${points.map((p) => `${f1(p.x)},${f1(p.y)}`).join(" ")}" fill="none" stroke="#c64c19" stroke-width="0.5" ${de(id)}/>`);
     points.forEach((p, i) => text(p.x+1, p.y-1, String(i+1), 1.8, `fill="#c64c19"`));
-    const evidence = heatingEvidence(r);
+    const evidence = heatingEvidence(r, opts.products);
     if (points.length) text(points[0].x, points[0].y-4, `PROPOSED CABLE plan ${evidence.planRouteLength} m; spatial ${evidence.routeLength === undefined ? "unknown" : `${evidence.routeLength} m`} (sampled); trade review pending`, 1.8, `fill="#c64c19"`);
   }
 
