@@ -192,7 +192,7 @@ function preserveLocalServices(
       x: p.across ?? null,
       y: p.out ?? null,
       z: p.up ?? null,
-      status: p.status,
+      status: p.status === "derived" ? (next ?? original!).status : p.status,
       axisEvidence: p.axisEvidence,
       sources: [...(next?.sources ?? []), ...(original?.sources ?? [])],
     };

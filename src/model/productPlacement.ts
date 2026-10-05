@@ -167,7 +167,7 @@ export function productPlacement(
           point.up?.evidence,
         ]),
     )
-    .map((point) => {
+    .map((point): ServicePoint | null => {
       const isWaste = point.service === "waste";
       const wasteFromHost =
         isWaste &&
