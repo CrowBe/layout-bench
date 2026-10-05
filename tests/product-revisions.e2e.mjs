@@ -390,6 +390,7 @@ try {
     frontProjection: pub(1.1),
     installation: pub("corner"),
     surround: pub("none-required"),
+    wasteFromCorner: { value: null, note: "Synthetic: uses wasteFromEnd/wasteFromSide, not the bisector." },
     wasteFromEnd: pub(0.2),
     wasteFromSide: pub(0.5),
   };

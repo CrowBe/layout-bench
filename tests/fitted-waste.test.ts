@@ -8,16 +8,20 @@ import { emptyModel, type PlanModel } from "../src/model/types";
 import { buildFurniture } from "../src/three/furniture";
 import { catalogue, renderStageDiagram, resolveVisible } from "../src/sheets/stageView";
 import { renderFloorPlan } from "../src/sheets/floorPlan";
+import { toWorld } from "../src/model/outline";
+import { PRECISION, quantize } from "../src/model/geometry";
 import {
   FITTED_WASTE_OFFSET_TOLERANCE_M,
+  FITTED_WASTE_SIZE_EPSILON_M,
   accessoryOutletDiameter,
   cornerBisectorToHostFrame,
   diametersAreLikeForLike,
   fittedWasteProblems,
   hostWasteInHostFrame,
 } from "../src/model/fittedWaste";
-import type { FieldValue } from "../src/model/products";
+import { categoryById, roughInPoints, validateSubmission, type FieldValue, type SpecSubmission } from "../src/model/products";
 import type { PartSpec } from "../src/three/furniture";
+import type { LibraryProduct } from "../src/model/productLibrary";
 
 const load = () => {
   const doc = demoProject();
@@ -36,17 +40,33 @@ describe("fitted waste vs host waste point (#75)", () => {
   it("names the tolerance as a modelling constant, not a manufacturer or code figure", () => {
     expect(FITTED_WASTE_OFFSET_TOLERANCE_M).toBe(0.05);
     expect(FITTED_WASTE_OFFSET_TOLERANCE_M).not.toBe(0.15);
+    expect(FITTED_WASTE_SIZE_EPSILON_M).toBe(0.0005);
   });
 
   it("converts the sheet's 520 mm on the bisector as 520/√2 along each wall and labels the host-frame result derived", () => {
     load();
-    const converted = cornerBisectorToHostFrame(0.52, catalogByKind("bath_sb184_1000gw")!.w, "right");
+    const cat = catalogByKind("bath_sb184_1000gw")!;
+    const exactAcross = cat.w / 2 - 0.52 / Math.SQRT2;
+    const exactOut = 0.52 / Math.SQRT2;
+    const converted = cornerBisectorToHostFrame(0.52, cat.w, "right");
     expect(converted.alongEachWall).toBeCloseTo(0.52 / Math.SQRT2, 10);
-    expect(converted.out).toBeCloseTo(0.52 / Math.SQRT2, 10);
+    expect(converted.out).toBeCloseTo(exactOut, 10);
+    expect(converted.across).toBeCloseTo(exactAcross, 10);
+    expect(converted.across).toBeCloseTo(+(cat.w / 2 - 0.52 / Math.SQRT2), 10);
     const hostPt = hostWasteInHostFrame(item("bath"));
     expect(hostPt.resolved).toBe(true);
     expect(hostPt.basis).toBe("derived");
     expect(hostPt.basis).not.toBe("published");
+    expect(hostPt.across).toBe(quantize(exactAcross));
+    expect(hostPt.out).toBe(quantize(exactOut));
+    expect(PRECISION).toBe(1e-4);
+    expect(Math.abs(item("bath_waste").fittedTo!.across - exactAcross)).toBeLessThanOrEqual(PRECISION);
+    expect(Math.abs(item("bath_waste").fittedTo!.out - exactOut)).toBeLessThanOrEqual(PRECISION);
+    const [cornerWorld] = toWorld([cat.outline!.start], item("bath"));
+    const waste = item("bath_waste");
+    expect(Math.hypot(waste.x - cornerWorld.x, waste.y - cornerWorld.y)).toBeCloseTo(0.52, 3);
+    expect(waste.x - cornerWorld.x).toBeCloseTo(-exactOut, 3);
+    expect(waste.y - cornerWorld.y).toBeCloseTo(exactOut, 3);
     expect(hostPt.datum).toMatch(/bisector/);
     expect(hostPt.datum).toMatch(/right-angle corner/);
     expect(hostPt.datum).toMatch(/not wasteFromEnd/);
@@ -179,6 +199,86 @@ describe("fitted waste vs host waste point (#75)", () => {
     const carton = purchasedFittings.find((f) => f.kind === "waste_sdp40bn")!.measures.find((m) => m.key === "connection")!;
     expect(carton).toMatchObject({ value: 0.04, status: "published", source: "carton label" });
     expect(carton.status).not.toBe("measured");
+    expect(item("bath_waste").productSpecification?.fields.outletSizeKind).toMatchObject({
+      value: "connection", status: "published", source: "carton label",
+    });
+    expect(item("bath_waste").productSpecification?.fields.outletSizeKind?.status).not.toBe("measured");
+  });
+
+  it("requires wasteFromCorner for a corner-round bath and does not require end/side", () => {
+    const cat = categoryById("bath")!;
+    const corner: SpecSubmission = {
+      manufacturer: "Example Co", model: "Corner",
+      fields: {
+        length: pub(1), width: pub(1), height: pub(0.5), installation: pub("corner"), shape: pub("corner-round"),
+        frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), surround: pub("none-required"),
+      },
+    };
+    const problems = validateSubmission(cat, corner);
+    expect(problems.filter((p) => p.field === "wasteFromEnd" || p.field === "wasteFromSide")).toEqual([]);
+    expect(problems.some((p) => p.field === "wasteFromCorner")).toBe(false);
+    const points = roughInPoints(cat, corner.fields);
+    expect(points[0]).toMatchObject({ resolved: true, missing: [] });
+    expect(points[0].across).toMatchObject({ field: "wasteFromCorner", basis: "derived", from: "fixture-end" });
+    expect(points[0].out).toMatchObject({ field: "wasteFromCorner", basis: "derived", from: "fixture-side" });
+    expect(points[0].across!.value).toBeCloseTo(0.52 / Math.SQRT2, 10);
+    expect(points[0].out!.value).toBeCloseTo(0.52 / Math.SQRT2, 10);
+    expect(points[0].across!.basis).not.toBe("published");
+    expect(points[0].across!.evidence).toMatchObject({ value: 0.52, status: "published" });
+    const missingCorner = { ...corner, fields: { ...corner.fields } };
+    delete missingCorner.fields.wasteFromCorner;
+    expect(validateSubmission(cat, missingCorner).some((p) => p.field === "wasteFromCorner" && p.code === "field_missing")).toBe(true);
+  });
+
+  it("requires wasteFromEnd/wasteFromSide for a rectangular bath and not wasteFromCorner", () => {
+    const cat = categoryById("bath")!;
+    const rect: SpecSubmission = {
+      manufacturer: "Example Co", model: "Rect",
+      fields: {
+        length: pub(1.675), width: pub(0.75), height: pub(0.45), installation: pub("freestanding"), shape: pub("rectangular"),
+        wasteFromEnd: pub(0.2), wasteFromSide: pub(0.375),
+      },
+    };
+    expect(validateSubmission(cat, rect).filter((p) => p.field === "wasteFromCorner")).toEqual([]);
+    expect(validateSubmission(cat, rect)).toEqual([]);
+    const points = roughInPoints(cat, rect.fields);
+    expect(points[0]).toMatchObject({ resolved: true });
+    expect(points[0].across).toMatchObject({ field: "wasteFromEnd", value: 0.2 });
+    expect(points[0].across?.basis).not.toBe("derived");
+    const missingEnd = { ...rect, fields: { ...rect.fields } };
+    delete missingEnd.fields.wasteFromEnd;
+    delete missingEnd.fields.wasteFromSide;
+    const codes = validateSubmission(cat, missingEnd);
+    expect(codes.some((p) => p.field === "wasteFromEnd" && p.code === "field_missing")).toBe(true);
+    expect(codes.some((p) => p.field === "wasteFromSide" && p.code === "field_missing")).toBe(true);
+    expect(codes.some((p) => p.field === "wasteFromCorner")).toBe(false);
+  });
+
+  it("places a library corner bath with a resolved waste point from wasteFromCorner", () => {
+    const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), surround: pub("none-required"),
+    };
+    const product: LibraryProduct = {
+      id: "angie-corner-waste", category: "bath", manufacturer: "Example Co", model: "Corner",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+    };
+    expect(product.roughIn[0].resolved).toBe(true);
+    expect(product.roughIn[0].across?.basis).toBe("derived");
+    const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    const bath = item(placed.id as string);
+    const sp = bath.servicePoints?.find((p) => p.id === "waste");
+    expect(sp?.across).toBeDefined();
+    expect(sp?.out).toBeDefined();
+    const hostPt = hostWasteInHostFrame(bath);
+    expect(hostPt.resolved).toBe(true);
+    expect(hostPt.across).toBeCloseTo(sp!.across!, 4);
+    expect(hostPt.out).toBeCloseTo(sp!.out! - 0, 3);
+    expect(sp!.source).toMatch(/derived from wasteFromCorner/);
+    expect(sp!.source).toMatch(/not published/);
   });
 
   it("skips a non-waste accessory fitted in the same host", () => {

@@ -440,7 +440,7 @@ export const purchasedFittings: PurchasedFitting[] = [
     ],
     specFields: {
       outletDiameter: { value: null, note: "Carton prints 40 mm nominal connection; no manufacturer sheet, so not entered as a published figure" },
-      outletSizeKind: measuredField("connection", "choice", "Photographed carton: Dome Pop Short Bath Waste 40mm; 40 mm is the pipe connection, not a hole diameter"),
+      outletSizeKind: { value: "connection", status: "published", source: "carton label", note: "Photographed carton: Dome Pop Short Bath Waste 40mm; 40 mm is the pipe connection, not a hole diameter" },
       style: measuredField("dome-pop", "choice", "Photographed carton: Dome Pop Short Bath Waste"),
       strainer: measuredField("pull-out basket", "text", "Photographed carton: with pull out basket"),
       certification: measuredField("WaterMark licence WM-022812, AS 1589-2001", "text", "Photographed SDP-40BN carton"),

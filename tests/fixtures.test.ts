@@ -270,7 +270,7 @@ describe("fixtures set out from wall faces (#5)", () => {
     const pub = (value: number | string): FieldValue => ({ value, status: "published", sources: src });
     const sub = { manufacturer: "Enflair", model: "Angie", fields: {
       length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
-      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52),
       surround: { value: null, note: "Not on the drawing." },
     } };
     const problems = validateSubmission(categoryById("bath")!, sub);

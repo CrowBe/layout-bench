@@ -11,7 +11,9 @@
 import type { Issue, Item, PlanModel, ValueStatus } from "./types";
 import { catalogByKind, catalogForItem, type CatalogLookup } from "./catalog";
 import { formatMm, quantize } from "./geometry";
-import type { FieldValue } from "./products";
+import { cornerBisectorToHostFrame, type FieldValue } from "./products";
+
+export { cornerBisectorToHostFrame };
 
 /**
  * Modelling/set-out check: a fitted waste whose centre is farther than this from the host's
@@ -20,8 +22,12 @@ import type { FieldValue } from "./products";
  */
 export const FITTED_WASTE_OFFSET_TOLERANCE_M = 0.05;
 
+/** Float comparison for like-for-like diameters (0.5 mm). Not a product or plumbing tolerance. */
+export const FITTED_WASTE_SIZE_EPSILON_M = 0.0005;
+
 export const DIAMETER_KINDS = ["hole", "outlet", "connection", "thread"] as const;
 export type DiameterKind = (typeof DIAMETER_KINDS)[number];
+/** `thread` stays so an accessory can name it; no brief records wasteThreadDiameter yet, so hostWasteDiameter("thread") stays unknown and the size check stays silent. */
 
 /** Pipe sizes that may be compared with each other. A hole or thread is not the same kind. */
 const PIPE_SIZE_KINDS: ReadonlySet<DiameterKind> = new Set(["outlet", "connection"]);
@@ -32,21 +38,6 @@ export function diametersAreLikeForLike(a: DiameterKind, b: DiameterKind): boole
 
 export const isDiameterKind = (v: unknown): v is DiameterKind =>
   typeof v === "string" && (DIAMETER_KINDS as readonly string[]).includes(v);
-
-/**
- * Convert a bisector distance from the right-angle corner into the host frame: across the
- * centreline (left negative) and out from the back edge. Along each wall = fromCorner / √2.
- * The numbers are geometric; callers must label them derived, never published.
- */
-export function cornerBisectorToHostFrame(
-  fromCornerM: number,
-  boxW: number,
-  corner: "left" | "right",
-): { across: number; out: number; alongEachWall: number } {
-  const alongEachWall = fromCornerM / Math.SQRT2;
-  const across = corner === "right" ? boxW / 2 - alongEachWall : -(boxW / 2 - alongEachWall);
-  return { across, out: alongEachWall, alongEachWall };
-}
 
 export const cornerFromOutlineStart = (start: { x: number } | undefined): "left" | "right" | undefined => {
   if (!start) return undefined;
@@ -225,6 +216,7 @@ export function accessoryOutletDiameter(item: Item): DiameterReading {
 
 export function hostWasteDiameter(host: Item, want: DiameterKind): DiameterReading {
   const fields = host.productSpecification?.fields ?? {};
+  // thread: no bath brief field yet; stays unknown until one is recorded.
   const fieldKey = want === "hole" ? "wasteHoleDiameter" : want === "thread" ? "wasteThreadDiameter" : "wasteConnectionDiameter";
   const field = fields[fieldKey];
   const value = num(field);
@@ -292,7 +284,7 @@ export function fittedWasteProblems(model: PlanModel, lookup: CatalogLookup = ca
     const hostDia = likeForLikeHostDiameter(host, acc);
     if (!hostDia || !hostDia.known || !hostDia.kind) continue;
     if (!diametersAreLikeForLike(acc.kind, hostDia.kind)) continue;
-    if (Math.abs(acc.value! - hostDia.value!) > 0.0005) {
+    if (Math.abs(acc.value! - hostDia.value!) > FITTED_WASTE_SIZE_EPSILON_M) {
       out.push(sizeWarn(it, host, acc, hostDia));
     }
   }

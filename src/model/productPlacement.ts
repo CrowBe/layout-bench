@@ -6,6 +6,7 @@ import { exactProductLabel, identityOf } from "./productIdentity";
 import {
   categoryById,
   cornerBathOutline,
+  cornerBisectorToHostFrame,
   envelopeOf,
   productPlacementProblem,
   validateProductGeometry,
@@ -176,8 +177,18 @@ export function productPlacement(
     )
     .map((point) => {
       const end = corner ?? product.fields.wasteEnd?.value;
-      const across =
-        point.across?.from === "fixture-centreline"
+      const fromCorner =
+        point.across?.field === "wasteFromCorner" &&
+        typeof product.fields.wasteFromCorner?.value === "number"
+          ? product.fields.wasteFromCorner.value
+          : undefined;
+      const converted =
+        fromCorner !== undefined && (end === "left" || end === "right")
+          ? cornerBisectorToHostFrame(fromCorner, box.w, end)
+          : null;
+      const across = converted
+        ? quantize(converted.across)
+        : point.across?.from === "fixture-centreline"
           ? point.across.value
           : point.across?.from === "fixture-end" &&
               point.across.value !== undefined &&
@@ -191,7 +202,10 @@ export function productPlacement(
       let face = "finished",
         out: number | undefined,
         outMax: number | undefined;
-      if (point.out?.from === "finished-wall") {
+      if (converted && (point.out?.from === "fixture-side" || point.out?.field === "wasteFromCorner")) {
+        face = anchor.face;
+        out = quantize(converted.out + anchor.gap);
+      } else if (point.out?.from === "finished-wall") {
         out = point.out.value ?? point.out.min;
         outMax =
           point.out.max !== undefined && point.out.min !== undefined
@@ -220,7 +234,13 @@ export function productPlacement(
         ...(point.up?.evidence ? { up: point.up.evidence } : {}),
       };
       const status = evidenceStatus(Object.values(axisEvidence)) ?? "published";
-      const sourced = [source, ...Object.values(axisEvidence).map(evidenceText)]
+      const sourced = [
+        source,
+        ...Object.values(axisEvidence).map(evidenceText),
+        point.across?.basis === "derived" || point.out?.basis === "derived"
+          ? "host-frame across/out derived from wasteFromCorner (not published)"
+          : "",
+      ]
         .filter(Boolean)
         .join("; ");
       return {

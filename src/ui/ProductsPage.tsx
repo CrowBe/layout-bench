@@ -125,7 +125,7 @@ function axisText(a: AxisValue | undefined): string {
   const v = a.value !== undefined ? `${formatMm(a.value)} mm`
     : a.min !== undefined || a.max !== undefined ? `${a.min !== undefined ? formatMm(a.min) : "?"}–${a.max !== undefined ? formatMm(a.max) : "?"} mm`
     : "unknown";
-  return `${v} from ${a.from.replace("-", " ")}`;
+  return `${v} from ${a.from.replace("-", " ")}${a.basis === "derived" ? " (derived, not published)" : ""}`;
 }
 
 const identity = (r: ProductRequest) =>

@@ -53,9 +53,14 @@ export function validateMeasurementFields(category: ProductCategory, fields: Rec
     if (field.type === "length" && (!value.reference || !Object.hasOwn(REFERENCES, value.reference))) add(field.key, "error", "measurement_datum", `${prefix}: name the physical datum.`);
     if ((value.reference === "other" || value.reference === "unresolved") && !(typeof value.note === "string" && value.note.trim())) add(field.key, "error", "measurement_datum", `${prefix}: ${value.reference === "other" ? "explain the other physical datum" : "say what the source shows and why its datum is unclear"} in the note.`);
     if (value.status === "published") {
-      const bad = Array.isArray(value.sources) ? checkSources(value.sources, ctx) : "sources must be a list.";
-      if (bad) add(field.key, "error", "source_invalid", `${prefix}: ${bad}`);
-      if (value.measurement) add(field.key, "error", "measurement_provenance", `${prefix}: a published figure uses its source, not a human measurement record.`);
+      const carton = typeof value.source === "string" && value.source.trim();
+      if (carton) {
+        if (value.measurement) add(field.key, "error", "measurement_provenance", `${prefix}: a published carton figure uses its source string, not a human measurement record.`);
+      } else {
+        const bad = Array.isArray(value.sources) ? checkSources(value.sources, ctx) : "sources must be a list.";
+        if (bad) add(field.key, "error", "source_invalid", `${prefix}: ${bad}`);
+        if (value.measurement) add(field.key, "error", "measurement_provenance", `${prefix}: a published figure uses its source, not a human measurement record.`);
+      }
     } else {
       const m = value.measurement;
       if (!m || m.recordedBy !== "human" || m.unit !== measurementUnit(field) || typeof m.evidence !== "string" || !m.evidence.trim() || !(dateValid(m.date) || m.date === null && typeof m.dateNote === "string" && m.dateNote.trim())) {
@@ -96,7 +101,7 @@ export function withObservation(current: FieldValue | undefined, observation: Fi
   return { ...structuredClone(observation), ...(current?.alternatives ? { alternatives: structuredClone(current.alternatives) } : {}), observations };
 }
 export const workingObservation = (current: FieldValue, index: number): FieldValue => ({ ...structuredClone(current.observations![index]), observations: structuredClone(current.observations), ...(current.alternatives ? { alternatives: structuredClone(current.alternatives) } : {}) });
-export const evidenceText = (value: FieldValue | undefined): string => [value?.measurement ? `${value.measurement.evidence}; measurement date ${value.measurement.date ?? `unknown (${value.measurement.dateNote})`}; human; ${value.measurement.unit}` : "", ...(value?.sources ?? []).map(source => `${source.url} (${source.locator ?? ""})`)].filter(Boolean).join("; ");
+export const evidenceText = (value: FieldValue | undefined): string => [value?.source && !(value.sources ?? []).length ? value.source : "", value?.measurement ? `${value.measurement.evidence}; measurement date ${value.measurement.date ?? `unknown (${value.measurement.dateNote})`}; human; ${value.measurement.unit}` : "", ...(value?.sources ?? []).map(source => `${source.url} (${source.locator ?? ""})`)].filter(Boolean).join("; ");
 const statusRank: ValueStatus[] = ["estimated", "proposed", "published", "measured", "site-confirmed"];
 export const evidenceStatus = (values: (FieldValue | undefined)[]): ValueStatus | undefined => values.filter(v => v?.value !== null && v?.value !== undefined && v?.status).map(v => v!.status!).sort((a, b) => statusRank.indexOf(a) - statusRank.indexOf(b))[0];
 

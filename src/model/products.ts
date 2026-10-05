@@ -148,10 +148,10 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
       { type: "choice", key: "shape", label: "Plan shape", group: "envelope", required: true, options: ["rectangular", "corner-round", "other"], definition: "Rectangular, or a corner bath with two straight wall sides and a rounded front. For a corner bath, length and width are its extents along each wall." },
       len({ key: "frontWidth", label: "Width across the curved front", group: "envelope", required: true, min: 0.5, max: 2.5, when: { field: "shape", in: ["corner-round"] }, definition: "Straight-line distance between the two ends of the curved front, where it meets the straight wall sides." }),
       len({ key: "frontProjection", label: "Projection from the corner", group: "envelope", required: true, reference: "other", min: 0.5, max: 2.2, when: { field: "shape", in: ["corner-round"] }, definition: "From the corner where the walls meet to the front of the curve, along the line bisecting the corner." }),
-      len({ key: "wasteFromEnd", label: "Waste from end", group: "rough-in", required: true, reference: "fixture-end", min: 0, max: 2.2, definition: "From the outside of the end named in wasteEnd to the centre of the waste. For a corner bath, the end is the back edge on the other wall." }),
-      { type: "choice", key: "wasteEnd", label: "Waste measured from end", group: "rough-in", required: false, options: ["left", "right"], definition: "Which end wasteFromEnd is measured from, facing the bath. Needed to place the waste in the plan." },
-      len({ key: "wasteFromSide", label: "Waste from side", group: "rough-in", required: true, reference: "fixture-side", min: 0, max: 1.2, definition: "From the outside of the back or wall-side edge to the centre of the waste." }),
-      len({ key: "wasteFromCorner", label: "Waste from corner (bisector)", group: "rough-in", required: false, reference: "other", min: 0, max: 2.2, definition: "From the right-angle corner along the corner bisector to the waste centre, as a corner-bath sheet gives it. Not wasteFromEnd or wasteFromSide. Host-frame across/out are derived from this (along each wall = value/√2) and are never published." }),
+      len({ key: "wasteFromEnd", label: "Waste from end", group: "rough-in", required: true, reference: "fixture-end", min: 0, max: 2.2, when: { field: "shape", in: ["rectangular", "other"] }, definition: "From the outside of the end named in wasteEnd to the centre of the waste. Required when the sheet does not give wasteFromCorner (shape not corner-round). Not the sheet datum for a corner bath whose waste is on the bisector." }),
+      { type: "choice", key: "wasteEnd", label: "Waste measured from end", group: "rough-in", required: false, options: ["left", "right"], definition: "Which end wasteFromEnd is measured from, facing the bath. Needed to place the waste in the plan when wasteFromEnd is the sheet datum." },
+      len({ key: "wasteFromSide", label: "Waste from side", group: "rough-in", required: true, reference: "fixture-side", min: 0, max: 1.2, when: { field: "shape", in: ["rectangular", "other"] }, definition: "From the outside of the back or wall-side edge to the centre of the waste. Required when the sheet does not give wasteFromCorner (shape not corner-round)." }),
+      len({ key: "wasteFromCorner", label: "Waste from corner (bisector)", group: "rough-in", required: true, reference: "other", min: 0, max: 2.2, when: { field: "shape", in: ["corner-round"] }, definition: "From the right-angle corner along the corner bisector to the waste centre, as a corner-bath sheet gives it. Required for corner-round baths. Not wasteFromEnd or wasteFromSide. Host-frame across/out are derived from this (along each wall = value/√2) and are never published." }),
       len({ key: "wasteHoleDiameter", label: "Waste hole diameter", group: "rough-in", required: false, reference: "other", min: 0.01, max: 0.15, definition: "Diameter of the waste hole in the fixture (a hole, not a pipe connection or outlet). Ø50 is 0.05 m. Compared only with another hole diameter." }),
       len({ key: "wasteConnectionDiameter", label: "Waste connection diameter", group: "rough-in", required: false, reference: "fixture-centreline", min: 0.01, max: 0.15, definition: "Pipe connection or outlet size at the waste, when the sheet names one. Not the waste-hole diameter. Compared with an accessory outlet or connection of the same kind." }),
       { type: "choice", key: "overflow", label: "Overflow", group: "rough-in", required: false, options: ["yes", "no"], definition: "Whether the bath has an overflow." },
@@ -199,6 +199,8 @@ export interface FieldValue {
   value: number | string | null;
   status?: ValueStatus;
   sources?: SourceRef[];
+  /** Carton/packaging published figure, matching Quantity (`carton label`). Not a web sheet. */
+  source?: string;
   reference?: ReferenceId;
   note?: string;
   alternatives?: { value: number | string; source: SourceRef }[];
@@ -466,6 +468,21 @@ export function validateProductGeometry(category: ProductCategory, fields: Recor
 }
 
 /**
+ * Convert a bisector distance from the right-angle corner into the host frame: across the
+ * centreline (left negative) and out from the back edge. Along each wall = fromCorner / √2.
+ * The numbers are geometric; callers must label them derived, never published.
+ */
+export function cornerBisectorToHostFrame(
+  fromCornerM: number,
+  boxW: number,
+  corner: "left" | "right",
+): { across: number; out: number; alongEachWall: number } {
+  const alongEachWall = fromCornerM / Math.SQRT2;
+  const across = corner === "right" ? boxW / 2 - alongEachWall : -(boxW / 2 - alongEachWall);
+  return { across, out: alongEachWall, alongEachWall };
+}
+
+/**
  * The plan outline of a corner bath with two equal straight wall sides and a curved front,
  * in its own frame, square corner at the back-left (or back-right). The sides are the front
  * width over √2 (a right-angled corner); the front is the circular arc through both side ends
@@ -545,6 +562,8 @@ export interface AxisValue {
   value?: number;
   min?: number;
   max?: number;
+  /** Host-frame or converted axes are never status `published`. */
+  basis?: "derived";
   evidence?: FieldValue;
   maxEvidence?: FieldValue;
 }
@@ -602,6 +621,22 @@ export function roughInPoints(category: ProductCategory, fields: Record<string, 
       if (value === undefined) missing.push(a.field);
       return { from: fields[a.field]?.reference ?? spec(a.field)?.reference ?? "other", field: a.field, ...(value !== undefined ? { value } : {}), ...(fields[a.field] ? { evidence: structuredClone(fields[a.field]) } : {}) };
     };
+    const fromCorner = category.id === "bath" && r.id === "waste" && fields.shape?.value === "corner-round" ? num("wasteFromCorner") : undefined;
+    if (fromCorner !== undefined) {
+      const { alongEachWall } = cornerBisectorToHostFrame(fromCorner, 0, "right");
+      const derived = (from: ReferenceId): AxisValue => ({
+        from,
+        field: "wasteFromCorner",
+        value: alongEachWall,
+        basis: "derived",
+        ...(fields.wasteFromCorner ? { evidence: structuredClone(fields.wasteFromCorner) } : {}),
+      });
+      const across = derived("fixture-end");
+      const out = derived("fixture-side");
+      const up = axis(r.up, "up");
+      points.push({ id: r.id, label: r.label, service: r.service, across, out, ...(up ? { up } : {}), resolved: missing.length === 0, missing });
+      continue;
+    }
     const across = axis(r.across, "across");
     const out = axis(r.out, "out");
     const up = axis(r.up, "up");

@@ -3,7 +3,8 @@
  * to the plan, 3D, the trade sheet and reload.
  *
  * Numbers as printed on the Enflair Angie 1000 drawing (synthetic source link): 1000 along each
- * wall, 1178 across the curved front, 1090 from the corner, 630 high, waste 368 from each wall.
+ * wall, 1178 across the curved front, 1090 from the corner, 630 high, waste 520 mm from the
+ * right-angle corner on the bisector.
  *
  * Run with the studio dev server up:  ALZA_BASE_URL=http://127.0.0.1:5199/ node tests/outline.e2e.mjs
  */
@@ -41,7 +42,7 @@ try {
   assert.ok(brief.fields.some((f) => f.key === "frontWidth" && f.when?.in.includes("corner-round")));
   const sub = await run("submit_product_spec", { requestId: req.requestId, manufacturer: "Enflair", model: "Angie 1000 Corner", code: "SB184-1000", fields: {
     length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
-    frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+    frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52),
     surround: { value: null, note: "Not on the drawing." },
   }, identity: { code: { state: "known", value: "SB184-1000", sources: src } } });
   assert.equal(sub.ok, true, sub.summary);
