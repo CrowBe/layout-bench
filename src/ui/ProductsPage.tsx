@@ -198,7 +198,7 @@ function Brief({ cat, req }: { cat: ProductCategory; req: ProductRequest }) {
               <td>{f.label}</td>
               <td>{unit(f)}</td>
               <td>{f.type === "length" && f.reference ? REFERENCES[f.reference] : "—"}</td>
-              <td>{f.required ? "required" : "optional"}{f.when ? ` (when ${f.when.field} is ${f.when.in.join(" or ")})` : ""}</td>
+              <td>{f.required ? "required" : "optional"}{f.when ? ` (when ${f.when.field} is ${"notIn" in f.when ? `not ${f.when.notIn.join(" or ")}` : f.when.in.join(" or ")})` : ""}</td>
               <td>{f.definition}</td>
             </tr>
           ))}
