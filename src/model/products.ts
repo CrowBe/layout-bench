@@ -576,6 +576,18 @@ export interface AxisValue {
   maxEvidence?: FieldValue;
 }
 
+/** Library rough-in cell text: derived sheet axes name their datum, never host-frame across/out. */
+export function axisDisplayText(a: AxisValue | undefined): string {
+  if (!a) return "—";
+  const v = a.value !== undefined ? `${formatMm(a.value)} mm`
+    : a.min !== undefined || a.max !== undefined ? `${a.min !== undefined ? formatMm(a.min) : "?"}–${a.max !== undefined ? formatMm(a.max) : "?"} mm`
+    : "unknown";
+  if (a.field === "wasteFromCorner" && a.basis === "derived") {
+    return `${v} along each wall from the right-angle corner, derived`;
+  }
+  return `${v} from ${a.from.replace("-", " ")}${a.basis === "derived" ? " (derived, not published)" : ""}`;
+}
+
 export interface RoughInPoint {
   id: string;
   label: string;

@@ -1560,28 +1560,32 @@ export const actions = {
     const id = input.id ?? uid("sp");
     const prior = existing.find((p) => p.id === id);
     const priorDerived = !!(prior && (prior.status === "derived" || prior.basis === "derived"));
-    if (priorDerived && input.status === "published") {
-      return fail(`Service point ${id} holds derived host-frame coordinates (converted, not published). Replacing it with status published is refused. Record a measured or site-confirmed site datum to replace the conversion.`);
-    }
     const siteDatum = input.status === "measured" || input.status === "site-confirmed";
-    const keepDerived = priorDerived && !siteDatum;
+    const siteSource = input.source?.trim() ?? "";
+    if (priorDerived && (!siteDatum || !siteSource)) {
+      const why = !siteDatum
+        ? `Status "${input.status}" is not a site datum.`
+        : `A ${input.status} replacement needs a non-empty source naming the site datum.`;
+      return fail(
+        `Service point ${id} is a derived host-frame conversion and is read-only. ${why} ` +
+        `The only allowed change is a full replacement by a measured or site-confirmed site datum with a non-empty source naming that datum.`,
+      );
+    }
     const point: ServicePoint = {
       id, label: input.label.trim(), service: input.service, face: input.face,
       ...(out !== undefined ? { out } : {}), ...(outMax !== undefined ? { outMax } : {}),
       ...(num(input.across, "across") !== undefined ? { across: num(input.across, "across") } : {}),
       ...(up !== undefined ? { up } : {}),
-      status: keepDerived ? "derived" : input.status,
-      ...(keepDerived ? { basis: "derived" as const } : {}),
-      ...(keepDerived && prior?.axisEvidence ? { axisEvidence: structuredClone(prior.axisEvidence) } : {}),
-      ...(input.source?.trim() ? { source: input.source.trim() } : {}),
+      status: input.status,
+      ...(siteSource ? { source: siteSource } : {}),
     };
     const next: Item = { ...item, servicePoints: existing.some((p) => p.id === id) ? existing.map((p) => (p.id === id ? point : p)) : [...existing, point] };
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
-    const replaced = priorDerived && siteDatum
+    const replaced = priorDerived
       ? ` Replaced derived host-frame conversion with a ${input.status} site datum.`
       : "";
-    return r.ok(`${point.label} ${existing.some((p) => p.id === id) ? "updated" : "added"} on ${item.id}.${keepDerived ? " Derived host-frame status, basis and axis evidence kept." : replaced}`, { id: item.id, pointId: id });
+    return r.ok(`${point.label} ${existing.some((p) => p.id === id) ? "updated" : "added"} on ${item.id}.${replaced}`, { id: item.id, pointId: id });
   },
 
   removeServicePoint(itemRef: string, pointId: string): ActionResult {

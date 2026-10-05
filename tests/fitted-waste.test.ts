@@ -20,7 +20,7 @@ import {
   fittedWasteProblems,
   hostWasteInHostFrame,
 } from "../src/model/fittedWaste";
-import { categoryById, roughInPoints, validateSubmission, type FieldValue, type SpecSubmission } from "../src/model/products";
+import { categoryById, roughInPoints, validateSubmission, axisDisplayText, type FieldValue, type SpecSubmission } from "../src/model/products";
 import type { PartSpec } from "../src/three/furniture";
 import type { LibraryProduct } from "../src/model/productLibrary";
 
@@ -226,6 +226,10 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(points[0].out!.value).toBeCloseTo(0.52 / Math.SQRT2, 10);
     expect(points[0].across!.basis).not.toBe("published");
     expect(points[0].across!.evidence).toMatchObject({ value: 0.52, status: "published" });
+    expect(axisDisplayText(points[0].across)).toMatch(/along each wall from the right-angle corner, derived/);
+    expect(axisDisplayText(points[0].out)).toMatch(/along each wall from the right-angle corner, derived/);
+    expect(axisDisplayText(points[0].across)).not.toMatch(/from fixture end/);
+    expect(axisDisplayText(points[0].out)).not.toMatch(/from fixture side/);
     const missingCorner = { ...corner, fields: { ...corner.fields } };
     delete missingCorner.fields.wasteFromCorner;
     expect(validateSubmission(cat, missingCorner).some((p) => p.field === "wasteFromCorner" && p.code === "field_missing")).toBe(true);
@@ -262,6 +266,8 @@ describe("fitted waste vs host waste point (#75)", () => {
     const points = roughInPoints(cat, rect.fields);
     expect(points[0]).toMatchObject({ resolved: true });
     expect(points[0].across).toMatchObject({ field: "wasteFromEnd", value: 0.2 });
+    expect(axisDisplayText(points[0].across)).toMatch(/from fixture end/);
+    expect(axisDisplayText(points[0].across)).not.toMatch(/along each wall/);
     expect(points[0].across?.basis).not.toBe("derived");
     const missingEnd = { ...rect, fields: { ...rect.fields } };
     delete missingEnd.fields.wasteFromEnd;
@@ -407,7 +413,7 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
   });
 
-  it("refuses published overwrite of a derived waste point and allows a measured site datum to replace it", () => {
+  it("treats a derived waste point as read-only except a sourced measured or site-confirmed replacement", () => {
     const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
     actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
     const fields = {
@@ -428,8 +434,28 @@ describe("fitted waste vs host waste point (#75)", () => {
       across: sp.across, out: sp.out, status: "published",
     });
     expect(published.ok).toBe(false);
-    expect(published.summary).toMatch(/derived/i);
+    expect(published.summary).toMatch(/read-only/i);
     expect(published.summary).toMatch(/published/i);
+    const proposed = actions.setServicePoint(bath.id, {
+      id: "waste", label: sp.label, service: "waste", face: sp.face,
+      across: 0.5, out: sp.out, status: "proposed",
+    });
+    expect(proposed.ok).toBe(false);
+    expect(proposed.summary).toMatch(/read-only/i);
+    expect(proposed.summary).toMatch(/proposed/i);
+    expect(item(bath.id).servicePoints!.find((p) => p.id === "waste")?.across).toBe(sp.across);
+    expect(item(bath.id).servicePoints!.find((p) => p.id === "waste")?.status).toBe("derived");
+    const estimated = actions.setServicePoint(bath.id, {
+      id: "waste", label: sp.label, service: "waste", face: sp.face,
+      across: sp.across, out: sp.out, status: "estimated",
+    });
+    expect(estimated.ok).toBe(false);
+    const noSource = actions.setServicePoint(bath.id, {
+      id: "waste", label: sp.label, service: "waste", face: sp.face,
+      across: sp.across, out: sp.out, status: "measured",
+    });
+    expect(noSource.ok).toBe(false);
+    expect(noSource.summary).toMatch(/source/i);
     expect(item(bath.id).servicePoints!.find((p) => p.id === "waste")?.status).toBe("derived");
     const measured = actions.setServicePoint(bath.id, {
       id: "waste", label: sp.label, service: "waste", face: sp.face,
@@ -441,6 +467,45 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(next.status).toBe("measured");
     expect(next.basis).toBeUndefined();
     expect(next.axisEvidence).toBeUndefined();
+    expect(next.source).toMatch(/tape from the finished wall face/);
+  });
+
+  it("flips the resolved corner and fitted-waste warning when a wall edit changes the nearer end", () => {
+    const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), surround: pub("none-required"),
+    };
+    const product: LibraryProduct = {
+      id: "wall-flip-corner", category: "bath", manufacturer: "Example Co", model: "Corner",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+    };
+    const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    const bathId = placed.id as string;
+    const before = hostWasteInHostFrame(item(bathId), catalogByKind, store.getState().model);
+    expect(before.resolved).toBe(true);
+    const beforeSide = item(bathId).corner!.side;
+    expect(before.corner).toBe(beforeSide);
+    actions.defineItemKind({ kind: "test_waste", label: "Test waste", w: 0.05, d: 0.05, h: 0.02 });
+    const wasteId = actions.placeItem("test_waste", 0, 0).id as string;
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: store.getState().model.items.map((i) => i.id === wasteId ? { ...i, productSpecification: { category: "waste", fields: {}, acceptedAt: 1 } } : i),
+      },
+    });
+    expect(actions.fitItem(wasteId, bathId, undefined, undefined, true).ok).toBe(true);
+    expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
+    expect(actions.editWall(wall, { bx: 1.0 }).ok).toBe(true);
+    const bath = item(bathId);
+    const after = hostWasteInHostFrame(bath, catalogByKind, store.getState().model);
+    expect(bath.corner!.side).not.toBe(beforeSide);
+    expect(after.corner).toBe(bath.corner!.side);
+    expect(after.corner).not.toBe(before.corner);
+    expect(Math.sign(after.across ?? 0)).not.toBe(Math.sign(before.across ?? 0));
+    expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(true);
   });
 });
 

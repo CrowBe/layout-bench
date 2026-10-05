@@ -71,11 +71,53 @@ export interface HostWasteInput {
   wall?: Wall;
 }
 
-/** Outline start, else the item's stored corner, else the host anchor/wall. */
+/** Outline start, else the live wall set-out, else the item's stored corner. */
 export function resolveWasteCorner(input: HostWasteInput): "left" | "right" | undefined {
   return cornerFromOutlineStart(input.outlineStart)
-    ?? input.storedCorner
-    ?? (input.anchor && input.wall ? productCornerSide(input.anchor, input.wall) : undefined);
+    ?? (input.anchor && input.wall ? productCornerSide(input.anchor, input.wall) : undefined)
+    ?? input.storedCorner;
+}
+
+/** Keep a corner fixture's stored hand, outline and derived across in step with the wall. */
+export function syncCornerHand(item: Item, wall: Wall): Item {
+  if (!item.corner || !item.anchor) return item;
+  const side = productCornerSide(item.anchor, wall);
+  if (side === item.corner.side) return item;
+  const mirrorPoint = (point: { x: number; y: number }) => ({ x: -point.x, y: point.y });
+  const pinned = item.productGeometry;
+  const geometry = pinned
+    ? {
+        ...structuredClone(pinned),
+        kind: item.corner[side],
+        ...(pinned.outline
+          ? {
+              outline: {
+                ...structuredClone(pinned.outline),
+                start: mirrorPoint(pinned.outline.start),
+                segments: pinned.outline.segments.map((segment) => ({
+                  ...segment,
+                  to: mirrorPoint(segment.to),
+                  ...(segment.via ? { via: mirrorPoint(segment.via) } : {}),
+                })),
+              },
+            }
+          : {}),
+      }
+    : undefined;
+  const derived = (p: { status?: string; basis?: string }) => p.status === "derived" || p.basis === "derived";
+  return {
+    ...item,
+    kind: item.corner[side],
+    corner: { ...item.corner, side },
+    ...(geometry ? { productGeometry: geometry } : {}),
+    ...(item.servicePoints
+      ? {
+          servicePoints: item.servicePoints.map((p) =>
+            derived(p) && p.across !== undefined ? { ...p, across: quantize(-p.across) } : p,
+          ),
+        }
+      : {}),
+  };
 }
 
 const num = (field: FieldValue | undefined): number | undefined =>
