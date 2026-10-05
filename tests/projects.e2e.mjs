@@ -103,7 +103,7 @@ try {
   const sampleState = await page.evaluate(() => ({ model: window.__alza.store.getState().model,
     notes: window.__alza.store.getState().notes, kinds: window.__alza.store.getState().kinds }));
   assert.equal(sampleState.model.walls.length, 4);
-  assert.equal(sampleState.model.items.length, 11);
+  assert.equal(sampleState.model.items.length, 12);
   assert.ok(sampleState.notes.some((note) => /approximate|not set-out/i.test(note.text)));
   assert.equal(sampleState.kinds.length, 11);
   await page.getByRole("button", { name: "Build 3D" }).click();

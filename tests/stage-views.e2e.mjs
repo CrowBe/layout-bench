@@ -93,6 +93,12 @@ try {
     for (const id of svgIds) assert.ok(visibleIds.has(id), `${label}: diagram shows hidden ${id}`);
     assert.deepEqual([...specIds].sort(), [...visibleIds].sort(), `${label}: spec rows differ from the view`);
     assert.deepEqual(out.elements.sort(), [...visibleIds].sort());
+    // one elevation per wall side facing the room, drawn from the same visible set
+    assert.deepEqual(out.elevations.map((e) => e.surface), walls.map((w) => `${w}:right`), label);
+    assert.deepEqual(view.surfaces, ["plan", ...walls.map((w) => `${w}:right`)]);
+    for (const e of out.elevations) {
+      for (const [, id] of e.svg.matchAll(/data-element="([^"]+)"/g)) assert.ok(visibleIds.has(id), `${label} ${e.surface}: elevation shows hidden ${id}`);
+    }
     outputs.push(out);
   }
   // rough-in shows the GPO with its unknown height as "?", never a number
@@ -104,12 +110,28 @@ try {
   // the adhesive stage keeps the unknown adhesive unknown
   assert.match(outputs[6].svg, /Adhesive \? \(position unresolved\)/);
   assert.equal(new Set(outputs.map((o) => o.svg)).size, 9);
+  // the vanity's wall: rough-in shows its waste at its height without the vanity; fit-out shows the vanity
+  const east = (o) => o.elevations.find((e) => e.surface === `${walls[1]}:right`).svg;
+  assert.ok(east(outputs[2]).includes(`data-element="item:${vanity}:sp:vw"`));
+  assert.ok(!east(outputs[2]).includes(`data-element="item:${vanity}"`));
+  assert.match(east(outputs[2]), /550 AFF/);
+  assert.match(east(outputs[2]), /between frame faces of the return walls/);
+  assert.ok(east(outputs[8]).includes(`data-element="item:${vanity}"`));
+  assert.match(outputs[0].elevations[0].svg, /WINDOW 1755/);
+  // only the requested surfaces are generated; an unknown one is refused
+  await run("set_diagram_view", { label: stages[8][0], visible: stages[8][1] });
+  const one = await run("export_diagram_view", { surfaces: [`${walls[1]}:right`] });
+  assert.deepEqual(one.surfaces, [`${walls[1]}:right`]);
+  const wrong = await run("export_diagram_view", { surfaces: ["wall_x:left"] });
+  assert.equal(wrong.ok, false);
+  assert.match(wrong.summary, /No such surface/);
 
   // Planning geometry is untouched; the nine immutable issued output archives are retained.
   assert.equal(await modelJson(), before);
   const archives=await page.evaluate(()=>window.__alza.store.getState().model.sheetSet.stageExports);
-  assert.equal(archives.length,9);
-  for(let index=0;index<outputs.length;index++){assert.equal(archives[index].svg,outputs[index].svg);assert.equal(archives[index].specHtml,outputs[index].specHtml);assert.equal(typeof archives[index].modelEvidence,"string");}
+  assert.equal(archives.length,10);
+  assert.equal(archives[9].elevations.length,1);
+  for(let index=0;index<outputs.length;index++){assert.deepEqual(archives[index].elevations,outputs[index].elevations);assert.equal(archives[index].svg,outputs[index].svg);assert.equal(archives[index].specHtml,outputs[index].specHtml);assert.equal(typeof archives[index].modelEvidence,"string");}
   assert.equal(await page.evaluate(() => window.__alza.store.getState().undoStack.length), undoBefore);
   assert.equal((await run("list_sheets")).sheets[0].revisions.length, 0);
 
@@ -127,9 +149,15 @@ try {
   await card.getByRole("button", { name: /spec \(HTML\)/ }).click();
   const file = readFileSync(await (await dl).path(), "utf8");
   assert.match(file, /Specification: 3\. Plumbing and electrical rough-in/);
+  // and previews and downloads a wall elevation of the same stage
+  await card.getByLabel("Stage drawing").selectOption(`${walls[1]}:right`);
+  assert.equal(await card.locator(`svg[data-sheet='stage-elevation'][data-wall='${walls[1]}']`).count(), 1);
+  const dlE = page.waitForEvent("download");
+  await card.getByRole("button", { name: new RegExp(`"3\\. Plumbing and electrical rough-in" elevation ${walls[1]}:right`) }).click();
+  assert.match(readFileSync(await (await dlE).path(), "utf8"), /data-sheet="stage-elevation"/);
 
   assert.deepEqual(errors, []);
-  console.log("PASS: real layers listed, unknown id refused, 9 stages composed and exported with matching diagram/spec content, planning model unchanged and immutable archives retained, switch back, Sheets tab download");
+  console.log("PASS: real layers listed, unknown id refused, 9 stages composed and exported with matching diagram/spec content and a wall elevation per room-facing side, planning model unchanged and immutable archives retained, switch back, Sheets tab download");
 } finally {
   await browser.close();
 }

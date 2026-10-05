@@ -8,7 +8,7 @@ import { heatingSection } from "../model/heating";
 import { useState } from "react";
 import { actions, logActivity, type FloorLayerInput, type FloorPatch } from "../model/store";
 import { formatMm } from "../model/geometry";
-import { DEFAULT_DATUM, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLayerLabel, floorLevels } from "../model/floor";
+import { DEFAULT_DATUM, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLayerLabel, floorLevels, floorFill } from "../model/floor";
 import type { FloorLayerKind, Room } from "../model/types";
 import { QuantityField, toInput } from "./WallFaces";
 
@@ -66,6 +66,7 @@ export function FloorBuildUp({ room }: { room: Room }) {
   const [newKind, setNewKind] = useState<FloorLayerKind>("screed");
   const spec = room.floorBuildUp;
   const levels = floorLevels(spec);
+  const fill = floorFill(spec);
   const layers: FloorLayerInput[] = (spec?.layers ?? []).map((l) => ({ id: l.id, kind: l.kind, name: l.name, thickness: toInput(l.thickness) }));
   const setLayers = (next: FloorLayerInput[]) => run(room, { layers: next });
 
@@ -84,6 +85,8 @@ export function FloorBuildUp({ room }: { room: Room }) {
           onBlur={(e) => { if (e.target.value.trim() !== (spec?.substrate ?? "")) run(room, { substrate: e.target.value }); }} />
       </label>
       <QuantityField label="Substrate top (mm)" q={spec?.substrateTop} onCommit={(q) => run(room, { substrateTop: q })} />
+      <QuantityField label="Finished level target (mm)" q={spec?.finishedTarget} onCommit={(q) => run(room, { finishedTarget: q })} />
+      {fill && <span className="hint" data-role="floor-fill">To reach the target, {fill.layers.join(" + ")} fill {formatMm(fill.thickness)} mm together ({fill.basis}).</span>}
       <div className="face-layers">
         <span className="hint">Layers, from the substrate up</span>
         {spec?.layers.map((l, i) => (
@@ -109,7 +112,7 @@ export function FloorBuildUp({ room }: { room: Room }) {
           {levels.map((l) => (
             <tr key={l.level} data-level={l.level}>
               <td>{l.label}</td>
-              <td>{l.resolved ? `${formatMm(l.top!)} mm` : "unresolved"}</td>
+              <td>{l.resolved ? `${formatMm(l.top!)} mm${l.fromTarget ? " (from target)" : ""}` : "unresolved"}</td>
               <td title={l.inputs.map((x) => `${x.field}: ${x.status}`).join("; ")}>{l.resolved ? l.basis : `missing ${l.missing.join(", ")}`}</td>
             </tr>
           ))}

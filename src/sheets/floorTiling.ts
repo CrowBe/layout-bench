@@ -121,7 +121,7 @@ export function renderFloorTilingSheet(model: PlanModel, room: Room): string {
     `PROPOSED FLOOR TILE SET-OUT · ${model.name} · ${room.label}`,
     "FOR TILER REVIEW · NOT AS-BUILT · NOT FOR ORDERING",
     `Zone: ${t?.zone ?? "?"} · long edge axis: ${t?.axis ?? "?"}`,
-    "Origin: upper-left tile edge, from finished west/north faces.",
+    `Origin: a tile's ${t?.originXFrom === "east" ? "east" : "west"} edge from the finished ${t?.originXFrom ?? "west"} face, its ${t?.originYFrom === "south" ? "south" : "north"} edge from the finished ${t?.originYFrom ?? "north"} face.`,
     `X ${t?.originX?.value === undefined ? "?" : mm(t.originX.value) + " " + tag(t.originX.status)} mm · Y ${t?.originY?.value === undefined ? "?" : mm(t.originY.value) + " " + tag(t.originY.status)} mm`,
     ...l.inputs
       .filter((i) => !i.field.includes("finished face"))

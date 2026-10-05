@@ -57,16 +57,16 @@ const wallTiling = (v: unknown) => v === undefined || (object(v) && Object.entri
   (side === "left" || side === "right") && object(t) &&
   ["tileLength", "tileWidth", "joint", "originAlong", "originUp", "tiledHeight"].every((k) => quantity(t[k])) &&
   oneOf(t.orientation, ["landscape", "portrait"]) && oneOf(t.reference, ["board", "finished"]) &&
-  oneOf(t.floor, ["finished", "screed", "substrate", "datum"]) && oneOf(t.originFrom, ["a", "b", "centre"]) &&
+  oneOf(t.floor, ["finished", "screed", "substrate", "datum"]) && oneOf(t.originFrom, ["a", "b", "centre", "jamb-a", "jamb-b"]) && (t.originOpening === undefined || typeof t.originOpening === "string") &&
   (t.note === undefined || typeof t.note === "string")));
 
 const floorTiling = (v: unknown) => v === undefined || (object(v) &&
   ["tileLength", "tileWidth", "joint", "originX", "originY"].every(k => quantity(v[k])) &&
-  oneOf(v.axis, ["x", "y"]) && (v.zone === undefined || typeof v.zone === "string") &&
+  oneOf(v.axis, ["x", "y"]) && oneOf(v.originXFrom, ["west", "east"]) && oneOf(v.originYFrom, ["north", "south"]) && (v.zone === undefined || typeof v.zone === "string") &&
   (v.note === undefined || typeof v.note === "string"));
 
 /** Floor assembly (#6): datum, optional substrate top, and a layer list with optional quantities. */
-const floorBuildUp = (v: unknown) => v === undefined || (object(v) && typeof v.datum === "string" && quantity(v.substrateTop) &&
+const floorBuildUp = (v: unknown) => v === undefined || (object(v) && typeof v.datum === "string" && quantity(v.substrateTop) && quantity(v.finishedTarget) &&
   Array.isArray(v.layers) && v.layers.every((l) => object(l) && typeof l.id === "string" && typeof l.kind === "string" && quantity(l.thickness)));
 
 /** Drainage (#7): wastes with plan coordinates, planes with rectangles, controls with positions and levels. */
@@ -91,7 +91,7 @@ const validServicePoint = (v: unknown) => object(v) && typeof v.id === "string" 
 const optionalString = (v: unknown) => v === undefined || typeof v === "string";
 const validSheetSet = (v: unknown) => object(v) && object(v.titleBlock) &&
   ["project", "site", "preparedBy"].every((k) => optionalString((v.titleBlock as Record<string, unknown>)[k])) &&
-  (v.stageExports === undefined || Array.isArray(v.stageExports) && v.stageExports.every(e=>object(e) && typeof e.label === "string" && typeof e.date === "string" && typeof e.svg === "string" && typeof e.specHtml === "string" && typeof e.modelEvidence === "string" && finite(e.at) && optionalString(e.note) && Array.isArray(e.elements) && e.elements.every(id=>typeof id === "string") && Array.isArray(e.acknowledged) && e.acknowledged.every(a=>object(a) && typeof a.code === "string" && typeof a.ref === "string" && typeof a.reason === "string" && ["human","agent"].includes(String(a.by))))) &&
+  (v.stageExports === undefined || Array.isArray(v.stageExports) && v.stageExports.every(e=>object(e) && typeof e.label === "string" && typeof e.date === "string" && typeof e.svg === "string" && typeof e.specHtml === "string" && typeof e.modelEvidence === "string" && finite(e.at) && optionalString(e.note) && (e.elevations === undefined || Array.isArray(e.elevations) && e.elevations.every(x=>object(x) && typeof x.surface === "string" && typeof x.room === "string" && typeof x.svg === "string")) && (e.planOmitted === undefined || typeof e.planOmitted === "boolean") && Array.isArray(e.elements) && e.elements.every(id=>typeof id === "string") && Array.isArray(e.acknowledged) && e.acknowledged.every(a=>object(a) && typeof a.code === "string" && typeof a.ref === "string" && typeof a.reason === "string" && ["human","agent"].includes(String(a.by))))) &&
   Array.isArray(v.revisions) && v.revisions.every((r: unknown) => object(r) && typeof r.rev === "string" && typeof r.sheet === "string" &&
     typeof r.date === "string" && optionalString(r.note) && Array.isArray(r.acknowledged) &&
     (r.content === undefined || object(r.content) && typeof r.content.svg === "string" && typeof r.content.modelEvidence === "string" && Array.isArray(r.content.productRefs) && r.content.productRefs.every(p => object(p) && typeof p.itemId === "string" && optionalString(p.productId) && (p.revision === undefined || Number.isInteger(p.revision) && (p.revision as number) > 0))) &&

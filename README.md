@@ -41,7 +41,7 @@ four workflows for ChatGPT:
 - **reno-research-product** resumes a product request and submits sourced specifications
   for human review.
 - **reno-stage-diagrams** composes construction-stage views of the one project model and
-  exports a dimensioned diagram and matching specification sheet for each.
+  exports a dimensioned plan, wall elevations and matching specification sheet for each.
 - **reno-wall-tiling** proposes a tile set-out for one wall from user-chosen tile sizes and
   exports its printable elevation for review with a tiler.
 
@@ -177,9 +177,9 @@ document.modelContext.registerTool({
 | **Wall faces** | `set_wall_side` (existing surface, frame face and proposed build-up per wall side, each value with a status) · `get_wall_faces` (readOnly) · `measure_to_face` (readOnly: distance from the existing, frame, board or finished face, or unresolved) |
 | **Wall tiling** | `set_wall_tiling` (a proposed tile set-out on one wall side: tile size, orientation, joint, the face each end is cut to, floor reference, origin and tiled height, each length with a status) · `get_wall_tiling` (readOnly: run limits, floor level, origin, edge cuts at both ends, bottom and top, cuts around openings, pieces, and every unresolved input) · `export_wall_tiling` (readOnly: the printable A3 SVG elevation, stamped proposed, not as-built) |
 | **Floor tiling** | `set_floor_tiling` (proposed rectangular room or drainage-plane pattern, tile format, joint, plan X/Y axis, origin from finished west/north faces, notes and per-value provenance) · `get_floor_tiling` (readOnly: pieces, perimeter cuts, waste-grid relationships, door transitions, floor-plane boundaries and unresolved fields) · `export_floor_tiling` (readOnly: proposed SVG plan with dimensions and field notes; print to A3 PDF from the room Inspector) |
-| **Floor and drainage** | `set_room_floor` · `get_floor_levels` (readOnly) · `set_room_drainage` (point or linear wastes and sloped floor planes, each level and fall with a status) · `get_floor_heights` (readOnly: derived heights at points and along a section, checks for contradictory levels, gaps and unresolved falls, build-up and door-threshold references) |
+| **Floor and drainage** | `set_room_floor` (layers, substrate top and an optional finished-level target the trade fills to) · `get_floor_levels` (readOnly) · `set_room_drainage` (point or linear wastes and sloped floor planes, each level and fall with a status) · `get_floor_heights` (readOnly: derived heights at points and along a section, checks for contradictory levels, gaps and unresolved falls, build-up and door-threshold references) |
 | **Trade sheets** | `set_sheet_info` · `list_sheets` (readOnly) · `check_sheets` (readOnly: blocking and advisory findings, each with a ref and a suggested fix) · `export_sheet` (issues an A3 SVG revision; blocking findings must be fixed or acknowledged with a reason that is printed on the sheet) |
-| **Stage diagrams** | `list_diagram_content` (readOnly: the layer and object ids the model really has, empty layer kinds, and what is not modelled) · `set_diagram_view` (an explicit visible set for a labelled stage; any unknown id is refused) · `get_diagram_view` (readOnly: the visible elements, the spec rows with status and datum, and scoped findings) · `export_diagram_view` (the dimensioned A3 diagram SVG and the matching specification sheet HTML) |
+| **Stage diagrams** | `list_diagram_content` (readOnly: the layer and object ids the model really has, empty layer kinds, and what is not modelled) · `set_diagram_view` (an explicit visible set for a labelled stage; any unknown id is refused) · `get_diagram_view` (readOnly: the visible elements, the spec rows with status and datum, and scoped findings) · `export_diagram_view` (the dimensioned A3 plan SVG, an A3 elevation SVG per room-facing wall side shown, and the matching specification sheet HTML) |
 | **Fixtures** | `anchor_fixture` (set a fixture out from a wall face) · `set_service_point` · `remove_service_point` · `place_product` (a library product against a face, with its published rough-in) · `get_rough_in` (readOnly: every service point as distances from the existing, frame, board and finished faces, along from both wall ends and up from the floor, plus clearances) |
 | **Products** | `request_product` · `list_product_requests` (readOnly) · `get_product_brief` (readOnly: the fields to find, their definitions and datums, the research protocol, and the text of attached spec sheets page by page) · `submit_product_spec` · `get_product_library` (readOnly). Accepting a product is human-only, on the Products page. |
 | **Rooms** | `add_room` · `update_room` · `remove_room` |
@@ -212,7 +212,9 @@ A few design notes:
   (`set_wall_tiling` does the same): tile size and orientation, grout joint, whether each end is
   cut to the return wall's board (Villaboard) face or its finished face, the floor level the
   courses start from (finished, screed, substrate or the datum, read from the room's floor
-  build-up), the origin tile and the tiled height. Nothing is defaulted: an unknown input, an
+  build-up), the origin tile and the tiled height. The origin can sit at either end, the run
+  centre, or against a door or window jamb with tiles running away from it, so full tiles start
+  at the door and the cuts land in the far corner. Nothing is defaulted: an unknown input, an
   unresolved board thickness on a return wall, or a window whose size is a placeholder leaves
   the cuts unresolved and listed. The elevation shows full and cut pieces around openings; drag
   the origin tile or nudge it 10 mm and the end, opening, bottom and top cuts update with the 3D
@@ -230,12 +232,18 @@ A few design notes:
   tab previews it, issues revisions, downloads the SVG and prints to PDF.
 
 - Select a room to propose floor tile set-out at its finished wall faces. Choose the whole
-  room or one existing drainage plane, enter tile format, grout, X/Y axis and origin, then
+  room or one existing drainage plane, enter tile format, grout, X/Y axis and origin (from the
+  west or east face, and the north or south face, so full tiles can start at a doorway), then
   nudge the origin 10 mm to compare visible cuts and the exported plan. Blank or ambiguous
   wall faces stay unresolved. The diagram shows doorway transitions, wastes and fall-plane
   boundaries and flags narrow pieces or tiles crossing slope breaks. Waste aperture sizes
   are not yet recorded: centre lines and grid relationships remain proposals for tiler
   review, with aperture cuts explicitly unresolved. No purchase quantity or trade approval.
+- A floor can carry a finished-level target when the tiler lays their own screed and adhesive. Leave
+  those thicknesses unknown: levels above them are read down from the target, and the floor reports
+  what the unknown layers must fill together (e.g. membrane + screed + adhesive 110 mm from a slab
+  120 mm down to a 10 mm tile at the current floor level). A full stack that misses the target is a
+  warning; a target below what the known layers already reach is an error.
 - One renovation, many stage drawings. Post-demolition, rough-in, waterproofing, screed, tiles
   and fit-out are views of the same project, not copies of it. An agent lists what the model
   holds (`list_diagram_content`: wall faces and each build-up layer, floor layers, wastes and
@@ -248,7 +256,14 @@ A few design notes:
   is refused. The `floor-heating-cable` layer appears when a room has a heating record;
   projects without one explicitly list heating as absent instead of inventing a route.
   Values keep their status tags and the face or datum they are measured from; unknowns print
-  as "?" with what is missing. The A-01 blocking rules apply to visible content (a defaulted
+  as "?" with what is missing. Each export also draws one A3 elevation per room-facing wall side
+  the view shows, from the same visible set: the outermost visible face or layer, openings with
+  jambs measured from the return wall's face, the proposed tile set-out once the tile layer is
+  shown, visible floor levels and the finished-floor falls along the wall, fixtures standing against
+  that face at their heights (a kind's placeholder mounting height is dashed and says so), and
+  service points dimensioned from the return wall's face and above the finished floor. A point or
+  fixture without a known height is listed, never drawn. `get_diagram_view` names the surfaces;
+  `export_diagram_view` takes `surfaces` to generate a subset; the Sheets tab previews any of them. The A-01 blocking rules apply to visible content (a defaulted
   door width blocks only when the door is shown), with the same printed acknowledgement escape
   hatch. Exports are not sheet revisions; the Sheets tab previews the current stage and
   downloads both files.
@@ -323,11 +338,27 @@ A few design notes:
   conditional variants and the canonical diagram/specification export.
 
 - The Bathroom Concept sample carries the owner's purchased fittings (bath, wall and basin
-  mixers, spout, shower system, towel rail, thermostat), each marked `purchased` with the code
+  mixers, spout, shower system, two towel rails, thermostat), each marked `purchased` with the code
   printed on its label. Only label-printed sizes are copied; every other size, reach and mounting
   height is a placeholder named in the kind's data. A kind may carry an `elevation` (define_item_kind),
   so a wall mixer over a bath is not an `items_overlap` once their heights differ. The corner bath
   is a right-angle isosceles triangle with a rounded hypotenuse; the arc depth is a placeholder.
+  The owner's build-up and tiles are recorded against the surveyed 2110 × 3020 existing surfaces:
+  walls stripped to the frame (about 45 mm behind the surface, estimated) and lined with 6 mm
+  Villaboard; the floor back to the concrete slab (about 120 mm down, estimated) with waterproofing
+  on it, the heating cable, then the tiler's own screed and adhesive to a finished-level target at
+  the current tile level. Tiles are 10 mm porcelain (estimated), the wall adhesive 4 mm (estimated). Left, right and door walls take 600 × 600 white gloss; the floor and
+  window wall take 300 × 600 sandy beige matte, long side toward the window wall and vertical on it,
+  so every wall has four full 600 mm courses on a thin silicone or glue joint (about 2416 mm) and a
+  timber trim above to the cornice, about 2700 mm up (about 284 mm of trim). Full tiles start at the door end: the doorway on the floor, the door-wall corner
+  on the side walls, the door's jamb on the door wall, the corner nearer the door on the window wall.
+  The tiler's floor screed and adhesive stay unknown; the target alone sets the finished floor.
+  The owner's drains are recorded as proposed positions: a Lauxes Next Gen 35 channel (1000 × 100 × 35, 50 mm
+  outlet) along the left wall of the shower, centred on it, and a Kano 316 120 × 120 tile-insert waste centred in the dry
+  area, each feeding its fall planes. Falls and waste levels are not chosen yet, so the planes stay
+  unresolved and the finished floor is the flat target.
+  The shower screen is the owner's fixed glass panel, 900 wide × 2100 high on black clips, 1200 mm
+  from the window wall; the face that 1200 mm is taken to is not recorded.
 
 - Briefs can capture what a label prints beyond lengths. A `quantity` field carries its own unit
   (W, V, A, Ω, W/m, °C, m²) and range, and prints with that unit on the spec sheet; a wrong-unit
@@ -448,6 +479,7 @@ src/
   sheets/   check.ts (sheet preflight findings, acknowledgements) · floorPlan.ts (A-01 SVG) · issued.ts
             tiling.ts (wall tile set-out elevation SVG)
             stageView.ts (stage view catalogue, spec rows, stage diagram + spec sheet) · viewState.ts (view state, outside the model)
+            stageElevation.ts (one wall elevation per room-facing side for a stage view)
             catalog.ts (31 furniture kinds + runtime entries) · store.ts (shared actions, undo, activity) · seed.ts
   editor/   Editor.tsx — SVG: chained walls, rooms, openings with door arcs,
             furniture drag, blueprint underlay, millimetre dimensions, configurable pointer snap, pan/zoom

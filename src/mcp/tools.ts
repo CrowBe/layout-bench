@@ -9,6 +9,7 @@ import { actions, lookupItem, lookupWall, lookupRoom, store, type ActionResult, 
 import { anchorPose, clearances, roughIn } from "../model/fixtures";
 import { SHEETS, checkSheet, reconcile, type AckInput } from "../sheets/check";
 import { catalogue, renderStageDiagram, renderStageSpec } from "../sheets/stageView";
+import { elevationSurfaces, renderStageElevation } from "../sheets/stageElevation";
 import { applyView, composeView, currentView, recordExport, savedViews } from "../sheets/viewState";
 import { planningEvidence } from "../model/productRevision";
 import { recordIssued } from "../sheets/issued";
@@ -23,7 +24,7 @@ import { drainageProblems, heightAt, planeSurface, sectionAlong, surfaces, thres
 import { heatingEvidence } from "../model/heating";
 import { renderHeatingReview } from "../sheets/heating";
 import { finishedLevel } from "../model/floor";
-import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems } from "../model/floor";
+import { FLOOR_LAYER_KINDS, DEFAULT_DATUM, floorLevels, floorProblems, floorFill } from "../model/floor";
 import { IDENTITY_FIELDS, SELECTION_STATUSES, type SelectionStatus } from "../model/productIdentity";
 import { PRODUCT_CATEGORIES, REFERENCES, RESEARCH_PROTOCOL, applies, categoryById, type SpecSubmission } from "../model/products";
 import { measurementFields } from "../model/productMeasurements";
@@ -283,13 +284,14 @@ export const TOOLS: ToolDef[] = [
     name: "set_room_floor",
     title: "Record a room's floor assembly and level datum",
     description:
-      "Record a room's proposed floor build-up: the datum, the top of the stripped substrate, and the layers above it from the substrate upward (waterproofing and screed in either order, then adhesive, then tile). Levels are metres, up positive, from the datum (default \"existing floor surface\" = 0); substrateTop is an offset from it and may be negative. Every value needs a status (site-confirmed, measured, published, proposed, estimated). Unknown values stay unknown: omit value, and levels above are reported unresolved rather than filled with a default or zero. Never assume the substrate type: pass it as free text only when known. Fields sent replace what is stored; layers replaces the whole list (send a layer's id to keep it). Out-of-order layers or negative thicknesses are rejected and nothing changes.",
+      "Record a room's proposed floor build-up: the datum, the top of the stripped substrate, and the layers above it from the substrate upward (waterproofing and screed in either order, then adhesive, then tile). Levels are metres, up positive, from the datum (default \"existing floor surface\" = 0); substrateTop is an offset from it and may be negative. Every value needs a status (site-confirmed, measured, published, proposed, estimated). Unknown values stay unknown: omit value, and levels above are reported unresolved rather than filled with a default or zero. Never assume the substrate type: pass it as free text only when known. finishedTarget is the finished floor level to aim for (above the datum) when the trade lays its own screed and adhesive: leave those thicknesses unknown, and levels are then read down from the target and get_floor_levels reports what the unknown layers must fill together. Fields sent replace what is stored; layers replaces the whole list (send a layer's id to keep it). Out-of-order layers or negative thicknesses are rejected and nothing changes.",
     inputSchema: obj(
       {
         room: str,
         datum: str,
         substrate: str,
         substrateTop: quantitySchema,
+        finishedTarget: { ...quantitySchema, description: "finished floor level to aim for, metres above the datum" },
         layers: {
           type: "array",
           items: obj({ id: str, kind: { type: "string", enum: FLOOR_LAYER_KINDS }, name: str, thickness: quantitySchema }, ["kind"]),
@@ -315,7 +317,8 @@ export const TOOLS: ToolDef[] = [
       const spec = room.floorBuildUp;
       const levels = floorLevels(spec);
       const summary = `Room "${room.label}" floor, datum ${spec?.datum ?? DEFAULT_DATUM}: ${spec ? `${levels.filter((l) => l.resolved).length}/${levels.length} levels resolved` : "nothing recorded"}.`;
-      return { ok: true, summary, roomId: room.id, datum: spec?.datum ?? DEFAULT_DATUM, substrate: spec?.substrate, recorded: !!spec, layers: spec?.layers ?? [], levels, problems: spec ? floorProblems(spec) : [] };
+      const fill = floorFill(spec);
+      return { ok: true, summary: `${summary}${fill ? ` ${fill.layers.join(" + ")} fill ${Math.round(fill.thickness * 10000) / 10} mm together to reach the target.` : ""}`, roomId: room.id, datum: spec?.datum ?? DEFAULT_DATUM, substrate: spec?.substrate, recorded: !!spec, finishedTarget: spec?.finishedTarget ?? null, ...(fill ? { fill } : {}), layers: spec?.layers ?? [], levels, problems: spec ? floorProblems(spec) : [] };
     },
   },
 
@@ -450,7 +453,7 @@ export const TOOLS: ToolDef[] = [
     name: "set_floor_tiling",
     title: "Propose a floor tile set-out",
     description:
-      "Record a proposed floor pattern for one rectangular room or explicit drainage plane. Units metres with {value,status,source?}. tileLength/Width are long/short edges; axis x or y aligns the long edge in plan. zone is room or a drainage plane id. originX/Y locate a tile's upper-left edge from finished west/north faces. Nothing defaults: missing wall face build-ups, tile inputs and drain cuts stay unresolved. null clears a field; clear removes the proposal. Never an ordering quantity or trade approval.",
+      "Record a proposed floor pattern for one rectangular room or explicit drainage plane. Units metres with {value,status,source?}. tileLength/Width are long/short edges; axis x or y aligns the long edge in plan. zone is room or a drainage plane id. originX/Y locate a tile's edge from the finished west/north faces, or from east/south with originXFrom/originYFrom (e.g. full tiles at a south doorway). Nothing defaults: missing wall face build-ups, tile inputs and drain cuts stay unresolved. null clears a field; clear removes the proposal. Never an ordering quantity or trade approval.",
     inputSchema: obj(
       {
         room: str,
@@ -459,6 +462,8 @@ export const TOOLS: ToolDef[] = [
         joint: quantitySchema,
         originX: quantitySchema,
         originY: quantitySchema,
+        originXFrom: { type: ["string", "null"], enum: ["west", "east", null], description: "face originX is taken from (default west: a tile's west edge; east: its east edge)" },
+        originYFrom: { type: ["string", "null"], enum: ["north", "south", null], description: "face originY is taken from (default north: a tile's north edge; south: its south edge)" },
         axis: { type: ["string", "null"], enum: ["x", "y", null] },
         zone: { type: ["string", "null"] },
         note: { type: ["string", "null"] },
@@ -521,7 +526,7 @@ export const TOOLS: ToolDef[] = [
     name: "set_wall_tiling",
     title: "Propose a wall tile set-out",
     description:
-      "Record a PROPOSED tile set-out on one side of one wall, for review with a tiler. Lengths are metres, each { value, status }; tile sizes, joint, origin and tiled height are the user's choices, so record them as proposed (or published for a manufacturer's nominal size) and never invent them: leave out what the user has not given and the set-out reports it as unresolved. tileLength is the long edge, tileWidth the short edge; orientation landscape lays the long edge along the wall, portrait up it. reference: the face of each return wall the run is cut to, board (the fixed board face, e.g. Villaboard) or finished (tile face); it comes from set_wall_side build-ups, so record those first. floor: the level the courses are measured from, finished (top of the room's floor build-up), screed, substrate, or datum (0). Origin: one full tile sits originAlong from originFrom: a, its A-side edge from end A's reference face; b, its B-side edge from end B's reference face (both positive into the run); centre, its A-side edge from the run's centre (negative toward A), and the bottom of one full course is originUp above the floor reference. tiledHeight: top of tiling above the floor reference. Fields sent replace what is stored; null clears one; clear: true removes the side's set-out. Read the cuts with get_wall_tiling. This is not as-built, not a procurement list and not a waterproofing compliance statement.",
+      "Record a PROPOSED tile set-out on one side of one wall, for review with a tiler. Lengths are metres, each { value, status }; tile sizes, joint, origin and tiled height are the user's choices, so record them as proposed (or published for a manufacturer's nominal size) and never invent them: leave out what the user has not given and the set-out reports it as unresolved. tileLength is the long edge, tileWidth the short edge; orientation landscape lays the long edge along the wall, portrait up it. reference: the face of each return wall the run is cut to, board (the fixed board face, e.g. Villaboard) or finished (tile face); it comes from set_wall_side build-ups, so record those first. floor: the level the courses are measured from, finished (top of the room's floor build-up), screed, substrate, or datum (0). Origin: one full tile sits originAlong from originFrom: a, its A-side edge from end A's reference face; b, its B-side edge from end B's reference face (both positive into the run); centre, its A-side edge from the run's centre (negative toward A); jamb-a / jamb-b, from that jamb of originOpening (the jamb nearer end A / B) to the edge of a tile beside it, the tiles running away from the opening toward that end (full tiles start at a door, cuts go to the far corner), and the bottom of one full course is originUp above the floor reference. tiledHeight: top of tiling above the floor reference. Fields sent replace what is stored; null clears one; clear: true removes the side's set-out. Read the cuts with get_wall_tiling. This is not as-built, not a procurement list and not a waterproofing compliance statement.",
     inputSchema: obj({
       wallId: str, side: sideSchema,
       tileLength: quantitySchema, tileWidth: quantitySchema,
@@ -530,6 +535,7 @@ export const TOOLS: ToolDef[] = [
       reference: { type: ["string", "null"], enum: [...TILE_REFERENCES, null] },
       floor: { type: ["string", "null"], enum: [...TILE_FLOOR_REFERENCES, null] },
       originFrom: { type: ["string", "null"], enum: [...TILE_ORIGIN_FROM, null] },
+      originOpening: { type: ["string", "null"], description: "with originFrom jamb-a / jamb-b: the id of an opening on this wall" },
       originAlong: quantitySchema, originUp: quantitySchema, tiledHeight: quantitySchema,
       note: { type: ["string", "null"] }, clear: { type: "boolean" },
     }, ["wallId", "side"]),
@@ -738,8 +744,8 @@ export const TOOLS: ToolDef[] = [
     name: "get_diagram_view",
     title: "Inspect the current stage view",
     description:
-      "Inspect the current stage view before exporting: its label, the ids as given, every visible element with its layer, the specification rows the sheet will print (value in mm, status, the face or datum it is measured from, source, and what is missing when unknown), and the preflight findings scoped to this view (blocking: title block, broken geometry or a default that would print as a dimension, on visible content; advisory: values printed as \"?\"). Optionally pass includeSvg to preview the diagram. Read-only.",
-    inputSchema: obj({ includeSvg: { type: "boolean" } }),
+      "Inspect the current stage view before exporting: its label, the ids as given, every visible element with its layer, the specification rows the sheet will print (value in mm, status, the face or datum it is measured from, source, and what is missing when unknown), and the preflight findings scoped to this view (blocking: title block, broken geometry or a default that would print as a dimension, on visible content; advisory: values printed as \"?\"). surfaces lists the drawings it can export: plan and one <wallId>:<side> elevation per room-facing wall side shown. Optionally pass includeSvg (with surface) to preview one. Read-only.",
+    inputSchema: obj({ includeSvg: { type: "boolean" }, surface: { type: "string", description: "with includeSvg: \"plan\" (default) or a wall surface id from surfaces, e.g. \"wall_n:right\"" } }),
     annotations: { readOnlyHint: true },
     execute: (i) => {
       const s = store.getState();
@@ -758,7 +764,12 @@ export const TOOLS: ToolDef[] = [
         spec: rows,
         findings: c.findings,
         ...(c.resolution.unknown.length ? { staleIds: c.resolution.unknown } : {}),
-        ...(i.includeSvg ? { svg: renderStageDiagram(s.model, c.resolution.elements, { label: view.label, findings: c.findings, products }) } : {}),
+        surfaces: ["plan", ...elevationSurfaces(s.model, c.resolution.elements).map((x) => x.id)],
+        ...(i.includeSvg ? (() => {
+          const surface = typeof i.surface === "string" && i.surface !== "plan" ? elevationSurfaces(s.model, c.resolution.elements).find((x) => x.id === i.surface) : undefined;
+          if (typeof i.surface === "string" && i.surface !== "plan" && !surface) return { svgError: `No elevation "${i.surface}" in this view. Surfaces: ${["plan", ...elevationSurfaces(s.model, c.resolution.elements).map((x) => x.id)].join(", ")}.` };
+          return { svg: surface ? renderStageElevation(s.model, c.resolution.elements, surface.wallId, surface.side, { label: view.label, findings: c.findings, products }) : renderStageDiagram(s.model, c.resolution.elements, { label: view.label, findings: c.findings, products }) };
+        })() : {}),
       };
     },
   },
@@ -766,10 +777,11 @@ export const TOOLS: ToolDef[] = [
     name: "export_diagram_view",
     title: "Generate the stage diagram and specification sheet",
     description:
-      "Generate, from the current stage view only, the dimensioned A3 diagram (SVG) and the matching specification sheet (HTML table). Both list the same visible elements; unknown values print as \"?\" with what is missing and are never shown as measurements, and every value keeps its status tag and datum. The A-01 sheet rules apply to the visible content: blocking findings refuse the export until fixed, or acknowledged with acknowledge: [{ code, ref, reason }] (10+ characters, printed on both outputs). This records an immutable stage-output archive, separate from A-01 sheet revisions. The person can download both from the Sheets tab; pass includeOutputs: true to get the text back.",
+      "Generate, from the current stage view only, the dimensioned A3 plan diagram (SVG), one A3 wall elevation (SVG) per room-facing wall side the view shows, and the matching specification sheet (HTML table). An elevation looks at the face from the room: it shows the outermost visible face or layer, openings, the proposed tile set-out when the tile layer is shown, visible floor levels and falls along the wall, fixtures against that face at their heights, and service points dimensioned from the return wall's face and above the finished floor; a height or position that is not known is listed as \"?\" and never drawn. surfaces limits which drawings are generated. Both list the same visible elements; unknown values print as \"?\" with what is missing and are never shown as measurements, and every value keeps its status tag and datum. The A-01 sheet rules apply to the visible content: blocking findings refuse the export until fixed, or acknowledged with acknowledge: [{ code, ref, reason }] (10+ characters, printed on both outputs). This records an immutable stage-output archive, separate from A-01 sheet revisions. The person can download both from the Sheets tab; pass includeOutputs: true to get the text back.",
     inputSchema: obj({
       acknowledge: { type: "array", items: obj({ code: str, ref: str, reason: str }, ["code", "ref", "reason"]) },
       note: str,
+      surfaces: { type: "array", items: str, description: "which drawings to generate: \"plan\" and/or wall surface ids from get_diagram_view (e.g. \"wall_n:right\"); default all of them" },
       includeOutputs: { type: "boolean" },
     }),
     execute: (i) => {
@@ -789,18 +801,24 @@ export const TOOLS: ToolDef[] = [
       const rawNote = i.note as unknown;
       const note = typeof rawNote === "string" && rawNote.trim() ? rawNote.trim().slice(0, 160) : undefined;
       const opts = { label: view.label, findings: c.findings, acknowledged: result.acknowledged, date: new Date().toISOString().slice(0, 10), note, products };
+      const all = elevationSurfaces(s.model, c.resolution.elements);
+      const wanted = Array.isArray(i.surfaces) ? (i.surfaces as unknown[]).map(String) : ["plan", ...all.map((x) => x.id)];
+      const unknownSurfaces = wanted.filter((id) => id !== "plan" && !all.some((x) => x.id === id));
+      if (unknownSurfaces.length || !wanted.length) return { ok: false, summary: `Not exported. ${wanted.length ? `No such surface in this view: ${unknownSurfaces.join(", ")}.` : "No surfaces requested."} Surfaces: ${["plan", ...all.map((x) => x.id)].join(", ")}.` };
       const svg = renderStageDiagram(s.model, c.resolution.elements, opts);
       const spec = renderStageSpec(s.model, c.resolution.elements, opts);
-      const output = {label:view.label,date:opts.date,svg,specHtml:spec.html,elements:c.resolution.elements.map(e=>e.id),at:Date.now(),modelEvidence:planningEvidence(s.model),acknowledged:result.acknowledged,...(note ? {note} : {})};
+      const elevations = all.filter((x) => wanted.includes(x.id)).map((x) => ({ surface: x.id, room: x.room, svg: renderStageElevation(s.model, c.resolution.elements, x.wallId, x.side, opts) }));
+      const output = {label:view.label,date:opts.date,svg,specHtml:spec.html,elements:c.resolution.elements.map(e=>e.id),at:Date.now(),modelEvidence:planningEvidence(s.model),acknowledged:result.acknowledged,...(note ? {note} : {}),...(wanted.includes("plan") ? {} : {planOmitted:true}),elevations};
       actions.recordStageExport(output);
       recordExport({projectId:s.activeProjectId,...output});
       const advisory = c.findings.filter((f) => f.severity === "advisory").length;
       return {
         ok: true,
-        summary: `Exported "${view.label}": diagram and specification sheet, ${c.resolution.elements.length} element(s), ${spec.rows.length} row(s), ${advisory} unresolved item(s) listed${result.acknowledged.length ? `, past ${result.acknowledged.length} acknowledged finding(s)` : ""}.`,
+        summary: `Exported "${view.label}": ${wanted.includes("plan") ? "plan diagram, " : ""}${elevations.length} wall elevation(s) (${elevations.map((e) => e.surface).join(", ") || "none"}) and specification sheet, ${c.resolution.elements.length} element(s), ${spec.rows.length} row(s), ${advisory} unresolved item(s) listed${result.acknowledged.length ? `, past ${result.acknowledged.length} acknowledged finding(s)` : ""}.`,
         elements: c.resolution.elements.map((e) => e.id),
         acknowledged: result.acknowledged,
-        ...(i.includeOutputs ? { svg, specHtml: spec.html } : { svgBytes: svg.length, specBytes: spec.html.length }),
+        surfaces: [...(wanted.includes("plan") ? ["plan"] : []), ...elevations.map((e) => e.surface)],
+        ...(i.includeOutputs ? { ...(wanted.includes("plan") ? { svg } : {}), specHtml: spec.html, elevations } : { svgBytes: svg.length, specBytes: spec.html.length, elevationBytes: elevations.map((e) => ({ surface: e.surface, bytes: e.svg.length })) }),
       };
     },
   },

@@ -127,10 +127,13 @@ export function resolveFace(side: WallSide | undefined, face: string): FaceResul
   const faces = sideFaces(side);
   const layers = side?.layers ?? [];
   let id = face;
-  if (face === "board") {
-    const board = [...layers].reverse().find((l) => l.kind === "board");
-    if (!board) return result("board", "Board face", [{ field: "board layer (none entered on this side)", value: null, status: "unknown" }], undefined);
-    id = board.id;
+  const kind = (LAYER_KINDS as string[]).includes(face) && !layers.some((l) => l.id === face) ? face as LayerKind : undefined;
+  if (kind) {
+    // a layer kind names the outer face of the last layer of that kind (board = the fixed board face)
+    const layer = [...layers].reverse().find((l) => l.kind === kind);
+    const label = kind === "board" ? "Board face" : `${LAYER_LABELS[kind]} face`;
+    if (!layer) return result(kind, label, [{ field: `${kind} layer (none entered on this side)`, value: null, status: "unknown" }], undefined);
+    id = layer.id;
   } else if (face === "finished") {
     const last = layers[layers.length - 1];
     if (!last) return result("finished", "Finished face", [{ field: "build-up layers (none entered on this side)", value: null, status: "unknown" }], undefined);
@@ -138,7 +141,7 @@ export function resolveFace(side: WallSide | undefined, face: string): FaceResul
   }
   const hit = faces.find((f) => f.face === id);
   if (!hit) return result(face, face, [{ field: `face "${face}" (not on this side)`, value: null, status: "unknown" }], undefined);
-  if (face === "board") return { ...hit, label: `Board face (${layerLabel(layers.find((l) => l.id === id)!)})` };
+  if (kind) return { ...hit, label: `${kind === "board" ? "Board" : LAYER_LABELS[kind]} face (${layerLabel(layers.find((l) => l.id === id)!)})` };
   if (face === "finished") return { ...hit, label: "Finished face" };
   return hit;
 }

@@ -101,7 +101,7 @@ export function WallTiling({ wall, roomFor }: { wall: Wall; roomFor: (side: Wall
   const set = (patch: TilingPatch) => run(wall, side, patch);
   const moveOrigin = (ds: number, dz: number) => {
     // dragging right moves the tile toward B: along from A grows, along from B shrinks
-    const sign = t?.originFrom === "b" ? -1 : 1;
+    const sign = t?.originFrom === "b" || t?.originFrom === "jamb-a" ? -1 : 1;
     const patch: TilingPatch = {};
     if (ds && t?.originAlong?.value !== undefined) patch.originAlong = { ...toInput(t.originAlong)!, value: quantize(t.originAlong.value + sign * ds), status: t.originAlong.status ?? "proposed" };
     if (dz && t?.originUp?.value !== undefined) patch.originUp = { ...toInput(t.originUp)!, value: quantize(t.originUp.value + dz), status: t.originUp.status ?? "proposed" };
@@ -137,7 +137,16 @@ export function WallTiling({ wall, roomFor }: { wall: Wall; roomFor: (side: Wall
       <QuantityField label="Grout joint (mm)" q={t?.joint} onCommit={(q) => set({ joint: q })} />
       {select("reference", "Cut ends to", TILE_REFERENCES, REFERENCE_LABELS)}
       {select("floor", "Courses from", TILE_FLOOR_REFERENCES, FLOOR_LABELS)}
-      {select("originFrom", "Origin measured from", ["a", "b", "centre"], { a: "end A limit face", b: "end B limit face", centre: "run centre" })}
+      {select("originFrom", "Origin measured from", ["a", "b", "centre", "jamb-a", "jamb-b"], { a: "end A limit face", b: "end B limit face", centre: "run centre", "jamb-a": "an opening's A-side jamb, tiles toward A", "jamb-b": "an opening's B-side jamb, tiles toward B" })}
+      {t?.originFrom?.startsWith("jamb") && (
+        <label className="field inspector-field">
+          Origin opening
+          <select aria-label="Origin opening" value={t.originOpening ?? ""} onChange={(e) => set({ originOpening: e.target.value || null })}>
+            <option value="">— not chosen —</option>
+            {model.openings.filter((o) => o.wallId === wall.id).map((o) => <option key={o.id} value={o.id}>{o.kind} {o.id}</option>)}
+          </select>
+        </label>
+      )}
       <QuantityField label="Origin along (mm)" q={t?.originAlong} onCommit={(q) => set({ originAlong: q })} />
       <QuantityField label="Origin up from floor reference (mm)" q={t?.originUp} onCommit={(q) => set({ originUp: q })} />
       <QuantityField label="Tiled height above floor reference (mm)" q={t?.tiledHeight} onCommit={(q) => set({ tiledHeight: q })} />
