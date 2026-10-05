@@ -227,7 +227,7 @@ export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "towel_rail_vs900hbn", label: "Towel rail",
     product: fitting("VS900HBN", "VS900HBN", "Thermorail VS900HBN, 12 V vertical rail, round, brushed nickel, concealed wiring",
-      "Carton label: 142 × 900 × 100 mm. Carton drawing: a single round upright with a short knobbed crossbar at the top and two wall brackets. 12 V: a low-voltage supply is needed and is not in the photos.", "Thermorail"),
+      "Carton label: 142 × 900 × 100 mm. Carton drawing: a single round upright with a short knobbed crossbar at the top and two wall brackets. 12 V: the transformer came with the rail (owner); it goes up in the ceiling space for access later.", "Thermorail"),
     size: { w: 0.142, d: 0.1, h: 0.9, printed: ["w", "d", "h"], elevation: RAIL_FOOT, caveat: "foot 750 mm above the floor tiles (owner)" },
     parts: rail, placement: { id: "towel_rail", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.825, rotation: 90 },
     // the owner bought two; the second hangs beside the first on the left wall, its foot also at 750
@@ -387,7 +387,7 @@ export const seedBathroom = (): PlanModel => ({
     heating: {
       model: "SCK0765L", length: { value: 42.5, status: "published", source: "carton label" }, ratedOutput: { value: 765, status: "published", source: "carton label" },
       screedLayerId: "floor_screed", zoneIds: ["bathroom"], path: [], keepouts: [],
-      requirements: "Owner lays it in a snaking pattern on the cured membrane, before the tiler's screed, and may run it under the shower; the electrician tests it before and after the screed and wires the thermostat. Route not drawn yet.",
+      requirements: "Owner lays it in a snaking pattern on the cured membrane, before the tiler's screed, and may run it under the shower; the electrician tests it before and after the screed and wires the thermostat. Its power lead runs out under the house (on piers), so it can be hooked up at any time (owner). Route not drawn yet.",
     },
   }],
   items: [
@@ -465,7 +465,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-purchased-open", author: "agent", at: at + 4,
-      text: "Open points from the labels: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; its supply or driver was not photographed. (5) The thermostat is IP21; check where it may go with the electrician. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² (about 87–120 mm spacing); the cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. No route is drawn; use the heating tools for that.",
+      text: "Open points from the labels: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; the transformer came with the rail and goes up in the ceiling space for access (owner, 5 Oct 2026); the electrician wires its mains side, and the 12 V leads run in the wall from each rail up to it. (5) The thermostat is IP21; check where it may go with the electrician. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² (about 87–120 mm spacing); the cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. No route is drawn; use the heating tools for that.",
     },
   ];
 };
