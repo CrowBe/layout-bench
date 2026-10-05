@@ -6,9 +6,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { actions, store } from "../src/model/store";
 import { emptyModel } from "../src/model/types";
-import { resolveVisible } from "../src/sheets/stageView";
+import { dimStatus, renderStageDiagram, renderStageSpec, resolveVisible } from "../src/sheets/stageView";
 import { elevationSurfaces, renderStageElevation } from "../src/sheets/stageElevation";
 import { resolveFace } from "../src/model/faces";
+import { tag } from "../src/sheets/floorPlan";
+import { demoProject } from "../src/model/projects";
 
 const model = () => store.getState().model;
 const P = (value: number) => ({ value, status: "proposed" as const });
@@ -132,5 +134,39 @@ describe("stage wall elevations", () => {
     const before = JSON.stringify(model());
     for (const w of walls) renderStageElevation(model(), ids(["walls", "wall-tile", "fixtures", "services-waste"]), w, "right", opts);
     expect(JSON.stringify(model())).toBe(before);
+  });
+
+  it("tags wall height and openings with dimStatus, agreeing with the spec", () => {
+    const sample = demoProject().model;
+    const vis = ["walls", "wall-frame", "rooms", "doors", "windows", "floor-substrate"];
+    const els = resolveVisible(sample, vis).elements;
+    const north = renderStageElevation(sample, els, "wall_n", "right", opts);
+    const south = renderStageElevation(sample, els, "wall_s", "right", opts);
+    const spec = renderStageSpec(sample, els, opts);
+    const plan = renderStageDiagram(sample, els, opts);
+
+    const height = spec.rows.find((r) => r.element === "wall:wall_n" && r.property === "height (mm)")!;
+    expect(dimStatus(sample.walls.find((w) => w.id === "wall_n")!.heightDefaulted)).toBe("unknown");
+    expect(height).toMatchObject({ value: "2700", status: "unknown" });
+    expect(north).toContain(`${height.value} ${tag(height.status)} wall height`);
+    expect(north).not.toMatch(/2700 ENT wall height/);
+
+    const win = sample.openings.find((o) => o.id === "window_n")!;
+    const width = spec.rows.find((r) => r.element === "opening:window_n" && r.property === "width (mm)")!;
+    const sill = spec.rows.find((r) => r.element === "opening:window_n" && r.property === "sill above floor (mm)")!;
+    const winH = spec.rows.find((r) => r.element === "opening:window_n" && r.property === "height (mm)")!;
+    expect([width.status, sill.status, winH.status]).toEqual(["unknown", "unknown", "unknown"]);
+    expect(width.status).toBe(dimStatus(win.widthDefaulted));
+    expect(sill.status).toBe(dimStatus(win.sillDefaulted));
+    expect(winH.status).toBe(dimStatus(win.heightDefaulted));
+    expect(north).toContain(`WINDOW ${width.value} ${tag(width.status)} × ${winH.value} ${tag(winH.status)}`);
+    expect(north).toContain(`sill ${sill.value} ${tag(sill.status)} above`);
+    expect(plan).toContain(`W ${width.value} ${tag(width.status)}`);
+
+    const doorW = spec.rows.find((r) => r.element === "opening:door_s" && r.property === "width (mm)")!;
+    const doorH = spec.rows.find((r) => r.element === "opening:door_s" && r.property === "height (mm)")!;
+    expect([doorW.status, doorH.status]).toEqual(["unknown", "unknown"]);
+    expect(south).toContain(`DOOR ${doorW.value} ${tag(doorW.status)} × ${doorH.value} ${tag(doorH.status)}`);
+    expect(plan).toContain(`D ${doorW.value} ${tag(doorW.status)}`);
   });
 });
