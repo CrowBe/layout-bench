@@ -579,6 +579,18 @@ export function hasCustomKind(kind: string): boolean {
   return CUSTOM_PARTS.has(kind);
 }
 
+/** Stand-in geometry: dashed edges, driven by this flag, not by matching note text. */
+export function applyStopgapVisual(mesh: THREE.Mesh): void {
+  mesh.userData.stopgap = true;
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(mesh.geometry),
+    new THREE.LineDashedMaterial({ color: 0x555555, dashSize: 0.008, gapSize: 0.006 }),
+  );
+  edges.computeLineDistances();
+  edges.userData.stopgap = true;
+  mesh.add(edges);
+}
+
 function buildCustom(parts: PartSpec[], fallbackColor: string): THREE.Group {
   const g = new THREE.Group();
   for (const p of parts) {
@@ -605,16 +617,7 @@ function buildCustom(parts: PartSpec[], fallbackColor: string): THREE.Group {
     mesh.rotation.y = ((p.rotation ?? 0) * Math.PI) / 180;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    if (p.stopgap) {
-      mesh.userData.stopgap = true;
-      const edges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(mesh.geometry),
-        new THREE.LineDashedMaterial({ color: 0x555555, dashSize: 0.008, gapSize: 0.006 }),
-      );
-      edges.computeLineDistances();
-      edges.userData.stopgap = true;
-      mesh.add(edges);
-    }
+    if (p.stopgap) applyStopgapVisual(mesh);
     g.add(mesh);
   }
   return g;

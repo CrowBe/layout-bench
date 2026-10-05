@@ -8,6 +8,7 @@ import type { PartSpec } from "../three/furniture";
 import type { ProjectKind } from "./projects";
 import type { Item, Note, PlanModel, Quantity, ValueStatus, Wall, WallSide, WallTiling } from "./types";
 import { cornerBisectorToHostFrame } from "./fittedWaste";
+import { LAUXES_NEXT_GEN_35 } from "./sampleWasteBodies";
 
 /**
  * A rough bathroom concept sample. Geometry and placements are illustrative, not set-out.
@@ -804,7 +805,7 @@ export const seedBathroom = (): PlanModel => ({
     // Positions are proposals; falls and waste levels are not chosen, so the planes stay unresolved.
     drainage: {
       wastes: [
-        { id: "linear_drain", label: "Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN", kind: "linear", ax: 0.05, ay: 0.1, bx: 0.05, by: 1.1 },
+        { id: "linear_drain", label: "Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN", kind: "linear", ax: 0.05, ay: 0.1, bx: 0.05, by: 0.1 + LAUXES_NEXT_GEN_35.length },
         { id: "square_waste", label: "Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet", kind: "point", ax: 1.055, ay: 2.11, bx: 1.055, by: 2.11 },
       ],
       planes: [
@@ -852,29 +853,32 @@ export const seedBathroom = (): PlanModel => ({
 
 // ---- Drawn stand-ins for the reused toilet suite and the fixed screen -----------------------
 /**
- * Toilet: widths and depths from the owner's spec (cistern 385 × 165 centred, projection just
- * under 700, seat about 480 wide); every height is a drawn stand-in inside the kind's 800 mm
- * placeholder, and the pan's own shape is not recorded. Back at −d/2, front at +d/2.
+ * Toilet: plan envelope from the owner's spec (cistern 385 × 165 centred, projection just
+ * under 700, seat about 480 wide). Kind height 800 mm is the existing catalogue placeholder,
+ * not a measured suite height. Every 3D part that uses an unsourced height or the unrecorded
+ * pan shape is stopgap (dashed). Back at −d/2, front at +d/2.
  */
 const TOILET = { w: 0.48, d: 0.7, h: 0.8 };
 const CISTERN = { w: 0.385, d: 0.165 };
 const toiletBack = -TOILET.d / 2;
+const STOPGAP = { stopgap: true as const };
 const toilet: PartSpec[] = [
-  box(0, 0, toiletBack + 0.29, 0.36, 0.36, 0.58, GLAZE), // pan pedestal, back to wall (stand-in)
-  { shape: "cylinder", x: 0, y: 0.36, z: toiletBack + CISTERN.d + 0.255, w: TOILET.w, d: 0.51, h: 0.04, ...GLOSS }, // bidet seat, ~480 wide
-  box(0, 0.36, toiletBack + CISTERN.d / 2, CISTERN.w, TOILET.h - 0.36, CISTERN.d, GLAZE), // cistern 385 × 165, centred
-  box(0.17, 0.36, toiletBack + CISTERN.d + 0.04, 0.06, 0.05, 0.12, { color: "#d9dbdc", roughness: 0.4 }), // seat control housing (stand-in)
+  box(0, 0, toiletBack + 0.29, 0.36, 0.36, 0.58, { ...GLAZE, ...STOPGAP }), // pan pedestal: shape and heights not recorded
+  { shape: "cylinder", x: 0, y: 0.36, z: toiletBack + CISTERN.d + 0.255, w: TOILET.w, d: 0.51, h: 0.04, ...GLOSS, ...STOPGAP }, // seat width ~480 from spec; depth and thickness are stand-ins
+  box(0, 0.36, toiletBack + CISTERN.d / 2, CISTERN.w, TOILET.h - 0.36, CISTERN.d, { ...GLAZE, ...STOPGAP }), // cistern 385 × 165 sourced; height is the 800 mm placeholder minus the stand-in pan
+  box(0.17, 0.36, toiletBack + CISTERN.d + 0.04, 0.06, 0.05, 0.12, { color: "#d9dbdc", roughness: 0.4, ...STOPGAP }), // seat control housing: size not recorded
 ];
 /**
- * Fixed screen: 10 mm clear toughened panel, 900 × 2000 (owner and workbook). The stainless
- * wall channel is drawn as a 20 × 25 mm stand-in at the panel's wall end; its size and the
- * brace bar's fixing point are not recorded, so no brace bar is drawn.
+ * Fixed screen: 10 mm clear toughened panel, 900 × 2000 (owner, 5 Oct 2026, and workbook).
+ * The stainless wall channel is named on the workbook but its size is not recorded, so it is
+ * a stopgap strip at the glass thickness (the sourced 10 mm envelope) on the wall end. Brace
+ * bar not drawn (fixing point not recorded).
  */
 const SCREEN = { w: 0.9, h: 2, glass: 0.01 };
-const CHANNEL = { w: 0.02, d: 0.025 };
+const CHANNEL_ALONG = 0.02; // stand-in width along the panel; channel section is not on the sheet
 const screen: PartSpec[] = [
-  box(CHANNEL.w / 2, 0, 0, SCREEN.w - CHANNEL.w, SCREEN.h, SCREEN.glass, { color: "#d4ecf2", roughness: 0.05, metalness: 0.1, opacity: 0.22 }),
-  box(-SCREEN.w / 2 + CHANNEL.w / 2, 0, 0, CHANNEL.w, SCREEN.h, CHANNEL.d, { color: "#c9cccd", metalness: 0.85, roughness: 0.25 }),
+  box(CHANNEL_ALONG / 2, 0, 0, SCREEN.w - CHANNEL_ALONG, SCREEN.h, SCREEN.glass, { color: "#d4ecf2", roughness: 0.05, metalness: 0.1, opacity: 0.22 }),
+  box(-SCREEN.w / 2 + CHANNEL_ALONG / 2, 0, 0, CHANNEL_ALONG, SCREEN.h, SCREEN.glass, { color: "#c9cccd", metalness: 0.85, roughness: 0.25, ...STOPGAP }),
 ];
 
 export const bathroomKinds: ProjectKind[] = [

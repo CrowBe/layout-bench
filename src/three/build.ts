@@ -1,6 +1,6 @@
 import { installationReading, localPointReading, clearanceRegions } from "../model/installation";
 import { anchorPose } from "../model/fixtures";
-import { buildFurniture } from "./furniture";
+import { buildFurniture, applyStopgapVisual } from "./furniture";
 /**
  * 3D builder — extrudes the plan into a dollhouse-style model:
  * walls with REAL openings (lintels + sills, no CSG), resolved corner joints,
@@ -17,7 +17,7 @@ import { liningSlabs, resolveFace, sideNormal, wallBody } from "../model/faces";
 import { roughIn } from "../model/fixtures";
 import { catalogForItem, catalogByKind } from "../model/catalog";
 import { segLen } from "../model/geometry";
-import { openingSpan } from "../model/issues";
+import { sampleLinearWasteBody, samplePointWasteGrate } from "../model/sampleWasteBodies";
 
 export const wallMaterial = new THREE.MeshStandardMaterial({
   color: "#f2ede4",
@@ -64,6 +64,11 @@ const liningMaterials: Record<LayerKind, THREE.Material> = {
   tile: new THREE.MeshStandardMaterial({ color: "#f2efe8", roughness: 0.4 }),
 };
 export const cableMaterial = new THREE.MeshStandardMaterial({ color: "#3a3733", roughness: 0.8 });
+
+/** A layer of unknown thickness shown only as where it sits: a 2 mm film on its one known face. */
+const FILM = 0.002;
+/** The slab under the substrate top is drawn this deep; its real thickness is not recorded. */
+const SUBSTRATE_DRAWN = 0.1;
 
 const SKIRTING_H = 0.09;
 const DOOR_SWING = (82 * Math.PI) / 180;
@@ -220,7 +225,9 @@ export function buildFixture(model: PlanModel,it: Item): THREE.Group | null {
   fg.position.set(it.x,lv.bottom ?? .04,it.y);fg.rotation.y=it.rotation*Math.PI/180;
   if(it.installation?.mirror)fg.scale.x=-1;
   fg.userData={fixtureId:it.id,installation:lv};nameMeshes(fg,it.id);
-  fg.traverse((o)=>{if((o as THREE.Mesh).isMesh && !o.userData.stage)o.userData.stage=`item:${it.id}`;});
+  fg.traverse((o)=>{
+    if(((o as THREE.Mesh).isMesh || (o as THREE.LineSegments).isLineSegments) && !o.userData.stage)o.userData.stage=`item:${it.id}`;
+  });
   for(const p of it.installationGeometry?.fixings??[]){const r=localPointReading(model,it,p);if(r.x===undefined || r.y===undefined || r.level===undefined)continue;
     const marker=new THREE.Mesh(new THREE.SphereGeometry(.007,8,6),frameMaterial);marker.position.set(p.x! ,p.z!,p.y!-catalogForItem(it)!.d/2);marker.name=`${it.id}:fixing:${p.id}`;fg.add(marker);}
   return fg;
@@ -492,15 +499,46 @@ function buildFalls(room: Room, material: THREE.Material, flatTop?: number): THR
   for (const w of d.wastes) {
     const len = Math.hypot(w.bx - w.ax, w.by - w.ay);
     const level = w.level?.value ?? onFlat;
-    const y = (level ?? 0) + 0.003;
-    const mesh = w.kind === "linear"
-      ? new THREE.Mesh(new THREE.BoxGeometry(len, 0.006, 0.04), new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }))
-      : new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.006, 24), new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }));
-    mesh.position.set((w.ax + w.bx) / 2, y, (w.ay + w.by) / 2);
-    if (w.kind === "linear") mesh.rotation.y = -Math.atan2(w.by - w.ay, w.bx - w.ax);
+    if (level === undefined) continue;
+    let mesh: THREE.Mesh;
+    let stopgap = false;
+    if (w.kind === "linear") {
+      const body = sampleLinearWasteBody(w.id);
+      // Packing-slip width across the channel and depth below the grate, when known.
+      // Never use the outlet size as the channel width. Unsourced bodies are a film marker.
+      const width = body?.width ?? FILM;
+      const height = body?.depthBelowGrate ?? FILM;
+      const y0 = body ? level - height : level;
+      mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(len, height, width),
+        new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }),
+      );
+      mesh.position.set((w.ax + w.bx) / 2, y0 + height / 2, (w.ay + w.by) / 2);
+      mesh.rotation.y = -Math.atan2(w.by - w.ay, w.bx - w.ax);
+      mesh.userData.body = body
+        ? "channel body: width across the grate, depth below the grate"
+        : "location marker; product body not recorded";
+      stopgap = !body;
+    } else {
+      const grate = samplePointWasteGrate(w.id);
+      // Grate plan size when known. Never use the 50 mm outlet as the grate diameter.
+      // Body depth below the grate is not on the packing slip: a film on the finished floor.
+      const gw = grate?.w ?? FILM;
+      const gd = grate?.d ?? FILM;
+      mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(gw, FILM, gd),
+        new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }),
+      );
+      mesh.position.set((w.ax + w.bx) / 2, level + FILM / 2, (w.ay + w.by) / 2);
+      mesh.userData.body = grate
+        ? "grate plan; body depth below grate not recorded, drawn as a film"
+        : "location marker; product body not recorded";
+      stopgap = true;
+    }
     mesh.name = `${room.id}:waste:${w.id}`;
-    if (w.level?.value === undefined && level !== undefined) mesh.userData.level = "unknown; drawn on the flat finished floor";
-    if (level !== undefined) g.add(mesh);
+    if (w.level?.value === undefined) mesh.userData.level = "unknown; drawn on the flat finished floor";
+    if (stopgap) applyStopgapVisual(mesh);
+    g.add(mesh);
   }
   return g.children.length ? g : null;
 }
@@ -626,10 +664,6 @@ const floorLayerMaterials: Record<string, THREE.Material> = {
   adhesive: liningMaterials.adhesive,
   tile: liningMaterials.tile,
 };
-/** A layer of unknown thickness shown only as where it sits: a 2 mm film on its one known face. */
-const FILM = 0.002;
-/** The slab under the substrate top is drawn this deep; its real thickness is not recorded. */
-const SUBSTRATE_DRAWN = 0.1;
 
 /**
  * The floor build-up under the finished surface (#6), for a room with an authored assembly
@@ -653,10 +687,11 @@ function buildFloorBuildUp(room: Room): THREE.Group | null {
     m.receiveShadow = true;
     m.name = name;
     Object.assign(m.userData, extra);
+    if (extra.stopgap) applyStopgapVisual(m);
     g.add(m);
   };
   const sub = levels[0]!;
-  slab(sub - SUBSTRATE_DRAWN, sub, substrateMaterial, `${room.id}:substrate`, { drawnThickness: "not recorded; drawn 100 mm" });
+  slab(sub - SUBSTRATE_DRAWN, sub, substrateMaterial, `${room.id}:substrate`, { drawnThickness: "not recorded; drawn 100 mm", stopgap: true });
   const layers = fb.layers;
   // the top layer is the floor mesh itself
   const below = layers.slice(0, -1);
@@ -678,8 +713,8 @@ function buildFloorBuildUp(room: Room): THREE.Group | null {
     if (bottom !== undefined && top !== undefined && top - bottom > 2 * FILM) {
       const first = run[0];
       const last = run.length > 1 ? run[run.length - 1] : undefined;
-      slab(bottom, bottom + FILM, floorLayerMaterials[first.kind], `${room.id}:floor:${first.id}`, { drawnThickness: "unknown; drawn as a film" });
-      if (last) slab(top - FILM, top, floorLayerMaterials[last.kind], `${room.id}:floor:${last.id}`, { drawnThickness: "unknown; drawn as a film" });
+      slab(bottom, bottom + FILM, floorLayerMaterials[first.kind], `${room.id}:floor:${first.id}`, { drawnThickness: "unknown; drawn as a film", stopgap: true });
+      if (last) slab(top - FILM, top, floorLayerMaterials[last.kind], `${room.id}:floor:${last.id}`, { drawnThickness: "unknown; drawn as a film", stopgap: true });
       const middle = run.slice(1, last ? -1 : undefined);
       const fill = middle.length ? middle : run;
       const fillMat = (floorLayerMaterials[fill[0].kind] as THREE.MeshStandardMaterial).clone();
@@ -931,6 +966,8 @@ export function tagStages(model: PlanModel, root: THREE.Object3D): void {
     if (!(o as THREE.Mesh).isMesh && !(o as THREE.LineSegments).isLineSegments) return;
     let n: THREE.Object3D | null = o;
     while (n && n !== root.parent) {
+      if (n.userData.stages) { o.userData.stages = n.userData.stages; return; }
+      if (n.userData.stage) { o.userData.stage = n.userData.stage; return; }
       const id = n.name ? stageOf(n.name) : undefined;
       if (id) { o.userData.stage = id; return; }
       n = n.parent;

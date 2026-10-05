@@ -57,13 +57,13 @@ const wallTiling = (v: unknown) => v === undefined || (object(v) && Object.entri
   (side === "left" || side === "right") && object(t) &&
   ["tileLength", "tileWidth", "joint", "originAlong", "originUp", "tiledHeight"].every((k) => quantity(t[k])) &&
   oneOf(t.orientation, ["landscape", "portrait"]) && oneOf(t.reference, ["board", "finished"]) &&
-  oneOf(t.floor, ["finished", "screed", "substrate", "datum"]) && oneOf(t.originFrom, ["a", "b", "centre", "jamb-a", "jamb-b"]) && (t.originOpening === undefined || typeof t.originOpening === "string") &&
-  (t.note === undefined || typeof t.note === "string")));
+  oneOf(t.floor, ["finished", "screed", "substrate", "datum"]) && oneOf(t.originFrom, ["a", "b", "centre", "jamb-a", "jamb-b"]) &&   (t.originOpening === undefined || typeof t.originOpening === "string") &&
+  (t.note === undefined || typeof t.note === "string") && (t.color === undefined || typeof t.color === "string")));
 
 const floorTiling = (v: unknown) => v === undefined || (object(v) &&
   ["tileLength", "tileWidth", "joint", "originX", "originY"].every(k => quantity(v[k])) &&
   oneOf(v.axis, ["x", "y"]) && oneOf(v.originXFrom, ["west", "east"]) && oneOf(v.originYFrom, ["north", "south"]) && (v.zone === undefined || typeof v.zone === "string") &&
-  (v.note === undefined || typeof v.note === "string"));
+  (v.note === undefined || typeof v.note === "string") && (v.color === undefined || typeof v.color === "string"));
 
 /** Floor assembly (#6): datum, optional substrate top, and a layer list with optional quantities. */
 const floorBuildUp = (v: unknown) => v === undefined || (object(v) && typeof v.datum === "string" && quantity(v.substrateTop) && quantity(v.finishedTarget) &&
