@@ -17,6 +17,7 @@ import { liningSlabs, resolveFace, sideNormal, wallBody } from "../model/faces";
 import { roughIn } from "../model/fixtures";
 import { catalogForItem, catalogByKind } from "../model/catalog";
 import { segLen } from "../model/geometry";
+import { openingSpan } from "../model/issues";
 import { sampleLinearWasteBody, samplePointWasteGrate } from "../model/sampleWasteBodies";
 
 export const wallMaterial = new THREE.MeshStandardMaterial({
