@@ -24,7 +24,7 @@ describe("purchased fittings in the sample project", () => {
     const doc = demoProject();
     const back = parseImport(JSON.stringify(doc));
     expect(back.model.items.map((i) => i.id).sort()).toEqual(doc.model.items.map((i) => i.id).sort());
-    expect(back.kinds.find((k) => k.entry.kind === "towel_rail_vs900hbn")?.entry.elevation).toBe(0.5);
+    expect(back.kinds.find((k) => k.entry.kind === "towel_rail_vs900hbn")?.entry.elevation).toBe(0.75);
   });
 
   it("places every fitting with a printed code, marked purchased", () => {

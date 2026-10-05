@@ -110,10 +110,22 @@ const shower: PartSpec[] = [
 ];
 
 // ---- Thermorail VS900HBN, 12 V vertical rail, concealed wiring: 142 × 900 × 100 mm -------------
-// The carton does not show its form. Two uprights and rungs are a stand-in inside that envelope.
+// The carton's drawing: one round upright, a short crossbar with knob ends across its top (the
+// 142 mm), and two wall brackets, one under the crossbar and one near the foot (the 100 mm off
+// the wall). Owner: the foot is 750 mm above the finished floor tiles. The tube diameter and the
+// bracket and crossbar heights are read off the drawing, not measured.
+const RAIL_FOOT = 0.75;
+const RAIL_TUBE = 0.032; // placeholder
+const RAIL_Z = 0.05 - RAIL_TUBE / 2; // the upright's front at the 100 mm projection
+const railBracket = (up: number): PartSpec[] => [
+  tube(0, RAIL_FOOT + up - 0.025, -0.045, 0.05, 0.05, { ...NICKEL, d: 0.01 }), // wall rose
+  box(0, RAIL_FOOT + up - 0.01, (-0.04 + RAIL_Z - RAIL_TUBE / 2) / 2, 0.02, 0.02, RAIL_Z - RAIL_TUBE / 2 + 0.04),
+];
 const rail: PartSpec[] = [
-  tube(-0.0545, 0.5, 0, 0.025, 0.9), tube(0.0545, 0.5, 0, 0.025, 0.9),
-  ...[0.55, 0.7, 0.85, 1.0, 1.15, 1.3].map((y) => box(0, y, 0, 0.1, 0.02, 0.025)),
+  tube(0, RAIL_FOOT, RAIL_Z, RAIL_TUBE, 0.9), // upright
+  box(0, RAIL_FOOT + 0.84, RAIL_Z, 0.11, 0.018, 0.018), // crossbar
+  box(-0.0625, RAIL_FOOT + 0.835, RAIL_Z, 0.017, 0.028, 0.028), box(0.0625, RAIL_FOOT + 0.835, RAIL_Z, 0.017, 0.028, 0.028), // knob ends
+  ...railBracket(0.79), ...railBracket(0.08),
 ];
 
 // ---- OJ Electronics MWD5-1999-CBP3 (Coldbuster 2" WiFi thermostat), flush --------------------
@@ -215,10 +227,10 @@ export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "towel_rail_vs900hbn", label: "Towel rail",
     product: fitting("VS900HBN", "VS900HBN", "Thermorail VS900HBN, 12 V vertical rail, round, brushed nickel, concealed wiring",
-      "Carton label: 142 × 900 × 100 mm. 12 V: a low-voltage supply is needed and is not in the photos.", "Thermorail"),
-    size: { w: 0.142, d: 0.1, h: 0.9, printed: ["w", "d", "h"], elevation: 0.5, caveat: "mounting height is a placeholder" },
+      "Carton label: 142 × 900 × 100 mm. Carton drawing: a single round upright with a short knobbed crossbar at the top and two wall brackets. 12 V: a low-voltage supply is needed and is not in the photos.", "Thermorail"),
+    size: { w: 0.142, d: 0.1, h: 0.9, printed: ["w", "d", "h"], elevation: RAIL_FOOT, caveat: "foot 750 mm above the floor tiles (owner)" },
     parts: rail, placement: { id: "towel_rail", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.825, rotation: 90 },
-    // the owner bought two; the second hangs beside the first on the left wall
+    // the owner bought two; the second hangs beside the first on the left wall, its foot also at 750
     extra: [{ id: "towel_rail_2", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.575, rotation: 90 }],
   },
   {
@@ -277,7 +289,7 @@ const side = (wall: string, tile: string): WallSide => ({
 /** Four full 600 mm courses on every wall, starting from the door end. */
 const courses = (wall: string, tile: "white" | "beige"): WallTiling => tile === "white"
   ? { tileLength: proposed(0.6), tileWidth: proposed(0.6), orientation: "landscape", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${WHITE}. Four full courses; full tiles start at the door end; timber trim above, later.` }
-  : { tileLength: proposed(0.6), tileWidth: proposed(0.3), orientation: "portrait", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${BEIGE}, the floor tile carried up the window wall: long side vertical so its courses match the 600 mm courses on the other walls. Timber trim above, later.` };
+  : { tileLength: proposed(0.6), tileWidth: proposed(0.3), orientation: "portrait", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${BEIGE}, the floor tile carried up the whole window wall from the floor, around the window frame, to the top of the fourth course: 600 mm edge vertical so its courses match the 600 mm courses on the other walls. Timber trim above, later.` };
 const wall = (id: string, ax: number, ay: number, bx: number, by: number, tile: "white" | "beige"): Wall => ({
   // owner: about 2700 mm from the current floor to the cornice (about 2850 from the slab once stripped)
   id, ax, ay, bx, by, thickness: 0.1, height: 2.7,
@@ -417,7 +429,7 @@ export const bathroomNotes = (): Note[] => {
     { id: "note-limits", author: "human", text: "This sample is not measured set-out or a trade drawing. Drainage, services and falls are not represented; construction layers are recorded with their unknown thicknesses left unknown.", at: at + 2 },
     {
       id: "note-purchased", author: "agent", at: at + 3,
-      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle corner bath, 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste centred 520 mm from the corner, per the Enflair dimension drawing); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); two Thermorail VS900HBN 142 × 900 × 100 mm; OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L; replacement window 1810 × 600 (Stock Windows & Doors). Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
+      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle corner bath, 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste centred 520 mm from the corner, per the Enflair dimension drawing); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); two Thermorail VS900HBN 142 × 900 × 100 mm (feet 750 mm above the floor tiles, owner); OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L; replacement window 1810 × 600 (Stock Windows & Doors). Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
     },
     {
       id: "note-sequence", author: "human", at: at + 6,
@@ -425,7 +437,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-tiles", author: "human", at: at + 7,
-      text: "Tiles: left, right and door walls 600 × 600 white gloss with a few light grey streaks. Floor and window wall 300 × 600 sandy beige matte: on the floor the long side runs toward the window wall, and it carries on up the window wall with the long side vertical so its courses match the other walls. Every wall gets four full 600 mm courses on a thin joint of silicone or tile glue at the floor (about 2416 mm in all with 4 mm joints); the rest of the height is a timber trim, later. Joints about 4 mm. To keep cuts down, full tiles start at the door: at the doorway on the floor, at the door-wall corner on the side walls, at the door's jamb on the door wall, and at the corner nearer the door on the window wall.",
+      text: "Tiles (owner, 5 Oct 2026): beige 300 × 600 sandy matte on the whole floor, and on the whole window wall from the floor up, around the window frame, to the top of the fourth course, with the 600 mm edge vertical so its courses match the other walls; on the floor the long side runs toward the window wall. The left, right and door walls are 600 × 600 white gloss with a few light grey streaks. Every wall gets four full 600 mm courses on a thin joint of silicone or tile glue at the floor (about 2416 mm in all with 4 mm joints); the rest of the height is a timber trim, later. Joints about 4 mm. To keep cuts down, full tiles start at the door: at the doorway on the floor, at the door-wall corner on the side walls, at the door's jamb on the door wall, and at the corner nearer the door on the window wall.",
     },
     {
       id: "note-tiles-open", author: "agent", at: at + 8,
