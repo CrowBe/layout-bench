@@ -558,6 +558,8 @@ export interface PartSpec {
   rotation?: number;
   roughness?: number;
   metalness?: number;
+  /** below 1, a see-through part (glass) */
+  opacity?: number;
 }
 
 /** Kinds an agent modelled at runtime with define_item_kind. */
@@ -582,6 +584,11 @@ function buildCustom(parts: PartSpec[], fallbackColor: string): THREE.Group {
     const h = Math.max(0.01, p.h ?? 0.3);
     const d = Math.max(0.01, p.d ?? 0.3);
     const m = mat(p.color ?? fallbackColor, p.roughness ?? 0.7, p.metalness ?? 0);
+    if (p.opacity !== undefined && p.opacity < 1) {
+      m.transparent = true;
+      m.opacity = Math.max(0.05, p.opacity);
+      m.depthWrite = false;
+    }
     let mesh: THREE.Mesh;
     if (p.shape === "cylinder") {
       mesh = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, h, 24), m);

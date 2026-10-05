@@ -4,7 +4,7 @@
  * OBJ + PNG export.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter.js";
@@ -16,7 +16,9 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { store, useAppStore, actions, logActivity } from "../model/store";
 import { buildPlan } from "./build";
 import { buildFixture } from "./build";
-import { nameMeshes } from "./build";
+import { nameMeshes, applyStageVisibility } from "./build";
+import { useDiagramView } from "../sheets/viewState";
+import { resolveVisible } from "../sheets/stageView";
 import { bus, EVENTS, type SetDoorsPayload } from "./exportBus";
 import { catalogForItem, catalogByKind } from "../model/catalog";
 import { itemPolygon, pointNearPolygon } from "../model/outline";
@@ -30,6 +32,15 @@ export function Scene3D() {
   const placingKind = useAppStore((s) => (s.editor.drawMode === "place" ? s.editor.placingKind : null));
   const cameraRef = useRef<string>(camera);
   cameraRef.current = camera;
+  // the stage view (set_diagram_view / Sheets) the 3D can follow; the model is never changed
+  const stageView = useDiagramView(activeProjectId);
+  const [followStage, setFollowStage] = useState(true);
+  const planRef = useRef<THREE.Object3D | null>(null);
+  const stageRef = useRef<Set<string> | null>(null);
+  stageRef.current = stageView && followStage ? new Set(resolveVisible(model, stageView.visible).elements.map((e) => e.id)) : null;
+  // a newly composed stage is shown straight away
+  useEffect(() => { if (stageView) setFollowStage(true); }, [stageView]);
+  useEffect(() => { if (planRef.current) applyStageVisibility(planRef.current, stageRef.current); });
 
   // build / rebuild scene content when the model changes
   useEffect(() => {
@@ -85,6 +96,8 @@ export function Scene3D() {
       nameMeshes(fg, it.id);
       group.add(fg);
     }
+    planRef.current = group;
+    applyStageVisibility(group, stageRef.current);
 
     // ---- hinged doors: collect the leaf pivots so they can be opened / closed ----
     interface DoorRec {
@@ -435,6 +448,13 @@ export function Scene3D() {
       {placingKind && (
         <div className="placing-hint">
           Click on the floor to place: <strong>{catalogByKind(placingKind)?.label ?? placingKind}</strong> — Esc to cancel
+        </div>
+      )}
+      {stageView && (
+        <div className="stage-toggle" role="group" aria-label="3D stage visibility">
+          <span>Stage: <strong>{stageView.label}</strong></span>
+          <button aria-pressed={followStage} onClick={() => setFollowStage(true)}>Show stage</button>
+          <button aria-pressed={!followStage} onClick={() => setFollowStage(false)}>Show all</button>
         </div>
       )}
       <div className="camera-hint">

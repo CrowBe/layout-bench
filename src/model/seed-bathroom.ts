@@ -614,6 +614,9 @@ const TILE: Quantity = { value: 0.01, status: "estimated", source: "owner: 10 mm
 const ADHESIVE: Quantity = { value: 0.004, status: "estimated", source: "owner: \"glue probably 4mm\"; the tiler's choice" };
 const WHITE = "600 × 600 white gloss, a few light grey streaks (Tile Wizards 'Ice' TWJ-14, porcelain)";
 const BEIGE = "300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo)";
+/** 3D colours only, read off the owner's tile photos; not a product colour code. */
+const WHITE_TILE = "#f2f2ef";
+const BEIGE_TILE = "#d9c4a3";
 const JOINT = proposed(0.004, "owner: \"glue probably 4mm gaps\", read as the joint between tiles; adhesive bed thickness not given");
 /** Four full 600 mm courses and the three joints between them, from the finished floor. */
 /** A thin joint of silicone or tile adhesive under the bottom course; its width is not given, so 4 mm (as the tile joints) is an estimate. */
@@ -644,8 +647,8 @@ const side = (wall: string, tile: string): WallSide => ({
 });
 /** Four full 600 mm courses on every wall, starting from the door end. */
 const courses = (wall: string, tile: "white" | "beige"): WallTiling => tile === "white"
-  ? { tileLength: proposed(0.6), tileWidth: proposed(0.6), orientation: "landscape", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${WHITE}. Four full courses; full tiles start at the door end; timber trim above, later.` }
-  : { tileLength: proposed(0.6), tileWidth: proposed(0.3), orientation: "portrait", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${BEIGE}, the floor tile carried up the whole window wall from the floor, around the window frame, to the top of the fourth course: 600 mm edge vertical so its courses match the 600 mm courses on the other walls. Timber trim above, later.` };
+  ? { tileLength: proposed(0.6), tileWidth: proposed(0.6), orientation: "landscape", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${WHITE}. Four full courses; full tiles start at the door end; timber trim above, later.`, color: WHITE_TILE }
+  : { tileLength: proposed(0.6), tileWidth: proposed(0.3), orientation: "portrait", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${BEIGE}, the floor tile carried up the whole window wall from the floor, around the window frame, to the top of the fourth course: 600 mm edge vertical so its courses match the 600 mm courses on the other walls. Timber trim above, later.`, color: BEIGE_TILE };
 const wall = (id: string, ax: number, ay: number, bx: number, by: number, tile: "white" | "beige"): Wall => ({
   // owner: about 2700 mm from the current floor to the cornice (about 2850 from the slab once stripped)
   id, ax, ay, bx, by, thickness: 0.1, height: 2.7,
@@ -738,7 +741,7 @@ export const seedBathroom = (): PlanModel => ({
       tileLength: proposed(0.6), tileWidth: proposed(0.3), joint: JOINT, axis: "y", zone: "room",
       originX: proposed(0, "owner: start near the door with full tiles"), originXFrom: "west",
       originY: proposed(0, "owner: start near the door with full tiles"), originYFrom: "south",
-      note: `${BEIGE}. Long side runs toward the window wall and continues up it. Full tiles start at the doorway.`,
+      note: `${BEIGE}. Long side runs toward the window wall and continues up it. Full tiles start at the doorway.`, color: BEIGE_TILE,
     },
     heating: {
       model: "SCK0765L", length: { value: 42.5, status: "published", source: "carton label" }, ratedOutput: { value: 765, status: "published", source: "carton label" },
@@ -760,6 +763,33 @@ export const seedBathroom = (): PlanModel => ({
   underlay: null,
 });
 
+// ---- Drawn stand-ins for the reused toilet suite and the fixed screen -----------------------
+/**
+ * Toilet: widths and depths from the owner's spec (cistern 385 × 165 centred, projection just
+ * under 700, seat about 480 wide); every height is a drawn stand-in inside the kind's 800 mm
+ * placeholder, and the pan's own shape is not recorded. Back at −d/2, front at +d/2.
+ */
+const TOILET = { w: 0.48, d: 0.7, h: 0.8 };
+const CISTERN = { w: 0.385, d: 0.165 };
+const toiletBack = -TOILET.d / 2;
+const toilet: PartSpec[] = [
+  box(0, 0, toiletBack + 0.29, 0.36, 0.36, 0.58, GLAZE), // pan pedestal, back to wall (stand-in)
+  { shape: "cylinder", x: 0, y: 0.36, z: toiletBack + CISTERN.d + 0.255, w: TOILET.w, d: 0.51, h: 0.04, ...GLOSS }, // bidet seat, ~480 wide
+  box(0, 0.36, toiletBack + CISTERN.d / 2, CISTERN.w, TOILET.h - 0.36, CISTERN.d, GLAZE), // cistern 385 × 165, centred
+  box(0.17, 0.36, toiletBack + CISTERN.d + 0.04, 0.06, 0.05, 0.12, { color: "#d9dbdc", roughness: 0.4 }), // seat control housing (stand-in)
+];
+/**
+ * Fixed screen: 10 mm clear toughened panel, 900 × 2000 (owner and workbook). The stainless
+ * wall channel is drawn as a 20 × 25 mm stand-in at the panel's wall end; its size and the
+ * brace bar's fixing point are not recorded, so no brace bar is drawn.
+ */
+const SCREEN = { w: 0.9, h: 2, glass: 0.01 };
+const CHANNEL = { w: 0.02, d: 0.025 };
+const screen: PartSpec[] = [
+  box(CHANNEL.w / 2, 0, 0, SCREEN.w - CHANNEL.w, SCREEN.h, SCREEN.glass, { color: "#d4ecf2", roughness: 0.05, metalness: 0.1, opacity: 0.22 }),
+  box(-SCREEN.w / 2 + CHANNEL.w / 2, 0, 0, CHANNEL.w, SCREEN.h, CHANNEL.d, { color: "#c9cccd", metalness: 0.85, roughness: 0.25 }),
+];
+
 export const bathroomKinds: ProjectKind[] = [
   ...purchasedFittings.map((f): ProjectKind => ({
     entry: {
@@ -772,10 +802,10 @@ export const bathroomKinds: ProjectKind[] = [
   })),
   { entry: { kind: "vanity_recorded", label: "Vanity", w: VANITY.w, d: VANITY.d, h: VANITY.h, color: "#f4f4f1", category: "bath" }, parts: structuredClone(vanity) },
   { entry: { kind: "shaving_cabinet_recorded", label: "Shaving cabinet", w: CABINET.w, d: CABINET.d, h: CABINET.h, elevation: CABINET.elevation, color: "#c9d6dc", category: "bath" }, parts: structuredClone(shavingCabinet) },
-  { entry: { kind: "toilet_proxy", label: "Toilet", w: 0.48, d: 0.7, h: 0.8, color: "#e2ded4", category: "bath" } },
+  { entry: { kind: "toilet_proxy", label: "Toilet", w: TOILET.w, d: TOILET.d, h: TOILET.h, color: "#e2ded4", category: "bath" }, parts: structuredClone(toilet) },
   // owner: fixed glass panel 900 wide × 2000 high, 1200 mm from the window wall (face not stated);
   // workbook: 10 mm clear toughened, stainless wall channel and brace bar
-  { entry: { kind: "screen_proposed", label: "Fixed glass screen", w: 0.9, d: 0.01, h: 2, color: "#77b8d6", category: "bath" } },
+  { entry: { kind: "screen_proposed", label: "Fixed glass screen", w: SCREEN.w, d: SCREEN.glass, h: SCREEN.h, color: "#77b8d6", category: "bath" }, parts: structuredClone(screen) },
 ];
 
 export const bathroomNotes = (): Note[] => {

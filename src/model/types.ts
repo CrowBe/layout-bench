@@ -58,6 +58,8 @@ export interface WallTiling {
   /** top of the tiling above the floor reference */
   tiledHeight?: Quantity;
   note?: string;
+  /** the tile's colour in the 3D view (CSS colour); appearance only, never a dimension */
+  color?: string;
 }
 
 /** Walking the wall from end A to end B on the plan (x right, y down): the side on your left or right. */
@@ -205,6 +207,8 @@ export interface FloorTiling {
   /** which finished face originY is measured from (default north: a tile's north edge; south: its south edge) */
   originYFrom?: "north" | "south";
   note?: string;
+  /** the tile's colour in the 3D view (CSS colour); appearance only, never a dimension */
+  color?: string;
 }
 
 /**

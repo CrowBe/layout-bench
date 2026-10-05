@@ -9,9 +9,10 @@ import { buildFurniture } from "./furniture";
 
 import * as THREE from "three";
 import { surfaces } from "../model/drainage";
-import { finishedLevel } from "../model/floor";
+import { finishedLevel, floorLayerLabel, floorLevels } from "../model/floor";
+import { floorTileLayout } from "../model/floorTiling";
 import { tilingLayout } from "../model/tiling";
-import type { Item, LayerKind, Opening, PlanModel, Room, Wall } from "../model/types";
+import type { Item, LayerKind, Opening, PlanModel, Room, Wall, WallSideName } from "../model/types";
 import { liningSlabs, resolveFace, sideNormal, wallBody } from "../model/faces";
 import { roughIn } from "../model/fixtures";
 import { catalogForItem, catalogByKind } from "../model/catalog";
@@ -219,6 +220,7 @@ export function buildFixture(model: PlanModel,it: Item): THREE.Group | null {
   fg.position.set(it.x,lv.bottom ?? .04,it.y);fg.rotation.y=it.rotation*Math.PI/180;
   if(it.installation?.mirror)fg.scale.x=-1;
   fg.userData={fixtureId:it.id,installation:lv};nameMeshes(fg,it.id);
+  fg.traverse((o)=>{if((o as THREE.Mesh).isMesh && !o.userData.stage)o.userData.stage=`item:${it.id}`;});
   for(const p of it.installationGeometry?.fixings??[]){const r=localPointReading(model,it,p);if(r.x===undefined || r.y===undefined || r.level===undefined)continue;
     const marker=new THREE.Mesh(new THREE.SphereGeometry(.007,8,6),frameMaterial);marker.position.set(p.x! ,p.z!,p.y!-catalogForItem(it)!.d/2);marker.name=`${it.id}:fixing:${p.id}`;fg.add(marker);}
   return fg;
@@ -249,7 +251,7 @@ function box(
 }
 
 /** Build one wall with its openings as solid segments + lintels + sills + glass. */
-function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Set<string>, presentation: "planning" | "styled"): THREE.Group {
+function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Set<string>, presentation: "planning" | "styled", base = 0): THREE.Group {
   const g = new THREE.Group();
   const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
   const [extA, extB] = jointExtensions(wall, walls);
@@ -317,11 +319,13 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
   for (const { o, span } of spans) {
     const x0 = toX(span[0]);
     const x1 = toX(span[1]);
-    addSeg(cursor, x0, 0, wall.height);
+    addSeg(cursor, x0, base, wall.height);
+    // below a door's threshold, down to a stripped floor's substrate
+    if (o.sill <= 0.005 && base < -0.005) addSeg(x0, x1, base, 0);
     // lintel above the opening
     addSeg(x0, x1, o.sill + o.height, wall.height);
     // sill below windows
-    if (o.sill > 0.005) addSeg(x0, x1, 0, o.sill);
+    if (o.sill > 0.005) addSeg(x0, x1, base, o.sill);
     nameMeshes(g, wall.id); // everything so far is wall; what follows belongs to the opening
     const openingStart = g.children.length;
     // glass pane for windows
@@ -392,7 +396,7 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
     for (const part of g.children.slice(openingStart)) nameMeshes(part, `${o.id}:part`);
     cursor = x1;
   }
-  addSeg(cursor, total, 0, wall.height);
+  addSeg(cursor, total, base, wall.height);
 
   // wall cap (top band) for a finished dollhouse look
   const cap = new THREE.Mesh(new THREE.BoxGeometry(total, 0.03, body.depth + 0.02), wallTopMaterial);
@@ -408,6 +412,8 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
     if (depth < 0.0005) continue;
     const z = (slab.z0 + slab.z1) / 2;
     const mat = liningMaterials[slab.layer.kind];
+    // board and membrane go down to a stripped floor's substrate; adhesive and tile start at the floor
+    const foot = slab.layer.kind === "board" || slab.layer.kind === "waterproofing" ? base : 0;
     const seg = (x0: number, x1: number, y0: number, y1: number) => {
       if (x1 - x0 < 0.005 || y1 - y0 < 0.005) return;
       g.add(named(box(x1 - x0, y1 - y0, depth, mat, (x0 + x1) / 2 - total / 2, (y0 + y1) / 2, z, 0, false), `${wall.id}:${slab.side}:${slab.layer.id}`));
@@ -416,12 +422,12 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
     for (const { o, span } of spans) {
       const x0 = toX(span[0]);
       const x1 = toX(span[1]);
-      seg(at, x0, 0, wall.height);
+      seg(at, x0, foot, wall.height);
       seg(x0, x1, o.sill + o.height, wall.height);
-      if (o.sill > 0.005) seg(x0, x1, 0, o.sill);
+      if (o.sill > 0.005) seg(x0, x1, foot, o.sill);
       at = x1;
     }
-    seg(at, extA + len, 0, wall.height);
+    seg(at, extA + len, foot, wall.height);
   }
 
   // place group: center of extended wall, rotated
@@ -450,7 +456,7 @@ function slabTop(room: Room): number | undefined {
 }
 
 /** The derived sloped surface of each resolved floor plane, as a subdivided grid (#7). */
-function buildFalls(room: Room, material: THREE.Material): THREE.Group | null {
+function buildFalls(room: Room, material: THREE.Material, flatTop?: number): THREE.Group | null {
   const d = room.drainage;
   if (!d) return null;
   const g = new THREE.Group();
@@ -481,16 +487,20 @@ function buildFalls(room: Room, material: THREE.Material): THREE.Group | null {
     m.receiveShadow = true;
     g.add(m);
   }
+  // With no fall resolved, a waste with no level of its own sits on the flat finished floor.
+  const onFlat = !g.children.length ? flatTop : undefined;
   for (const w of d.wastes) {
     const len = Math.hypot(w.bx - w.ax, w.by - w.ay);
-    const y = (w.level?.value ?? 0) + 0.003;
+    const level = w.level?.value ?? onFlat;
+    const y = (level ?? 0) + 0.003;
     const mesh = w.kind === "linear"
       ? new THREE.Mesh(new THREE.BoxGeometry(len, 0.006, 0.04), new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }))
       : new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.006, 24), new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }));
     mesh.position.set((w.ax + w.bx) / 2, y, (w.ay + w.by) / 2);
     if (w.kind === "linear") mesh.rotation.y = -Math.atan2(w.by - w.ay, w.bx - w.ax);
     mesh.name = `${room.id}:waste:${w.id}`;
-    if (w.level?.value !== undefined) g.add(mesh);
+    if (w.level?.value === undefined && level !== undefined) mesh.userData.level = "unknown; drawn on the flat finished floor";
+    if (level !== undefined) g.add(mesh);
   }
   return g.children.length ? g : null;
 }
@@ -499,6 +509,23 @@ export const tileMaterials = {
   full: new THREE.MeshStandardMaterial({ color: "#e9e4d8", roughness: 0.35 }),
   cut: new THREE.MeshStandardMaterial({ color: "#e6b98f", roughness: 0.35 }),
 };
+const tintedTiles = new Map<string, THREE.MeshStandardMaterial>();
+/**
+ * A set-out's own tile colour, when one is recorded; cut pieces lean toward the planning cut tint
+ * so they still read as cuts. Without a colour, the shared planning materials.
+ */
+function tileMaterial(color: string | undefined, cut: boolean): THREE.MeshStandardMaterial {
+  if (!color) return cut ? tileMaterials.cut : tileMaterials.full;
+  const key = `${color}:${cut}`;
+  let m = tintedTiles.get(key);
+  if (!m) {
+    const c = new THREE.Color(color);
+    if (cut) c.lerp(tileMaterials.cut.color, 0.45);
+    m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.35 });
+    tintedTiles.set(key, m);
+  }
+  return m;
+}
 /**
  * The proposed tile set-out (#9) on one wall side, from the same derivation the elevation and
  * sheet use: every piece as a quad just proud of the finished face (or of the chosen reference
@@ -542,7 +569,7 @@ function buildTiling(model: PlanModel, wall: Wall, side: "left" | "right"): THRE
     const normals = new Float32Array(pos.length);
     for (let i = 0; i < normals.length; i += 3) { normals[i] = n.x; normals[i + 1] = 0; normals[i + 2] = n.y; }
     geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
-    const m = new THREE.Mesh(geo, cut ? tileMaterials.cut : tileMaterials.full);
+    const m = new THREE.Mesh(geo, tileMaterial(wall.tiling[side]!.color, cut));
     m.name = `${wall.id}:tiling:${side}:${cut ? "cut" : "full"}`;
     m.userData.pieces = pieces.length;
     m.receiveShadow = true;
@@ -551,13 +578,151 @@ function buildTiling(model: PlanModel, wall: Wall, side: "left" | "right"): THRE
   return g;
 }
 
+/**
+ * The proposed floor set-out (#9) on the finished floor, from the same layout the floor tiling
+ * sheet uses: full and cut pieces as two merged meshes just above the flat finished level. Drawn
+ * once the grid itself resolves (faces, tile, joint and origin); what the layout still lists as
+ * missing (falls, door transition, waste cuts) is carried on the group, not drawn. Not drawn on
+ * resolved falls, which would need the pieces draped over each plane.
+ */
+function buildFloorTiling(model: PlanModel, room: Room): THREE.Group | null {
+  if (!room.floorTiling) return null;
+  const top = slabTop(room);
+  if (top === undefined || !room.floorBuildUp || hasResolvedFalls(room)) return null;
+  const layout = floorTileLayout(model, room);
+  if (!layout.cuts || !layout.pieces.length) return null;
+  const g = new THREE.Group();
+  g.name = `${room.id}:floor-tiling`;
+  g.userData.pieces = layout.pieces.length;
+  if (layout.missing.length) g.userData.unresolved = [...layout.missing];
+  const y = top + 0.0015;
+  for (const cut of [false, true]) {
+    const pieces = layout.pieces.filter((p) => p.cut === cut);
+    if (!pieces.length) continue;
+    const pos = new Float32Array(pieces.length * 18);
+    pieces.forEach((p, k) => {
+      // counter-clockwise seen from above (+y), with plan y as world z
+      const quad = [p.x0, p.y0, p.x0, p.y1, p.x1, p.y1, p.x0, p.y0, p.x1, p.y1, p.x1, p.y0];
+      for (let i = 0; i < 6; i++) pos.set([quad[i * 2], y, quad[i * 2 + 1]], k * 18 + i * 3);
+    });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, tileMaterial(room.floorTiling.color, cut));
+    m.name = `${room.id}:floor-tiling:${cut ? "cut" : "full"}`;
+    m.userData.pieces = pieces.length;
+    m.receiveShadow = true;
+    g.add(m);
+  }
+  return g;
+}
+
+const hasResolvedFalls = (room: Room) => !!room.drainage && [...surfaces(room.drainage).values()].some((s) => s.resolved);
+
+const substrateMaterial = new THREE.MeshStandardMaterial({ color: "#9d9a93", roughness: 0.95 });
+const floorLayerMaterials: Record<string, THREE.Material> = {
+  waterproofing: liningMaterials.waterproofing,
+  screed: new THREE.MeshStandardMaterial({ color: "#b7aea0", roughness: 0.95 }),
+  adhesive: liningMaterials.adhesive,
+  tile: liningMaterials.tile,
+};
+/** A layer of unknown thickness shown only as where it sits: a 2 mm film on its one known face. */
+const FILM = 0.002;
+/** The slab under the substrate top is drawn this deep; its real thickness is not recorded. */
+const SUBSTRATE_DRAWN = 0.1;
+
+/**
+ * The floor build-up under the finished surface (#6), for a room with an authored assembly
+ * and a known substrate top: the substrate as a slab, each layer whose top and bottom both
+ * resolve at its real thickness, and the layers between known levels whose split is unknown
+ * drawn without inventing it: the first as a film on the known level below, the last as a
+ * film under the known level above, and the rest as one translucent fill between them. The
+ * finished layer itself is the room's floor mesh.
+ */
+function buildFloorBuildUp(room: Room): THREE.Group | null {
+  const fb = room.floorBuildUp;
+  if (!fb || fb.substrateTop?.value === undefined) return null;
+  const levels = floorLevels(fb).map((l) => (l.resolved ? l.top : undefined));
+  const g = new THREE.Group();
+  const cx = room.x + room.w / 2;
+  const cz = room.y + room.h / 2;
+  const slab = (y0: number, y1: number, mat: THREE.Material, name: string, extra: Record<string, unknown> = {}) => {
+    if (y1 - y0 < 0.0005) return;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(room.w, y1 - y0, room.h), mat);
+    m.position.set(cx, (y0 + y1) / 2, cz);
+    m.receiveShadow = true;
+    m.name = name;
+    Object.assign(m.userData, extra);
+    g.add(m);
+  };
+  const sub = levels[0]!;
+  slab(sub - SUBSTRATE_DRAWN, sub, substrateMaterial, `${room.id}:substrate`, { drawnThickness: "not recorded; drawn 100 mm" });
+  const layers = fb.layers;
+  // the top layer is the floor mesh itself
+  const below = layers.slice(0, -1);
+  let i = 0;
+  while (i < below.length) {
+    const lo = levels[i];
+    const hi = levels[i + 1];
+    if (lo !== undefined && hi !== undefined) {
+      slab(lo, hi, floorLayerMaterials[below[i].kind], `${room.id}:floor:${below[i].id}`);
+      i++;
+      continue;
+    }
+    // a run of layers between the last known level and the next one
+    let j = i;
+    while (j < below.length && levels[j + 1] === undefined) j++;
+    const run = below.slice(i, Math.min(j, below.length - 1) + 1);
+    const bottom = lo;
+    const top = levels[i + run.length];
+    if (bottom !== undefined && top !== undefined && top - bottom > 2 * FILM) {
+      const first = run[0];
+      const last = run.length > 1 ? run[run.length - 1] : undefined;
+      slab(bottom, bottom + FILM, floorLayerMaterials[first.kind], `${room.id}:floor:${first.id}`, { drawnThickness: "unknown; drawn as a film" });
+      if (last) slab(top - FILM, top, floorLayerMaterials[last.kind], `${room.id}:floor:${last.id}`, { drawnThickness: "unknown; drawn as a film" });
+      const middle = run.slice(1, last ? -1 : undefined);
+      const fill = middle.length ? middle : run;
+      const fillMat = (floorLayerMaterials[fill[0].kind] as THREE.MeshStandardMaterial).clone();
+      fillMat.transparent = true;
+      fillMat.opacity = 0.55;
+      slab(bottom + FILM, top - (last ? FILM : 0), fillMat, `${room.id}:floor-fill`, {
+        stages: fill.map((l) => `room:${room.id}:floor:${l.id}`),
+        drawnThickness: `${run.map(floorLayerLabel).join(" + ")} fill ${Math.round((top - bottom) * 1000)} mm together; the split is unknown`,
+      });
+    }
+    i += run.length;
+  }
+  return g.children.length ? g : null;
+}
+
+/** Lowest substrate top of any room with a stripped-back assembly, or 0. Walls run down to it. */
+function floorBase(model: PlanModel): number {
+  let base = 0;
+  for (const r of model.rooms) {
+    const top = r.floorBuildUp?.substrateTop?.value;
+    if (top !== undefined && top < base) base = top;
+  }
+  return base;
+}
+
+/** The floor mesh is the finished layer: its own thickness when both its faces resolve on a flat floor, else a 40 mm slab. */
+function finishThickness(room: Room): number {
+  if (!room.floorBuildUp || hasResolvedFalls(room)) return 0.04;
+  const levels = floorLevels(room.floorBuildUp);
+  const [under, top] = levels.slice(-2);
+  if (levels.length < 2 || !under.resolved || !top.resolved) return 0.04;
+  const t = top.top! - under.top!;
+  return t > 0.0005 ? t : 0.04;
+}
+
 function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh | null {
   const top = slabTop(room);
   if (top === undefined) return null; // authored unresolved levels must not become a default slab
   if (presentation === "planning") {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(room.w, 0.04, room.h), new THREE.MeshStandardMaterial({ color: "#b8b8b3", roughness: 0.95 }));
+    const t = finishThickness(room);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(room.w, t, room.h), new THREE.MeshStandardMaterial({ color: "#b8b8b3", roughness: 0.95 }));
     m.name = `${room.id}:planning-floor`;
-    m.position.set(room.x + room.w / 2, top - 0.02, room.y + room.h / 2);
+    m.position.set(room.x + room.w / 2, top - t / 2, room.y + room.h / 2);
     m.receiveShadow = true;
     return m;
   }
@@ -573,10 +738,11 @@ function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh
     mat.color.set("#ffffff");
     if (room.floor === "tile") mat.roughness = 0.4;
   }
-  const geo = new THREE.BoxGeometry(room.w, 0.04, room.h);
+  const t = finishThickness(room);
+  const geo = new THREE.BoxGeometry(room.w, t, room.h);
   const m = new THREE.Mesh(geo, mat);
   m.name = room.id;
-  m.position.set(room.x + room.w / 2, top - 0.02, room.y + room.h / 2);
+  m.position.set(room.x + room.w / 2, top - t / 2, room.y + room.h / 2);
   m.receiveShadow = true;
   return m;
 }
@@ -652,14 +818,20 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
     }
   }
 
+  const base = floorBase(model);
   for (const w of model.walls) {
-    group.add(buildWall(w, openingsByWall.get(w.id) ?? [], model.walls, curtained, presentation));
+    group.add(buildWall(w, openingsByWall.get(w.id) ?? [], model.walls, curtained, presentation, base));
   }
   for (const r of model.rooms) {
     const floor = buildFloor(r, presentation);
     if (floor) group.add(floor);
-    const falls = buildFalls(r, (floor?.material as THREE.Material | undefined) ?? liningMaterials.tile);
+    const buildUp = buildFloorBuildUp(r);
+    if (buildUp) group.add(named(buildUp, `${r.id}:build-up`));
+    const flatTop = r.floorBuildUp ? slabTop(r) : undefined;
+    const falls = buildFalls(r, (floor?.material as THREE.Material | undefined) ?? liningMaterials.tile, flatTop);
     if (falls) group.add(named(falls, `${r.id}:falls`));
+    const tiles = buildFloorTiling(model, r);
+    if (tiles) group.add(tiles);
   }
   for (const w of model.walls) {
     for (const side of ["left", "right"] as const) {
@@ -694,6 +866,8 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
     }
   }
 
+  tagStages(model, group);
+
   // bounds of the CONTENT only (ground would blow up the camera fit)
   const bounds = new THREE.Box3().setFromObject(group);
   if (model.walls.length === 0) {
@@ -706,9 +880,69 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
     new THREE.MeshStandardMaterial({ color: "#565b52", roughness: 1 }),
   );
   ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.02;
+  // under a stripped floor's drawn slab, so the ground never covers it
+  ground.position.y = Math.min(-0.02, base - SUBSTRATE_DRAWN - 0.02);
   ground.receiveShadow = true;
   group.add(ground);
 
   return { group, bounds };
+}
+
+/**
+ * Tag every mesh with the stage-view element it draws (see sheets/stageView.ts), so the 3D
+ * view can show exactly a stage's visible set. Read from the names the builders give: wall
+ * bodies, lining slabs and tile set-outs, openings, the floor and its build-up, falls and
+ * wastes, fixtures and their service points. A mesh may stand for several elements
+ * (`userData.stages`); untagged meshes (the ground) are always shown.
+ */
+export function tagStages(model: PlanModel, root: THREE.Object3D): void {
+  const walls = new Map(model.walls.map((w) => [w.id, w]));
+  const openings = new Set(model.openings.map((o) => o.id));
+  const rooms = new Map(model.rooms.map((r) => [r.id, r]));
+  const items = new Set(model.items.map((i) => i.id));
+  const tileLayer = (layers: { id: string; kind: string }[] | undefined) => [...(layers ?? [])].reverse().find((l) => l.kind === "tile");
+  const stageOf = (name: string): string | undefined => {
+    const [head, a, b, c] = name.split(":");
+    if (walls.has(head)) {
+      if (a === undefined || a === "skirting") return `wall:${head}`;
+      if (a === "tiling") {
+        const t = tileLayer(walls.get(head)!.sides?.[b as WallSideName]?.layers);
+        return t ? `wall:${head}:${b}:${t.id}` : `wall:${head}`;
+      }
+      if (a === "left" || a === "right") return `wall:${head}:${a}:${b}`;
+    }
+    if (openings.has(head)) return `opening:${head}`;
+    if (rooms.has(head)) {
+      const r = rooms.get(head)!;
+      const finish = tileLayer(r.floorBuildUp?.layers) ?? r.floorBuildUp?.layers.at(-1);
+      if (a === undefined || a === "planning-floor" || a === "floor-tiling") return finish ? `room:${head}:floor:${finish.id}` : `room:${head}`;
+      if (a === "substrate") return `room:${head}:substrate`;
+      if (a === "floor") return `room:${head}:floor:${b}`;
+      if (a === "fall") return `room:${head}:plane:${b}`;
+      if (a === "waste") return `room:${head}:waste:${b}`;
+      if (a === "pendant") return `room:${head}`;
+    }
+    if (items.has(head)) return a === "service" ? `item:${head}:sp:${b}` : `item:${head}`;
+    void c;
+    return undefined;
+  };
+  root.traverse((o) => {
+    if (o.userData.stages || o.userData.stage) return;
+    if (!(o as THREE.Mesh).isMesh && !(o as THREE.LineSegments).isLineSegments) return;
+    let n: THREE.Object3D | null = o;
+    while (n && n !== root.parent) {
+      const id = n.name ? stageOf(n.name) : undefined;
+      if (id) { o.userData.stage = id; return; }
+      n = n.parent;
+    }
+  });
+}
+
+/** Show only what a stage's visible set holds; null shows everything. */
+export function applyStageVisibility(root: THREE.Object3D, visible: Set<string> | null): void {
+  root.traverse((o) => {
+    const ids: string[] | undefined = o.userData.stages ?? (o.userData.stage ? [o.userData.stage] : undefined);
+    if (!ids) return;
+    o.visible = !visible || ids.some((id) => visible.has(id));
+  });
 }
