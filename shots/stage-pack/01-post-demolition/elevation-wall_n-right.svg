@@ -9,8 +9,8 @@
 <text x="88" y="70" font-size="3" font-weight="bold" text-anchor="middle">A</text>
 <text x="198" y="70" font-size="3" font-weight="bold" text-anchor="middle">B</text>
 <rect x="97.75" y="101.5" width="90.5" height="30" fill="#dfe9f2" stroke="#2f78b7" stroke-width="0.35" data-element="opening:window_n"/>
-<text x="143" y="115.5" font-size="2" text-anchor="middle" fill="#2f78b7">WINDOW 1810 × 600</text>
-<text x="143" y="118.9" font-size="1.8" text-anchor="middle" fill="#2f78b7">sill 1520 above existing floor surface (current tile top)</text>
+<text x="143" y="115.5" font-size="2" text-anchor="middle" fill="#2f78b7">WINDOW 1810 ? × 600 ?</text>
+<text x="143" y="118.9" font-size="1.8" text-anchor="middle" fill="#2f78b7">sill 1520 ? above existing floor surface (current tile top)</text>
 <text x="143" y="121.3" font-size="1.8" text-anchor="middle" fill="#2f78b7">jambs 195 / 2005 from frame face at A</text>
 <line x1="88" y1="213.5" x2="198" y2="213.5" stroke="#7a5230" stroke-width="0.3" data-element="room:bathroom:substrate"/>
 <text x="203" y="214.2" font-size="1.7" fill="#7a5230">substrate -120 E</text>
@@ -21,7 +21,7 @@
 <line x1="198" y1="218" x2="198" y2="221" stroke="#000" stroke-width="0.3"/>
 <text x="143" y="218.3" font-size="2.1" text-anchor="middle" data-dim="run">2200 between frame faces of the return walls (E/E)</text>
 <line x1="220" y1="207.5" x2="220" y2="72.5" stroke="#000" stroke-width="0.2"/>
-<text x="221.5" y="140" font-size="1.8" transform="rotate(-90 221.5 140)" text-anchor="middle">2700 ENT wall height above existing floor surface (current tile top)</text>
+<text x="221.5" y="140" font-size="1.8" transform="rotate(-90 221.5 140)" text-anchor="middle">2700 ? wall height above existing floor surface (current tile top)</text>
 <rect x="18" y="273" width="25" height="1.5" fill="#000" stroke="#000" stroke-width="0.2"/>
 <rect x="43" y="273" width="25" height="1.5" fill="#fff" stroke="#000" stroke-width="0.2"/>
 <text x="18" y="272" font-size="2" >0</text>

@@ -10,7 +10,7 @@ Walls stripped to the timber frame and the floor taken back to the concrete slab
 
 Visible: `walls`, `wall-frame`, `rooms`, `doors`, `windows`, `floor-substrate`
 
-Specification: 28 row(s), 0 unknown. [spec.html](01-post-demolition/spec.html)
+Specification: 28 row(s), 13 unknown. [spec.html](01-post-demolition/spec.html)
 
 Not modelled (never drawn):
 
