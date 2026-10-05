@@ -72,7 +72,7 @@ describe("stage wall elevations", () => {
     expect(east).toMatch(/3018 between finished faces of the return walls/);
     const west = renderStageElevation(model(), els, walls[3], "right", opts);
     expect(west).toContain(`data-element="item:${rail}"`);
-    expect(west).toMatch(/placeholder mounting height 500/);
+    expect(west).toMatch(/envelope bottom 500/);
     const north = renderStageElevation(model(), els, walls[0], "right", opts);
     expect(north).toContain(`data-element="opening:${win}"`);
     expect(north).toMatch(/jambs 176\.5 \/ 1931\.5 from finished face at A/);
@@ -81,6 +81,16 @@ describe("stage wall elevations", () => {
     expect(north).toMatch(/no tile set-out recorded/);
     actions.setWallTiling(walls[0], "right", { tileLength: P(0.6), tileWidth: P(0.3), orientation: "landscape", joint: P(0.002), reference: "finished", floor: "finished", originFrom: "centre", originAlong: P(0), originUp: P(0), tiledHeight: P(2.3) });
     expect(renderStageElevation(model(), els, walls[0], "right", opts)).toContain('data-piece="cut"');
+  });
+
+  it("dashes a kind-elevation envelope and leaves a floor-standing fixture solid", () => {
+    const { walls, vanity, rail } = bathroom();
+    const els = ids(["walls", "fixtures"]);
+    const west = renderStageElevation(model(), els, walls[3], "right", opts);
+    expect(west).toMatch(new RegExp(`stroke-dasharray="1.2 0.6"[^>]*data-element="item:${rail}"`));
+    const east = renderStageElevation(model(), els, walls[1], "right", opts);
+    expect(east).toContain(`data-element="item:${vanity}"`);
+    expect(east).not.toMatch(new RegExp(`stroke-dasharray[^>]*data-element="item:${vanity}"`));
   });
 
   it("shows only what the stage shows", () => {

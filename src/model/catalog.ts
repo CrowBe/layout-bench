@@ -21,6 +21,8 @@ export interface CatalogEntry {
    * place themselves.
    */
   elevation?: number;
+  /** What `elevation` names (envelope bottom, handle end, plate underside…). Stage elevations print this. */
+  elevationNote?: string;
   /** A mounted product requires explicit accepted-product placement, not generic drop. */
   installationMounting?: "wall";
 }

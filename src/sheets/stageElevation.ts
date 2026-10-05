@@ -91,6 +91,8 @@ interface Placed {
   z1?: number;
   basis: string;
   heightNote: string;
+  /** Kind-elevation stopgap (no #60 installation): envelope bottom, not a set-out. */
+  dashed?: boolean;
 }
 
 /**
@@ -250,7 +252,7 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
   placed.sort((a, b) => b.depth - a.depth);
   for (const p of placed) {
     if (p.z0 === undefined || p.z1 === undefined) continue; // height unknown: listed, never drawn
-    rect(X(p.s0), Y(p.z1), (p.s1 - p.s0) * k * (mirror ? -1 : 1), (p.z1 - p.z0) * k, `fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" ${p.heightNote.startsWith("placeholder") ? `stroke-dasharray="1.2 0.6"` : ""} ${de(`item:${p.item.id}`)}`);
+    rect(X(p.s0), Y(p.z1), (p.s1 - p.s0) * k * (mirror ? -1 : 1), (p.z1 - p.z0) * k, `fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" ${p.dashed ? `stroke-dasharray="1.2 0.6"` : ""} ${de(`item:${p.item.id}`)}`);
     const cx = (X(p.s0) + X(p.s1)) / 2;
     text(cx, Y(p.z1) + 2.6, p.no, 2.2, `text-anchor="middle" font-weight="bold"`);
   }
@@ -384,7 +386,7 @@ function localFinished(model: PlanModel, room: ReturnType<typeof roomBeside>, x:
 }
 
 /** Bottom and top of a fixture above the room datum, and where that comes from. Unknown stays unknown. */
-function vertical(model: PlanModel, it: Item, room: ReturnType<typeof roomBeside>, flat: ReturnType<typeof finishedLevel>): Pick<Placed, "z0" | "z1" | "basis" | "heightNote"> {
+function vertical(model: PlanModel, it: Item, room: ReturnType<typeof roomBeside>, flat: ReturnType<typeof finishedLevel>): Pick<Placed, "z0" | "z1" | "basis" | "heightNote" | "dashed"> {
   const cat = catalogForItem(it);
   if (!cat) return { basis: "unknown", heightNote: `kind ${it.kind} unknown` };
   if (it.installation) {
@@ -397,6 +399,6 @@ function vertical(model: PlanModel, it: Item, room: ReturnType<typeof roomBeside
   const z0 = floor.level + (cat.elevation ?? 0);
   const on = floor.datumOnly ? "the existing floor (no floor build-up recorded)" : "the finished floor";
   return cat.elevation
-    ? { z0, z1: z0 + cat.h, basis: "estimated", heightNote: `placeholder mounting height ${mm(cat.elevation)} above ${on} from the kind's data, not a set-out (dashed)` }
+    ? { z0, z1: z0 + cat.h, basis: "estimated", dashed: true, heightNote: `${cat.elevationNote ? `${cat.elevationNote}; ` : ""}envelope bottom ${mm(cat.elevation)} above ${on} from the kind's data, not a set-out (dashed)` }
     : { z0, z1: z0 + cat.h, basis: floor.basis, heightNote: `stands on ${on}; height ${mm(cat.h)} from the kind's envelope` };
 }

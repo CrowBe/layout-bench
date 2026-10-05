@@ -260,7 +260,7 @@ A few design notes:
   the view shows, from the same visible set: the outermost visible face or layer, openings with
   jambs measured from the return wall's face, the proposed tile set-out once the tile layer is
   shown, visible floor levels and the finished-floor falls along the wall, fixtures standing against
-  that face at their heights (a kind's placeholder mounting height is dashed and says so), and
+  that face at their heights (a kind's envelope bottom is dashed and says so), and
   service points dimensioned from the return wall's face and above the finished floor. A point or
   fixture without a known height is listed, never drawn. `get_diagram_view` names the surfaces;
   `export_diagram_view` takes `surfaces` to generate a subset; the Sheets tab previews any of them. The A-01 blocking rules apply to visible content (a defaulted
@@ -339,10 +339,16 @@ A few design notes:
 
 - The Bathroom Concept sample carries the owner's purchased fittings (bath, wall and basin
   mixers, spout, shower system, two towel rails, thermostat), each marked `purchased` with the code
-  printed on its label. Only label-printed sizes are copied; every other size, reach and mounting
-  height is a placeholder named in the kind's data. A kind may carry an `elevation` (define_item_kind),
-  so a wall mixer over a bath is not an `items_overlap` once their heights differ. The corner bath
-  is a right-angle isosceles triangle with a rounded hypotenuse; the arc depth is a placeholder.
+  printed on its label. Product sizes come from the manufacturer's own specification drawing or
+  sheet when that sheet names the exact model; remaining sizes stay labelled placeholders.
+  Mounting heights: only the towel-rail foot (750 mm) and thermostat (850 mm) have an owner
+  proposal; the bath mixer/spout 800 mm, shower rail foot 400 mm and basin-mixer deck 850 mm are unsourced (value null;
+  drawn stand-ins live only on the kind).
+  The room has no wall anchors and no surveyed finished faces, so per-item installation
+  placement is not used and the catalogue `elevation` stopgap remains.
+  A kind may carry an `elevation` (define_item_kind), so a wall mixer over a bath is not an
+  `items_overlap` once their heights differ. The corner bath is a right-angle isosceles triangle
+  with a rounded hypotenuse; the 1090 mm arc depth is from the Enflair dimension drawing.
   The owner's build-up and tiles are recorded against the surveyed 2110 × 3020 existing surfaces:
   walls stripped to the frame (about 45 mm behind the surface, estimated) and lined with 6 mm
   Villaboard; the floor back to the concrete slab (about 120 mm down, estimated) with waterproofing
