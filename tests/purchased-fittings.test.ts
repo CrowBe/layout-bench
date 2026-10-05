@@ -37,13 +37,13 @@ describe("purchased fittings in the sample project", () => {
     expect(model.items.some((i) => i.id === "thermostat")).toBe(true);
   });
 
-  it("carries both purchased towel rails and the owner's 900 × 2100 fixed screen", () => {
+  it("carries both purchased towel rails and the owner's 900 × 2000 fixed screen", () => {
     const { model, kinds } = demoProject();
     const rails = model.items.filter((i) => i.kind === "towel_rail_vs900hbn");
     expect(rails.map((r) => r.id)).toEqual(["towel_rail", "towel_rail_2"]);
     expect(rails.every((r) => r.selectionStatus === "purchased" && r.productIdentity?.code === "VS900HBN")).toBe(true);
     const screen = kinds.find((k) => k.entry.kind === "screen_proposed")!.entry;
-    expect([screen.w, screen.h]).toEqual([0.9, 2.1]);
+    expect([screen.w, screen.h]).toEqual([0.9, 2]);
     expect(model.items.find((i) => i.id === "screen")!.y).toBe(1.2);
   });
 
@@ -83,9 +83,12 @@ describe("purchased fittings in the sample project", () => {
     expect(entry.outline?.segments).toHaveLength(3);
     const arc = entry.outline!.segments.find((seg) => seg.via)!;
     expect(arc).toBeDefined();
-    // the same shape as before: right angle at the back-right, arc bulging 0.12 m past the chord
-    expect(arc.via!.x).toBeCloseTo(-0.085, 3);
-    expect(arc.via!.y).toBeCloseTo(0.085, 3);
+    // right angle at the back-right; the drawing's front is 1090 mm from the corner on the bisector
+    // the box is the curve's own extent, a little over 1 m: the sides stay 1000 mm
+    expect(entry.w).toBeGreaterThan(1);
+    expect(entry.w).toBeLessThan(1.02);
+    expect(arc.via!.x).toBeCloseTo(entry.w / 2 - 1.09 / Math.SQRT2, 3);
+    expect(arc.via!.y).toBeCloseTo(-entry.d / 2 + 1.09 / Math.SQRT2, 3);
     expect(buildFurniture("bath_sb184_1000gw")!.children.length).toBeGreaterThan(0);
     const errors = checkModel(store.getState().model).filter((i) => i.severity === "error");
     expect(errors).toEqual([]);
