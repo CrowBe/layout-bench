@@ -184,6 +184,7 @@ const qRow = (q: Quantity | undefined) => (known(q) ? { value: mm(q.value), stat
 /** The specification rows for one element: every property with its status and source. */
 export function specRows(model: PlanModel, el: ViewElement, products?: LibraryProduct[]): SpecRow[] {
   const rows: SpecRow[] = [];
+  const library = products ?? [];
   const row = (property: string, r: Omit<SpecRow, "element" | "layer" | "label" | "property">) =>
     rows.push({ element: el.id, layer: el.layer, label: el.label, property, ...r, ...(r.value === "?" && !r.missing ? { missing: [property] } : {}) });
 
@@ -354,7 +355,7 @@ export function specRows(model: PlanModel, el: ViewElement, products?: LibraryPr
       }
     }
     row("project selection", { value: it.selectionStatus ?? "unknown", status: it.selectionStatus && it.selectionStatus !== "unknown" ? "entered" : "unknown" });
-    const product = it.productId ? products.find((p) => p.id === it.productId) : undefined;
+    const product = it.productId ? library.find((p) => p.id === it.productId) : undefined;
     const exact = it.productIdentity ?? product;
     if (exact) {
       row("exact product", { value: exact.physicalItem ? `${exact.physicalItem.label} · manufacturer ${exact.manufacturer || "unknown"} · model ${exact.model || "unknown"}` : `${exact.manufacturer} ${exact.model}`, status: exact.physicalItem ? "entered" : "published" });
