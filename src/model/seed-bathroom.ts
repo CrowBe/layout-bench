@@ -264,16 +264,20 @@ const shower: PartSpec[] = [
 // Owner: the foot is 750 mm above the finished floor tiles (proposed, not surveyed).
 const RAIL_FOOT = 0.75;
 const RAIL_TUBE = 0.038;
-const RAIL_Z = 0.05 - RAIL_TUBE / 2; // the upright's front at the 100 mm projection
-const RAIL_ROSE = 0.032; // sheet Ø32
-const RAIL_STUB = 0.025; // sheet 25 mm
+const RAIL_ENV_D = 0.1; // sheet Size D100; back at −d/2, front at +d/2
+const RAIL_Z = RAIL_ENV_D / 2 - RAIL_TUBE / 2; // the upright's front at the 100 mm projection
+const RAIL_ROSE = 0.032; // sheet Ø32 (face diameter; depth is not on the sheet)
+const RAIL_STUB = 0.025; // sheet side view: 25 mm stem from the rose's room face to the tube
+const RAIL_ROSE_D = 0.037; // derived: D100 − Ø38 − 25 mm stem (100 − 38 − 25), not a sheet figure
+const RAIL_BACK = -RAIL_ENV_D / 2;
 const RAIL_CAP = 0.042; // sheet side view: 42 mm cap
 const RAIL_HOOK_CL = 0.052; // sheet front view: 52 mm from the rail centreline
 const RAIL_HOOK_END_H = 0.019; // sheet front view: 19 mm hook-end height (not a Ø19 bar)
 const RAIL_TOP = RAIL_FOOT + 0.9;
 const railBracket = (up: number): PartSpec[] => [
-  tube(0, RAIL_FOOT + up - RAIL_ROSE / 2, -0.045, RAIL_ROSE, RAIL_ROSE, { ...NICKEL, d: 0.01 }), // Ø32 wall rose
-  box(0, RAIL_FOOT + up - 0.006, -0.04 + RAIL_STUB / 2, 0.012, 0.012, RAIL_STUB), // 25 mm stub
+  // Ø32 rose, 37 mm deep (derived) so its room face is 25 mm from the tube's back
+  tube(0, RAIL_FOOT + up - RAIL_ROSE / 2, RAIL_BACK + RAIL_ROSE_D / 2, RAIL_ROSE, RAIL_ROSE, { ...NICKEL, d: RAIL_ROSE_D }),
+  box(0, RAIL_FOOT + up - 0.006, RAIL_BACK + RAIL_ROSE_D + RAIL_STUB / 2, 0.012, 0.012, RAIL_STUB), // 25 mm stem
 ];
 // T-hook at the top, one side (sheet: hooks are removable). Arm from the Ø38 tube to the
 // 19 mm end at 52 mm from the centreline. The end's width and the arm's section are not on
@@ -514,6 +518,8 @@ export const purchasedFittings: PurchasedFitting[] = [
       published("mountingCentres", 0.78, sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm between fixing centres"), "fixture-bottom", "780 mm centres. The 60 mm from each end of the 900 mm tube is inferred from (900 − 780) / 2, not a sheet dimension."),
       published("hookFromCentreline", RAIL_HOOK_CL, sheet(THERMO_VS900, "VS900HBN specification sheet front view: 52 mm from the rail centreline to the hook"), "fixture-end"),
       published("hookEndHeight", RAIL_HOOK_END_H, sheet(THERMO_VS900, "VS900HBN specification sheet front view: 19 mm hook-end height"), "fixture-bottom", "Hook-end height, not a bar diameter."),
+      published("roseDepth", RAIL_ROSE_D, sheet(THERMO_VS900, "derived: D100 − Ø38 − 25 mm stem (100 − 38 − 25); rose depth is not dimensioned on the sheet"), "fixture-side", "Not a sheet figure. Ø32 rose depth so the 25 mm stem meets the back of the Ø38 tube inside D100."),
+      published("stemLength", RAIL_STUB, sheet(THERMO_VS900, "VS900HBN specification sheet side view: 25 mm stem from the rose's room face to the tube"), "fixture-side"),
       proposedDim("elevation", RAIL_FOOT, "Owner: foot 750 mm above the finished floor tiles. Proposed, not surveyed; no wall anchor, so #60 installation is not used.", "finished-floor"),
     ],
     specFields: {
@@ -522,7 +528,7 @@ export const purchasedFittings: PurchasedFitting[] = [
       height: pubLen(0.9, sheet(THERMO_VS900, "VS900HBN specification sheet: H900"), "fixture-bottom"),
       mounting: pubVal("wall", sheet(THERMO_VS900, "VS900HBN specification sheet: wall-mounted vertical rail")),
       fixingCentresHeight: pubLen(0.78, sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm between fixing centres"), "fixture-bottom"),
-      fixingLayout: pubVal("780 mm vertical centres; Ø32 wall roses; 25 mm stubs; removable hook 52 mm from the rail centreline, 19 mm end height", sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm centres, Ø32 roses, 25 mm stubs, hook 52 mm from centreline, 19 mm end height")),
+      fixingLayout: pubVal("780 mm vertical centres; Ø32 wall roses (37 mm deep, derived: D100 − Ø38 − 25 mm stem); 25 mm stems from the rose's room face to the tube; removable hook 52 mm from the rail centreline, 19 mm end height", sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm centres, Ø32 roses, 25 mm stems, hook 52 mm from centreline, 19 mm end height; rose depth derived")),
       heating: pubVal("electric", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V, 24 W")),
       power: pubVal("required", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V electric")),
       powerConnection: pubVal("low-voltage", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V")),
