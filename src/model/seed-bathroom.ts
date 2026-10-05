@@ -870,14 +870,16 @@ const toilet: PartSpec[] = [
 ];
 /**
  * Fixed screen: 10 mm clear toughened panel, 900 × 2000 (owner, 5 Oct 2026, and workbook).
- * The stainless wall channel is named on the workbook but its size is not recorded, so it is
- * a stopgap strip at the glass thickness (the sourced 10 mm envelope) on the wall end. Brace
- * bar not drawn (fixing point not recorded).
+ * The glass is drawn at the full sourced 900 mm. The stainless wall channel is named on the
+ * workbook but its size is not recorded, so it is a stopgap strip at the glass thickness (the
+ * sourced 10 mm envelope) on the wall end, overlapping the glass edge inside the same
+ * 900 × 10 × 2000 envelope; it does not shrink the sourced width. Brace bar not drawn (fixing
+ * point not recorded).
  */
 const SCREEN = { w: 0.9, h: 2, glass: 0.01 };
 const CHANNEL_ALONG = 0.02; // stand-in width along the panel; channel section is not on the sheet
 const screen: PartSpec[] = [
-  box(CHANNEL_ALONG / 2, 0, 0, SCREEN.w - CHANNEL_ALONG, SCREEN.h, SCREEN.glass, { color: "#d4ecf2", roughness: 0.05, metalness: 0.1, opacity: 0.22 }),
+  box(0, 0, 0, SCREEN.w, SCREEN.h, SCREEN.glass, { color: "#d4ecf2", roughness: 0.05, metalness: 0.1, opacity: 0.22 }),
   box(-SCREEN.w / 2 + CHANNEL_ALONG / 2, 0, 0, CHANNEL_ALONG, SCREEN.h, SCREEN.glass, { color: "#c9cccd", metalness: 0.85, roughness: 0.25, ...STOPGAP }),
 ];
 

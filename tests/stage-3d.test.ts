@@ -6,6 +6,7 @@ import { resetRuntimeCatalog } from "../src/model/catalog";
 import { emptyModel } from "../src/model/types";
 import { bathroomKinds } from "../src/model/seed-bathroom";
 import { applyStageVisibility, buildFixture, buildPlan, tagStages } from "../src/three/build";
+import { floorFill } from "../src/model/floor";
 import { catalogue, resolveVisible } from "../src/sheets/stageView";
 import type { PartSpec } from "../src/three/furniture";
 
@@ -109,7 +110,10 @@ describe("sample bathroom in 3D: the finished room over its build-up", () => {
     expect(linearBox.min.y).toBeCloseTo(-0.035, 4);
     expect(linearBox.max.x - linearBox.min.x).toBeCloseTo(0.1, 4); // 100 mm across the channel, not the 50 mm outlet
     expect(linearBox.max.z - linearBox.min.z).toBeCloseTo(1, 4); // 1000 mm centreline
-    expect(linear.userData.stopgap).toBeUndefined();
+    // no recorded level: the flat finished-level target is a stand-in, so the drain is stopgap
+    expect(linear.userData.stopgap).toBe(true);
+    expect(linear.userData.stopgapReason).toMatch(/level not recorded; drawn on the flat finished-level target/);
+    expect(linear.userData.body).toMatch(/channel body/); // sourced body kept distinct from the marker
     const square = byName(group, "bathroom:waste:square_waste")[0];
     const squareBox = box(square);
     // packing slip: Kano 316 120 × 120 grate; 50 mm is the outlet, not the grate
@@ -117,6 +121,35 @@ describe("sample bathroom in 3D: the finished room over its build-up", () => {
     expect(squareBox.max.x - squareBox.min.x).toBeCloseTo(0.12, 4);
     expect(squareBox.max.z - squareBox.min.z).toBeCloseTo(0.12, 4);
     expect(square.userData.stopgap).toBe(true); // body depth below grate is not recorded
+    expect(square.userData.stopgapReason).toMatch(/level not recorded/);
+  });
+
+  it("draws a linear drain with a recorded level at that level and not as a stopgap", () => {
+    const { model } = sample();
+    const m = structuredClone(model);
+    const linearWaste = m.rooms.find((r) => r.id === "bathroom")!.drainage!.wastes.find((w) => w.id === "linear_drain")!;
+    linearWaste.level = { value: -0.01, status: "proposed", source: "test" };
+    const { group } = buildPlan(m, "planning");
+    const linear = byName(group, "bathroom:waste:linear_drain")[0];
+    expect(linear.userData.stopgap).toBeUndefined();
+    expect(linear.userData.stopgapReason).toBeUndefined();
+    expect(box(linear).max.y).toBeCloseTo(-0.01, 4);
+    expect(box(linear).min.y).toBeCloseTo(-0.045, 4);
+  });
+
+  it("carries each build-up value's status and datum on the 3D parts", () => {
+    const { model, group } = sample();
+    const fb = model.rooms.find((r) => r.id === "bathroom")!.floorBuildUp!;
+    const sub = byName(group, "bathroom:substrate")[0];
+    expect(sub.userData.stopgap).toBe(true); // the drawn 100 mm thickness stays a stopgap
+    expect(sub.userData.provenance).toMatchObject({ status: "estimated", datum: fb.datum });
+    expect(sub.userData.provenance.source).toMatch(/owner: about 120 mm below the current tile/);
+    const fill = byName(group, "bathroom:floor-fill")[0];
+    if (fill) expect(fill.userData.provenance.status).toBe(floorFill(fb)!.basis);
+    const wall = byName(group, "wall_w")[0].parent!; // the wall group
+    expect(wall.userData.foot).toMatchObject({ level: -0.12, status: "estimated", datum: fb.datum });
+    expect(wall.userData.foot.source).toMatch(/owner: about 120 mm below/);
+    expect(group.getObjectByName("bathroom:floor-tiling")!.userData.provenance.datum).toBe(fb.datum);
   });
 
   it("draws the screen as see-through 10 mm glass with a stopgap wall channel inside that envelope", () => {
@@ -159,6 +192,8 @@ describe("sample bathroom in 3D: the finished room over its build-up", () => {
     const channel = kind.parts!.find((p) => p.stopgap);
     expect(glass?.d).toBe(0.01);
     expect(glass?.h).toBe(2);
+    expect(glass?.w).toBe(0.9); // sourced 900 mm, not shrunk by the stopgap channel
+    expect(glass?.stopgap).toBeUndefined();
     expect(channel?.d).toBe(0.01); // channel section not recorded; stays inside the glass envelope
     expect(channel?.stopgap).toBe(true);
     assertInside(kind.parts!, { w: 0.9, d: 0.01, h: 2 }, "screen_proposed");
