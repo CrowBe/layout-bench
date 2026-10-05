@@ -266,30 +266,33 @@ const RAIL_FOOT = 0.75;
 const RAIL_TUBE = 0.038;
 const RAIL_ENV_D = 0.1; // sheet Size D100; back at −d/2, front at +d/2
 const RAIL_Z = RAIL_ENV_D / 2 - RAIL_TUBE / 2; // the upright's front at the 100 mm projection
-const RAIL_ROSE = 0.032; // sheet Ø32 (face diameter; depth is not on the sheet)
-const RAIL_STUB = 0.025; // sheet side view: 25 mm stem from the rose's room face to the tube
-const RAIL_ROSE_D = 0.037; // derived: D100 − Ø38 − 25 mm stem (100 − 38 − 25), not a sheet figure
 const RAIL_BACK = -RAIL_ENV_D / 2;
-const RAIL_CAP = 0.042; // sheet side view: 42 mm cap
-const RAIL_HOOK_CL = 0.052; // sheet front view: 52 mm from the rail centreline
-const RAIL_HOOK_END_H = 0.019; // sheet front view: 19 mm hook-end height (not a Ø19 bar)
+const RAIL_ROSE_DIA = 0.032; // sheet side view: 32 mm vertical on the rose (diameter)
+const RAIL_STEM_DIA = 0.025; // sheet side view: 25 mm vertical on the stem (section), not length
+const RAIL_ROSE_T = 0.006; // drawn stand-in; rose thickness is not on the sheet (thin disc at the wall)
+const RAIL_STEM_L = 0.056; // D100 − Ø38 − 6 mm rose stand-in, so the Ø25 stem meets the tube; not a sheet length
+const RAIL_CAP_D = 0.042; // sheet side view: 42 mm horizontal above the cap (wall-to-room depth)
+const RAIL_CAP_H = 0.042; // drawn stand-in: side view draws a square on the 42 mm depth; height is not dimensioned
+const RAIL_HOOK_CL = 0.052; // sheet front view: 52 mm horizontal from the rail centreline to the hook
+const RAIL_HOOK_H = 0.019; // sheet front view: 19 mm vertical on the hook arm (section)
 const RAIL_TOP = RAIL_FOOT + 0.9;
 const railBracket = (up: number): PartSpec[] => [
-  // Ø32 rose, 37 mm deep (derived) so its room face is 25 mm from the tube's back
-  tube(0, RAIL_FOOT + up - RAIL_ROSE / 2, RAIL_BACK + RAIL_ROSE_D / 2, RAIL_ROSE, RAIL_ROSE, { ...NICKEL, d: RAIL_ROSE_D }),
-  box(0, RAIL_FOOT + up - 0.006, RAIL_BACK + RAIL_ROSE_D + RAIL_STUB / 2, 0.012, 0.012, RAIL_STUB), // 25 mm stem
+  // Ø32 thin disc at the wall; thickness is the 6 mm stand-in
+  tube(0, RAIL_FOOT + up - RAIL_ROSE_DIA / 2, RAIL_BACK + RAIL_ROSE_T / 2, RAIL_ROSE_DIA, RAIL_ROSE_DIA, { ...NICKEL, d: RAIL_ROSE_T }),
+  // Ø25 stem spanning from the rose's room face to the tube back; length is not on the sheet
+  tube(0, RAIL_FOOT + up - RAIL_STEM_DIA / 2, RAIL_BACK + RAIL_ROSE_T + RAIL_STEM_L / 2, RAIL_STEM_DIA, RAIL_STEM_DIA, { ...NICKEL, d: RAIL_STEM_L }),
 ];
-// T-hook at the top, one side (sheet: hooks are removable). Arm from the Ø38 tube to the
-// 19 mm end at 52 mm from the centreline. The end's width and the arm's section are not on
-// the sheet; both are drawn at the 19 mm end height so the sheet's 52 and 19 are what read.
-// 142 mm is the Size/carton overall width, not a top bar.
+// Front view T-hook both sides. 52 mm from centreline, 19 mm arm section. 142 mm is Size/carton overall, not a bar.
 const RAIL_HOOK_ARM0 = RAIL_TUBE / 2;
-const RAIL_HOOK_ARM1 = RAIL_HOOK_CL - RAIL_HOOK_END_H / 2;
+const RAIL_HOOK_ARM1 = RAIL_HOOK_CL - RAIL_HOOK_H / 2;
+const railHook = (side: 1 | -1): PartSpec[] => [
+  box(side * (RAIL_HOOK_ARM0 + RAIL_HOOK_ARM1) / 2, RAIL_TOP - RAIL_HOOK_H, RAIL_Z, RAIL_HOOK_ARM1 - RAIL_HOOK_ARM0, RAIL_HOOK_H, RAIL_HOOK_H),
+  box(side * RAIL_HOOK_CL, RAIL_TOP - RAIL_HOOK_H, RAIL_Z, RAIL_HOOK_H, RAIL_HOOK_H, RAIL_HOOK_H),
+];
 const rail: PartSpec[] = [
-  tube(0, RAIL_FOOT, RAIL_Z, RAIL_TUBE, 0.9 - RAIL_CAP), // upright Ø38 below the cap
-  box(0, RAIL_TOP - RAIL_CAP, RAIL_Z, 0.04, RAIL_CAP, RAIL_TUBE), // 42 mm cap at the 900 mm top, on the Ø38 tube
-  box((RAIL_HOOK_ARM0 + RAIL_HOOK_ARM1) / 2, RAIL_TOP - RAIL_HOOK_END_H, RAIL_Z, RAIL_HOOK_ARM1 - RAIL_HOOK_ARM0, RAIL_HOOK_END_H, RAIL_HOOK_END_H),
-  box(RAIL_HOOK_CL, RAIL_TOP - RAIL_HOOK_END_H, RAIL_Z, RAIL_HOOK_END_H, RAIL_HOOK_END_H, RAIL_HOOK_END_H),
+  tube(0, RAIL_FOOT, RAIL_Z, RAIL_TUBE, 0.9 - RAIL_CAP_H), // upright Ø38; remainder of H900 after the cap stand-in
+  box(0, RAIL_TOP - RAIL_CAP_H, RAIL_ENV_D / 2 - RAIL_CAP_D / 2, RAIL_TUBE, RAIL_CAP_H, RAIL_CAP_D), // 42 mm deep; height is the square stand-in
+  ...railHook(1), ...railHook(-1),
   // 780 mm centres; 60 mm from each end of the 900 mm overall is inferred (900 − 780) / 2, not a sheet figure
   ...railBracket(0.84), ...railBracket(0.06),
 ];
@@ -508,7 +511,7 @@ export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "towel_rail_vs900hbn", label: "Towel rail", specCategory: "towel-rail",
     product: fitting("VS900HBN", "VS900HBN", "Thermorail VS900HBN, 12 V vertical rail, round, brushed nickel, concealed wiring",
-      "Carton label: 142 × 900 × 100 mm. Manufacturer sheet: W142 × H900 × D100, tube Ø38, 780 mm mounting centres, 24 W (this sheet; a product page that says 22 W is not used). Front view: removable hook 52 mm from the rail centreline, 19 mm end height (not a Ø19 bar); side view 42 mm cap. 12 V: a transformer came with each rail (owner); both go up in the ceiling space for access later.", "Thermorail"),
+      "Carton label: 142 × 900 × 100 mm. Manufacturer sheet: W142 × H900 × D100, tube Ø38, 780 mm mounting centres, 24 W (this sheet; a product page that says 22 W is not used). Side view: 42 mm is the cap's wall-to-room depth (horizontal), 25 mm is the stem section (vertical), 32 mm is the rose diameter (vertical). Stem length, rose thickness and cap height are not dimensioned. Front view: hook 52 mm from the rail centreline, 19 mm arm section. 12 V: a transformer came with each rail (owner); both go up in the ceiling space for access later.", "Thermorail"),
     size: { w: 0.142, d: 0.1, h: 0.9, printed: ["w", "d", "h"], elevation: RAIL_FOOT, caveat: "foot 750 mm above the floor tiles (owner, proposed); no surveyed wall face" },
     measures: [
       published("width", 0.142, sheet(THERMO_VS900, "VS900HBN specification sheet: Size W142 × H900 × D100"), "fixture-end", "Overall / carton width. Not a 142 mm top bar."),
@@ -516,10 +519,14 @@ export const purchasedFittings: PurchasedFitting[] = [
       published("height", 0.9, sheet(THERMO_VS900, "VS900HBN specification sheet: H900"), "fixture-bottom"),
       published("tubeDiameter", RAIL_TUBE, sheet(THERMO_VS900, "VS900HBN specification sheet: tube Ø38"), "other"),
       published("mountingCentres", 0.78, sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm between fixing centres"), "fixture-bottom", "780 mm centres. The 60 mm from each end of the 900 mm tube is inferred from (900 − 780) / 2, not a sheet dimension."),
-      published("hookFromCentreline", RAIL_HOOK_CL, sheet(THERMO_VS900, "VS900HBN specification sheet front view: 52 mm from the rail centreline to the hook"), "fixture-end"),
-      published("hookEndHeight", RAIL_HOOK_END_H, sheet(THERMO_VS900, "VS900HBN specification sheet front view: 19 mm hook-end height"), "fixture-bottom", "Hook-end height, not a bar diameter."),
-      published("roseDepth", RAIL_ROSE_D, sheet(THERMO_VS900, "derived: D100 − Ø38 − 25 mm stem (100 − 38 − 25); rose depth is not dimensioned on the sheet"), "fixture-side", "Not a sheet figure. Ø32 rose depth so the 25 mm stem meets the back of the Ø38 tube inside D100."),
-      published("stemLength", RAIL_STUB, sheet(THERMO_VS900, "VS900HBN specification sheet side view: 25 mm stem from the rose's room face to the tube"), "fixture-side"),
+      published("hookFromCentreline", RAIL_HOOK_CL, sheet(THERMO_VS900, "VS900HBN specification sheet front view: 52 mm horizontal from the rail centreline to the hook"), "fixture-end"),
+      published("hookSection", RAIL_HOOK_H, sheet(THERMO_VS900, "VS900HBN specification sheet front view: 19 mm vertical on the hook arm"), "fixture-bottom", "Hook-arm section (vertical), not a bar length."),
+      published("stemSection", RAIL_STEM_DIA, sheet(THERMO_VS900, "VS900HBN specification sheet side view: 25 mm vertical on the stem (section)"), "other", "Stem section, not length. The 25 mm arrows run along the stem's top and bottom edges."),
+      published("roseDiameter", RAIL_ROSE_DIA, sheet(THERMO_VS900, "VS900HBN specification sheet side view: 32 mm vertical on the rose"), "other", "Rose diameter. Thickness is not dimensioned (thin disc)."),
+      published("capDepth", RAIL_CAP_D, sheet(THERMO_VS900, "VS900HBN specification sheet side view: 42 mm horizontal above the cap"), "fixture-side", "Cap wall-to-room depth. Height is not dimensioned."),
+      unsourced("stemLength", "Stem length is not on the sheet (25 mm is the section). Drawn spanning from the thin rose to the tube back inside D100.", "fixture-side"),
+      unsourced("roseThickness", "Rose thickness is not on the sheet (32 mm is the diameter). Drawn as a thin disc at the wall.", "fixture-side"),
+      unsourced("capHeight", "Cap height is not on the sheet (42 mm is the side-view depth). Drawn as a square on that 42 mm depth so the side view reads; the upright is the remainder of H900.", "fixture-bottom"),
       proposedDim("elevation", RAIL_FOOT, "Owner: foot 750 mm above the finished floor tiles. Proposed, not surveyed; no wall anchor, so #60 installation is not used.", "finished-floor"),
     ],
     specFields: {
@@ -528,7 +535,7 @@ export const purchasedFittings: PurchasedFitting[] = [
       height: pubLen(0.9, sheet(THERMO_VS900, "VS900HBN specification sheet: H900"), "fixture-bottom"),
       mounting: pubVal("wall", sheet(THERMO_VS900, "VS900HBN specification sheet: wall-mounted vertical rail")),
       fixingCentresHeight: pubLen(0.78, sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm between fixing centres"), "fixture-bottom"),
-      fixingLayout: pubVal("780 mm vertical centres; Ø32 wall roses (37 mm deep, derived: D100 − Ø38 − 25 mm stem); 25 mm stems from the rose's room face to the tube; removable hook 52 mm from the rail centreline, 19 mm end height", sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm centres, Ø32 roses, 25 mm stems, hook 52 mm from centreline, 19 mm end height; rose depth derived")),
+      fixingLayout: pubVal("780 mm vertical centres; Ø32 wall roses (thin discs; thickness not on the sheet); Ø25 stems (section; length not on the sheet); removable hook 52 mm from the rail centreline, 19 mm arm section; cap 42 mm wall-to-room (height not on the sheet)", sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm centres, Ø32 roses, Ø25 stem section, hook 52 mm from centreline, 19 mm arm section, 42 mm cap depth")),
       heating: pubVal("electric", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V, 24 W")),
       power: pubVal("required", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V electric")),
       powerConnection: pubVal("low-voltage", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V")),
@@ -779,7 +786,7 @@ export const bathroomNotes = (): Note[] => {
     { id: "note-limits", author: "human", text: "This sample is not measured set-out or a trade drawing. Drainage, services and falls are not represented; construction layers are recorded with their unknown thicknesses left unknown.", at: at + 2 },
     {
       id: "note-purchased", author: "agent", at: at + 3,
-      text: "Purchased fittings, from photographed labels and the manufacturer's own specification drawing or sheet for the exact model: bath SB184-1000GW (Enflair drawing: 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste 520 mm from the corner); Enflair K1132-31 trim (set drawing: plate Ø65 × 4 mm, hub Ø42, handle 105.5 mm from the top of the hub, Ø10 handle centreline 50 mm from the plate's wall-side face, body (61) mm from the plate's wall-side face) with K1132 inner part, K1150-31-0-150 spout (drawing: plate Ø65, 150 mm to the outlet-face centre, Ø24, 45 mm drop from the tube axis to that centre, envelope 77.5 mm high and 162 mm deep); Enflair K1110-31 basin mixer (drawing: 148 mm high, flange Ø48 × 5.5, overall 145 mm from the flange back, body centreline 24 mm from that back, top lever 120 mm, spout 112 mm from the body centreline, Ø20, 62 mm clearance; held label 6 L/min WELS 2054 vs current sheet 4.5 L/min); Enflair K1130 shower/bath mixer inner part (outside part not photographed, not drawn); Y1173-31-11-250 shower (drawing: rail 981 mm Ø22, head Ø250, 427 mm from the mounting/wall face to the head connector centreline, plan depth 552 mm to the far edge of the head, drawing B handpiece 246.3 × Ø105 × 45.4 mm); Ahrok SDP-40BN 40 mm bath waste (photographed carton prints a 40 mm nominal connection; no manufacturer sheet, so that figure is not entered as a published product-brief field); two Thermorail VS900HBN 142 × 900 × 100 mm, tube Ø38, 780 mm centres, Ø32 roses, 25 mm stubs, 24 W (Thermogroup sheet; feet 750 mm above the floor tiles, owner, proposed); OJ MWD5-1999-CBP3 thermostat (brochure does not name the CBP3 cover; plate size stays unsourced). Only the towel-rail foot (750 mm) and thermostat (850 mm) have an owner proposal; bath mixer/spout 800 mm, shower rail foot 400 mm and basin-mixer deck 850 mm are unsourced (value null; drawn stand-ins live only on the kind). The room has no wall anchors and no surveyed finished faces, so #60 installation is not used and the catalogue elevation stopgap remains.",
+      text: "Purchased fittings, from photographed labels and the manufacturer's own specification drawing or sheet for the exact model: bath SB184-1000GW (Enflair drawing: 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste 520 mm from the corner); Enflair K1132-31 trim (set drawing: plate Ø65 × 4 mm, hub Ø42, handle 105.5 mm from the top of the hub, Ø10 handle centreline 50 mm from the plate's wall-side face, body (61) mm from the plate's wall-side face) with K1132 inner part, K1150-31-0-150 spout (drawing: plate Ø65, 150 mm to the outlet-face centre, Ø24, 45 mm drop from the tube axis to that centre, envelope 77.5 mm high and 162 mm deep); Enflair K1110-31 basin mixer (drawing: 148 mm high, flange Ø48 × 5.5, overall 145 mm from the flange back, body centreline 24 mm from that back, top lever 120 mm, spout 112 mm from the body centreline, Ø20, 62 mm clearance; held label 6 L/min WELS 2054 vs current sheet 4.5 L/min); Enflair K1130 shower/bath mixer inner part (outside part not photographed, not drawn); Y1173-31-11-250 shower (drawing: rail 981 mm Ø22, head Ø250, 427 mm from the mounting/wall face to the head connector centreline, plan depth 552 mm to the far edge of the head, drawing B handpiece 246.3 × Ø105 × 45.4 mm); Ahrok SDP-40BN 40 mm bath waste (photographed carton prints a 40 mm nominal connection; no manufacturer sheet, so that figure is not entered as a published product-brief field); two Thermorail VS900HBN 142 × 900 × 100 mm, tube Ø38, 780 mm centres, Ø32 roses, Ø25 stem section, 42 mm cap depth, 24 W (Thermogroup sheet; feet 750 mm above the floor tiles, owner, proposed); OJ MWD5-1999-CBP3 thermostat (brochure does not name the CBP3 cover; plate size stays unsourced). Only the towel-rail foot (750 mm) and thermostat (850 mm) have an owner proposal; bath mixer/spout 800 mm, shower rail foot 400 mm and basin-mixer deck 850 mm are unsourced (value null; drawn stand-ins live only on the kind). The room has no wall anchors and no surveyed finished faces, so #60 installation is not used and the catalogue elevation stopgap remains.",
     },
     { id: "note-captain", author: "agent", at: at + 13, text: captainsListText() },
     {

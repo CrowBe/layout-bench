@@ -107,19 +107,33 @@ describe("purchased fittings in the sample project", () => {
     expect(byKind.shower_y1173_31_11_250.specFields.fixingLayout?.value).toMatch(/500 mm/);
     expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).toMatch(/Ø32/);
     expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).toMatch(/52 mm from the rail centreline/);
-    expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).toMatch(/37 mm deep, derived/);
+    expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).toMatch(/Ø25 stems \(section/);
+    expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).not.toMatch(/37 mm/);
+    expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).not.toMatch(/25 mm stems from the rose/);
     const railHook = byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "hookFromCentreline")!;
     expect(railHook).toMatchObject({ value: 0.052, status: "published" });
-    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "hookEndHeight")).toMatchObject({ value: 0.019 });
-    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "roseDepth")).toMatchObject({ value: 0.037 });
-    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "roseDepth")?.note).toMatch(/Not a sheet figure/);
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "hookSection")).toMatchObject({ value: 0.019, status: "published" });
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "stemSection")).toMatchObject({ value: 0.025, status: "published" });
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "roseDiameter")).toMatchObject({ value: 0.032, status: "published" });
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "capDepth")).toMatchObject({ value: 0.042, status: "published" });
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "roseDepth")).toBeUndefined();
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "stemLength")).toMatchObject({ value: null });
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "roseThickness")).toMatchObject({ value: null });
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "capHeight")).toMatchObject({ value: null });
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "stemLength")?.status).not.toBe("published");
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "roseThickness")?.status).not.toBe("published");
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "capHeight")?.status).not.toBe("published");
     expect(byKind.towel_rail_vs900hbn.parts.some((p) => (p.w ?? 0) > 0.12 && (p.h ?? 0) < 0.03)).toBe(false);
     const railUpright = byKind.towel_rail_vs900hbn.parts[0];
-    const railStems = byKind.towel_rail_vs900hbn.parts.filter((p) => p.d === 0.025 && (p.w ?? 0) < 0.02);
+    const railStems = byKind.towel_rail_vs900hbn.parts.filter((p) => p.shape === "cylinder" && p.w === 0.025);
     expect(railStems).toHaveLength(2);
+    expect(railStems.every((p) => (p.d ?? 0) !== 0.025)).toBe(true); // 25 mm is section, not the drawn length
     for (const stem of railStems) {
       expect((stem.z ?? 0) + (stem.d ?? 0) / 2).toBeCloseTo((railUpright.z ?? 0) - (railUpright.d ?? 0) / 2, 5);
     }
+    const cap = byKind.towel_rail_vs900hbn.parts[1];
+    expect(cap.d).toBeCloseTo(0.042, 5); // sheet 42 is depth
+    expect(cap.h).not.toBeUndefined();
     expect(specOf(byKind.waste_sdp40bn).fields.width?.note).toMatch(/Not entered from the cited source/);
     expect(specOf(byKind.waste_sdp40bn).fields.width?.note).not.toMatch(/manufacturer sheet cited/);
     for (const f of purchasedFittings) {
@@ -170,8 +184,10 @@ describe("purchased fittings in the sample project", () => {
     expect(captain.text).toMatch(/60 mm/);
     expect(back.notes.find((n) => n.id === "note-purchased")!.text).toMatch(/246\.3/);
     expect(back.notes.find((n) => n.id === "note-purchased")!.text).toMatch(/mounting\/wall face/);
+    expect(back.notes.find((n) => n.id === "note-purchased")!.text).toMatch(/Ø25 stem section/);
     expect(back.notes.find((n) => n.id === "note-purchased")!.text).not.toMatch(/210\.3/);
     expect(back.notes.find((n) => n.id === "note-purchased")!.text).not.toMatch(/carton, measured/);
+    expect(back.notes.find((n) => n.id === "note-purchased")!.text).not.toMatch(/25 mm stubs/);
     const bath = back.model.items.find((i) => i.id === "bath")!;
     expect(bath.productSpecification?.fields.frontWidth).toMatchObject({ value: 1.4142, status: "published" });
     expect(bath.productSpecification?.fields.frontWidth.sources?.[0]?.locator).toMatch(/^derived:/);
