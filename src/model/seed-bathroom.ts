@@ -265,8 +265,13 @@ export const seedBathroom = (): PlanModel => ({
     wall("wall_w", -0.05, 3.07, -0.05, -0.05, "white"),
   ],
   openings: [
-    // 1755 internal width, centred; sill 1520 above the existing floor (#1). The height is still a placeholder.
-    { id: "window_n", kind: "window", wallId: "wall_n", t: 0.5, width: 1.755, sill: 1.52, height: 0.6 },
+    // Replacement bought from Stock Windows & Doors: custom double-glazed sliding window, 1810 W x
+    // 600 H unit size, white translucent laminated glass, White Pearl frame, right-hand opening from
+    // outside (sash on the left from inside), flyscreen, no reveals. Centred, as the old window was;
+    // the sill stays 1520 above the existing floor (#1), the old frame's 640 height packed down at
+    // the head. The framed opening and the clear glass size are not measured. The old window's clear
+    // width was 1755.
+    { id: "window_n", kind: "window", wallId: "wall_n", t: 0.5, width: 1.81, sill: 1.52, height: 0.6 },
     // 800 jamb to jamb, one jamb 120 mm from the left wall (#1)
     { id: "door_s", kind: "door", wallId: "wall_s", t: 1.64 / 2.21, width: 0.8, sill: 0, height: 1.9, hinge: "b", side: "left" },
   ],
