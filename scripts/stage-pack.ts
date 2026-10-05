@@ -15,28 +15,15 @@
  * Output: shots/stage-pack/<phase>/ and shots/stage-pack/README.md
  */
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-
-// The store saves to localStorage on every change; give it a throwaway one so the sample opens here
-// exactly as it does in the browser.
-const mem = new Map<string, string>();
-(globalThis as { localStorage?: unknown }).localStorage = {
-  getItem: (k: string) => mem.get(k) ?? null,
-  setItem: (k: string, v: string) => void mem.set(k, String(v)),
-  removeItem: (k: string) => void mem.delete(k),
-  clear: () => mem.clear(),
-  key: (i: number) => [...mem.keys()][i] ?? null,
-  get length() { return mem.size; },
-};
-
-const { store, actions, initializeProjects, projects } = await import("../src/model/store");
-const { DEMO_ID } = await import("../src/model/projects");
-const { productStore } = await import("../src/model/productLibrary");
-const { applyView, composeView, currentView } = await import("../src/sheets/viewState");
-const { catalogue, renderStageDiagram, renderStageSpec } = await import("../src/sheets/stageView");
-const { elevationSurfaces, renderStageElevation } = await import("../src/sheets/stageElevation");
-const { reconcile } = await import("../src/sheets/check");
+import { fileURLToPath } from "node:url";
+import type { Acknowledgement, PlanModel } from "../src/model/types";
+import type { LibraryProduct } from "../src/model/productLibrary";
+import { applyView, composeView, currentView } from "../src/sheets/viewState";
+import { catalogue, renderStageDiagram, renderStageSpec } from "../src/sheets/stageView";
+import { elevationSurfaces, renderStageElevation } from "../src/sheets/stageElevation";
+import { reconcile } from "../src/sheets/check";
 
 export interface Phase {
   /** folder name; its number orders the pack */
@@ -62,93 +49,207 @@ export const PHASES: Phase[] = [
   },
 ];
 
-const DATE = process.env.STAGE_PACK_DATE ?? new Date().toISOString().slice(0, 10);
-const OUT = resolve("shots/stage-pack");
-const only = process.argv.slice(2);
+export const DATE = process.env.STAGE_PACK_DATE ?? new Date().toISOString().slice(0, 10);
+export const OUT = resolve("shots/stage-pack");
 
-initializeProjects();
-const opened = projects.open(DEMO_ID);
-if (!opened.ok) throw new Error(`Could not open the sample: ${opened.summary}`);
-const pid = store.getState().activeProjectId;
-// The sample ships without a title block, which blocks every sheet. Fill it the way set_sheet_info
-// would; it names the sheet only. No site address is recorded, so the room stands in for the site.
-if (!store.getState().model.sheetSet?.titleBlock.project) {
-  const tb = actions.setSheetInfo({ project: store.getState().model.name, site: "Bathroom (no site address recorded)" });
-  if (!tb.ok) throw new Error(tb.summary);
+export interface PhaseFile { name: string; title: string; png?: string }
+export interface Written {
+  phase: Phase;
+  files: PhaseFile[];
+  rows: number;
+  unknown: number;
+  advisory: string[];
+  notModelled: string[];
 }
-const model = store.getState().model;
-const before = JSON.stringify(model);
-const products = productStore.getState().products;
 
-interface Written { phase: Phase; files: { name: string; title: string; png?: string }[]; rows: number; unknown: number; advisory: string[]; notModelled: string[] }
-const written: Written[] = [];
+/** Spec rows the pack treats as unknown: status 'unknown', or a '?' value. */
+export function countUnknown(rows: { value: string; status: string }[]): number {
+  return rows.filter((r) => r.status === "unknown" || r.value === "?").length;
+}
 
-for (const phase of PHASES.filter((p) => !only.length || only.some((o) => p.slug.startsWith(o)))) {
-  const applied = applyView(pid, model, phase.label, phase.visible);
+export function composePhase(projectId: string, model: PlanModel, phase: Phase, products: LibraryProduct[] = []) {
+  const applied = applyView(projectId, model, phase.label, phase.visible);
   if (!applied.ok) throw new Error(`${phase.slug}: ${applied.summary}`);
-  const c = composeView(model, currentView(pid)!, products);
-  const ack = reconcile(c.findings, []);
+  const composed = composeView(model, currentView(projectId)!, products);
+  const ack = reconcile(composed.findings, []);
   if (!ack.ok) throw new Error(`${phase.slug}: blocking findings, fix them in the model first:\n${JSON.stringify(ack.open, null, 2)}`);
-
-  const opts = { label: phase.label, findings: c.findings, acknowledged: ack.acknowledged, date: DATE, products };
-  const dir = join(OUT, phase.slug);
-  rmSync(dir, { recursive: true, force: true });
-  mkdirSync(dir, { recursive: true });
-
-  const files: Written["files"] = [];
-  writeFileSync(join(dir, "plan.svg"), renderStageDiagram(model, c.resolution.elements, opts));
-  files.push({ name: "plan.svg", title: "Plan" });
-  for (const s of elevationSurfaces(model, c.resolution.elements)) {
-    const name = `elevation-${s.wallId}-${s.side}.svg`;
-    writeFileSync(join(dir, name), renderStageElevation(model, c.resolution.elements, s.wallId, s.side, opts));
-    files.push({ name, title: `Elevation ${s.wallId} (${s.side} side, from ${s.room})` });
-  }
-  const spec = renderStageSpec(model, c.resolution.elements, opts);
-  writeFileSync(join(dir, "spec.html"), spec.html);
-  files.push({ name: "spec.html", title: "Specification sheet" });
-
-  written.push({
-    phase, files, rows: spec.rows.length,
-    unknown: spec.rows.filter((r) => r.value === "?").length,
-    advisory: c.findings.filter((f) => f.severity === "advisory").map((f) => f.message),
-    notModelled: catalogue(model).notModelled,
-  });
-  console.log(`${phase.slug}: ${c.resolution.elements.length} element(s), ${files.length - 1} drawing(s), ${spec.rows.length} spec row(s)`);
+  return { composed, acknowledged: ack.acknowledged };
 }
 
-if (JSON.stringify(store.getState().model) !== before) throw new Error("The model changed while composing views. Views must only change visibility.");
+export interface WritePhaseInput {
+  model: PlanModel;
+  elements: ReturnType<typeof composeView>["resolution"]["elements"];
+  findings: ReturnType<typeof composeView>["findings"];
+  acknowledged?: Acknowledgement[];
+  date: string;
+  products?: LibraryProduct[];
+  outDir: string;
+  /** Runs after SVG/spec land in the temp dir. A throw leaves the existing phase folder untouched. */
+  previews?: (dir: string, files: PhaseFile[]) => Promise<void>;
+}
 
-// PNG previews of every drawing, for reading the pack on GitHub
-// @ts-expect-error: the shared e2e helper is plain JS
-const { launch } = await import("../tests/browser.mjs");
-const browser = await launch();
-const page = await browser.newPage({ viewport: { width: 1680, height: 1188 }, deviceScaleFactor: 1 });
-for (const w of written) {
-  for (const f of w.files.filter((x) => x.name.endsWith(".svg"))) {
-    // A3 at 4 px per paper mm, on white
-    const svg = readFileSync(join(OUT, w.phase.slug, f.name), "utf8").replace(/width="420mm" height="297mm"/, 'width="1680" height="1188"');
+/** Replace dest with tmp; on failure restore dest if it had been moved aside. */
+export function swapDir(tmp: string, dest: string) {
+  const bak = `${dest}.bak`;
+  rmSync(bak, { recursive: true, force: true });
+  try {
+    if (existsSync(dest)) renameSync(dest, bak);
+    renameSync(tmp, dest);
+  } catch (err) {
+    if (!existsSync(dest) && existsSync(bak)) {
+      try { renameSync(bak, dest); } catch { /* prefer the original error */ }
+    }
+    throw err;
+  }
+  rmSync(bak, { recursive: true, force: true });
+}
+
+/**
+ * Write one phase's plan, elevations, spec and optional previews into a temp dir, then swap it
+ * into `outDir/<slug>` only after every output for that phase succeeds.
+ */
+export async function writePhase(phase: Phase, input: WritePhaseInput): Promise<Written> {
+  const dest = join(input.outDir, phase.slug);
+  const tmp = join(input.outDir, `.${phase.slug}.tmp`);
+  mkdirSync(input.outDir, { recursive: true });
+  rmSync(tmp, { recursive: true, force: true });
+  mkdirSync(tmp, { recursive: true });
+  try {
+    const opts = { label: phase.label, findings: input.findings, acknowledged: input.acknowledged, date: input.date, products: input.products };
+    const files: PhaseFile[] = [];
+    writeFileSync(join(tmp, "plan.svg"), renderStageDiagram(input.model, input.elements, opts));
+    files.push({ name: "plan.svg", title: "Plan" });
+    for (const s of elevationSurfaces(input.model, input.elements)) {
+      const name = `elevation-${s.wallId}-${s.side}.svg`;
+      writeFileSync(join(tmp, name), renderStageElevation(input.model, input.elements, s.wallId, s.side, opts));
+      files.push({ name, title: `Elevation ${s.wallId} (${s.side} side, from ${s.room})` });
+    }
+    const spec = renderStageSpec(input.model, input.elements, opts);
+    writeFileSync(join(tmp, "spec.html"), spec.html);
+    files.push({ name: "spec.html", title: "Specification sheet" });
+    if (input.previews) await input.previews(tmp, files);
+    swapDir(tmp, dest);
+    return {
+      phase, files, rows: spec.rows.length,
+      unknown: countUnknown(spec.rows),
+      advisory: input.findings.filter((f) => f.severity === "advisory").map((f) => f.message),
+      notModelled: catalogue(input.model).notModelled,
+    };
+  } catch (err) {
+    rmSync(tmp, { recursive: true, force: true });
+    throw err;
+  }
+}
+
+export async function renderSvgPreviews(
+  page: { setContent: (html: string) => Promise<unknown>; screenshot: (opts: { path: string }) => Promise<unknown> },
+  dir: string,
+  files: PhaseFile[],
+): Promise<void> {
+  for (const f of files.filter((x) => x.name.endsWith(".svg"))) {
+    const svg = readFileSync(join(dir, f.name), "utf8").replace(/width="420mm" height="297mm"/, 'width="1680" height="1188"');
     await page.setContent(`<html><body style="margin:0;background:#fff">${svg}</body></html>`);
     f.png = f.name.replace(/\.svg$/, ".png");
-    await page.screenshot({ path: join(OUT, w.phase.slug, f.png) });
+    await page.screenshot({ path: join(dir, f.png) });
   }
 }
-await browser.close();
 
-// the pack index
-const md: string[] = [
-  "# Stage diagram pack: Bathroom Concept",
-  "",
-  "Generated by `npm run stage-pack` from the shipped sample. Each phase is a stage view: the same model with only the listed layers visible. Nothing in the model is edited to make a phase look right.",
-  "",
-  "Every drawing is proposed set-out for trade review, not a compliance certificate. Values print with their status tag and datum; \"?\" means unknown.",
-  "",
-];
-for (const w of written) {
-  md.push(`## ${w.phase.label}`, "", w.phase.summary, "", `Visible: ${w.phase.visible.map((v) => `\`${v}\``).join(", ")}`, "");
-  md.push(`Specification: ${w.rows} row(s), ${w.unknown} unknown. [spec.html](${w.phase.slug}/spec.html)`, "");
-  if (w.advisory.length) md.push("Open items:", "", ...w.advisory.map((a) => `- ${a}`), "");
-  md.push("Not modelled (never drawn):", "", ...w.notModelled.map((n) => `- ${n}`), "");
-  for (const f of w.files.filter((x) => x.png)) md.push(`### ${f.title}`, "", `[${f.name}](${w.phase.slug}/${f.name})`, "", `![${f.title}](${w.phase.slug}/${f.png})`, "");
+export function indexMarkdown(written: Written[]): string {
+  const md: string[] = [
+    "# Stage diagram pack: Bathroom Concept",
+    "",
+    "Generated by `npm run stage-pack` from the shipped sample. Each phase is a stage view: the same model with only the listed layers visible. Nothing in the model is edited to make a phase look right.",
+    "",
+    "Every drawing is proposed set-out for trade review, not a compliance certificate. Values print with their status tag and datum; \"?\" means unknown.",
+    "",
+  ];
+  for (const w of written) {
+    md.push(`## ${w.phase.label}`, "", w.phase.summary, "", `Visible: ${w.phase.visible.map((v) => `\`${v}\``).join(", ")}`, "");
+    md.push(`Specification: ${w.rows} row(s), ${w.unknown} unknown. [spec.html](${w.phase.slug}/spec.html)`, "");
+    if (w.advisory.length) md.push("Open items:", "", ...w.advisory.map((a) => `- ${a}`), "");
+    md.push("Not modelled (never drawn):", "", ...w.notModelled.map((n) => `- ${n}`), "");
+    for (const f of w.files.filter((x) => x.png)) md.push(`### ${f.title}`, "", `[${f.name}](${w.phase.slug}/${f.name})`, "", `![${f.title}](${w.phase.slug}/${f.png})`, "");
+  }
+  return md.join("\n");
 }
-writeFileSync(join(OUT, "README.md"), md.join("\n"));
-console.log(`Wrote ${written.length} phase(s) to ${OUT}`);
+
+export async function generatePack(opts: { outDir?: string; only?: string[]; date?: string } = {}) {
+  const outDir = opts.outDir ?? OUT;
+  const only = opts.only ?? [];
+  const date = opts.date ?? DATE;
+
+  // The store saves to localStorage on every change; give it a throwaway one so the sample opens here
+  // exactly as it does in the browser.
+  const mem = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, String(v)),
+    removeItem: (k: string) => void mem.delete(k),
+    clear: () => mem.clear(),
+    key: (i: number) => [...mem.keys()][i] ?? null,
+    get length() { return mem.size; },
+  };
+
+  const { store, actions, initializeProjects, projects } = await import("../src/model/store");
+  const { DEMO_ID } = await import("../src/model/projects");
+  const { productStore } = await import("../src/model/productLibrary");
+
+  initializeProjects();
+  const opened = projects.open(DEMO_ID);
+  if (!opened.ok) throw new Error(`Could not open the sample: ${opened.summary}`);
+  const pid = store.getState().activeProjectId ?? DEMO_ID;
+  // The sample ships without a title block, which blocks every sheet. Fill it the way set_sheet_info
+  // would; it names the sheet only. No site address is recorded, so the room stands in for the site.
+  if (!store.getState().model.sheetSet?.titleBlock.project) {
+    const tb = actions.setSheetInfo({ project: store.getState().model.name, site: "Bathroom (no site address recorded)" });
+    if (!tb.ok) throw new Error(tb.summary);
+  }
+  const model = store.getState().model;
+  const before = JSON.stringify(model);
+  const products = productStore.getState().products;
+
+  // @ts-expect-error: the shared e2e helper is plain JS
+  const { launch } = await import("../tests/browser.mjs");
+  const browser = await launch();
+  const page = await browser.newPage({ viewport: { width: 1680, height: 1188 }, deviceScaleFactor: 1 });
+  const written: Written[] = [];
+  try {
+    for (const phase of PHASES.filter((p) => !only.length || only.some((o) => p.slug.startsWith(o)))) {
+      const { composed, acknowledged } = composePhase(pid, model, phase, products);
+      const w = await writePhase(phase, {
+        model, elements: composed.resolution.elements, findings: composed.findings, acknowledged, date, products, outDir,
+        previews: (dir, files) => renderSvgPreviews(page, dir, files),
+      });
+      written.push(w);
+      console.log(`${phase.slug}: ${composed.resolution.elements.length} element(s), ${w.files.filter((f) => f.name.endsWith(".svg")).length} drawing(s), ${w.rows} spec row(s)`);
+    }
+  } finally {
+    await browser.close();
+  }
+
+  if (JSON.stringify(store.getState().model) !== before) throw new Error("The model changed while composing views. Views must only change visibility.");
+
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(join(outDir, "README.md"), indexMarkdown(written));
+  console.log(`Wrote ${written.length} phase(s) to ${outDir}`);
+  return written;
+}
+
+function invokedAsCli(): boolean {
+  const arg = process.argv[1];
+  if (!arg) return false;
+  try {
+    return resolve(arg) === fileURLToPath(import.meta.url);
+  } catch {
+    return arg.replace(/\\/g, "/").endsWith("/scripts/stage-pack.ts");
+  }
+}
+
+if (invokedAsCli()) {
+  try {
+    await generatePack({ only: process.argv.slice(2) });
+  } catch (err) {
+    console.error(err instanceof Error ? err.stack ?? err.message : err);
+    process.exitCode = 1;
+  }
+}
