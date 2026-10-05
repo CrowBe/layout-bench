@@ -76,15 +76,15 @@ describe("purchased fittings in the sample project", () => {
     expect(byKind.mixer_k1132_31.size.d).toBe(0.061);
     expect(byKind.mixer_k1132_31.size.h).toBeCloseTo(0.117, 4);
     expect(byKind.mixer_k1132_31.size.elevation).toBeCloseTo(0.748, 4);
-    expect(byKind.spout_k1150_31_0_150.size).toMatchObject({ w: 0.065, d: 0.15, elevation: 0.8 });
+    expect(byKind.spout_k1150_31_0_150.size).toMatchObject({ w: 0.065, d: 0.162, h: 0.0775, elevation: 0.7875 });
     expect(byKind.mixer_k1110_31.size).toMatchObject({ h: 0.148, elevation: 0.85 });
     expect(byKind.shower_y1173_31_11_250.size).toMatchObject({ w: 0.25, d: 0.552, h: 0.981, elevation: 0.4 });
     expect(byKind.towel_rail_vs900hbn.size).toMatchObject({ w: 0.142, d: 0.1, h: 0.9, elevation: 0.75 });
     expect(byKind.thermostat_mwd5_1999_cbp3.size.caveat).toMatch(/stand-in/);
     expect(byKind.waste_sdp40bn.size.caveat).toMatch(/stand-in/);
     const wasteConnection = byKind.waste_sdp40bn.measures.find((m) => m.key === "connection")!;
-    expect(wasteConnection).toMatchObject({ value: 0.04, status: "measured", source: "carton label" });
-    expect(wasteConnection.measurement?.evidence).toMatch(/carton/);
+    expect(wasteConnection).toMatchObject({ value: 0.04, status: "published", source: "carton label" });
+    expect(wasteConnection.measurement).toBeUndefined();
     const handle = byKind.mixer_k1132_31.measures.find((m) => m.key === "handleDrop")!;
     expect(handle.note).toMatch(/top of the Ø42 hub/);
     expect(handle.note).not.toMatch(/plate centre down/);
@@ -94,12 +94,20 @@ describe("purchased fittings in the sample project", () => {
     expect(arm.note).not.toMatch(/Not from the wall/);
     expect(byKind.shower_y1173_31_11_250.measures.find((m) => m.key === "handpieceLength")).toMatchObject({ value: 0.2463 });
     expect(byKind.shower_y1173_31_11_250.measures.find((m) => m.key === "handpieceDiameter")).toMatchObject({ value: 0.105 });
-    expect(byKind.mixer_k1110_31.measures.find((m) => m.key === "elevation")?.status).toBe("proposed");
+    expect(byKind.mixer_k1110_31.measures.find((m) => m.key === "elevation")).toMatchObject({ value: null });
+    expect(byKind.mixer_k1110_31.measures.find((m) => m.key === "elevation")?.note).toMatch(/Unsourced/);
+    expect(byKind.mixer_k1110_31.measures.find((m) => m.key === "elevation")?.status).toBeUndefined();
     expect(byKind.mixer_k1132_31.measures.find((m) => m.key === "elevation")).toMatchObject({ value: null });
     expect(byKind.mixer_k1132_31.measures.find((m) => m.key === "elevation")?.note).toMatch(/Unsourced/);
     expect(byKind.mixer_k1132_31.measures.find((m) => m.key === "elevation")?.status).toBeUndefined();
     expect(byKind.shower_y1173_31_11_250.measures.find((m) => m.key === "envelopeDepth")).toBeUndefined();
     expect(byKind.mixer_k1132_31.measures.find((m) => m.key === "bodyProjection")?.note).toMatch(/wall-side face/);
+    expect(byKind.mixer_k1132_31.parts[1].z).toBeCloseTo(-0.061 / 2 + 0.05, 5);
+    expect(byKind.spout_k1150_31_0_150.specFields.waterConnection?.value).toMatch(/G1\/2/);
+    expect(byKind.shower_y1173_31_11_250.specFields.fixingLayout?.value).toMatch(/500 mm/);
+    expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).toMatch(/Ø32/);
+    expect(specOf(byKind.waste_sdp40bn).fields.width?.note).toMatch(/Not entered from the cited source/);
+    expect(specOf(byKind.waste_sdp40bn).fields.width?.note).not.toMatch(/manufacturer sheet cited/);
     for (const f of purchasedFittings) {
       expect(f.measures.length).toBeGreaterThan(0);
       for (const m of f.measures.filter((x) => x.status === "published")) {
@@ -130,8 +138,8 @@ describe("purchased fittings in the sample project", () => {
     expect(shower.productSpecification?.fields.armReach).toBeUndefined();
     expect(shower.productSpecification?.fields.envelopeDepth).toBeUndefined();
     const waste = back.model.items.find((i) => i.id === "bath_waste")!;
-    expect(waste.productSpecification?.fields.outletDiameter).toMatchObject({ value: 0.04, status: "measured" });
-    expect(waste.productSpecification?.fields.outletDiameter.measurement?.evidence).toMatch(/carton/);
+    expect(waste.productSpecification?.fields.outletDiameter).toMatchObject({ value: null });
+    expect(waste.productSpecification?.fields.outletDiameter.note).toMatch(/Carton prints 40 mm nominal/);
     expect(waste.productSpecification?.fields.connection).toBeUndefined();
     const basin = back.model.items.find((i) => i.id === "basin_mixer")!;
     expect(basin.productSpecification?.fields.elevation).toBeUndefined();
@@ -149,6 +157,10 @@ describe("purchased fittings in the sample project", () => {
     expect(back.notes.find((n) => n.id === "note-purchased")!.text).toMatch(/246\.3/);
     expect(back.notes.find((n) => n.id === "note-purchased")!.text).toMatch(/mounting\/wall face/);
     expect(back.notes.find((n) => n.id === "note-purchased")!.text).not.toMatch(/210\.3/);
+    expect(back.notes.find((n) => n.id === "note-purchased")!.text).not.toMatch(/carton, measured/);
+    const bath = back.model.items.find((i) => i.id === "bath")!;
+    expect(bath.productSpecification?.fields.frontWidth).toMatchObject({ value: 1.4142, status: "published" });
+    expect(bath.productSpecification?.fields.frontWidth.sources?.[0]?.locator).toMatch(/^derived:/);
   });
 
   it("does not give wall fittings #60 installation: no wall anchor and no surveyed finished face", () => {
@@ -158,6 +170,8 @@ describe("purchased fittings in the sample project", () => {
       expect(it.installation).toBeUndefined();
     }
     expect(kinds.find((k) => k.entry.kind === "mixer_k1132_31")!.entry.elevation).toBe(0.748);
+    expect(kinds.find((k) => k.entry.kind === "mixer_k1132_31")!.entry.elevationNote).toMatch(/handle end/);
+    expect(kinds.find((k) => k.entry.kind === "spout_k1150_31_0_150")!.entry.elevation).toBe(0.7875);
     expect(kinds.find((k) => k.entry.kind === "shower_y1173_31_11_250")!.entry.elevation).toBe(0.4);
   });
 
@@ -172,6 +186,7 @@ describe("purchased fittings in the sample project", () => {
     expect(text).toMatch(/slider\/holder/);
     expect(text).toMatch(/handpiece/);
     expect(text).toMatch(/60 mm/);
+    expect(text).not.toMatch(/proposed 850/);
     expect(text).not.toMatch(/400 mm placeholder/);
     expect(stillNeedsCaptainsMeasurement.some((e) => /finished \(tile\) face/i.test(e.from))).toBe(true);
     const { notes } = demoProject();
@@ -235,8 +250,8 @@ describe("purchased fittings in the sample project", () => {
     expect(shower.fields.armProjection?.value).toBe(0.427);
     expect(shower.fields.width?.value).toBe(0.25);
     const waste = model.items.find((i) => i.id === "bath_waste")!.productSpecification!;
-    expect(waste.fields.outletDiameter?.status).toBe("measured");
-    expect(waste.fields.outletDiameter?.measurement?.evidence).toMatch(/carton/);
+    expect(waste.fields.outletDiameter?.value).toBeNull();
+    expect(waste.fields.outletDiameter?.note).toMatch(/Carton prints 40 mm nominal/);
   });
 
   it("draws the corner bath as a right-angle triangle with a rounded hypotenuse", () => {

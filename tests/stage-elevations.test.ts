@@ -72,7 +72,7 @@ describe("stage wall elevations", () => {
     expect(east).toMatch(/3018 between finished faces of the return walls/);
     const west = renderStageElevation(model(), els, walls[3], "right", opts);
     expect(west).toContain(`data-element="item:${rail}"`);
-    expect(west).toMatch(/placeholder mounting height 500/);
+    expect(west).toMatch(/envelope bottom 500/);
     const north = renderStageElevation(model(), els, walls[0], "right", opts);
     expect(north).toContain(`data-element="opening:${win}"`);
     expect(north).toMatch(/jambs 176\.5 \/ 1931\.5 from finished face at A/);

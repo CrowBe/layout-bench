@@ -397,6 +397,6 @@ function vertical(model: PlanModel, it: Item, room: ReturnType<typeof roomBeside
   const z0 = floor.level + (cat.elevation ?? 0);
   const on = floor.datumOnly ? "the existing floor (no floor build-up recorded)" : "the finished floor";
   return cat.elevation
-    ? { z0, z1: z0 + cat.h, basis: "estimated", heightNote: `placeholder mounting height ${mm(cat.elevation)} above ${on} from the kind's data, not a set-out (dashed)` }
+    ? { z0, z1: z0 + cat.h, basis: "estimated", heightNote: `${cat.elevationNote ? `${cat.elevationNote}; ` : ""}envelope bottom ${mm(cat.elevation)} above ${on} from the kind's data, not a set-out (dashed)` }
     : { z0, z1: z0 + cat.h, basis: floor.basis, heightNote: `stands on ${on}; height ${mm(cat.h)} from the kind's envelope` };
 }

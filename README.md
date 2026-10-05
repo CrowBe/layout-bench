@@ -260,7 +260,7 @@ A few design notes:
   the view shows, from the same visible set: the outermost visible face or layer, openings with
   jambs measured from the return wall's face, the proposed tile set-out once the tile layer is
   shown, visible floor levels and the finished-floor falls along the wall, fixtures standing against
-  that face at their heights (a kind's placeholder mounting height is dashed and says so), and
+  that face at their heights (a kind's envelope bottom is dashed and says so), and
   service points dimensioned from the return wall's face and above the finished floor. A point or
   fixture without a known height is listed, never drawn. `get_diagram_view` names the surfaces;
   `export_diagram_view` takes `surfaces` to generate a subset; the Sheets tab previews any of them. The A-01 blocking rules apply to visible content (a defaulted
@@ -342,7 +342,7 @@ A few design notes:
   printed on its label. Product sizes come from the manufacturer's own specification drawing or
   sheet when that sheet names the exact model; remaining sizes stay labelled placeholders.
   Mounting heights: only the towel-rail foot (750 mm) and thermostat (850 mm) have an owner
-  proposal; the bath mixer/spout 800 mm and shower rail foot 400 mm are unsourced (value null;
+  proposal; the bath mixer/spout 800 mm, shower rail foot 400 mm and basin-mixer deck 850 mm are unsourced (value null;
   drawn stand-ins live only on the kind).
   The room has no wall anchors and no surveyed finished faces, so per-item installation
   placement is not used and the catalogue `elevation` stopgap remains.
