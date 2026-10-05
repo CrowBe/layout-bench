@@ -83,6 +83,16 @@ describe("stage wall elevations", () => {
     expect(renderStageElevation(model(), els, walls[0], "right", opts)).toContain('data-piece="cut"');
   });
 
+  it("dashes a kind-elevation envelope and leaves a floor-standing fixture solid", () => {
+    const { walls, vanity, rail } = bathroom();
+    const els = ids(["walls", "fixtures"]);
+    const west = renderStageElevation(model(), els, walls[3], "right", opts);
+    expect(west).toMatch(new RegExp(`stroke-dasharray="1.2 0.6"[^>]*data-element="item:${rail}"`));
+    const east = renderStageElevation(model(), els, walls[1], "right", opts);
+    expect(east).toContain(`data-element="item:${vanity}"`);
+    expect(east).not.toMatch(new RegExp(`stroke-dasharray[^>]*data-element="item:${vanity}"`));
+  });
+
   it("shows only what the stage shows", () => {
     const { walls, vanity } = bathroom();
     const frameOnly = renderStageElevation(model(), ids(["walls", "wall-frame", "services-waste"]), walls[1], "right", { ...opts, label: "Rough-in" });

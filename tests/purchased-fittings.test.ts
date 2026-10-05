@@ -106,6 +106,11 @@ describe("purchased fittings in the sample project", () => {
     expect(byKind.spout_k1150_31_0_150.specFields.waterConnection?.value).toMatch(/G1\/2/);
     expect(byKind.shower_y1173_31_11_250.specFields.fixingLayout?.value).toMatch(/500 mm/);
     expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).toMatch(/Ø32/);
+    expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).toMatch(/52 mm from the rail centreline/);
+    const railHook = byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "hookFromCentreline")!;
+    expect(railHook).toMatchObject({ value: 0.052, status: "published" });
+    expect(byKind.towel_rail_vs900hbn.measures.find((m) => m.key === "hookEndHeight")).toMatchObject({ value: 0.019 });
+    expect(byKind.towel_rail_vs900hbn.parts.some((p) => (p.w ?? 0) > 0.12 && (p.h ?? 0) < 0.03)).toBe(false);
     expect(specOf(byKind.waste_sdp40bn).fields.width?.note).toMatch(/Not entered from the cited source/);
     expect(specOf(byKind.waste_sdp40bn).fields.width?.note).not.toMatch(/manufacturer sheet cited/);
     for (const f of purchasedFittings) {

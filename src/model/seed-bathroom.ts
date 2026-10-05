@@ -267,17 +267,25 @@ const RAIL_TUBE = 0.038;
 const RAIL_Z = 0.05 - RAIL_TUBE / 2; // the upright's front at the 100 mm projection
 const RAIL_ROSE = 0.032; // sheet Ø32
 const RAIL_STUB = 0.025; // sheet 25 mm
-const RAIL_CAP = 0.042; // sheet 42 mm cap above the Ø19 crossbar
-const RAIL_BAR = 0.019; // sheet Ø19
+const RAIL_CAP = 0.042; // sheet side view: 42 mm cap
+const RAIL_HOOK_CL = 0.052; // sheet front view: 52 mm from the rail centreline
+const RAIL_HOOK_END_H = 0.019; // sheet front view: 19 mm hook-end height (not a Ø19 bar)
+const RAIL_TOP = RAIL_FOOT + 0.9;
 const railBracket = (up: number): PartSpec[] => [
   tube(0, RAIL_FOOT + up - RAIL_ROSE / 2, -0.045, RAIL_ROSE, RAIL_ROSE, { ...NICKEL, d: 0.01 }), // Ø32 wall rose
   box(0, RAIL_FOOT + up - 0.006, -0.04 + RAIL_STUB / 2, 0.012, 0.012, RAIL_STUB), // 25 mm stub
 ];
+// T-hook at the top, one side (sheet: hooks are removable). Arm from the Ø38 tube to the
+// 19 mm end at 52 mm from the centreline. The end's width and the arm's section are not on
+// the sheet; both are drawn at the 19 mm end height so the sheet's 52 and 19 are what read.
+// 142 mm is the Size/carton overall width, not a top bar.
+const RAIL_HOOK_ARM0 = RAIL_TUBE / 2;
+const RAIL_HOOK_ARM1 = RAIL_HOOK_CL - RAIL_HOOK_END_H / 2;
 const rail: PartSpec[] = [
   tube(0, RAIL_FOOT, RAIL_Z, RAIL_TUBE, 0.9 - RAIL_CAP), // upright Ø38 below the cap
-  box(0, RAIL_FOOT + 0.9 - RAIL_CAP, RAIL_Z, 0.04, RAIL_CAP, RAIL_TUBE), // 42 mm cap at the 900 mm top, on the Ø38 tube
-  box(0, RAIL_FOOT + 0.9 - RAIL_CAP - RAIL_BAR, RAIL_Z, 0.142, RAIL_BAR, RAIL_BAR), // Ø19 crossbar just below the cap
-  box(-0.0625, RAIL_FOOT + 0.9 - RAIL_CAP - RAIL_BAR, RAIL_Z, 0.017, 0.028, 0.028), box(0.0625, RAIL_FOOT + 0.9 - RAIL_CAP - RAIL_BAR, RAIL_Z, 0.017, 0.028, 0.028), // knob ends
+  box(0, RAIL_TOP - RAIL_CAP, RAIL_Z, 0.04, RAIL_CAP, RAIL_TUBE), // 42 mm cap at the 900 mm top, on the Ø38 tube
+  box((RAIL_HOOK_ARM0 + RAIL_HOOK_ARM1) / 2, RAIL_TOP - RAIL_HOOK_END_H, RAIL_Z, RAIL_HOOK_ARM1 - RAIL_HOOK_ARM0, RAIL_HOOK_END_H, RAIL_HOOK_END_H),
+  box(RAIL_HOOK_CL, RAIL_TOP - RAIL_HOOK_END_H, RAIL_Z, RAIL_HOOK_END_H, RAIL_HOOK_END_H, RAIL_HOOK_END_H),
   // 780 mm centres; 60 mm from each end of the 900 mm overall is inferred (900 − 780) / 2, not a sheet figure
   ...railBracket(0.84), ...railBracket(0.06),
 ];
@@ -496,14 +504,16 @@ export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "towel_rail_vs900hbn", label: "Towel rail", specCategory: "towel-rail",
     product: fitting("VS900HBN", "VS900HBN", "Thermorail VS900HBN, 12 V vertical rail, round, brushed nickel, concealed wiring",
-      "Carton label: 142 × 900 × 100 mm. Manufacturer sheet: W142 × H900 × D100, tube Ø38, 780 mm mounting centres, 24 W (this sheet; a product page that says 22 W is not used). 12 V: a transformer came with each rail (owner); both go up in the ceiling space for access later.", "Thermorail"),
+      "Carton label: 142 × 900 × 100 mm. Manufacturer sheet: W142 × H900 × D100, tube Ø38, 780 mm mounting centres, 24 W (this sheet; a product page that says 22 W is not used). Front view: removable hook 52 mm from the rail centreline, 19 mm end height (not a Ø19 bar); side view 42 mm cap. 12 V: a transformer came with each rail (owner); both go up in the ceiling space for access later.", "Thermorail"),
     size: { w: 0.142, d: 0.1, h: 0.9, printed: ["w", "d", "h"], elevation: RAIL_FOOT, caveat: "foot 750 mm above the floor tiles (owner, proposed); no surveyed wall face" },
     measures: [
-      published("width", 0.142, sheet(THERMO_VS900, "VS900HBN specification sheet: Size W142 × H900 × D100"), "fixture-end"),
+      published("width", 0.142, sheet(THERMO_VS900, "VS900HBN specification sheet: Size W142 × H900 × D100"), "fixture-end", "Overall / carton width. Not a 142 mm top bar."),
       published("depth", 0.1, sheet(THERMO_VS900, "VS900HBN specification sheet: D100"), "fixture-side"),
       published("height", 0.9, sheet(THERMO_VS900, "VS900HBN specification sheet: H900"), "fixture-bottom"),
       published("tubeDiameter", RAIL_TUBE, sheet(THERMO_VS900, "VS900HBN specification sheet: tube Ø38"), "other"),
       published("mountingCentres", 0.78, sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm between fixing centres"), "fixture-bottom", "780 mm centres. The 60 mm from each end of the 900 mm tube is inferred from (900 − 780) / 2, not a sheet dimension."),
+      published("hookFromCentreline", RAIL_HOOK_CL, sheet(THERMO_VS900, "VS900HBN specification sheet front view: 52 mm from the rail centreline to the hook"), "fixture-end"),
+      published("hookEndHeight", RAIL_HOOK_END_H, sheet(THERMO_VS900, "VS900HBN specification sheet front view: 19 mm hook-end height"), "fixture-bottom", "Hook-end height, not a bar diameter."),
       proposedDim("elevation", RAIL_FOOT, "Owner: foot 750 mm above the finished floor tiles. Proposed, not surveyed; no wall anchor, so #60 installation is not used.", "finished-floor"),
     ],
     specFields: {
@@ -512,7 +522,7 @@ export const purchasedFittings: PurchasedFitting[] = [
       height: pubLen(0.9, sheet(THERMO_VS900, "VS900HBN specification sheet: H900"), "fixture-bottom"),
       mounting: pubVal("wall", sheet(THERMO_VS900, "VS900HBN specification sheet: wall-mounted vertical rail")),
       fixingCentresHeight: pubLen(0.78, sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm between fixing centres"), "fixture-bottom"),
-      fixingLayout: pubVal("780 mm vertical centres; Ø32 wall roses; 25 mm stubs", sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm centres, Ø32 roses, 25 mm stubs")),
+      fixingLayout: pubVal("780 mm vertical centres; Ø32 wall roses; 25 mm stubs; removable hook 52 mm from the rail centreline, 19 mm end height", sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm centres, Ø32 roses, 25 mm stubs, hook 52 mm from centreline, 19 mm end height")),
       heating: pubVal("electric", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V, 24 W")),
       power: pubVal("required", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V electric")),
       powerConnection: pubVal("low-voltage", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V")),
