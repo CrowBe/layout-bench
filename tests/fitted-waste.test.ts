@@ -637,6 +637,78 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(afterMeasured.kind).toBe(beforeMeasured.kind);
     expect(afterMeasured.productGeometry?.outline).toEqual(beforeMeasured.productGeometry?.outline);
   });
+
+  it("refuses a re-anchor that cannot recompute a derived waste point, and leaves the fixture unchanged", () => {
+    const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), surround: pub("none-required"),
+    };
+    const product: LibraryProduct = {
+      id: "unresolvable-reanchor", category: "bath", manufacturer: "Example Co", model: "Corner",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+    };
+    const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    const bathId = placed.id as string;
+    expect(item(bathId).servicePoints!.find((p) => p.id === "waste")?.status).toBe("derived");
+    const cleared = { value: null, note: "Cleared so the host waste point cannot be recomputed." };
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: store.getState().model.items.map((i) => {
+          if (i.id !== bathId) return i;
+          const specFields = { ...i.productSpecification!.fields, wasteFromCorner: cleared };
+          const snapFields = i.productSnapshot ? { ...i.productSnapshot.fields, wasteFromCorner: cleared } : undefined;
+          return {
+            ...i,
+            productSpecification: { ...i.productSpecification!, fields: specFields },
+            ...(i.productSnapshot && snapFields ? { productSnapshot: { ...i.productSnapshot, fields: snapFields } } : {}),
+          };
+        }),
+      },
+    });
+    expect(actions.editWall(wall, { bx: 1.0 }).ok).toBe(true);
+    const before = structuredClone(item(bathId));
+    expect(issues().some((i) => i.code === "fixture_corner_hand_review")).toBe(true);
+    const re = actions.anchorFixture(bathId, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(re.ok).toBe(false);
+    expect(re.summary).toMatch(/derived waste point cannot be recomputed/i);
+    expect(item(bathId).corner).toEqual(before.corner);
+    expect(item(bathId).kind).toBe(before.kind);
+    expect(item(bathId).productGeometry?.outline).toEqual(before.productGeometry?.outline);
+    expect(item(bathId).servicePoints).toEqual(before.servicePoints);
+    expect(issues().some((i) => i.code === "fixture_corner_hand_review")).toBe(true);
+  });
+
+  it("names the known-hand remediation on the corner-hand review warning, not a re-anchor that would be refused", () => {
+    const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), surround: pub("none-required"),
+    };
+    const product: LibraryProduct = {
+      id: "known-hand-review", category: "bath", manufacturer: "Example Co", model: "Left corner",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+      identity: {
+        code: { state: "unknown", value: null },
+        finish: { state: "unknown", value: null },
+        configuration: { state: "unknown", value: null },
+        handedness: { state: "known", value: "left", sources: src },
+      },
+    };
+    const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    expect(actions.editWall(wall, { bx: 1.0 }).ok).toBe(true);
+    const review = issues().find((i) => i.code === "fixture_corner_hand_review");
+    expect(review).toBeDefined();
+    expect(review!.message).toMatch(/check the product's left hand/);
+    expect(review!.message).not.toMatch(/Re-anchor the fixture to update the corner hand/);
+    expect(review!.message).toMatch(/not a manufacturer figure/);
+    expect(review!.message).toMatch(/compliance/);
+  });
 });
 
 describe("stopgap geometry is dashed from a flag, not from note text", () => {

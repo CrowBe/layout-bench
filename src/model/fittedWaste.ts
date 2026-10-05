@@ -87,6 +87,47 @@ export function cornerHandDisagrees(input: HostWasteInput): boolean {
 }
 
 export type CornerHandChange = { ok: true; item: Item } | { ok: false; summary: string };
+export type CornerHandBlock = { blocked: false } | { blocked: true; summary: string; remediation: string };
+
+const isDerivedPoint = (p: ServicePoint) => p.status === "derived" || p.basis === "derived";
+const confirmedStatus = (status?: string) => status === "measured" || status === "site-confirmed";
+
+/** Same preconditions as applyCornerHandChange / anchorFixture; used for the review warning too. */
+export function cornerHandChangeBlock(
+  item: Item,
+  ctx: { sourcePlacement?: { ok: true; servicePoints: ServicePoint[] } | { ok: false } } = {},
+): CornerHandBlock {
+  const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
+  if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) {
+    return {
+      blocked: true,
+      summary: `This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`,
+      remediation: `check the product's ${hand.value} hand; choose a separate documented variant for the other corner rather than re-anchoring this fixture`,
+    };
+  }
+  const copiedOf = (id: string) => (ctx.sourcePlacement?.ok ? ctx.sourcePlacement.servicePoints.find((p) => p.id === id) : undefined);
+  const conflict = (item.servicePoints ?? []).find((point) => {
+    if (point.across === undefined || point.across === 0) return false;
+    const copied = copiedOf(point.id);
+    return (!point.axisEvidence && confirmedStatus(point.status) && evidenceFingerprint(point) !== evidenceFingerprint(copied)) ||
+      (confirmedStatus(point.axisEvidence?.across?.status) && (point.across !== copied?.across || evidenceFingerprint(point.axisEvidence?.across) !== evidenceFingerprint(copied?.axisEvidence?.across)));
+  });
+  if (conflict) {
+    return {
+      blocked: true,
+      summary: `Changing corner hand would reflect the measured/site-confirmed project axis on ${conflict.id}. Reconcile that instance connection individually; its coordinate, evidence and anchor remain unchanged.`,
+      remediation: `re-measure the site datum on ${conflict.id}; a sourced measured or site-confirmed across is not mirrored by re-anchoring`,
+    };
+  }
+  if (item.installationGeometry) {
+    return {
+      blocked: true,
+      summary: "Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged.",
+      remediation: "review the sourced installation geometry; its source coordinates and pinned shape stay unchanged",
+    };
+  }
+  return { blocked: false };
+}
 
 /**
  * Guarded corner-hand update used by re-anchoring. Same preconditions as anchorFixture:
@@ -103,24 +144,8 @@ export function applyCornerHandChange(
   },
 ): CornerHandChange {
   if (!item.corner) return { ok: true, item };
-  const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
-  if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) {
-    return { ok: false, summary: `This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.` };
-  }
-  const confirmed = (status?: string) => status === "measured" || status === "site-confirmed";
-  const copiedOf = (id: string) => (ctx.sourcePlacement?.ok ? ctx.sourcePlacement.servicePoints.find((p) => p.id === id) : undefined);
-  const conflict = (item.servicePoints ?? []).find((point) => {
-    if (point.across === undefined || point.across === 0) return false;
-    const copied = copiedOf(point.id);
-    return (!point.axisEvidence && confirmed(point.status) && evidenceFingerprint(point) !== evidenceFingerprint(copied)) ||
-      (confirmed(point.axisEvidence?.across?.status) && (point.across !== copied?.across || evidenceFingerprint(point.axisEvidence?.across) !== evidenceFingerprint(copied?.axisEvidence?.across)));
-  });
-  if (conflict) {
-    return { ok: false, summary: `Changing corner hand would reflect the measured/site-confirmed project axis on ${conflict.id}. Reconcile that instance connection individually; its coordinate, evidence and anchor remain unchanged.` };
-  }
-  if (item.installationGeometry) {
-    return { ok: false, summary: "Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged." };
-  }
+  const block = cornerHandChangeBlock(item, ctx);
+  if (block.blocked) return { ok: false, summary: block.summary };
   const mirrorPoint = (point: { x: number; y: number }) => ({ x: -point.x, y: point.y });
   const pinned = item.productGeometry;
   const geometry = pinned
@@ -142,29 +167,39 @@ export function applyCornerHandChange(
           : {}),
       }
     : undefined;
-  const next: Item = {
+  const proposed: Item = {
     ...item,
     kind: item.corner[side],
     corner: { ...item.corner, side },
     ...(geometry ? { productGeometry: geometry } : {}),
   };
-  const cat = catalogForItem(next);
+  const cat = catalogForItem(proposed);
   const hostPt = cat
     ? resolveHostFrameWaste({
-        fields: next.productSpecification?.fields ?? next.productSnapshot?.fields ?? {},
+        fields: proposed.productSpecification?.fields ?? proposed.productSnapshot?.fields ?? {},
         boxW: cat.w,
         outlineStart: (geometry?.outline ?? cat.outline)?.start,
         storedCorner: side,
-        anchor: next.anchor,
+        anchor: proposed.anchor,
         wall: ctx.wall,
       })
-    : { resolved: false as const, missing: [] as string[], datum: "" };
-  const derived = (p: ServicePoint) => p.status === "derived" || p.basis === "derived";
-  const gap = next.anchor?.gap ?? 0;
+    : { resolved: false as const, missing: ["footprint"] as string[], datum: "" };
+  const hasDerived = (item.servicePoints ?? []).some(isDerivedPoint);
+  if (hasDerived && !hostPt.resolved) {
+    const why = hostPt.missing.length ? hostPt.missing.join(", ") : "the host waste point is unresolved";
+    return {
+      ok: false,
+      summary:
+        `The derived waste point cannot be recomputed (${why}). ` +
+        `The corner hand, outline, kind and service points are unchanged.`,
+    };
+  }
+  const gap = proposed.anchor?.gap ?? 0;
+  const next: Item = { ...proposed };
   if (item.servicePoints) {
     next.servicePoints = item.servicePoints.map((p) => {
-      if (derived(p) && hostPt.resolved && hostPt.across !== undefined && hostPt.out !== undefined) {
-        return { ...p, across: hostPt.across, out: quantize(hostPt.out + gap) };
+      if (isDerivedPoint(p)) {
+        return { ...p, across: hostPt.across, out: quantize(hostPt.out! + gap) };
       }
       return p.across === undefined ? p : { ...p, across: quantize(-p.across) };
     });
@@ -181,12 +216,16 @@ export function cornerHandProblems(model: PlanModel): Issue[] {
     if (!wall) continue;
     const live = productCornerSide(it.anchor, wall);
     if (live === it.corner.side) continue;
+    const block = cornerHandChangeBlock(it);
+    const nextStep = block.blocked
+      ? block.remediation
+      : "Re-anchor the fixture to update the corner hand";
     out.push({
       severity: "warning",
       code: "fixture_corner_hand_review",
       message:
         `${it.id}: a wall edit changed which end is nearer, so the stored ${it.corner.side}-hand no longer matches the live wall set-out (${live}-hand). ` +
-        `Re-anchor the fixture to update the corner hand. This is a modelling/set-out review, not a manufacturer figure, plumbing check or compliance verdict.`,
+        `${nextStep}. This is a modelling/set-out review, not a manufacturer figure, plumbing check or compliance verdict.`,
       refs: [it.id, wall.id],
     });
   }
