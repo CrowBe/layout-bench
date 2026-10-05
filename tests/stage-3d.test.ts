@@ -145,7 +145,9 @@ describe("sample bathroom in 3D: the finished room over its build-up", () => {
     expect(sub.userData.provenance).toMatchObject({ status: "estimated", datum: fb.datum });
     expect(sub.userData.provenance.source).toMatch(/owner: about 120 mm below the current tile/);
     const fill = byName(group, "bathroom:floor-fill")[0];
-    if (fill) expect(fill.userData.provenance.status).toBe(floorFill(fb)!.basis);
+    expect(fill).toBeDefined();
+    expect(fill.userData.provenance.status).toBe(floorFill(fb)!.basis);
+    expect(fill.userData.provenance.status).toBe("estimated"); // target (proposed) − estimated slab − estimated tile
     const wall = byName(group, "wall_w")[0].parent!; // the wall group
     expect(wall.userData.foot).toMatchObject({ level: -0.12, status: "estimated", datum: fb.datum });
     expect(wall.userData.foot.source).toMatch(/owner: about 120 mm below/);
