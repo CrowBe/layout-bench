@@ -19,7 +19,7 @@ import {
   diametersAreLikeForLike,
   fittedWasteProblems,
   hostWasteInHostFrame,
-  DERIVED_CORNER_WASTE_REANCHOR,
+  CORNER_HAND_REANCHOR,
 } from "../src/model/fittedWaste";
 import { categoryById, roughInPoints, validateSubmission, axisDisplayText, type FieldValue, type SpecSubmission } from "../src/model/products";
 import type { PartSpec } from "../src/three/furniture";
@@ -379,6 +379,28 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
   });
 
+  it("does not invent a published host-frame waste axis from incomplete end/side", () => {
+    const wall = actions.addWall(0, 0, 3, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1.675), width: pub(0.75), height: pub(0.45), installation: pub("freestanding"), shape: pub("rectangular"),
+      wasteFromEnd: pub(0.2), wasteEnd: pub("right"),
+    };
+    const product: LibraryProduct = {
+      id: "incomplete-end-side", category: "bath", manufacturer: "Example Co", model: "Incomplete waste",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+    };
+    const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 1, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    const bath = item(placed.id as string);
+    const sp = bath.servicePoints?.find((p) => p.id === "waste");
+    expect(sp).toBeDefined();
+    expect(sp!.across).toBeUndefined();
+    expect(sp!.out).toBeUndefined();
+    expect(sp!.status).not.toBe("published");
+    expect(hostWasteInHostFrame(bath, catalogByKind, store.getState().model).resolved).toBe(false);
+  });
+
   it("resolves a corner-round bath drawn as a box from the wall corner, and placeProduct agrees with fittedWasteProblems", () => {
     const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
     actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
@@ -522,7 +544,7 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
     const review = issues().find((i) => i.code === "fixture_corner_hand_review");
     expect(review).toBeDefined();
-    expect(review!.message).toMatch(DERIVED_CORNER_WASTE_REANCHOR);
+    expect(review!.message).toMatch(CORNER_HAND_REANCHOR);
     expect(review!.message).not.toMatch(/Re-anchor the fixture/);
     expect(review!.message).toMatch(/not a manufacturer figure/);
     expect(review!.message).toMatch(/compliance/);
@@ -547,11 +569,11 @@ describe("fitted waste vs host waste point (#75)", () => {
     const before = structuredClone(item(bathId));
     const review = issues().find((i) => i.code === "fixture_corner_hand_review");
     expect(review).toBeDefined();
-    expect(review!.message).toMatch(DERIVED_CORNER_WASTE_REANCHOR);
+    expect(review!.message).toMatch(CORNER_HAND_REANCHOR);
     expect(review!.message).not.toMatch(/Re-anchor the fixture/);
     const re = actions.anchorFixture(bathId, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
     expect(re.ok).toBe(false);
-    expect(re.summary).toBe(DERIVED_CORNER_WASTE_REANCHOR);
+    expect(re.summary).toBe(CORNER_HAND_REANCHOR);
     expect(item(bathId).corner).toEqual(before.corner);
     expect(item(bathId).kind).toBe(before.kind);
     expect(item(bathId).productGeometry?.outline).toEqual(before.productGeometry?.outline);

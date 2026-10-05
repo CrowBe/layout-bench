@@ -1496,22 +1496,12 @@ export const actions = {
     if (!built.ok) return built.result;
     const { anchor, r, wall } = built;
     let next: Item = { ...item, anchor };
-    // a handed corner fixture moved into the other corner swaps hands, except derived
-    // corner waste which is refused (re-place the bath)
+    // Live nearer end ≠ stored corner: refuse. Re-place the bath; do not mirror across.
     if (item.corner) {
       const side = productCornerSide(anchor, wall);
-      if (side !== item.corner.side) {
-        const oldWall = item.anchor && store.getState().model.walls.find((w) => w.id === item.anchor!.wallId);
-        const sourcePlacement = item.productSnapshot && item.anchor && oldWall
-          ? productPlacement(item.productSnapshot, item.anchor, oldWall, item.installation)
-          : undefined;
-        const changed = applyCornerHandChange(next, side, {
-          wall,
-          sourcePlacement: sourcePlacement?.ok ? { ok: true, servicePoints: sourcePlacement.servicePoints } : sourcePlacement,
-        });
-        if (!changed.ok) return fail(changed.summary);
-        next = changed.item;
-      }
+      const changed = applyCornerHandChange(next, side);
+      if (!changed.ok) return fail(changed.summary);
+      next = changed.item;
     }
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });

@@ -28,7 +28,22 @@ function preserveServices(
   const points = proposed.map((p) => structuredClone(p) as EvidencedPoint);
   for (const prior of before as EvidencedPoint[]) {
     const next = points.find((p) => p.id === prior.id);
-    if (next && isDerivedServicePoint(prior) && next.status === "published") {
+    if (next && isDerivedServicePoint(prior)) {
+      if (
+        prior.across !== next.across ||
+        prior.out !== next.out ||
+        prior.outMax !== next.outMax ||
+        prior.face !== next.face
+      ) {
+        if (prior.across === undefined) delete next.across;
+        else next.across = prior.across;
+        if (prior.out === undefined) delete next.out;
+        else next.out = prior.out;
+        if (prior.outMax === undefined) delete next.outMax;
+        else next.outMax = prior.outMax;
+        next.face = prior.face;
+        preserved.push(`${prior.id}: derived host-frame coordinates retained`);
+      }
       next.status = "derived";
       next.basis = "derived";
       if (prior.axisEvidence) next.axisEvidence = structuredClone(prior.axisEvidence);

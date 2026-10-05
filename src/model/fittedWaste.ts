@@ -13,8 +13,6 @@ import { catalogByKind, catalogForItem, type CatalogLookup } from "./catalog";
 import { formatMm, quantize, segLen } from "./geometry";
 import { sideNormal } from "./faces";
 import { cornerBisectorToHostFrame, type FieldValue } from "./products";
-import { identityOf } from "./productIdentity";
-import { evidenceFingerprint } from "./productRevision";
 
 export { cornerBisectorToHostFrame };
 
@@ -87,11 +85,10 @@ export function cornerHandDisagrees(input: HostWasteInput): boolean {
 }
 
 export type CornerHandChange = { ok: true; item: Item } | { ok: false; summary: string };
-export type CornerHandBlock = { blocked: false } | { blocked: true; summary: string };
 
-/** Re-anchor does not recompute derived corner waste; re-place the bath instead. */
-export const DERIVED_CORNER_WASTE_REANCHOR =
-  "re-anchor not supported for derived corner waste; re-place the bath";
+/** Live nearer end ≠ stored corner: re-anchor is a plain refusal. Re-place the bath. */
+export const CORNER_HAND_REANCHOR =
+  "re-anchor not supported when the corner hand disagrees with the wall; re-place the bath";
 
 /**
  * Canonical waste-datum fields for resolveHostFrameWaste.
@@ -109,7 +106,6 @@ export function hostWasteFields(source: {
 }
 
 export const isDerivedServicePoint = (p: ServicePoint) => p.status === "derived" || p.basis === "derived";
-const confirmedStatus = (status?: string) => status === "measured" || status === "site-confirmed";
 
 /** Same read-only rule for setServicePoint and removeServicePoint. */
 export function derivedServicePointMutation(
@@ -133,92 +129,16 @@ export function derivedServicePointMutation(
   };
 }
 
-/** Same preconditions as applyCornerHandChange / anchorFixture. */
-export function cornerHandChangeBlock(
-  item: Item,
-  ctx: { sourcePlacement?: { ok: true; servicePoints: ServicePoint[] } | { ok: false } } = {},
-): CornerHandBlock {
-  const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
-  if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) {
-    return {
-      blocked: true,
-      summary: `This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`,
-    };
-  }
-  const copiedOf = (id: string) => (ctx.sourcePlacement?.ok ? ctx.sourcePlacement.servicePoints.find((p) => p.id === id) : undefined);
-  const conflict = (item.servicePoints ?? []).find((point) => {
-    if (point.across === undefined || point.across === 0) return false;
-    const copied = copiedOf(point.id);
-    return (!point.axisEvidence && confirmedStatus(point.status) && evidenceFingerprint(point) !== evidenceFingerprint(copied)) ||
-      (confirmedStatus(point.axisEvidence?.across?.status) && (point.across !== copied?.across || evidenceFingerprint(point.axisEvidence?.across) !== evidenceFingerprint(copied?.axisEvidence?.across)));
-  });
-  if (conflict) {
-    return {
-      blocked: true,
-      summary: `Changing corner hand would reflect the measured/site-confirmed project axis on ${conflict.id}. Reconcile that instance connection individually; its coordinate, evidence and anchor remain unchanged.`,
-    };
-  }
-  if (item.installationGeometry) {
-    return {
-      blocked: true,
-      summary: "Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged.",
-    };
-  }
-  return { blocked: false };
-}
-
 /**
- * Corner-hand update used by re-anchoring when no derived host-frame waste exists.
- * Known left/right handedness, a sourced measured/site-confirmed across, and sourced
- * installationGeometry all refuse. Derived corner waste is a plain refusal: re-place the bath.
+ * Re-anchor never flips a stored corner hand. Live nearer end ≠ stored corner is a
+ * plain refusal: re-place the bath. No mirroring of across, outline, or kind.
  */
 export function applyCornerHandChange(
   item: Item,
   side: "left" | "right",
-  ctx: {
-    wall: Wall;
-    sourcePlacement?: { ok: true; servicePoints: ServicePoint[] } | { ok: false };
-  },
 ): CornerHandChange {
-  if (!item.corner) return { ok: true, item };
-  if ((item.servicePoints ?? []).some(isDerivedServicePoint)) {
-    return { ok: false, summary: DERIVED_CORNER_WASTE_REANCHOR };
-  }
-  const block = cornerHandChangeBlock(item, ctx);
-  if (block.blocked) return { ok: false, summary: block.summary };
-  const mirrorPoint = (point: { x: number; y: number }) => ({ x: -point.x, y: point.y });
-  const pinned = item.productGeometry;
-  const geometry = pinned
-    ? {
-        ...structuredClone(pinned),
-        kind: item.corner[side],
-        ...(pinned.outline
-          ? {
-              outline: {
-                ...structuredClone(pinned.outline),
-                start: mirrorPoint(pinned.outline.start),
-                segments: pinned.outline.segments.map((segment) => ({
-                  ...segment,
-                  to: mirrorPoint(segment.to),
-                  ...(segment.via ? { via: mirrorPoint(segment.via) } : {}),
-                })),
-              },
-            }
-          : {}),
-      }
-    : undefined;
-  const next: Item = {
-    ...item,
-    kind: item.corner[side],
-    corner: { ...item.corner, side },
-    ...(geometry ? { productGeometry: geometry } : {}),
-  };
-  if (item.servicePoints) {
-    next.servicePoints = item.servicePoints.map((p) =>
-      p.across === undefined ? p : { ...p, across: quantize(-p.across) },
-    );
-  }
-  return { ok: true, item: next };
+  if (!item.corner || side === item.corner.side) return { ok: true, item };
+  return { ok: false, summary: CORNER_HAND_REANCHOR };
 }
 
 /** Wall set-out no longer matches the stored corner hand; review, do not invent a conversion. */
@@ -235,7 +155,7 @@ export function cornerHandProblems(model: PlanModel): Issue[] {
       code: "fixture_corner_hand_review",
       message:
         `${it.id}: a wall edit changed which end is nearer, so the stored ${it.corner.side}-hand no longer matches the live wall set-out (${live}-hand). ` +
-        `${DERIVED_CORNER_WASTE_REANCHOR}. This is a modelling/set-out review, not a manufacturer figure, plumbing check or compliance verdict.`,
+        `${CORNER_HAND_REANCHOR}. This is a modelling/set-out review, not a manufacturer figure, plumbing check or compliance verdict.`,
       refs: [it.id, wall.id],
     });
   }

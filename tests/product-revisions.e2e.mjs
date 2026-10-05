@@ -375,7 +375,7 @@ try {
   );
   assert.equal((await frun("build_3d")).ok, true);
   await fresh.close();
-  // Derived corner waste cannot be re-anchored; re-place the bath. Site-confirmed still refuses a later hand change.
+  // Corner-hand disagreement is a plain refusal; re-place the bath. Site-confirmed still refuses a later hand change.
   await page
     .locator(".project-card")
     .filter({ hasText: "Catalogue revisions #53" })
@@ -432,7 +432,7 @@ try {
   );
   const moved = await run("anchor_fixture", { itemId: left.id, ...anchor, distance: 4.2 });
   assert.equal(moved.ok, false, moved.summary);
-  assert.match(moved.summary, /re-anchor not supported for derived corner waste; re-place the bath/);
+  assert.match(moved.summary, /re-anchor not supported when the corner hand disagrees with the wall; re-place the bath/);
   assert.equal(left.kind, left.productGeometry.kind);
   assert.equal(
     (
@@ -457,7 +457,7 @@ try {
     distance: 4.2,
   });
   assert.equal(refusedReanchor.ok, false);
-  assert.match(refusedReanchor.summary, /Reconcile/);
+  assert.match(refusedReanchor.summary, /re-anchor not supported when the corner hand disagrees with the wall; re-place the bath/);
   assert.deepEqual(await run("get_model"), confirmedBefore);
   assert.deepEqual(errors, []);
   console.log(

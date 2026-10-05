@@ -168,25 +168,33 @@ export function productPlacement(
         ]),
     )
     .map((point) => {
+      const isWaste = point.service === "waste";
       const wasteFromHost =
-        point.service === "waste" &&
+        isWaste &&
         hostWaste.resolved &&
         hostWaste.across !== undefined &&
         hostWaste.out !== undefined;
       const end = corner ?? product.fields.wasteEnd?.value;
+      // Waste host-frame axes come only from resolveHostFrameWaste. Unresolved waste
+      // never falls through fixture-end/fixture-side conversion (that invented a
+      // published across). Already-in-frame axes (centreline, finished-wall) stay.
       const across = wasteFromHost
         ? hostWaste.across
-        : point.across?.from === "fixture-centreline"
-          ? point.across.value
-          : point.across?.from === "fixture-end" &&
-              point.across.value !== undefined &&
-              (end === "left" || end === "right")
-            ? quantize(
-                end === "left"
-                  ? -box.w / 2 + point.across.value
-                  : box.w / 2 - point.across.value,
-              )
-            : undefined;
+        : isWaste
+          ? point.across?.from === "fixture-centreline"
+            ? point.across.value
+            : undefined
+          : point.across?.from === "fixture-centreline"
+            ? point.across.value
+            : point.across?.from === "fixture-end" &&
+                point.across.value !== undefined &&
+                (end === "left" || end === "right")
+              ? quantize(
+                  end === "left"
+                    ? -box.w / 2 + point.across.value
+                    : box.w / 2 - point.across.value,
+                )
+              : undefined;
       let face = "finished",
         out: number | undefined,
         outMax: number | undefined;
@@ -199,7 +207,7 @@ export function productPlacement(
           point.out.max !== undefined && point.out.min !== undefined
             ? point.out.max
             : undefined;
-      } else if (point.out?.from === "fixture-side") {
+      } else if (!isWaste && point.out?.from === "fixture-side") {
         face = anchor.face;
         out =
           point.out.value !== undefined
@@ -222,7 +230,16 @@ export function productPlacement(
         ...(point.up?.evidence ? { up: point.up.evidence } : {}),
       };
       const derivedHostFrame = wasteFromHost || point.across?.basis === "derived" || point.out?.basis === "derived";
-      const status = derivedHostFrame ? "derived" : (evidenceStatus(Object.values(axisEvidence)) ?? "published");
+      const evidence = evidenceStatus(Object.values(axisEvidence));
+      const unresolvedWaste =
+        isWaste && !wasteFromHost && across === undefined && out === undefined;
+      const status = derivedHostFrame
+        ? "derived"
+        : unresolvedWaste
+          ? evidence && evidence !== "published"
+            ? evidence
+            : "derived"
+          : (evidence ?? "published");
       const sourced = [
         source,
         ...Object.values(axisEvidence).map(evidenceText),

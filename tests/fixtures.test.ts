@@ -6,7 +6,7 @@ import { clearances, roughIn } from "../src/model/fixtures";
 import { roughInPoints, categoryById, validateSubmission, type FieldValue } from "../src/model/products";
 import { itemPolygon, polygonsOverlap } from "../src/model/outline";
 import { catalogByKind } from "../src/model/catalog";
-import { DERIVED_CORNER_WASTE_REANCHOR, hostWasteInHostFrame } from "../src/model/fittedWaste";
+import { CORNER_HAND_REANCHOR, hostWasteInHostFrame } from "../src/model/fittedWaste";
 import type { LibraryProduct } from "../src/model/productLibrary";
 import { buildPlan } from "../src/three/build";
 import { demoProject, parseImport } from "../src/model/projects";
@@ -308,7 +308,7 @@ describe("fixtures set out from wall faces (#5)", () => {
       expect(waste.alongFromA! - (0.6 - box / 2)).toBeCloseTo(box / 2 + hostPt.across!, 4);
     });
 
-    it("refuses to swap hands on a derived corner waste; re-place the bath", () => {
+    it("refuses to re-anchor when the corner hand would change; re-place the bath", () => {
       const [back] = bathroom();
       faceBackWall(back);
       const placed = actions.placeProduct(cornerBath(), { wallId: back, side: "right", face: "finished", distance: 0.55, status: "proposed" });
@@ -317,7 +317,7 @@ describe("fixtures set out from wall faces (#5)", () => {
       const before = structuredClone(item(id));
       const re = actions.anchorFixture(id, { wallId: back, side: "right", face: "finished", from: "b", distance: 0.55, status: "proposed" });
       expect(re.ok).toBe(false);
-      expect(re.summary).toBe(DERIVED_CORNER_WASTE_REANCHOR);
+      expect(re.summary).toBe(CORNER_HAND_REANCHOR);
       expect(item(id).kind).toBe("product_cb_left");
       expect(item(id).corner).toEqual(before.corner);
       expect(item(id).servicePoints).toEqual(before.servicePoints);

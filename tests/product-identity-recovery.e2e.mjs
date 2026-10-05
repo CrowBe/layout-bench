@@ -99,7 +99,7 @@ try {
     if (fixed) assert.equal((await run("place_item", { kind: oppositeKind, x: 3.2, y: 1 })).ok, false);
     const moved = await run("anchor_fixture", { itemId: placed.id, wallId: wall.id, side: "right", face: "existing", distance: hand === "right" ? .8 : 3.2, status: "proposed" });
     assert.equal(moved.ok, false, moved.summary);
-    assert.match(moved.summary, /re-anchor not supported for derived corner waste; re-place the bath/);
+    assert.match(moved.summary, /re-anchor not supported when the corner hand disagrees with the wall; re-place the bath/);
   }
   await page.screenshot({ path: "/tmp/layout-bench-47-review-recovery.png", fullPage: true });
   await context.close();
