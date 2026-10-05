@@ -12,7 +12,7 @@ import { catalogForItem, catalogByKind, type CatalogLookup } from "./catalog";
 import { quantize, segLen, type ORect, type Pt } from "./geometry";
 import { VALUE_STATUSES, layerLabel, resolveFace, sideFaces, sideNormal, wallBody } from "./faces";
 import { itemPolygon, toWorld, support } from "./outline";
-import { fittedWasteProblems, syncCornerHand } from "./fittedWaste";
+import { fittedWasteProblems, cornerHandProblems } from "./fittedWaste";
 
 const dirOf = (w: Wall): Pt => {
   const len = segLen(w.ax, w.ay, w.bx, w.by) || 1;
@@ -74,13 +74,10 @@ export function applyAnchors(model: PlanModel, lookup: CatalogLookup = catalogBy
   let changed = false;
   const anchored = model.items.map((it) => {
     if (!it.anchor) return it;
-    const wall = model.walls.find((w) => w.id === it.anchor!.wallId);
-    let next = wall && it.corner ? syncCornerHand(it, wall) : it;
-    if (next !== it) changed = true;
-    const pose = anchorPose(model, next, lookup);
-    if (!pose.resolved || (next.x === pose.x && next.y === pose.y && next.rotation === pose.rotation)) return next;
+    const pose = anchorPose(model, it, lookup);
+    if (!pose.resolved || (it.x === pose.x && it.y === pose.y && it.rotation === pose.rotation)) return it;
     changed = true;
-    return { ...next, x: pose.x!, y: pose.y!, rotation: pose.rotation! };
+    return { ...it, x: pose.x!, y: pose.y!, rotation: pose.rotation! };
   });
   // accessories follow their host's pose, taken after the host has been set out
   const hosts = new Map(anchored.map((it) => [it.id, it]));
@@ -322,7 +319,7 @@ export function fixtureProblems(model: PlanModel, lookup: CatalogLookup = catalo
       if (!r.resolved) out.push({ severity: "warning", code: "service_point_unresolved", message: `${label} ${r.label}: missing ${r.missing.join(", ")}.`, refs: [it.id] });
     }
   }
-  out.push(...fittedWasteProblems(model, lookup));
+  out.push(...cornerHandProblems(model), ...fittedWasteProblems(model, lookup));
   return out;
 }
 

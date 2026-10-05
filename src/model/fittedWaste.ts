@@ -8,11 +8,13 @@
  * This is a modelling/set-out check; it does not certify drainage or plumbing.
  */
 
-import type { FixtureAnchor, Issue, Item, PlanModel, ValueStatus, Wall } from "./types";
+import type { FixtureAnchor, Issue, Item, PlanModel, ServicePoint, ValueStatus, Wall } from "./types";
 import { catalogByKind, catalogForItem, type CatalogLookup } from "./catalog";
 import { formatMm, quantize, segLen } from "./geometry";
 import { sideNormal } from "./faces";
 import { cornerBisectorToHostFrame, type FieldValue } from "./products";
+import { identityOf } from "./productIdentity";
+import { evidenceFingerprint } from "./productRevision";
 
 export { cornerBisectorToHostFrame };
 
@@ -78,11 +80,47 @@ export function resolveWasteCorner(input: HostWasteInput): "left" | "right" | un
     ?? input.storedCorner;
 }
 
-/** Keep a corner fixture's stored hand, outline and derived across in step with the wall. */
-export function syncCornerHand(item: Item, wall: Wall): Item {
-  if (!item.corner || !item.anchor) return item;
-  const side = productCornerSide(item.anchor, wall);
-  if (side === item.corner.side) return item;
+/** Stored right-angle disagrees with the live nearer end; do not invent a bisector conversion. */
+export function cornerHandDisagrees(input: HostWasteInput): boolean {
+  if (!input.storedCorner || !input.anchor || !input.wall) return false;
+  return productCornerSide(input.anchor, input.wall) !== input.storedCorner;
+}
+
+export type CornerHandChange = { ok: true; item: Item } | { ok: false; summary: string };
+
+/**
+ * Guarded corner-hand update used by re-anchoring. Same preconditions as anchorFixture:
+ * known left/right handedness, a sourced measured/site-confirmed across, and sourced
+ * installationGeometry all refuse. Derived host-frame axes are recomputed through the
+ * shared resolver, never by negation.
+ */
+export function applyCornerHandChange(
+  item: Item,
+  side: "left" | "right",
+  ctx: {
+    wall: Wall;
+    sourcePlacement?: { ok: true; servicePoints: ServicePoint[] } | { ok: false };
+  },
+): CornerHandChange {
+  if (!item.corner) return { ok: true, item };
+  const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
+  if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) {
+    return { ok: false, summary: `This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.` };
+  }
+  const confirmed = (status?: string) => status === "measured" || status === "site-confirmed";
+  const copiedOf = (id: string) => (ctx.sourcePlacement?.ok ? ctx.sourcePlacement.servicePoints.find((p) => p.id === id) : undefined);
+  const conflict = (item.servicePoints ?? []).find((point) => {
+    if (point.across === undefined || point.across === 0) return false;
+    const copied = copiedOf(point.id);
+    return (!point.axisEvidence && confirmed(point.status) && evidenceFingerprint(point) !== evidenceFingerprint(copied)) ||
+      (confirmed(point.axisEvidence?.across?.status) && (point.across !== copied?.across || evidenceFingerprint(point.axisEvidence?.across) !== evidenceFingerprint(copied?.axisEvidence?.across)));
+  });
+  if (conflict) {
+    return { ok: false, summary: `Changing corner hand would reflect the measured/site-confirmed project axis on ${conflict.id}. Reconcile that instance connection individually; its coordinate, evidence and anchor remain unchanged.` };
+  }
+  if (item.installationGeometry) {
+    return { ok: false, summary: "Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged." };
+  }
   const mirrorPoint = (point: { x: number; y: number }) => ({ x: -point.x, y: point.y });
   const pinned = item.productGeometry;
   const geometry = pinned
@@ -104,20 +142,55 @@ export function syncCornerHand(item: Item, wall: Wall): Item {
           : {}),
       }
     : undefined;
-  const derived = (p: { status?: string; basis?: string }) => p.status === "derived" || p.basis === "derived";
-  return {
+  const next: Item = {
     ...item,
     kind: item.corner[side],
     corner: { ...item.corner, side },
     ...(geometry ? { productGeometry: geometry } : {}),
-    ...(item.servicePoints
-      ? {
-          servicePoints: item.servicePoints.map((p) =>
-            derived(p) && p.across !== undefined ? { ...p, across: quantize(-p.across) } : p,
-          ),
-        }
-      : {}),
   };
+  const cat = catalogForItem(next);
+  const hostPt = cat
+    ? resolveHostFrameWaste({
+        fields: next.productSpecification?.fields ?? next.productSnapshot?.fields ?? {},
+        boxW: cat.w,
+        outlineStart: (geometry?.outline ?? cat.outline)?.start,
+        storedCorner: side,
+        anchor: next.anchor,
+        wall: ctx.wall,
+      })
+    : { resolved: false as const, missing: [] as string[], datum: "" };
+  const derived = (p: ServicePoint) => p.status === "derived" || p.basis === "derived";
+  const gap = next.anchor?.gap ?? 0;
+  if (item.servicePoints) {
+    next.servicePoints = item.servicePoints.map((p) => {
+      if (derived(p) && hostPt.resolved && hostPt.across !== undefined && hostPt.out !== undefined) {
+        return { ...p, across: hostPt.across, out: quantize(hostPt.out + gap) };
+      }
+      return p.across === undefined ? p : { ...p, across: quantize(-p.across) };
+    });
+  }
+  return { ok: true, item: next };
+}
+
+/** Wall set-out no longer matches the stored corner hand; review, do not invent a conversion. */
+export function cornerHandProblems(model: PlanModel): Issue[] {
+  const out: Issue[] = [];
+  for (const it of model.items) {
+    if (!it.corner || !it.anchor) continue;
+    const wall = model.walls.find((w) => w.id === it.anchor!.wallId);
+    if (!wall) continue;
+    const live = productCornerSide(it.anchor, wall);
+    if (live === it.corner.side) continue;
+    out.push({
+      severity: "warning",
+      code: "fixture_corner_hand_review",
+      message:
+        `${it.id}: a wall edit changed which end is nearer, so the stored ${it.corner.side}-hand no longer matches the live wall set-out (${live}-hand). ` +
+        `Re-anchor the fixture to update the corner hand. This is a modelling/set-out review, not a manufacturer figure, plumbing check or compliance verdict.`,
+      refs: [it.id, wall.id],
+    });
+  }
+  return out;
 }
 
 const num = (field: FieldValue | undefined): number | undefined =>
@@ -167,6 +240,16 @@ export function resolveHostFrameWaste(input: HostWasteInput): HostWastePoint {
   const missing: string[] = [];
   const fromCorner = fields.shape?.value === "corner-round" ? num(fields.wasteFromCorner) : undefined;
   if (fromCorner !== undefined) {
+    if (cornerHandDisagrees(input)) {
+      return {
+        resolved: false,
+        datum: "host frame (across centreline, out from back edge)",
+        source: sourceText(fields.wasteFromCorner),
+        missing: [
+          "corner hand review: the wall's nearer end no longer matches the stored right-angle; re-anchor the fixture to update it. No host-frame waste point is invented from a disputed hand",
+        ],
+      };
+    }
     const corner = resolveWasteCorner(input);
     if (corner) {
       const { across, out, alongEachWall } = cornerBisectorToHostFrame(fromCorner, input.boxW, corner);

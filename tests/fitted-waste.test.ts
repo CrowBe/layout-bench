@@ -470,7 +470,7 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(next.source).toMatch(/tape from the finished wall face/);
   });
 
-  it("flips the resolved corner and fitted-waste warning when a wall edit changes the nearer end", () => {
+  it("leaves corner hand, outline, kind and service points untouched when a wall edit flips the nearer end", () => {
     const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
     actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
     const fields = {
@@ -484,10 +484,9 @@ describe("fitted waste vs host waste point (#75)", () => {
     const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
     expect(placed.ok).toBe(true);
     const bathId = placed.id as string;
-    const before = hostWasteInHostFrame(item(bathId), catalogByKind, store.getState().model);
-    expect(before.resolved).toBe(true);
-    const beforeSide = item(bathId).corner!.side;
-    expect(before.corner).toBe(beforeSide);
+    const before = structuredClone(item(bathId));
+    const beforePt = hostWasteInHostFrame(before, catalogByKind, store.getState().model);
+    expect(beforePt.resolved).toBe(true);
     actions.defineItemKind({ kind: "test_waste", label: "Test waste", w: 0.05, d: 0.05, h: 0.02 });
     const wasteId = actions.placeItem("test_waste", 0, 0).id as string;
     store.setState({
@@ -499,13 +498,144 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(actions.fitItem(wasteId, bathId, undefined, undefined, true).ok).toBe(true);
     expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
     expect(actions.editWall(wall, { bx: 1.0 }).ok).toBe(true);
+    const after = item(bathId);
+    expect(after.corner).toEqual(before.corner);
+    expect(after.kind).toBe(before.kind);
+    expect(after.productGeometry?.outline).toEqual(before.productGeometry?.outline);
+    expect(after.servicePoints).toEqual(before.servicePoints);
+    expect(hostWasteInHostFrame(after, catalogByKind, store.getState().model).resolved).toBe(false);
+    expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
+    const review = issues().find((i) => i.code === "fixture_corner_hand_review");
+    expect(review).toBeDefined();
+    expect(review!.message).toMatch(/re-anchor/i);
+    expect(review!.message).toMatch(/not a manufacturer figure/);
+    expect(review!.message).toMatch(/compliance/);
+  });
+
+  it("re-anchors after a nearer-end flip, recomputes derived waste through the resolver, and restores the offset check", () => {
+    const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), surround: pub("none-required"),
+    };
+    const product: LibraryProduct = {
+      id: "wall-flip-reanchor", category: "bath", manufacturer: "Example Co", model: "Corner",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+    };
+    const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    const bathId = placed.id as string;
+    const beforeSide = item(bathId).corner!.side;
+    const beforeAcross = item(bathId).servicePoints!.find((p) => p.id === "waste")!.across;
+    actions.defineItemKind({ kind: "test_waste", label: "Test waste", w: 0.05, d: 0.05, h: 0.02 });
+    const wasteId = actions.placeItem("test_waste", 0, 0).id as string;
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: store.getState().model.items.map((i) => i.id === wasteId ? { ...i, productSpecification: { category: "waste", fields: {}, acceptedAt: 1 } } : i),
+      },
+    });
+    expect(actions.fitItem(wasteId, bathId, undefined, undefined, true).ok).toBe(true);
+    expect(actions.editWall(wall, { bx: 1.0 }).ok).toBe(true);
+    const re = actions.anchorFixture(bathId, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(re.ok).toBe(true);
     const bath = item(bathId);
-    const after = hostWasteInHostFrame(bath, catalogByKind, store.getState().model);
     expect(bath.corner!.side).not.toBe(beforeSide);
-    expect(after.corner).toBe(bath.corner!.side);
-    expect(after.corner).not.toBe(before.corner);
-    expect(Math.sign(after.across ?? 0)).not.toBe(Math.sign(before.across ?? 0));
+    const hostPt = hostWasteInHostFrame(bath, catalogByKind, store.getState().model);
+    expect(hostPt.resolved).toBe(true);
+    expect(hostPt.corner).toBe(bath.corner!.side);
+    const sp = bath.servicePoints!.find((p) => p.id === "waste")!;
+    expect(sp.status).toBe("derived");
+    expect(sp.across).toBe(hostPt.across);
+    expect(sp.across).not.toBe(beforeAcross);
+    expect(Math.sign(sp.across ?? 0)).not.toBe(Math.sign(beforeAcross ?? 0));
+    expect(issues().some((i) => i.code === "fixture_corner_hand_review")).toBe(false);
+    expect(actions.fitItem(wasteId, bath.id, hostPt.across! + 0.15, hostPt.out!).ok).toBe(true);
     expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(true);
+    expect(actions.fitItem(wasteId, bath.id, undefined, undefined, true).ok).toBe(true);
+    expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
+  });
+
+  it("does not mutate a known-hand product, sourced installationGeometry, or a sourced site waste when a wall edit flips the nearer end", () => {
+    const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), surround: pub("none-required"),
+    };
+    const geomSrc = [{ url: "https://example.com/synthetic.pdf", locator: "p. 1, synthetic" }];
+    const handed: LibraryProduct = {
+      id: "known-hand-bath", category: "bath", manufacturer: "Example Co", model: "Left corner",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+      identity: {
+        code: { state: "unknown", value: null },
+        finish: { state: "unknown", value: null },
+        configuration: { state: "unknown", value: null },
+        handedness: { state: "known", value: "left", sources: geomSrc },
+      },
+    };
+    const placedHand = actions.placeProduct(handed, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placedHand.ok).toBe(true);
+    const handId = placedHand.id as string;
+    const beforeHand = structuredClone(item(handId));
+    expect(actions.editWall(wall, { bx: 1.0 }).ok).toBe(true);
+    expect(item(handId).kind).toBe(beforeHand.kind);
+    expect(item(handId).corner).toEqual(beforeHand.corner);
+    expect(item(handId).productGeometry?.outline).toEqual(beforeHand.productGeometry?.outline);
+    expect(item(handId).servicePoints).toEqual(beforeHand.servicePoints);
+    expect(issues().some((i) => i.code === "fixture_corner_hand_review" && i.refs.includes(handId))).toBe(true);
+    expect(actions.editWall(wall, { bx: 2.11 }).ok).toBe(true);
+
+    const withGeom: LibraryProduct = {
+      id: "geom-corner-bath", category: "bath", manufacturer: "Example Co", model: "With geometry",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r2", acceptedAt: 0,
+    };
+    const placedGeom = actions.placeProduct(withGeom, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placedGeom.ok).toBe(true);
+    const geomId = placedGeom.id as string;
+    const installationGeometry = {
+      status: "published" as const, sources: geomSrc,
+      datum: { across: "fixture-centreline" as const, out: "fixture-back" as const, up: "fixture-bottom" as const },
+      handedness: "reversible" as const,
+      fixings: [{ id: "bracket", label: "Bracket", x: 0.2, y: 0, z: 0.3, status: "published" as const, sources: geomSrc }],
+      clearances: [{ id: "lift", label: "Lift", direction: "above" as const, distance: 0.05, status: "published" as const, sources: geomSrc }],
+      outline: { status: "published" as const, sources: geomSrc, datum: { across: "fixture-centreline" as const, out: "footprint-centre" as const }, limitation: "Envelope only." },
+    };
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: store.getState().model.items.map((i) => i.id === geomId ? { ...i, installationGeometry: structuredClone(installationGeometry) } : i),
+      },
+    });
+    const beforeGeom = structuredClone(item(geomId));
+    expect(actions.editWall(wall, { bx: 1.0 }).ok).toBe(true);
+    expect(item(geomId).installationGeometry).toEqual(beforeGeom.installationGeometry);
+    expect(item(geomId).corner).toEqual(beforeGeom.corner);
+    expect(item(geomId).kind).toBe(beforeGeom.kind);
+    expect(item(geomId).servicePoints).toEqual(beforeGeom.servicePoints);
+    expect(actions.editWall(wall, { bx: 2.11 }).ok).toBe(true);
+
+    const measuredProd: LibraryProduct = {
+      id: "measured-waste-bath", category: "bath", manufacturer: "Example Co", model: "Measured",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r3", acceptedAt: 0,
+    };
+    const placedM = actions.placeProduct(measuredProd, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placedM.ok).toBe(true);
+    const mId = placedM.id as string;
+    const sp = item(mId).servicePoints!.find((p) => p.id === "waste")!;
+    expect(actions.setServicePoint(mId, {
+      id: "waste", label: sp.label, service: "waste", face: sp.face,
+      across: sp.across, out: sp.out, status: "measured", source: "tape from the finished wall face",
+    }).ok).toBe(true);
+    const beforeMeasured = structuredClone(item(mId));
+    expect(actions.editWall(wall, { bx: 1.0 }).ok).toBe(true);
+    const afterMeasured = item(mId);
+    expect(afterMeasured.servicePoints).toEqual(beforeMeasured.servicePoints);
+    expect(afterMeasured.servicePoints!.find((p) => p.id === "waste")?.status).toBe("measured");
+    expect(afterMeasured.corner).toEqual(beforeMeasured.corner);
+    expect(afterMeasured.kind).toBe(beforeMeasured.kind);
+    expect(afterMeasured.productGeometry?.outline).toEqual(beforeMeasured.productGeometry?.outline);
   });
 });
 

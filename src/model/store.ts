@@ -46,16 +46,16 @@ import { validHeating, heatingEvidence } from "./heating";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices } from "./fixtures";
-import { hostWasteInHostFrame, productCornerSide } from "./fittedWaste";
+import { hostWasteInHostFrame, productCornerSide, applyCornerHandChange } from "./fittedWaste";
 import { drainageProblems, planeSurface } from "./drainage";
 import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
-import { exactProductLabel, exactSnapshot, identityOf, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
+import { exactSnapshot, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
 import { productStore, type LibraryProduct } from "./productLibrary";
 import { productPlacement } from "./productPlacement";
 import { previewProductUpdate, type ProductUpdatePreview } from "./productUpdates";
-import { evidenceFingerprint, planningEvidence, revisionOf } from "./productRevision";
+import { planningEvidence, revisionOf } from "./productRevision";
 import { itemPolygon, outlineExtents, outlineProblems, pointNearPolygon, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
@@ -1496,31 +1496,20 @@ export const actions = {
     if (!built.ok) return built.result;
     const { anchor, r, wall } = built;
     let next: Item = { ...item, anchor };
-    // a handed corner fixture moved into the other corner swaps hands, and its points mirror
+    // a handed corner fixture moved into the other corner swaps hands; derived waste is recomputed
     if (item.corner) {
       const side = productCornerSide(anchor, wall);
       if (side !== item.corner.side) {
-        const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
-        if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) return fail(`This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`);
-        const oldWall=item.anchor && store.getState().model.walls.find(w=>w.id===item.anchor!.wallId);
-        const sourcePlacement=item.productSnapshot && item.anchor && oldWall ? productPlacement(item.productSnapshot,item.anchor,oldWall,item.installation) : undefined;
-        const confirmed=(status?:string)=>status === "measured" || status === "site-confirmed";
-        const conflict=(item.servicePoints??[]).find(point=>{
-          if(point.across === undefined || point.across === 0)return false;
-          const copied=sourcePlacement?.ok ? sourcePlacement.servicePoints.find(p=>p.id===point.id) : undefined;
-          return (!point.axisEvidence && confirmed(point.status) && evidenceFingerprint(point)!==evidenceFingerprint(copied)) ||
-            (confirmed(point.axisEvidence?.across?.status) && (point.across!==copied?.across || evidenceFingerprint(point.axisEvidence?.across)!==evidenceFingerprint(copied?.axisEvidence?.across)));
+        const oldWall = item.anchor && store.getState().model.walls.find((w) => w.id === item.anchor!.wallId);
+        const sourcePlacement = item.productSnapshot && item.anchor && oldWall
+          ? productPlacement(item.productSnapshot, item.anchor, oldWall, item.installation)
+          : undefined;
+        const changed = applyCornerHandChange(next, side, {
+          wall,
+          sourcePlacement: sourcePlacement?.ok ? { ok: true, servicePoints: sourcePlacement.servicePoints } : sourcePlacement,
         });
-        if(conflict)return fail(`Changing corner hand would reflect the measured/site-confirmed project axis on ${conflict.id}. Reconcile that instance connection individually; its coordinate, evidence and anchor remain unchanged.`);
-        if(item.installationGeometry) return fail("Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged.");
-        const pinned = item.productGeometry;
-        const mirrorPoint = (point: {x:number;y:number}) => ({x:-point.x,y:point.y});
-        const geometry = pinned ? {...structuredClone(pinned),kind:item.corner[side],...(pinned.outline ? {outline:{...structuredClone(pinned.outline),start:mirrorPoint(pinned.outline.start),segments:pinned.outline.segments.map(segment=>({...segment,to:mirrorPoint(segment.to),...(segment.via ? {via:mirrorPoint(segment.via)} : {})}))}} : {})} : undefined;
-        next = {
-          ...next, kind: item.corner[side], corner: { ...item.corner, side },
-          ...(geometry ? {productGeometry:geometry} : {}),
-          ...(item.servicePoints ? { servicePoints: item.servicePoints.map((p) => (p.across === undefined ? p : { ...p, across: quantize(-p.across) })) } : {}),
-        };
+        if (!changed.ok) return fail(changed.summary);
+        next = changed.item;
       }
     }
     pushUndo();
