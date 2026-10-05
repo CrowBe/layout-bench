@@ -146,7 +146,7 @@ export const BATHROOM_PRODUCT_CATEGORIES: ProductCategory[] = [
   },
   {
     id: "heating-cable", label: "Floor heating cable", envelope: box,
-    placement: unsupported("A floor heating cable is a length of cable, not an envelope. Its proposed route is entered with the heating tools, which hold its own product and length evidence."),
+    placement: unsupported("A floor heating cable is a length of cable, not an envelope. Its proposed route is entered with the heating tools, which read length, output and coverage from a referenced heating-cable brief."),
     fields: [
       choice("cableType", "Installation type", ["in-screed", "under-tile", "other"], "Where the exact product is designed to be embedded; a label naming a screed is not under-tile."),
       length("cableLength", "Heating cable length", "Heated cable length from its cold joint to its end, excluding cold tails; metres.", "fixture-end", 1, 300),
@@ -184,7 +184,8 @@ export const BATHROOM_PRODUCT_CATEGORIES: ProductCategory[] = [
     placement: unsupported("Waste bodies sit inside a bath or basin and below the finished surface; they have no floor envelope of their own."),
     fields: [
       ...envelope(),
-      length("outletDiameter", "Nominal outlet diameter", "Published connection size through its centreline; metres (a '40 mm' waste is 0.04).", "fixture-centreline", 0.01, 0.2),
+      length("outletDiameter", "Nominal outlet diameter", "Published connection size through its centreline; metres (a '40 mm' waste is 0.04). Name its kind in outletSizeKind; a hole is not a connection.", "fixture-centreline", 0.01, 0.2),
+      { type: "choice", key: "outletSizeKind", label: "Outlet size kind", group: "installation", required: false, options: ["hole", "outlet", "connection", "thread"], definition: "Which quantity outletDiameter is: a waste hole, an outlet, a pipe connection, or a thread. Compared only like-for-like (outlet and connection are both pipe sizes; a hole is not)." },
       choice("style", "Style", ["dome-pop", "pop-up", "click-clack", "plug-and-chain", "other"], "Published operating style."),
       choice("overflow", "Overflow", ["with", "without"], "Whether this waste takes an overflow."),
       text("strainer", "Strainer / basket", "Published strainer or basket arrangement, e.g. a pull-out basket; as printed."),

@@ -16,7 +16,7 @@ import { currentReview } from "../model/productReview";
 import { useEffect, useState } from "react";
 import { logActivity } from "../model/store";
 import { formatMm } from "../model/geometry";
-import { PRODUCT_CATEGORIES, REFERENCES, applies, type AxisValue, categoryById, envelopeOf, productPlacementProblem, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
+import { PRODUCT_CATEGORIES, REFERENCES, applies, axisDisplayText, categoryById, envelopeOf, productPlacementProblem, type FieldSpec, type FieldValue, type ProductCategory } from "../model/products";
 import { MAX_ATTACHMENT_BYTES, requestEvidenceAttachments, products, productReviewWarnings, useProductStore, type LibraryProduct, type LibraryResult, type ProductAttachment, type ProductRequest } from "../model/productLibrary";
 
 const human = (tool: string, r: LibraryResult) => {
@@ -119,15 +119,6 @@ function Attachments({ req }: { req: ProductRequest }) {
   );
 }
 
-/** One rough-in axis: its value or range and the datum it is measured from. */
-function axisText(a: AxisValue | undefined): string {
-  if (!a) return "—";
-  const v = a.value !== undefined ? `${formatMm(a.value)} mm`
-    : a.min !== undefined || a.max !== undefined ? `${a.min !== undefined ? formatMm(a.min) : "?"}–${a.max !== undefined ? formatMm(a.max) : "?"} mm`
-    : "unknown";
-  return `${v} from ${a.from.replace("-", " ")}`;
-}
-
 const identity = (r: ProductRequest) =>
   (r.known.physicalItem?.label ?? ([r.known.brand, r.known.model].filter(Boolean).join(" ") || r.known.reference || r.known.link || r.id)) + Object.values(identityOf(r.known)).filter(v => v.state === "known").map(v => ` · ${identityText(v)}`).join("");
 
@@ -198,7 +189,7 @@ function Brief({ cat, req }: { cat: ProductCategory; req: ProductRequest }) {
               <td>{f.label}</td>
               <td>{unit(f)}</td>
               <td>{f.type === "length" && f.reference ? REFERENCES[f.reference] : "—"}</td>
-              <td>{f.required ? "required" : "optional"}{f.when ? ` (when ${f.when.field} is ${f.when.in.join(" or ")})` : ""}</td>
+              <td>{f.required ? "required" : "optional"}{f.when ? ` (when ${f.when.field} is ${"notIn" in f.when ? `not ${f.when.notIn.join(" or ")}` : f.when.in.join(" or ")})` : ""}</td>
               <td>{f.definition}</td>
             </tr>
           ))}
@@ -343,17 +334,22 @@ function ProductCard({ p }: { p: LibraryProduct }) {
         </table>
       )}
       {(p.roughIn ?? []).length > 0 && (
-        <table className="products-table" aria-label="Rough-in points">
-          <thead><tr><th>Service point</th><th>Across</th><th>Out</th><th>Up</th></tr></thead>
-          <tbody>
-            {p.roughIn.map((r) => (
-              <tr key={r.id} data-point={r.id}>
-                <td>{r.label}{!r.resolved && <div className="inspector-warn">missing {r.missing.join(", ")}</div>}</td>
-                {([r.across, r.out, r.up] as const).map((a, i) => <td key={i}>{axisText(a)}</td>)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <>
+          <table className="products-table" aria-label="Rough-in points">
+            <thead><tr><th>Service point</th><th>Sheet axis</th><th>Sheet axis</th><th>Up</th></tr></thead>
+            <tbody>
+              {p.roughIn.map((r) => (
+                <tr key={r.id} data-point={r.id}>
+                  <td>{r.label}{!r.resolved && <div className="inspector-warn">missing {r.missing.join(", ")}</div>}</td>
+                  {([r.across, r.out, r.up] as const).map((a, i) => <td key={i}>{axisDisplayText(a)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="hint">{(p.roughIn ?? []).some((r) => r.across?.field === "wasteFromCorner" || r.out?.field === "wasteFromCorner")
+            ? "Library axes keep their sheet datums. Derived corner-bath figures are along each wall from the right-angle corner, not host-frame across/out."
+            : "Library axes keep their sheet datums; they are not converted to host-frame across/out until the product is placed."}</p>
+        </>
       )}
       <button type="button" onClick={() => human("remove_product", products.removeProduct(p.id))}>Remove from library</button>
       <ProductRevisionActions product={p}/>

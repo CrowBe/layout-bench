@@ -1,12 +1,13 @@
 import type { CatalogEntry } from "./catalog";
 import { categoryById, cornerBathOutline, type FieldValue, type ReferenceId, type SourceRef } from "./products";
-import { quantize } from "./geometry";
+import { formatMm, quantize } from "./geometry";
 import { outlineExtents, type Outline } from "./outline";
 import type { ExactProduct, ProductComponent } from "./productIdentity";
-import { unknownMeasurementFields, type MeasurementRecord, type ProductSpecification } from "./productMeasurements";
+import { unknownMeasurementFields, CARTON_LABEL_SOURCE, type MeasurementRecord, type ProductSpecification } from "./productMeasurements";
 import type { PartSpec } from "../three/furniture";
 import type { ProjectKind } from "./projects";
 import type { Item, Note, PlanModel, Quantity, ValueStatus, Wall, WallSide, WallTiling } from "./types";
+import { cornerBisectorToHostFrame } from "./fittedWaste";
 
 /**
  * A rough bathroom concept sample. Geometry and placements are illustrative, not set-out.
@@ -128,7 +129,8 @@ const part = (name: string, note: string): ProductComponent =>
 // Enflair dimension drawing (SB184-1000): 1000 mm sides along the two walls, a right angle at the
 // back-right (the NE corner), 1090 mm from that corner to the front of the curve along the
 // bisector (section A-A), 630 mm high, 550 mm inside depth, 278 L, 36 kg net. Ø50 waste on the
-// bisector, 520 mm from the corner (368 mm along each side). The drawing's 1178 and 920 widths
+// bisector, 520 mm from the corner. Along each wall that is 520/√2 (derived, not a sheet
+// wasteFromEnd/wasteFromSide). The drawing's 1178 and 920 widths
 // are not used: their extension lines do not show which edges they measure.
 // Its outline is extruded in 3D with a recessed basin, so it has no hand-built parts. The
 // outline comes from the same function the product library uses for a corner bath: 1000 mm
@@ -146,8 +148,9 @@ const bathFields = {
 // square, so the bath's box is the curve's own extent; the sides stay 1000 mm along the walls.
 const BATH_BOX = (({ maxX, minX }) => Math.ceil((maxX - minX) * 1000) / 1000)(outlineExtents(cornerBathOutline(bathFields, 10, 10, "right")!));
 const bathOutline: Outline = cornerBathOutline(bathFields, BATH_BOX, BATH_BOX, "right")!;
-/** The waste on the bisector, in the bath's own frame: across from its centre, out from its back. */
-const bathWaste = { across: +(BATH_BOX / 2 - BATH_WASTE_FROM_CORNER / Math.SQRT2).toFixed(3), out: +(BATH_WASTE_FROM_CORNER / Math.SQRT2).toFixed(3) };
+/** Host-frame waste from the sheet's 520 mm on the bisector: along each wall = 520/√2. Quantized to the model's 0.1 mm so the sample sits on the derived host-frame point, not a 1 mm rounding of it. */
+const bathWasteConverted = cornerBisectorToHostFrame(BATH_WASTE_FROM_CORNER, BATH_BOX, "right");
+const bathWaste = { across: quantize(bathWasteConverted.across), out: quantize(bathWasteConverted.out) };
 /** The square corner stays where it was drawn before: 2100 mm across, against the window wall. */
 const BATH_CORNER = { x: 2.1, y: 0 };
 
@@ -199,8 +202,8 @@ const spout: PartSpec[] = [
 // sheet was found. The visible dome, its height and where it sits in the tub stay placeholders.
 const WASTE_EL = 0.59;
 const waste: PartSpec[] = [
-  tube(0, WASTE_EL, 0, 0.07, 0.012),
-  tube(0, WASTE_EL + 0.012, 0, 0.05, 0.008),
+  tube(0, WASTE_EL, 0, 0.07, 0.012, { ...NICKEL, stopgap: true }),
+  tube(0, WASTE_EL + 0.012, 0, 0.05, 0.008, { ...NICKEL, stopgap: true }),
 ];
 
 // ---- Basin: Enflair K1110-31 petite basin mixer, on the vanity top ----------------------------
@@ -359,7 +362,7 @@ export const purchasedFittings: PurchasedFitting[] = [
       published("frontProjection", BATH_PROJECTION, sheet(ENFLAIR_BATH, "section A-A: 1090 mm from the corner to the front of the curve"), "other", "Along the bisector, from the right-angle corner to the front of the curve"),
       published("height", 0.63, sheet(ENFLAIR_BATH, "A-A: 630 mm overall height"), "fixture-bottom"),
       published("insideDepth", 0.55, sheet(ENFLAIR_BATH, "A-A: 550 mm inside depth"), "other", "Inside water depth on section A-A"),
-      published("wasteFromCorner", BATH_WASTE_FROM_CORNER, sheet(ENFLAIR_BATH, "plan: Ø50 waste 520 mm from the corner on the bisector; 368 mm along each side"), "other", "Waste centre on the bisector"),
+      published("wasteFromCorner", BATH_WASTE_FROM_CORNER, sheet(ENFLAIR_BATH, "plan: Ø50 waste 520 mm from the corner on the bisector"), "other", "Waste centre on the bisector, from the right-angle corner"),
     ],
     specFields: {
       length: pubLen(BATH_LEG, sheet(ENFLAIR_BATH, "SB184-1000 dimension drawing: 1000 mm along each wall side"), "fixture-end", "Wall-side length from the right-angle corner"),
@@ -369,8 +372,11 @@ export const purchasedFittings: PurchasedFitting[] = [
       shape: pubVal("corner-round", sheet(ENFLAIR_BATH, "SB184-1000: two straight wall sides and a rounded front")),
       frontWidth: pubLen(BATH_FRONT_WIDTH, sheet(ENFLAIR_BATH, "derived: chord of the two 1000 mm wall sides"), "other", "Straight-line distance between the ends of the curved front"),
       frontProjection: pubLen(BATH_PROJECTION, sheet(ENFLAIR_BATH, "section A-A: 1090 mm from the corner to the front of the curve"), "other", "Along the bisector, from the right-angle corner to the front of the curve"),
-      wasteFromEnd: pubLen(0.368, sheet(ENFLAIR_BATH, "plan: 368 mm along each side to the Ø50 waste"), "fixture-end", "Along each wall from the right-angle corner; waste is on the bisector, 520 mm from the corner"),
-      wasteFromSide: pubLen(0.368, sheet(ENFLAIR_BATH, "plan: 368 mm along each side to the Ø50 waste"), "fixture-side", "Along each wall from the right-angle corner; waste is on the bisector"),
+      wasteFromCorner: pubLen(BATH_WASTE_FROM_CORNER, sheet(ENFLAIR_BATH, "plan: Ø50 waste 520 mm from the corner on the bisector"), "other", "Waste centre on the bisector, from the right-angle corner; not wasteFromEnd/wasteFromSide"),
+      wasteHoleDiameter: pubLen(0.05, sheet(ENFLAIR_BATH, "plan: Ø50 waste hole"), "other", "Waste hole diameter; not a pipe connection or outlet size"),
+      wasteConnectionDiameter: { value: null, note: "The Enflair drawing names a Ø50 waste hole, not a pipe connection or outlet size. No connection diameter is entered." },
+      wasteFromEnd: { value: null, note: `Sheet gives 520 mm from the right-angle corner along the bisector, not from the end. Along each wall that is 520/√2 ≈ ${formatMm(bathWasteConverted.alongEachWall)} mm; that conversion is derived in the host-frame check, not entered as published wasteFromEnd.` },
+      wasteFromSide: { value: null, note: `Sheet gives 520 mm from the right-angle corner along the bisector, not from the side. Along each wall that is 520/√2 ≈ ${formatMm(bathWasteConverted.alongEachWall)} mm; that conversion is derived in the host-frame check, not entered as published wasteFromSide.` },
       overflow: pubVal("no", sheet(ENFLAIR_BATH, "dimension drawing: no overflow shown")),
     },
     parts: [], outline: bathOutline, placement: { id: "bath", kind: "bath_sb184_1000gw", x: quantize(BATH_CORNER.x - BATH_BOX / 2), y: quantize(BATH_CORNER.y + BATH_BOX / 2), rotation: 0 },
@@ -434,12 +440,13 @@ export const purchasedFittings: PurchasedFitting[] = [
     ],
     specFields: {
       outletDiameter: { value: null, note: "Carton prints 40 mm nominal connection; no manufacturer sheet, so not entered as a published figure" },
+      outletSizeKind: { value: "connection", status: "published", source: "carton label", note: "Photographed carton: Dome Pop Short Bath Waste 40mm; 40 mm is the pipe connection, not a hole diameter" },
       style: measuredField("dome-pop", "choice", "Photographed carton: Dome Pop Short Bath Waste"),
       strainer: measuredField("pull-out basket", "text", "Photographed carton: with pull out basket"),
       certification: measuredField("WaterMark licence WM-022812, AS 1589-2001", "text", "Photographed SDP-40BN carton"),
     },
-    // the drawing's waste point: on the bisector, 520 mm from the corner (368 mm along each side).
-    // Its hole is drawn Ø50; this waste's 40 mm is the pipe connection, so check the fit (#75).
+    // the drawing's waste point: on the bisector, 520 mm from the corner. Along each wall that
+    // is 520/√2 (derived). Its hole is drawn Ø50; this waste's 40 mm is the pipe connection.
     parts: waste, placement: { id: "bath_waste", kind: "waste_sdp40bn", x: quantize(BATH_CORNER.x - BATH_BOX / 2 + bathWaste.across), y: quantize(BATH_CORNER.y + bathWaste.out), rotation: 0, fittedTo: { hostId: "bath", ...bathWaste } },
   },
   {
@@ -561,12 +568,12 @@ export const purchasedFittings: PurchasedFitting[] = [
       height: { value: null, note: `CBP3 cover height is not named on the OJ Microline brochure (${OJ_MWD5}). Drawn stand-in lives only on the kind size.` },
       depth: { value: null, note: `CBP3 cover projection is not named on the OJ Microline brochure (${OJ_MWD5}; family build-in 22 mm is not used). Drawn stand-in lives only on the kind size.` },
       mounting: measuredField("flush", "choice", "Photographed MWD5-1999-CBP3 label: flush mounting"),
-      ratedVoltageMin: measuredQty(100, "V", "Photographed label: 100–240 V AC"),
-      ratedVoltageMax: measuredQty(240, "V", "Photographed label: 100–240 V AC"),
-      ratedCurrent: measuredQty(16, "A", "Photographed label: 16 A"),
+      ratedVoltageMin: { value: 100, status: "published", source: CARTON_LABEL_SOURCE, note: "Photographed MWD5-1999-CBP3 carton label: 100–240 V AC" },
+      ratedVoltageMax: { value: 240, status: "published", source: CARTON_LABEL_SOURCE, note: "Photographed MWD5-1999-CBP3 carton label: 100–240 V AC" },
+      ratedCurrent: { value: 16, status: "published", source: CARTON_LABEL_SOURCE, note: "Photographed MWD5-1999-CBP3 carton label: 16 A" },
       tempRangeMin: measuredQty(5, "°C", "Photographed label: 5–40 °C"),
       tempRangeMax: measuredQty(40, "°C", "Photographed label: 5–40 °C"),
-      ingressProtection: measuredField("IP21", "text", "Photographed label: housing IP21"),
+      ingressProtection: { value: "IP21", status: "published", source: CARTON_LABEL_SOURCE, note: "Photographed MWD5-1999-CBP3 carton label: housing IP21" },
       floorSensor: measuredField("included", "choice", "Photographed label: incl. limitation sensor"),
       connectivity: measuredField("wifi", "choice", "Photographed label / Coldbuster 2\" WiFi thermostat"),
     },
@@ -590,6 +597,13 @@ export const stillNeedsCaptainsMeasurement: CaptainMeasurement[] = [
   { fitting: "Basin mixer K1110-31", what: "Deck height above the finished floor (unsourced; drawn stand-in 850 mm lives only on the kind, taken from the vanity's measured overall height 850 mm; not an owner proposal and not a finished-floor tape)", from: "finished floor tiles once they exist, to the vanity deck / mixer flange" },
   { fitting: "OJ MWD5-1999-CBP3 thermostat", what: "Cover-plate width, height and projection of this exact CBP3 cover (unsourced; drawn stand-ins live only on the kind size)", from: "the CBP3 cover itself (brochure lists OxD5 / MxD5 / MxD5-UA sizes without naming CBP3)" },
   { fitting: "OJ MWD5-1999-CBP3 thermostat", what: "Mounting height to the plate", from: "hallway finished floor, next to the light switch (owner: about 850 mm; not surveyed)" },
+  { fitting: "SCK0765L in-screed heating cable", what: "Keep-out for the bath footprint (not on the carton; route is unconstrained there)", from: "finished faces of the SB184-1000GW bath, once the captain/installer says whether cable may run under it" },
+  { fitting: "SCK0765L in-screed heating cable", what: "Keep-out for the toilet (not on the carton; route is unconstrained there)", from: "finished pan footprint, once the installer says whether cable stops short of it" },
+  { fitting: "SCK0765L in-screed heating cable", what: "Keep-out for the vanity (not on the carton; route is unconstrained there)", from: "finished vanity footprint, once the installer says whether cable stops short of it" },
+  { fitting: "SCK0765L in-screed heating cable", what: "Wall setback / edge clearance (not on the carton; route is unconstrained at the walls)", from: "finished wall face (tile face), not the frame; installer/manufacturer instructions" },
+  { fitting: "SCK0765L in-screed heating cable", what: "Cable centre height in the screed (not on the carton)", from: "bottom face of the tiler's screed (top of the membrane / subfloor stack), not the underside of the tile unless that is the screed top" },
+  { fitting: "SCK0765L in-screed heating cable", what: "Cold tail length (not printed on the carton label)", from: "the cable's cold joint to the free end of each unheated lead" },
+  { fitting: "SCK0765L in-screed heating cable", what: "Manufacturer cover, minimum bend radius and sensor placement (not on the carton)", from: "the installer's / manufacturer's instructions for this exact cable" },
   { fitting: "K1130 shower mixer outside part", what: "Confirm the trim is held, then mounting height to the cover plate", from: "finished floor tiles, on the shower-wall finished (tile) face. Not drawn: no outside part was photographed" },
   { fitting: "Bath SB184-1000GW", what: "Check the delivered bath: 1000 mm wall sides, 1090 mm corner-to-front, 630 mm height, waste 520 mm from the corner", from: "the two wall sides and the right-angle corner (sheet notes slight variations)" },
   { fitting: "Room walls", what: "Survey finished wall faces (or confirm the frame after strip-out) so #60 installation can replace the catalogue elevation stopgap", from: "each room-facing wall: existing surface is measured; finished face is still estimated from the frame plus proposed layers" },
@@ -597,6 +611,70 @@ export const stillNeedsCaptainsMeasurement: CaptainMeasurement[] = [
 
 const captainsListText = (): string =>
   ["Still needs the captain's measurement:", ...stillNeedsCaptainsMeasurement.map((e, i) => `${i + 1}. ${e.fitting} — ${e.what}. From: ${e.from}.`)].join(" ");
+
+/**
+ * Proposed loop spacing for the sample route. 100 mm is the midpoint of the derived
+ * coverage/length range (3.7–5.1 m² / 42.5 m ≈ 87–120 mm). Modelling choice, not a
+ * manufacturer or code spacing requirement.
+ */
+export const PROPOSED_CABLE_SPACING_M = 0.1;
+export const PROPOSED_CABLE_SPACING_RATIONALE =
+  "100 mm is the midpoint of the derived coverage/length range (3.7–5.1 m² / 42.5 m ≈ 87–120 mm). Modelling choice for this proposed loop, not a manufacturer or code spacing requirement.";
+
+/** 15 north–south runs, thermostat end at the doorway (south). Plan length 15×2.74 + 14×0.1 = 42.5 m. */
+export function proposedSck0765lPath(): { x: number; y: number }[] {
+  const startX = 0.15, south = 2.9, run = 2.74, n = 15;
+  const north = quantize(south - run);
+  const pts: { x: number; y: number }[] = [{ x: startX, y: south }];
+  for (let i = 0; i < n; i++) {
+    const x = quantize(startX + i * PROPOSED_CABLE_SPACING_M);
+    const endY = i % 2 === 0 ? north : south;
+    pts.push({ x, y: endY });
+    if (i < n - 1) pts.push({ x: quantize(startX + (i + 1) * PROPOSED_CABLE_SPACING_M), y: endY });
+  }
+  return pts;
+}
+
+const cableCarton = (value: number | string, note: string, reference?: ReferenceId): FieldValue => ({
+  value, status: "published", source: CARTON_LABEL_SOURCE, note: `SCK0765L in-screed heating cable carton: ${note}`,
+  ...(reference ? { reference } : {}),
+});
+
+/** Stable ids the sample heating record references; they name the carton/label products, not a live library insert. */
+export const SAMPLE_CABLE_PRODUCT_ID = "sample-sck0765l-carton";
+export const SAMPLE_THERMOSTAT_PRODUCT_ID = "sample-mwd5-1999-cbp3";
+
+/** Label figures are published from the carton; nothing here is derived or modelled. */
+export const heatingCableSpecification = (): ProductSpecification => {
+  const cat = categoryById("heating-cable")!;
+  const fields = unknownMeasurementFields(cat);
+  for (const [k, v] of Object.entries(fields)) {
+    if (v.value === null) fields[k] = { value: null, note: "Not printed on the SCK0765L carton label." };
+  }
+  const spec: ProductSpecification = {
+    category: "heating-cable",
+    recordingMode: "human-measurement",
+    acceptedAt: 0,
+    fields: {
+      ...fields,
+      cableType: cableCarton("in-screed", "installation type in-screed"),
+      cableLength: cableCarton(42.5, "heated length 42.5 m", "fixture-end"),
+      outputPerMetre: cableCarton(18, "18 W/m"),
+      totalPower: cableCarton(765, "765 W"),
+      ratedVoltage: cableCarton(240, "240 V AC"),
+      ratedCurrent: cableCarton(3.2, "3.2 A"),
+      resistance: cableCarton(75.3, "75.3 Ω"),
+      coverageAreaMin: cableCarton(3.7, "coverage 3.7–5.1 m², minimum"),
+      coverageAreaMax: cableCarton(5.1, "coverage 3.7–5.1 m², maximum"),
+    },
+  };
+  return Object.assign(spec, { model: "SCK0765L", productId: SAMPLE_CABLE_PRODUCT_ID });
+};
+
+export const thermostatSpecificationOf = (): ProductSpecification => {
+  const spec = specOf(purchasedFittings.find((f) => f.specCategory === "thermostat")!);
+  return Object.assign(spec, { manufacturer: "OJ Electronics", model: "MWD5-1999-CBP3", productId: SAMPLE_THERMOSTAT_PRODUCT_ID, acceptedAt: 0 });
+};
 
 // ---- Construction spec from the owner ------------------------------------------------------
 // Survey (#1): existing internal surfaces 2110 × 3020 mm, measured. Each wall's drawn line sits
@@ -741,9 +819,18 @@ export const seedBathroom = (): PlanModel => ({
       note: `${BEIGE}. Long side runs toward the window wall and continues up it. Full tiles start at the doorway.`,
     },
     heating: {
-      model: "SCK0765L", length: { value: 42.5, status: "published", source: "carton label" }, ratedOutput: { value: 765, status: "published", source: "carton label" },
-      screedLayerId: "floor_screed", zoneIds: ["bathroom"], path: [], keepouts: [],
-      requirements: "Owner lays it in a snaking pattern on the cured membrane, before the tiler's screed, and may run it under the shower; the electrician tests it before and after the screed and wires the thermostat. Owner, 5 Oct 2026: the cable's thermostat end is at the bathroom doorway, where the floor beyond is timber; its lead goes down through it to under the house (on piers), so it can be hooked up to the thermostat at any time; the lead is long enough. Route not drawn yet.",
+      productSource: "SCK0765L carton label",
+      cableProductId: SAMPLE_CABLE_PRODUCT_ID,
+      thermostatProductId: SAMPLE_THERMOSTAT_PRODUCT_ID,
+      cableSpecification: heatingCableSpecification(),
+      thermostatSpecification: thermostatSpecificationOf(),
+      thermostatLocation: {
+        description: "Hallway wall outside the bathroom, next to the light switch (right as you look into the bathroom), about 850 mm off the floor. Not drawn on this plan.",
+        source: "Owner, 5 Oct 2026",
+        kind: "outside-wet-room",
+      },
+      screedLayerId: "floor_screed", zoneIds: ["bathroom"], path: proposedSck0765lPath(), keepouts: [],
+      requirements: `Owner lays it in a snaking pattern on the cured membrane, before the tiler's screed, and may run it under the shower; the electrician tests it before and after the screed and wires the thermostat. Owner, 5 Oct 2026: the cable's thermostat end is at the bathroom doorway, where the floor beyond is timber; its lead goes down through it to under the house (on piers), so it can be hooked up to the thermostat at any time; the lead is long enough. Proposed loop: 15 north–south runs at ${PROPOSED_CABLE_SPACING_M * 1000} mm spacing (${PROPOSED_CABLE_SPACING_RATIONALE}). Plan length is exactly 42.5 m, equal to the published heated length (zero slack): any resolved fall makes the spatial route exceed 42.5 m once screed levels resolve. Keep-outs and wall setback are not on the carton, so none are entered; the route is unconstrained at the bath, toilet, vanity and walls.`,
     },
   }],
   items: [
@@ -767,6 +854,7 @@ export const bathroomKinds: ProjectKind[] = [
       ...(f.size.elevation ? { elevation: f.size.elevation } : {}),
       ...(f.size.elevationNote ? { elevationNote: f.size.elevationNote } : {}),
       ...(f.outline ? { outline: structuredClone(f.outline) } : {}),
+      ...(f.parts.some((p) => p.stopgap) ? { stopgap: true } : {}),
     } satisfies CatalogEntry,
     ...(f.parts.length ? { parts: structuredClone(f.parts) } : {}),
   })),
@@ -823,7 +911,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-purchased-open", author: "agent", at: at + 4,
-      text: "Open points from the labels and sheets: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. The K1130-##+KDPP30 drawing (Ø95 plate, 107 mm handle, 103 mm projection) is not entered as a kind. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat (IP21) goes outside the bathroom on the hallway wall, next to the light switch, which is on the right as you look into the bathroom, about 850 mm off the floor (owner, 5 Oct 2026); it is not drawn here; its CBP3 cover size is not on the OJ brochure. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² (about 87–120 mm spacing); the cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. No route is drawn; use the heating tools for that. (7) Only the towel-rail foot and thermostat height are owner proposals; mixer/spout 800 mm and shower foot 400 mm stay unsourced (value null; drawn stand-ins on the kind) until finished faces are surveyed; #60 installation is not applied.",
+      text: "Open points from the labels and sheets: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. The K1130-##+KDPP30 drawing (Ø95 plate, 107 mm handle, 103 mm projection) is not entered as a kind. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat (IP21) goes outside the bathroom on the hallway wall, next to the light switch, which is on the right as you look into the bathroom, about 850 mm off the floor (owner, 5 Oct 2026); it is not drawn here; its CBP3 cover size is not on the OJ brochure. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² from the carton (published); derived spacing 3.7/42.5–5.1/42.5 m. A proposed 15-run loop is drawn at plan length exactly 42.5 m, equal to the published heated length (zero slack); any resolved fall exceeds that length once screed levels resolve. Keep-outs and wall setback are not on the carton and are not invented. The cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. (7) Only the towel-rail foot and thermostat height are owner proposals; mixer/spout 800 mm and shower foot 400 mm stay unsourced (value null; drawn stand-ins on the kind) until finished faces are surveyed; #60 installation is not applied.",
     },
   ];
 };

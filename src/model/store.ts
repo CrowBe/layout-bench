@@ -42,20 +42,21 @@ import type {
   TileFloorReference,
 } from "./types";
 import { emptyModel } from "./types";
-import { validHeating, heatingEvidence } from "./heating";
-import { checkModel } from "./issues";
+import { validHeating, heatingEvidence, heatingProductWriteGuard, heatingShadowedRecordKeys } from "./heating";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
-import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
-import { sideNormal } from "./faces";
+import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices } from "./fixtures";
+import { hostWasteInHostFrame, productCornerSide, applyCornerHandChange, derivedServicePointMutation, isDerivedServicePoint } from "./fittedWaste";
 import { drainageProblems, planeSurface } from "./drainage";
 import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
-import { exactProductLabel, exactSnapshot, identityOf, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
-import { productStore, type LibraryProduct } from "./productLibrary";
+import { exactSnapshot, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
+import { heatingAlreadyOnProduct, heatingRevisionSummary, retargetHeatingInModel, specificationFromProduct } from "./heatingProduct";
+import { productStore, registerHeatingRevisionHook, type LibraryProduct } from "./productLibrary";
+import { checkModel } from "./issues";
 import { productPlacement } from "./productPlacement";
 import { previewProductUpdate, type ProductUpdatePreview } from "./productUpdates";
-import { evidenceFingerprint, planningEvidence, revisionOf } from "./productRevision";
+import { planningEvidence, revisionOf } from "./productRevision";
 import { itemPolygon, outlineExtents, outlineProblems, pointNearPolygon, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
@@ -534,7 +535,8 @@ export interface FloorLayerInput {
 
 /** Fields present replace what is stored; null clears back to unknown. */
 type HeatingQuantityKey = "length" | "ratedOutput" | "minSpacing" | "edgeClearance" | "depthFromBottom";
-export type HeatingPatch = { [K in Exclude<keyof Heating, HeatingQuantityKey>]?: Heating[K] | null } &
+type HeatingSpecKey = "cableSpecification" | "thermostatSpecification";
+export type HeatingPatch = { [K in Exclude<keyof Heating, HeatingQuantityKey | HeatingSpecKey>]?: Heating[K] | null } &
   { [K in HeatingQuantityKey]?: QuantityInput | null } & { clear?: boolean };
 
 export interface FloorPatch {
@@ -670,17 +672,6 @@ const heightPrompt = (o: Opening): string =>
 // ---------------------------------------------------------------------------
 // Shared actions (UI + WebMCP tools)
 // ---------------------------------------------------------------------------
-
-/** Which back corner of a placed corner bath is square: the end of the wall it sits nearer. */
-function cornerSide(anchor: FixtureAnchor, wall: Wall): "left" | "right" {
-  const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
-  const alongFromA = anchor.from === "b" ? len - anchor.distance : anchor.distance;
-  const cornerAtA = alongFromA <= len - alongFromA;
-  const n = sideNormal(wall, anchor.side);
-  const rot = (-facingRotation(n) * Math.PI) / 180;
-  const towardB = Math.cos(rot) * (wall.bx - wall.ax) + Math.sin(rot) * (wall.by - wall.ay) > 0;
-  return cornerAtA === towardB ? "left" : "right";
-}
 
 /** Validate an anchor as a caller supplied it. Nothing changes until the caller applies it. */
 function buildAnchor(input: AnchorInput):
@@ -1172,17 +1163,72 @@ export const actions = {
     return r.ok(`Room "${next.label}" updated (${formatMm(next.w)} × ${formatMm(next.h)} mm at ${formatMm(next.x)}, ${formatMm(next.y)}).`, { id: room.id });
   },
 
-  /** Same canonical edit for UI and tools. Present fields replace; null restores unknown. */
+  /** Same canonical edit for UI and tools. Present fields replace; null restores unknown.
+   * Snapshots are written only from a referenced accepted product; specification objects are not patch keys. */
   setRoomHeating(roomRef: string, patch: HeatingPatch): ActionResult {
     const hit = resolveRoom(roomRef);
     if (!hit.ok) return rejected(hit);
     if (!patch || typeof patch !== "object" || Array.isArray(patch)) return fail("Heating patch must be an object.");
+    if ("cableSpecification" in patch || "thermostatSpecification" in patch) {
+      return fail("Heating rejected: cableSpecification and thermostatSpecification are not patch keys; reference an accepted product id. The snapshot is written from that product.");
+    }
     const room = hit.entity;
     const nextRoom = { ...room };
     if (patch.clear === true) delete nextRoom.heating;
     else {
+      const library = productStore.getState().products;
+      const validateProductId = (
+        key: "cableProductId" | "thermostatProductId",
+        category: "heating-cable" | "thermostat",
+        value: string | null,
+      ): string | null => {
+        if (value === null) return null;
+        if (typeof value !== "string" || !value.trim() || value.length > 200) {
+          return `Heating rejected: ${key} must be an accepted ${category} id or null.`;
+        }
+        const product = library.find((p) => p.id === value);
+        if (!product) return `Heating rejected: no accepted product "${value}" in this library.`;
+        if (product.category !== category) {
+          return `Heating rejected: "${value}" is category ${product.category}, not ${category}.`;
+        }
+        return null;
+      };
+      if (patch.cableProductId !== undefined) {
+        const err = validateProductId("cableProductId", "heating-cable", patch.cableProductId);
+        if (err) return fail(err);
+      }
+      if (patch.thermostatProductId !== undefined) {
+        const err = validateProductId("thermostatProductId", "thermostat", patch.thermostatProductId);
+        if (err) return fail(err);
+      }
+      const locked = heatingProductWriteGuard(room.heating, patch as Record<string, unknown>, library);
+      if (locked) return fail(locked);
       const next: Heating = structuredClone(room.heating ?? { zoneIds: [], path: [], keepouts: [] });
-      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts"] as (keyof Heating)[]) {
+      const bindProduct = (
+        key: "cableProductId" | "thermostatProductId",
+        specKey: "cableSpecification" | "thermostatSpecification",
+        category: "heating-cable" | "thermostat",
+        value: string | null,
+      ): string | null => {
+        if (value === null) {
+          delete next[key];
+          delete next[specKey];
+          return null;
+        }
+        const product = library.find((p) => p.id === value)!;
+        next[key] = product.id;
+        next[specKey] = specificationFromProduct(product);
+        return null;
+      };
+      if (patch.cableProductId !== undefined) {
+        const err = bindProduct("cableProductId", "cableSpecification", "heating-cable", patch.cableProductId);
+        if (err) return fail(err);
+      }
+      if (patch.thermostatProductId !== undefined) {
+        const err = bindProduct("thermostatProductId", "thermostatSpecification", "thermostat", patch.thermostatProductId);
+        if (err) return fail(err);
+      }
+      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts", "thermostatLocation"] as const) {
         if (patch[key] === undefined) continue;
         if (patch[key] === null) {
           if (key === "path" || key === "zoneIds" || key === "keepouts") Object.assign(next, { [key]: [] });
@@ -1194,7 +1240,11 @@ export const actions = {
         const quantity = next[key];
         if (quantity && quantity.value === null) delete quantity.value;
       }
-      if (!validHeating(next)) return fail("Heating rejected: finite non-negative quantities need provenance; paths need finite x/y; keep-outs need unique ids, labels and positive rectangles. Maximum 1000 points and 100 keep-outs.");
+      const shadowed = heatingShadowedRecordKeys(next, library);
+      if (shadowed.length) {
+        return fail(`Heating rejected: ${shadowed.join(", ")} is locked to the heating-cable brief; pass ${shadowed.map((k) => `${k}:null`).join(", ")} to clear the shadowed record value.`);
+      }
+      if (!validHeating(next)) return fail("Heating rejected: finite non-negative quantities need provenance; paths need finite x/y; keep-outs need unique ids, labels and positive rectangles; product snapshots must match their category and name the accepted productId they were written from. Maximum 1000 points and 100 keep-outs.");
       for (const key of ["length", "minSpacing", "edgeClearance", "depthFromBottom"] as const) if (next[key]?.value !== undefined) next[key]!.value = quantize(next[key]!.value!);
       next.path = next.path.map((p) => ({ x: quantize(p.x), y: quantize(p.y) }));
       next.keepouts = next.keepouts.map((r) => ({ ...r, x: quantize(r.x), y: quantize(r.y), w: quantize(r.w), h: quantize(r.h) }));
@@ -1203,7 +1253,7 @@ export const actions = {
     }
     pushUndo();
     setModel({ ...store.getState().model, rooms: store.getState().model.rooms.map((r) => r.id === room.id ? nextRoom : r) });
-    return { ok: true, summary: `Room "${room.label}" proposed heating ${nextRoom.heating ? "updated" : "cleared"}; electrician/manufacturer review required.`, id: room.id, ...heatingEvidence(nextRoom) };
+    return { ok: true, summary: `Room "${room.label}" proposed heating ${nextRoom.heating ? "updated" : "cleared"}; electrician/manufacturer review required. No electrical or compliance approval.`, id: room.id, ...heatingEvidence(nextRoom) };
   },
 
   // ---- floor assembly (#6) ----
@@ -1507,32 +1557,12 @@ export const actions = {
     if (!built.ok) return built.result;
     const { anchor, r, wall } = built;
     let next: Item = { ...item, anchor };
-    // a handed corner fixture moved into the other corner swaps hands, and its points mirror
+    // Live nearer end ≠ stored corner: refuse. Re-place the bath; do not mirror across.
     if (item.corner) {
-      const side = cornerSide(anchor, wall);
-      if (side !== item.corner.side) {
-        const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
-        if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) return fail(`This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`);
-        const oldWall=item.anchor && store.getState().model.walls.find(w=>w.id===item.anchor!.wallId);
-        const sourcePlacement=item.productSnapshot && item.anchor && oldWall ? productPlacement(item.productSnapshot,item.anchor,oldWall,item.installation) : undefined;
-        const confirmed=(status?:string)=>status === "measured" || status === "site-confirmed";
-        const conflict=(item.servicePoints??[]).find(point=>{
-          if(point.across === undefined || point.across === 0)return false;
-          const copied=sourcePlacement?.ok ? sourcePlacement.servicePoints.find(p=>p.id===point.id) : undefined;
-          return (!point.axisEvidence && confirmed(point.status) && evidenceFingerprint(point)!==evidenceFingerprint(copied)) ||
-            (confirmed(point.axisEvidence?.across?.status) && (point.across!==copied?.across || evidenceFingerprint(point.axisEvidence?.across)!==evidenceFingerprint(copied?.axisEvidence?.across)));
-        });
-        if(conflict)return fail(`Changing corner hand would reflect the measured/site-confirmed project axis on ${conflict.id}. Reconcile that instance connection individually; its coordinate, evidence and anchor remain unchanged.`);
-        if(item.installationGeometry) return fail("Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged.");
-        const pinned = item.productGeometry;
-        const mirrorPoint = (point: {x:number;y:number}) => ({x:-point.x,y:point.y});
-        const geometry = pinned ? {...structuredClone(pinned),kind:item.corner[side],...(pinned.outline ? {outline:{...structuredClone(pinned.outline),start:mirrorPoint(pinned.outline.start),segments:pinned.outline.segments.map(segment=>({...segment,to:mirrorPoint(segment.to),...(segment.via ? {via:mirrorPoint(segment.via)} : {})}))}} : {})} : undefined;
-        next = {
-          ...next, kind: item.corner[side], corner: { ...item.corner, side },
-          ...(geometry ? {productGeometry:geometry} : {}),
-          ...(item.servicePoints ? { servicePoints: item.servicePoints.map((p) => (p.across === undefined ? p : { ...p, across: quantize(-p.across) })) } : {}),
-        };
-      }
+      const side = productCornerSide(anchor, wall);
+      const changed = applyCornerHandChange(next, side);
+      if (!changed.ok) return fail(changed.summary);
+      next = changed.item;
     }
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
@@ -1569,24 +1599,36 @@ export const actions = {
     const existing = item.servicePoints ?? [];
     if (input.id !== undefined && (typeof input.id !== "string" || !/^[A-Za-z0-9_:-]{1,40}$/.test(input.id))) return fail("id must be 1–40 letters, digits, _, : or -.");
     const id = input.id ?? uid("sp");
+    const prior = existing.find((p) => p.id === id);
+    const derivedWrite = prior ? derivedServicePointMutation(prior, { status: input.status, source: input.source }) : { ok: true as const };
+    if (!derivedWrite.ok) return fail(derivedWrite.summary);
+    const priorDerived = !!(prior && isDerivedServicePoint(prior));
+    const siteSource = input.source?.trim() ?? "";
     const point: ServicePoint = {
       id, label: input.label.trim(), service: input.service, face: input.face,
       ...(out !== undefined ? { out } : {}), ...(outMax !== undefined ? { outMax } : {}),
       ...(num(input.across, "across") !== undefined ? { across: num(input.across, "across") } : {}),
       ...(up !== undefined ? { up } : {}),
-      status: input.status, ...(input.source?.trim() ? { source: input.source.trim() } : {}),
+      status: input.status,
+      ...(siteSource ? { source: siteSource } : {}),
     };
     const next: Item = { ...item, servicePoints: existing.some((p) => p.id === id) ? existing.map((p) => (p.id === id ? point : p)) : [...existing, point] };
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
-    return r.ok(`${point.label} ${existing.some((p) => p.id === id) ? "updated" : "added"} on ${item.id}.`, { id: item.id, pointId: id });
+    const replaced = priorDerived
+      ? ` Replaced derived host-frame conversion with a ${input.status} site datum.`
+      : "";
+    return r.ok(`${point.label} ${existing.some((p) => p.id === id) ? "updated" : "added"} on ${item.id}.${replaced}`, { id: item.id, pointId: id });
   },
 
   removeServicePoint(itemRef: string, pointId: string): ActionResult {
     const hit = resolveItem(itemRef);
     if (!hit.ok) return rejected(hit);
     const item = hit.entity;
-    if (!(item.servicePoints ?? []).some((p) => p.id === pointId)) return fail(`No service point "${pointId}" on ${item.id}.`);
+    const prior = (item.servicePoints ?? []).find((p) => p.id === pointId);
+    if (!prior) return fail(`No service point "${pointId}" on ${item.id}.`);
+    const derivedWrite = derivedServicePointMutation(prior);
+    if (!derivedWrite.ok) return fail(derivedWrite.summary);
     pushUndo();
     const next: Item = { ...item, servicePoints: item.servicePoints!.filter((p) => p.id !== pointId) };
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
@@ -1634,22 +1676,40 @@ export const actions = {
     return product ? previewProductUpdate(store.getState().model, product, selected, productStore.getState().products) : null;
   },
 
-  /** Human page action only. Recompute evidence and selection; never trust supplied projection rows. */
+  /** Human page action only. Recompute evidence and selection; never trust supplied projection rows.
+   * Also retargets `room.heating` product references and rewrites their snapshots from the accepted product. */
   applyProductRevision(preview: ProductUpdatePreview): ActionResult {
     const next = this.previewProductRevision(preview.targetId, preview.selected);
     if (!next || next.fingerprint !== preview.fingerprint) return fail("The project or accepted evidence changed. Preview the selected instances again before applying.");
-    if (!next.applicable) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
+    const product = productStore.getState().products.find((p) => p.id === next.targetId);
+    if (!next.applicable) {
+      if (!product || next.selected.length > 0) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
+      const heatingRooms = store.getState().model.rooms.filter((r) => r.heating);
+      if (heatingRooms.length && heatingRooms.every((r) => heatingAlreadyOnProduct(r.heating!, product))) {
+        return ok("0 selected instance(s) updated. Issued outputs remain historical.", { ids: next.selected });
+      }
+      const heating = retargetHeatingInModel(store.getState().model, product);
+      if (!heating.rooms.length) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
+      pushUndo();
+      setModel(heating.model);
+      return ok(`0 selected instance(s) updated. ${heatingRevisionSummary(product, heating.rooms, heating.changed, heating.cleared)} Issued outputs remain historical.`, { ids: next.selected });
+    }
     for (const entry of next.entries) {
       const result = this.defineItemKind(entry);
       if (!result.ok) return result;
     }
     const at = Date.now();
-    const model = { ...next.model, items: next.model.items.map(item => {
+    let model = { ...next.model, items: next.model.items.map(item => {
       const row = next.rows.find(row => row.id === item.id);
       return row ? { ...item, productUpdates: [...(item.productUpdates ?? []), { from: row.before.productId!, to: next.targetId, at, preserved: row.preserved, unresolved: row.unresolved }] } : item;
     }) };
+    const heating = product && model.rooms.some((r) => r.heating && !heatingAlreadyOnProduct(r.heating, product))
+      ? retargetHeatingInModel(model, product)
+      : { model, rooms: [] as string[], changed: [] as Array<"cable" | "thermostat">, cleared: [] as [] };
+    model = heating.model;
     pushUndo(); setModel(model);
-    return ok(`${next.rows.length} selected instance(s) updated explicitly. Preserved project confirmations and reconciliation notes remain in instance history. Issued outputs remain historical.`, { ids: next.selected });
+    const heatingLine = product && heating.rooms.length ? ` ${heatingRevisionSummary(product, heating.rooms, heating.changed, heating.cleared)}` : "";
+    return ok(`${next.rows.length} selected instance(s) updated explicitly. Preserved project confirmations and reconciliation notes remain in instance history. Issued outputs remain historical.${heatingLine}`, { ids: next.selected });
   },
 
   setFixtureInstallation(itemRef: string, placement: FixtureInstallation): ActionResult {
@@ -1686,9 +1746,10 @@ export const actions = {
   /**
    * Fit an accessory (a bath waste, a basket) inside a host fixture, at `across` the host's
    * centreline and `out` from its back edge, in metres. Its centre must lie inside the host's
-   * footprint. Pass null to release it where it stands.
+   * footprint. Pass `atHostWaste` to use the host's resolved waste point in that same frame
+   * instead of an arbitrary place. Pass null as the host to release it where it stands.
    */
-  fitItem(accessoryRef: string, hostRef: string | null, across?: number, out?: number): ActionResult {
+  fitItem(accessoryRef: string, hostRef: string | null, across?: number, out?: number, atHostWaste = false): ActionResult {
     const acc = resolveItem(accessoryRef);
     if (!acc.ok) return rejected(acc);
     const item = acc.entity;
@@ -1705,16 +1766,30 @@ export const actions = {
     if (host.fittedTo) return fail(`${host.id} is itself fitted inside ${host.fittedTo.hostId}; fit to the outer fixture.`);
     if (store.getState().model.items.some((i) => i.fittedTo?.hostId === item.id)) return fail(`${item.id} is a host for other accessories; fit it only after releasing them.`);
     if (item.anchor) return fail(`${item.id} is set out from a wall face; release its anchor before fitting it inside a fixture.`);
-    if (typeof across !== "number" || typeof out !== "number" || !Number.isFinite(across) || !Number.isFinite(out)) return fail("Give across (metres from the host's centreline, left negative) and out (metres from the host's back edge).");
+    let acrossM = across, outM = out;
+    if (atHostWaste) {
+      const pt = hostWasteInHostFrame(host, catalogByKind, store.getState().model);
+      if (!pt.resolved || pt.across === undefined || pt.out === undefined) {
+        return fail(`${host.id} has no resolved waste point in its own frame: missing ${pt.missing.join(", ")}. No position is invented.`);
+      }
+      acrossM = pt.across;
+      outM = pt.out;
+    }
+    if (typeof acrossM !== "number" || typeof outM !== "number" || !Number.isFinite(acrossM) || !Number.isFinite(outM)) return fail("Give across (metres from the host's centreline, left negative) and out (metres from the host's back edge), or set atHostWaste to use the host's waste point.");
     const r = rounding();
-    const fitted: Item = { ...item, fittedTo: { hostId: host.id, across: r.q(across, "across"), out: r.q(out, "out") } };
+    const fitted: Item = { ...item, fittedTo: { hostId: host.id, across: r.q(acrossM, "across"), out: r.q(outM, "out") } };
     const pose = fittedPose(fitted, host);
     if (!pose) return fail(`${host.id} has no known footprint to fit into.`);
     const poly = itemPolygon(host);
     if (!poly || !pointNearPolygon({ x: pose.x, y: pose.y }, poly, 0)) return fail(`That point is outside ${host.id}'s footprint (its real outline, not its box). Choose a point inside it.`);
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? { ...fitted, ...pose } : i)) });
-    return r.ok(`${item.id} fitted inside ${host.id}, ${formatMm(fitted.fittedTo!.across)} mm across and ${formatMm(fitted.fittedTo!.out)} mm from its back edge.`, { id: item.id, hostId: host.id });
+    return r.ok(
+      atHostWaste
+        ? `${item.id} fitted inside ${host.id} at its waste point, ${formatMm(fitted.fittedTo!.across)} mm across and ${formatMm(fitted.fittedTo!.out)} mm from its back edge.`
+        : `${item.id} fitted inside ${host.id}, ${formatMm(fitted.fittedTo!.across)} mm across and ${formatMm(fitted.fittedTo!.out)} mm from its back edge.`,
+      { id: item.id, hostId: host.id },
+    );
   },
 
   // ---- model / view ----
@@ -1878,6 +1953,7 @@ export const actions = {
       ...(spec.outline ? { outline: structuredClone(spec.outline) } : {}),
       ...(spec.elevation ? { elevation: spec.elevation } : {}),
       ...(spec.installationMounting ? { installationMounting: spec.installationMounting } : {}),
+      ...(spec.parts?.some((p) => p.stopgap) ? { stopgap: true } : {}),
     };
     const known: CatalogEntry["category"][] = ["living", "bedroom", "kitchen", "bath", "office", "decor"];
     const category = known.includes(spec.category as CatalogEntry["category"])
@@ -1897,6 +1973,8 @@ export const actions = {
       else delete existing.outline;
       if (spec.elevation) existing.elevation = spec.elevation;
       else delete existing.elevation;
+      if (spec.parts?.some((p) => p.stopgap)) existing.stopgap = true;
+      else delete existing.stopgap;
     } else {
       registerCatalogEntry({ kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category, ...outline });
     }
@@ -1959,6 +2037,14 @@ export const actions = {
     store.setState({ webmcpStatus: status });
   },
 };
+
+registerHeatingRevisionHook((_fromProductId, product) => {
+  const heating = retargetHeatingInModel(store.getState().model, product);
+  if (!heating.rooms.length) return undefined;
+  pushUndo();
+  setModel(heating.model);
+  return heatingRevisionSummary(product, heating.rooms, heating.changed, heating.cleared);
+});
 
 // Convenience re-exports for tools
 export { checkModel };

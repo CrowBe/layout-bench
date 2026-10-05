@@ -82,7 +82,7 @@ try {
   const wall = await run("add_wall", { ax: 0, ay: 0, bx: 4, by: 0, thickness: .1, height: 2.4 });
   assert.equal((await run("set_wall_side", { wallId: wall.id, side: "right", existing: { value: 0, status: "measured" }, layers: [] })).ok, true);
   for (const hand of ["left", "right", "reversible", "legacy"]) {
-    const bath = { manufacturer: "Synthetic Co", model: `Synthetic ${hand} bath`, ...(hand !== "legacy" ? { identity: { code: known(`BATH-${hand}`), handedness: known(hand) } } : {}), fields: { length: pub(1.2), width: pub(1.2), height: pub(.5), installation: pub("corner"), shape: pub("corner-round"), frontWidth: pub(1.5), frontProjection: pub(1.1), wasteFromEnd: pub(.2), wasteFromSide: pub(.2), surround: pub("tiled-frame") } };
+    const bath = { manufacturer: "Synthetic Co", model: `Synthetic ${hand} bath`, ...(hand !== "legacy" ? { identity: { code: known(`BATH-${hand}`), handedness: known(hand) } } : {}), fields: { length: pub(1.2), width: pub(1.2), height: pub(.5), installation: pub("corner"), shape: pub("corner-round"), frontWidth: pub(1.5), frontProjection: pub(1.1), wasteFromCorner: { value: null, note: "Synthetic: uses wasteFromEnd/wasteFromSide, not the bisector." }, wasteFromEnd: pub(.2), wasteFromSide: pub(.2), surround: pub("tiled-frame") } };
     const request = await run("request_product", { category: "bath", brand: "Synthetic Co", model: bath.model });
     const submitted = await run("submit_product_spec", { requestId: request.requestId, ...bath });
     assert.equal(submitted.ok, true, submitted.summary);
@@ -98,7 +98,8 @@ try {
     assert.equal(JSON.stringify(catalogue).includes(oppositeKind), !fixed);
     if (fixed) assert.equal((await run("place_item", { kind: oppositeKind, x: 3.2, y: 1 })).ok, false);
     const moved = await run("anchor_fixture", { itemId: placed.id, wallId: wall.id, side: "right", face: "existing", distance: hand === "right" ? .8 : 3.2, status: "proposed" });
-    assert.equal(moved.ok, !fixed, moved.summary);
+    assert.equal(moved.ok, false, moved.summary);
+    assert.match(moved.summary, /re-anchor not supported when the corner hand disagrees with the wall; re-place the bath/);
   }
   await page.screenshot({ path: "/tmp/layout-bench-47-review-recovery.png", fullPage: true });
   await context.close();

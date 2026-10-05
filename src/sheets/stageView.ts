@@ -10,7 +10,7 @@ import { installationReading, localPointReading, clearanceRegions } from "../mod
  * Unknown values print as "?" with what is missing, exactly as on sheet A-01.
  */
 
-import type { Acknowledgement, PlanModel, Quantity, Room, Wall, WallSideName } from "../model/types";
+import type { Acknowledgement, PlanModel, Quantity, Room, ValueStatus, Wall, WallSideName } from "../model/types";
 import type { LibraryProduct } from "../model/productLibrary";
 import { catalogForItem, catalogByKind, isBuiltInKind } from "../model/catalog";
 import { rectCorners, segLen, type Pt } from "../model/geometry";
@@ -18,6 +18,7 @@ import { openingSpan } from "../model/issues";
 import { input, known, layerLabel, resolveFace, sideFaces, sideNormal, wallBody, weakest } from "../model/faces";
 import { DEFAULT_DATUM, floorFill, floorLayerLabel, floorLevels } from "../model/floor";
 import { heatingEvidence } from "../model/heating";
+import { heatingNameSource } from "../model/heatingProduct";
 import { planeSurface } from "../model/drainage";
 import { placementLimitations, anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
@@ -181,8 +182,9 @@ export const dimStatus = (defaulted: boolean | undefined): RowStatus => (default
 const qRow = (q: Quantity | undefined) => (known(q) ? { value: mm(q.value), status: q.status as RowStatus, ...(q.source ? { source: q.source } : {}) } : { value: "?", status: "unknown" as RowStatus, ...(q?.source ? { source: q.source } : {}) });
 
 /** The specification rows for one element: every property with its status and source. */
-export function specRows(model: PlanModel, el: ViewElement, products: LibraryProduct[] = []): SpecRow[] {
+export function specRows(model: PlanModel, el: ViewElement, products?: LibraryProduct[]): SpecRow[] {
   const rows: SpecRow[] = [];
+  const library = products ?? [];
   const row = (property: string, r: Omit<SpecRow, "element" | "layer" | "label" | "property">) =>
     rows.push({ element: el.id, layer: el.layer, label: el.label, property, ...r, ...(r.value === "?" && !r.missing ? { missing: [property] } : {}) });
 
@@ -255,18 +257,44 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     return rows;
   }
   if (el.type === "heating") {
-    const r = room(), h = r.heating!, e = heatingEvidence(r);
-    for (const property of ["manufacturer", "model", "productSource", "requirements"] as const) row(property, { value: h[property] || "?", status: h[property] ? "entered" : "unknown" });
-    for (const property of ["length", "minSpacing", "edgeClearance", "depthFromBottom"] as const) row(`${property} (mm)`, qRow(h[property]));
-    row("rated output (W)", h.ratedOutput?.value !== undefined ? { value: String(h.ratedOutput.value), status: h.ratedOutput.status ?? "unknown", source: h.ratedOutput.source } : { value: "?", status: "unknown" });
-    row("plan route length (m)", { value: String(e.planRouteLength), status: "proposed" });
-    row("spatial route length, sampled profile (m)", { value: e.routeLength === undefined ? "?" : String(e.routeLength), status: e.routeLength === undefined ? "unknown" : "proposed" });
-    row("remaining confirmed product length (m)", { value: e.remainingProductLength === undefined ? "?" : String(e.remainingProductLength), status: e.remainingProductLength === undefined ? "unknown" : "proposed" });
+    const r = room(), h = r.heating!, e = heatingEvidence(r, products);
+    const fig = (f: (typeof e.cable)["length"], asMm = false) => {
+      const status = (TAGS[f.kind] ? f.kind : "unknown") as RowStatus;
+      const source = [f.formula, f.source, f.note].filter(Boolean).join(" · ") || undefined;
+      if (f.value === undefined) return { value: "?", status: "unknown" as RowStatus, ...(source ? { source } : {}), ...(f.datum ? { datum: f.datum } : {}), missing: [f.note ?? f.quantity] };
+      return { value: asMm ? mm(f.value) : String(f.value), status, ...(source ? { source } : {}), ...(f.datum ? { datum: f.datum } : {}) };
+    };
+    for (const property of ["manufacturer", "model"] as const) {
+      const value = e.cable[property];
+      const origin = property === "manufacturer" ? e.cable.manufacturerOrigin : e.cable.modelOrigin;
+      const source = heatingNameSource(origin);
+      row(property, { value: value || "?", status: value ? "entered" : "unknown", ...(source ? { source } : {}) });
+    }
+    for (const property of ["productSource", "requirements"] as const) row(property, { value: h[property] || "?", status: h[property] ? "entered" : "unknown" });
+    row("product length (m)", fig(e.cable.length));
+    row("rated output (W)", fig(e.cable.ratedOutput));
+    row("coverage min (m²)", fig(e.cable.coverageMin));
+    row("coverage max (m²)", fig(e.cable.coverageMax));
+    row("derived spacing min (mm)", fig(e.cable.spacingMin, true));
+    row("derived spacing max (mm)", fig(e.cable.spacingMax, true));
+    row("cable rated current (A)", fig(e.cable.ratedCurrent));
+    row("cable rated voltage (V)", fig(e.cable.ratedVoltage));
+    row("thermostat switching current (A)", fig(e.thermostat.ratedCurrent));
+    row("thermostat voltage min (V)", fig(e.thermostat.voltageMin));
+    row("thermostat voltage max (V)", fig(e.thermostat.voltageMax));
+    row("thermostat printed IP", { value: e.thermostat.ingressProtection?.value || "?", status: (TAGS[e.thermostat.ingressProtection?.kind ?? ""] ? e.thermostat.ingressProtection!.kind : "unknown") as RowStatus, source: e.thermostat.ingressProtection?.source ?? e.thermostat.ingressProtection?.note });
+    for (const property of ["minSpacing", "edgeClearance", "depthFromBottom"] as const) row(`${property} (mm)`, qRow(h[property]));
+    row("cable depth datum", { value: e.datums.cableDepth, status: "named" });
+    row("wall setback datum", { value: e.datums.wallSetback, status: "named" });
+    row("plan route length (m)", fig(e.figures.planRouteLength));
+    row("spatial route length, sampled profile (m)", fig(e.figures.spatialRouteLength));
+    row("remaining confirmed product length (m)", fig(e.figures.remainingProductLength));
     row("length basis", { value: e.lengthNote, status: "proposed" });
+    row("spacing formula", { value: e.spacingNote, status: "derived" });
     row("zone ids", { value: h.zoneIds.join(", ") || "?", status: h.zoneIds.length ? "proposed" : "unknown" });
     row("available zone area (m²), not heat coverage", { value: String(e.availableArea), status: "proposed" });
-    row("minimum non-adjacent spacing (mm)", { value: e.minimumNonAdjacentSpacing === undefined ? "?" : mm(e.minimumNonAdjacentSpacing), status: e.minimumNonAdjacentSpacing === undefined ? "unknown" : "proposed" });
-    row("installation approval", { value: "Pending manufacturer / electrician review", status: "proposed" });
+    row("minimum non-adjacent spacing (mm)", { value: e.minimumNonAdjacentSpacing === undefined ? "?" : mm(e.minimumNonAdjacentSpacing), status: e.minimumNonAdjacentSpacing === undefined ? "unknown" : "modelled" });
+    row("installation approval", { value: "Pending manufacturer / electrician review. No electrical or compliance approval.", status: "proposed" });
     for (const [i, p] of h.path.entries()) row(`point ${i + 1} x / y (mm)`, { value: `${mm(p.x)} / ${mm(p.y)}`, status: "proposed", datum: "plan origin" });
     for (const p of e.section) row(`cable level at ${p.s} m along plan route (mm)`, p.level === undefined ? { value: "?", status: "unknown", missing: p.missing } : { value: mm(p.level), status: p.basis as RowStatus, datum: r.floorBuildUp?.datum || DEFAULT_DATUM });
     for (const k of h.keepouts) row(`keep-out ${k.label} x / y / w / h (mm)`, { value: [k.x, k.y, k.w, k.h].map(mm).join(" / "), status: "entered", source: k.source });
@@ -326,7 +354,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
       }
     }
     row("project selection", { value: it.selectionStatus ?? "unknown", status: it.selectionStatus && it.selectionStatus !== "unknown" ? "entered" : "unknown" });
-    const product = it.productId ? products.find((p) => p.id === it.productId) : undefined;
+    const product = it.productId ? library.find((p) => p.id === it.productId) : undefined;
     const exact = it.productIdentity ?? product;
     if (exact) {
       row("exact product", { value: exact.physicalItem ? `${exact.physicalItem.label} · manufacturer ${exact.manufacturer || "unknown"} · model ${exact.model || "unknown"}` : `${exact.manufacturer} ${exact.model}`, status: exact.physicalItem ? "entered" : "published" });
@@ -381,16 +409,22 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
   const sp = it.servicePoints!.find((x) => x.id === el.sub)!;
   const reading = roughIn(model, it).find((r) => r.pointId === sp.id)!;
   const src = sp.source ? { source: sp.source } : {};
-  const axis = (name: "out" | "across" | "up") => ({ status: sp.axisEvidence?.[name]?.status ?? sp.status, ...(evidenceText(sp.axisEvidence?.[name]) ? { source: evidenceText(sp.axisEvidence?.[name]) } : src) });
+  const converted = sp.status === "derived" || sp.basis === "derived";
+  const axis = (name: "out" | "across" | "up") => {
+    const convertedAxis = converted && (name === "across" || name === "out");
+    return { status: convertedAxis ? "derived" : (sp.axisEvidence?.[name]?.status ?? sp.status), ...(evidenceText(sp.axisEvidence?.[name]) ? { source: evidenceText(sp.axisEvidence?.[name]) } : src) };
+  };
   const rangeEvidence = sp.outMax !== undefined ? [sp.axisEvidence?.out, sp.axisEvidence?.outMax] : [sp.axisEvidence?.out];
-  const outBasis = { status: evidenceStatus(rangeEvidence) ?? sp.status, source: rangeEvidence.map(evidenceText).filter(Boolean).join("; ") || sp.source };
+  const outBasis = { status: converted ? "derived" : (evidenceStatus(rangeEvidence) ?? sp.status), source: rangeEvidence.map(evidenceText).filter(Boolean).join("; ") || sp.source };
   row("service", { value: sp.service, status: "entered" });
   row(`out from ${sp.face} face (mm)`, sp.out !== undefined ? { value: `${mm(sp.out)}${sp.outMax !== undefined ? `–${mm(sp.outMax)}` : ""}`, ...outBasis, datum: `${sp.face} face` } : { value: "?", status: "unknown", missing: ["out distance"] });
   row("across from fixture centreline (mm)", sp.across !== undefined ? { value: mm(sp.across), ...axis("across"), datum: "fixture-centreline" } : { value: "?", status: "unknown", missing: ["across offset"] });
   row("up from finished floor (mm)", sp.up !== undefined ? { value: mm(sp.up), ...axis("up"), datum: "finished floor" } : { value: "?", status: "unknown", missing: ["up height"] });
   for (const [name, evidence] of Object.entries(sp.axisEvidence ?? {})) row(`${name} source evidence`, { value: evidence.value === null ? "?" : typeof evidence.value === "number" ? mm(evidence.value) : String(evidence.value), status: evidence.value === null ? "unknown" : evidence.status ?? "unknown", ...(evidence.reference ? { datum: evidence.reference } : {}), source: evidenceText(evidence), ...(evidence.value === null ? { missing: [evidence.note ?? name] } : {}) });
-  // along depends on the fixture's set-out as well as the point's own offset: the weaker status
-  const alongStatus = it.anchor ? weakest([input("point", { value: 0, status: axis("across").status }), input("set-out", { value: 0, status: it.anchor.status })]) : axis("across").status;
+  // along depends on the fixture's set-out as well as the point's own offset: the weaker status.
+  // Converted host-frame across is derived, never published; do not feed `derived` to weakest.
+  let alongStatus: RowStatus = converted ? "derived" : (axis("across").status as RowStatus);
+  if (!converted && it.anchor) alongStatus = weakest([input("point", { value: 0, status: axis("across").status as ValueStatus }), input("set-out", { value: 0, status: it.anchor.status })]) as RowStatus;
   row("along from end A (mm)", reading.alongFromA !== undefined ? { value: mm(reading.alongFromA), status: alongStatus as RowStatus, datum: it.anchor ? `${it.anchor.wallId} end A` : undefined } : { value: "?", status: "unknown", missing: reading.missing.length ? reading.missing : ["position along the wall"] });
   return rows;
 }
@@ -561,7 +595,7 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     const points = r.heating.path.map(P);
     parts.push(`<polyline points="${points.map((p) => `${f1(p.x)},${f1(p.y)}`).join(" ")}" fill="none" stroke="#c64c19" stroke-width="0.5" ${de(id)}/>`);
     points.forEach((p, i) => text(p.x+1, p.y-1, String(i+1), 1.8, `fill="#c64c19"`));
-    const evidence = heatingEvidence(r);
+    const evidence = heatingEvidence(r, opts.products);
     if (points.length) text(points[0].x, points[0].y-4, `PROPOSED CABLE plan ${evidence.planRouteLength} m; spatial ${evidence.routeLength === undefined ? "unknown" : `${evidence.routeLength} m`} (sampled); trade review pending`, 1.8, `fill="#c64c19"`);
   }
 
@@ -607,7 +641,8 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     if (!vis.has(`item:${it.id}`)) continue;
     const pg = itemPolygon(it);
     if (!pg) continue;
-    poly(pg.map(P), `fill="#fff" stroke="#444" stroke-width="0.3" ${de(`item:${it.id}`)}`);
+    const cat = catalogForItem(it);
+    poly(pg.map(P), `fill="#fff" stroke="#444" stroke-width="0.3"${cat?.stopgap ? ` stroke-dasharray="1.2 0.6"` : ""} ${de(`item:${it.id}`)}`);
     if(it.installationGeometry){
       for(const r of clearanceRegions(model,it))if(r.resolved)poly(r.polygon.map(P),`fill="none" stroke="#8c6496" stroke-dasharray="1 1" stroke-width="0.2" data-access="${esc(r.id)}"`);
       for(const p of it.installationGeometry.fixings??[]){const r=localPointReading(model,it,p);if(r.x!==undefined && r.y!==undefined){const xy=P({x:r.x,y:r.y});parts.push(`<circle cx="${f1(xy.x)}" cy="${f1(xy.y)}" r="0.7" fill="#8c6496" data-fixing="${esc(p.id)}"/>`);}}
@@ -664,7 +699,7 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
 
   heading(`Stage: ${opts.label}`);
   row(`Shows ${elements.length} element(s) of the one project model; everything else is hidden, not removed.`);
-  row("Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · ENT entered · DEF default · ? unknown");
+  row("Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ? unknown");
   row(`Not modelled, never drawn: ${catalogue(model).notModelled.map((s) => s.split(" (")[0]).join("; ")}.`, 1.9, `fill="#666"`);
   y += 2;
 
@@ -757,7 +792,7 @@ export function renderStageSpec(model: PlanModel, elements: ViewElement[], opts:
 <div>Project: ${esc(tb.project?.trim() || "?")} · Site / room: ${esc(tb.site?.trim() || "?")} · Prepared by: ${esc(tb.preparedBy?.trim() || "?")} · Plan: ${esc(model.name)}</div>
 <div>${opts.date ? `Exported ${esc(opts.date)} · not a revision of A-01` : "PREVIEW, not exported"}${opts.note ? ` · Note: ${esc(opts.note)}` : ""}</div>
 <div class="banner">PROPOSED · FOR TRADE REVIEW · NOT AS-BUILT · NOT A COMPLIANCE CERTIFICATE</div>
-<p class="muted">Lists exactly the ${elements.length} element(s) visible in this stage view of the one project model. Lengths in mm. Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · ENT entered (not site-confirmed) · DEF default placeholder · ? unknown. A "?" value is not known and must not be read as a measurement. Not modelled, so never listed: ${esc(catalogue(model).notModelled.join("; "))}.</p>
+<p class="muted">Lists exactly the ${elements.length} element(s) visible in this stage view of the one project model. Lengths in mm. Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived (converted, not published) · ENT entered (not site-confirmed) · DEF default placeholder · ? unknown. A "?" value is not known and must not be read as a measurement. Not modelled, so never listed: ${esc(catalogue(model).notModelled.join("; "))}.</p>
 <table><thead><tr><th>Element</th><th>Property</th><th>Value</th><th>Status</th><th>Measured from</th><th>Source</th><th>Missing</th></tr></thead>${body}</table>
 <h2>Unresolved in this view (${unresolved.length})</h2><ul>${unresolved.map((f) => `<li>${esc(f.message)}</li>`).join("")}</ul>
 ${acks.length ? `<h2>Exported past ${acks.length} blocking finding(s)</h2><ul>${acks.map((a) => `<li>${esc(`${a.code} (${a.ref}), ${a.by}: ${a.reason}`)}</li>`).join("")}</ul>` : ""}

@@ -12,6 +12,7 @@ import { catalogForItem, catalogByKind, type CatalogLookup } from "./catalog";
 import { quantize, segLen, type ORect, type Pt } from "./geometry";
 import { VALUE_STATUSES, layerLabel, resolveFace, sideFaces, sideNormal, wallBody } from "./faces";
 import { itemPolygon, toWorld, support } from "./outline";
+import { fittedWasteProblems, cornerHandProblems } from "./fittedWaste";
 
 const dirOf = (w: Wall): Pt => {
   const len = segLen(w.ax, w.ay, w.bx, w.by) || 1;
@@ -118,7 +119,7 @@ export interface RoughInReading {
   pointId: string;
   label: string;
   service: ServicePoint["service"];
-  status: ValueStatus;
+  status: ValueStatus | "derived";
   source?: string;
   axisEvidence?: ServicePoint["axisEvidence"];
   /** what the point was entered against */
@@ -318,6 +319,7 @@ export function fixtureProblems(model: PlanModel, lookup: CatalogLookup = catalo
       if (!r.resolved) out.push({ severity: "warning", code: "service_point_unresolved", message: `${label} ${r.label}: missing ${r.missing.join(", ")}.`, refs: [it.id] });
     }
   }
+  out.push(...cornerHandProblems(model), ...fittedWasteProblems(model, lookup));
   return out;
 }
 

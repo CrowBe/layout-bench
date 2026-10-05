@@ -4,6 +4,7 @@ import { checkModel } from "../src/model/issues";
 import { demoProject, parseImport } from "../src/model/projects";
 import { resetRuntimeCatalog } from "../src/model/catalog";
 import { fittedPose } from "../src/model/fixtures";
+import { hostWasteInHostFrame } from "../src/model/fittedWaste";
 import { itemPolygon, pointNearPolygon } from "../src/model/outline";
 import { emptyModel } from "../src/model/types";
 
@@ -21,7 +22,8 @@ describe("an accessory fitted inside a fixture (bath waste)", () => {
   it("sits inside the sample bath without an overlap, with its pose derived from the host", () => {
     load();
     const waste = item("bath_waste");
-    expect(waste.fittedTo).toEqual({ hostId: "bath", across: 0.141, out: 0.368 });
+    const hostPt = hostWasteInHostFrame(item("bath"));
+    expect(waste.fittedTo).toEqual({ hostId: "bath", across: hostPt.across, out: hostPt.out });
     expect(pointNearPolygon({ x: waste.x, y: waste.y }, itemPolygon(item("bath"))!, 0)).toBe(true);
     expect(fittedPose(waste, item("bath"))).toMatchObject({ x: waste.x, y: waste.y, rotation: 0 });
     expect(codes()).not.toContain("items_overlap");
@@ -53,7 +55,8 @@ describe("an accessory fitted inside a fixture (bath waste)", () => {
     const outside = actions.fitItem("bath_waste", "bath", -0.45, 0.9);
     expect(outside.ok).toBe(false);
     expect(outside.summary).toMatch(/outside bath's footprint/);
-    expect(item("bath_waste").fittedTo).toEqual({ hostId: "bath", across: 0.141, out: 0.368 });
+    const hostPt = hostWasteInHostFrame(item("bath"));
+    expect(item("bath_waste").fittedTo).toEqual({ hostId: "bath", across: hostPt.across, out: hostPt.out });
   });
 
   it("fits at a new place, and releases where it stands", () => {
@@ -81,7 +84,9 @@ describe("an accessory fitted inside a fixture (bath waste)", () => {
 
   it("round-trips through a project export and rejects a malformed field", () => {
     const doc = demoProject();
-    expect(parseImport(JSON.stringify(doc)).model.items.find((i) => i.id === "bath_waste")?.fittedTo).toEqual({ hostId: "bath", across: 0.141, out: 0.368 });
+    load();
+    const expected = item("bath_waste").fittedTo;
+    expect(parseImport(JSON.stringify(doc)).model.items.find((i) => i.id === "bath_waste")?.fittedTo).toEqual(expected);
     const bad = structuredClone(doc);
     (bad.model.items.find((i) => i.id === "bath_waste") as { fittedTo: unknown }).fittedTo = { hostId: "bath", across: "x", out: 0.3 };
     expect(() => parseImport(JSON.stringify(bad))).toThrow();

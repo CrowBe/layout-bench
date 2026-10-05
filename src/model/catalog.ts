@@ -25,6 +25,8 @@ export interface CatalogEntry {
   elevationNote?: string;
   /** A mounted product requires explicit accepted-product placement, not generic drop. */
   installationMounting?: "wall";
+  /** Stopgap drawn geometry (a stand-in envelope). Renders dashed; driven by this flag, not by note text. */
+  stopgap?: boolean;
 }
 
 export type CatalogLookup = (kind: string) => CatalogEntry | undefined;

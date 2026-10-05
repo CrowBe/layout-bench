@@ -8,6 +8,7 @@ import { productPlacement } from "./productPlacement";
 import { evidenceFingerprint, revisionOf } from "./productRevision";
 import type { FieldValue } from "./products";
 import type { InstallationGeometry, LocalService } from "./installation";
+import { isDerivedServicePoint } from "./fittedWaste";
 import type { Item, PlanModel, ServicePoint } from "./types";
 
 type Axis = "across" | "out" | "outMax" | "up";
@@ -26,11 +27,39 @@ function preserveServices(
     unresolved: string[] = [];
   const points = proposed.map((p) => structuredClone(p) as EvidencedPoint);
   for (const prior of before as EvidencedPoint[]) {
+    const next = points.find((p) => p.id === prior.id);
+    if (next && isDerivedServicePoint(prior)) {
+      if (
+        prior.across !== next.across ||
+        prior.out !== next.out ||
+        prior.outMax !== next.outMax ||
+        prior.face !== next.face
+      ) {
+        if (prior.across === undefined) delete next.across;
+        else next.across = prior.across;
+        if (prior.out === undefined) delete next.out;
+        else next.out = prior.out;
+        if (prior.outMax === undefined) delete next.outMax;
+        else next.outMax = prior.outMax;
+        next.face = prior.face;
+        preserved.push(`${prior.id}: derived host-frame coordinates retained`);
+      }
+      next.status = "derived";
+      next.basis = "derived";
+      if (prior.axisEvidence) next.axisEvidence = structuredClone(prior.axisEvidence);
+    }
+  }
+  for (const prior of before as EvidencedPoint[]) {
     const copied = source.find((p) => p.id === prior.id) as
       | EvidencedPoint
       | undefined;
     const index = points.findIndex((p) => p.id === prior.id);
     const next = index < 0 ? undefined : points[index];
+    if (index < 0 && isDerivedServicePoint(prior)) {
+      preserved.push(`${prior.id}: derived host-frame conversion retained (not removed)`);
+      points.push(structuredClone(prior));
+      continue;
+    }
     // Legacy confirmations cover the whole point; retain even explicitly unknown axes.
     if (!prior.axisEvidence && confirmed(prior.status)) {
       preserved.push(`${prior.id}: entire ${prior.status} project connection`);
@@ -92,7 +121,8 @@ function preserveServices(
     ]
       .filter(Boolean)
       .join("; ");
-    // Keep the weakest participating status, without turning a proposed axis into confirmed.
+    // Keep the weakest participating status, without turning a proposed axis into confirmed
+    // or a derived host-frame conversion into published.
     const order = [
       "estimated",
       "proposed",
@@ -100,12 +130,17 @@ function preserveServices(
       "measured",
       "site-confirmed",
     ];
-    retained.status =
-      Object.values(retained.axisEvidence)
-        .filter((v) => v?.value !== null)
-        .map((v) => v!.status!)
-        .filter(Boolean)
-        .sort((a, b) => order.indexOf(a) - order.indexOf(b))[0] ?? prior.status;
+    if (isDerivedServicePoint(prior) || (next && isDerivedServicePoint(next))) {
+      retained.status = "derived";
+      retained.basis = "derived";
+    } else {
+      retained.status =
+        Object.values(retained.axisEvidence)
+          .filter((v) => v?.value !== null)
+          .map((v) => v!.status!)
+          .filter(Boolean)
+          .sort((a, b) => order.indexOf(a) - order.indexOf(b))[0] ?? prior.status;
+    }
     if (index < 0) points.push(retained);
     else points[index] = retained;
   }
@@ -157,7 +192,7 @@ function preserveLocalServices(
       x: p.across ?? null,
       y: p.out ?? null,
       z: p.up ?? null,
-      status: p.status,
+      status: p.status === "derived" ? (next ?? original!).status : p.status,
       axisEvidence: p.axisEvidence,
       sources: [...(next?.sources ?? []), ...(original?.sources ?? [])],
     };
