@@ -73,17 +73,59 @@ describe("purchased fittings in the sample project", () => {
     expect(byKind.mixer_k1132_31.size).toMatchObject({ w: 0.065, h: 0.065, elevation: 0.8 });
     expect(byKind.spout_k1150_31_0_150.size).toMatchObject({ w: 0.065, d: 0.15, elevation: 0.8 });
     expect(byKind.mixer_k1110_31.size).toMatchObject({ h: 0.148, elevation: 0.85 });
-    expect(byKind.shower_y1173_31_11_250.size).toMatchObject({ w: 0.25, d: 0.427, h: 0.981, elevation: 0.4 });
+    expect(byKind.shower_y1173_31_11_250.size).toMatchObject({ w: 0.25, d: 0.4, h: 0.981, elevation: 0.4 });
     expect(byKind.towel_rail_vs900hbn.size).toMatchObject({ w: 0.142, d: 0.1, h: 0.9, elevation: 0.75 });
     expect(byKind.thermostat_mwd5_1999_cbp3.size.caveat).toMatch(/placeholder/);
     expect(byKind.waste_sdp40bn.size.caveat).toMatch(/placeholder/);
+    const wasteConnection = byKind.waste_sdp40bn.measures.find((m) => m.key === "connection")!;
+    expect(wasteConnection).toMatchObject({ value: 0.04, status: "published", source: "carton label" });
+    const handle = byKind.mixer_k1132_31.measures.find((m) => m.key === "handleDrop")!;
+    expect(handle.note).toMatch(/top of the Ø42 hub/);
+    expect(handle.note).not.toMatch(/plate centre down/);
+    const arm = byKind.shower_y1173_31_11_250.measures.find((m) => m.key === "armReach")!;
+    expect(arm).toMatchObject({ value: 0.427, reference: "other" });
+    expect(arm.note).toMatch(/riser/);
+    expect(byKind.shower_y1173_31_11_250.measures.find((m) => m.key === "handpieceLength")).toMatchObject({ value: 0.2463 });
+    expect(byKind.shower_y1173_31_11_250.measures.find((m) => m.key === "handpieceDiameter")).toMatchObject({ value: 0.105 });
+    expect(byKind.mixer_k1110_31.measures.find((m) => m.key === "elevation")?.status).toBe("proposed");
+    expect(byKind.mixer_k1132_31.measures.find((m) => m.key === "elevation")?.note).toMatch(/Placeholder/);
+    expect(byKind.mixer_k1132_31.measures.find((m) => m.key === "elevation")?.note).not.toMatch(/^Proposed/);
     for (const f of purchasedFittings) {
       expect(f.measures.length).toBeGreaterThan(0);
       for (const m of f.measures.filter((x) => x.status === "published")) {
-        expect(m.sources?.[0]?.url).toMatch(/^https:\/\//);
         expect(m.reference).toBeDefined();
+        if (m.source) {
+          expect(m.sources).toBeUndefined();
+          expect(m.source.length).toBeGreaterThan(0);
+        } else {
+          expect(m.sources?.[0]?.url).toMatch(/^https:\/\//);
+        }
       }
     }
+  });
+
+  it("carries measure status, reference and source on the project item and through JSON export", () => {
+    const doc = demoProject();
+    const back = parseImport(JSON.stringify(doc));
+    const shower = back.model.items.find((i) => i.id === "shower_system")!;
+    expect(shower.productSpecification?.category).toBe("shower-fittings");
+    expect(shower.productSpecification?.fields.armReach).toMatchObject({ value: 0.427, status: "published", reference: "other" });
+    expect(shower.productSpecification?.fields.handpieceLength).toMatchObject({ value: 0.2463 });
+    expect(shower.productSpecification?.fields.envelopeDepth).toMatchObject({ value: 0.4, status: "proposed" });
+    const waste = back.model.items.find((i) => i.id === "bath_waste")!;
+    expect(waste.productSpecification?.fields.connection).toMatchObject({ value: 0.04, status: "published" });
+    expect(waste.productSpecification?.fields.connection.note).toMatch(/carton label/);
+    const basin = back.model.items.find((i) => i.id === "basin_mixer")!;
+    expect(basin.productSpecification?.fields.elevation).toMatchObject({ value: 0.85, status: "proposed" });
+    const mixer = back.model.items.find((i) => i.id === "bath_mixer")!;
+    expect(mixer.productSpecification?.fields.handleDrop?.note).toMatch(/Ø42 hub/);
+    const captain = back.notes.find((n) => n.id === "note-captain")!;
+    expect(captain.text).toMatch(/Still needs the captain's measurement/);
+    expect(captain.text).not.toMatch(/stillNeedsCaptainsMeasurement/);
+    expect(captain.text).toMatch(/placeholder 590/);
+    expect(captain.text).toMatch(/K1110-31/);
+    expect(back.notes.find((n) => n.id === "note-purchased")!.text).toMatch(/246\.3/);
+    expect(back.notes.find((n) => n.id === "note-purchased")!.text).not.toMatch(/210\.3/);
   });
 
   it("does not give wall fittings #60 installation: no wall anchor and no surveyed finished face", () => {
@@ -99,9 +141,16 @@ describe("purchased fittings in the sample project", () => {
   it("lists every remaining placeholder for the captain to measure", () => {
     expect(stillNeedsCaptainsMeasurement.length).toBeGreaterThan(5);
     expect(stillNeedsCaptainsMeasurement.every((e) => e.fitting && e.what && e.from)).toBe(true);
-    expect(stillNeedsCaptainsMeasurement.map((e) => e.fitting).join(" ")).toMatch(/SDP-40BN/);
-    expect(stillNeedsCaptainsMeasurement.map((e) => e.fitting).join(" ")).toMatch(/MWD5-1999-CBP3/);
+    const text = stillNeedsCaptainsMeasurement.map((e) => `${e.fitting} ${e.what}`).join(" ");
+    expect(text).toMatch(/SDP-40BN/);
+    expect(text).toMatch(/MWD5-1999-CBP3/);
+    expect(text).toMatch(/590/);
+    expect(text).toMatch(/K1110-31/);
+    expect(text).toMatch(/slider\/holder/);
+    expect(text).toMatch(/handpiece/);
     expect(stillNeedsCaptainsMeasurement.some((e) => /finished \(tile\) face/i.test(e.from))).toBe(true);
+    const { notes } = demoProject();
+    expect(notes.find((n) => n.id === "note-captain")!.text).toMatch(/Still needs the captain's measurement/);
   });
 
   it("raises no errors: mounted pieces share a footprint with what is below them", () => {

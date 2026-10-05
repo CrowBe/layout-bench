@@ -341,8 +341,10 @@ A few design notes:
   mixers, spout, shower system, two towel rails, thermostat), each marked `purchased` with the code
   printed on its label. Product sizes come from the manufacturer's own specification drawing or
   sheet when that sheet names the exact model; remaining sizes stay labelled placeholders.
-  Mounting heights stay proposed: the room has no wall anchors and no surveyed finished faces,
-  so per-item installation placement is not used and the catalogue `elevation` stopgap remains.
+  Mounting heights: only the towel-rail foot (750 mm) and thermostat (850 mm) have an owner
+  proposal; the bath mixer/spout 800 mm and shower rail foot 400 mm are unsourced placeholders.
+  The room has no wall anchors and no surveyed finished faces, so per-item installation
+  placement is not used and the catalogue `elevation` stopgap remains.
   A kind may carry an `elevation` (define_item_kind), so a wall mixer over a bath is not an
   `items_overlap` once their heights differ. The corner bath is a right-angle isosceles triangle
   with a rounded hypotenuse; the 1090 mm arc depth is from the Enflair dimension drawing.
