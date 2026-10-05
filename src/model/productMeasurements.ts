@@ -36,6 +36,14 @@ export function measurementFields(category: ProductCategory): FieldSpec[] {
 }
 export const unknownMeasurementFields = (category: ProductCategory): Record<string, FieldValue> => Object.fromEntries(measurementFields(category).map(field => [field.key, { value: null, note: "Not supplied for this physical item." }]));
 
+/** Quantity's carton/packaging token. The only string source that can stand in for a URL on a published measurement. */
+export const CARTON_LABEL_SOURCE = "carton label";
+
+/** Explicit carton evidence: the Quantity `carton label` token, plus a note that names the carton. */
+export function isCartonLabelEvidence(value: { source?: string; note?: string } | undefined): boolean {
+  return !!value && value.source?.trim() === CARTON_LABEL_SOURCE && typeof value.note === "string" && /\bcarton\b/i.test(value.note);
+}
+
 export function validateMeasurementFields(category: ProductCategory, fields: Record<string, FieldValue>, ctx: SubmissionContext = {}): SpecProblem[] {
   const problems: SpecProblem[] = [], specs = measurementFields(category);
   const add = (field: string, severity: "error" | "warning", code: string, message: string) => problems.push({ field, severity, code, message });
@@ -53,9 +61,13 @@ export function validateMeasurementFields(category: ProductCategory, fields: Rec
     if (field.type === "length" && (!value.reference || !Object.hasOwn(REFERENCES, value.reference))) add(field.key, "error", "measurement_datum", `${prefix}: name the physical datum.`);
     if ((value.reference === "other" || value.reference === "unresolved") && !(typeof value.note === "string" && value.note.trim())) add(field.key, "error", "measurement_datum", `${prefix}: ${value.reference === "other" ? "explain the other physical datum" : "say what the source shows and why its datum is unclear"} in the note.`);
     if (value.status === "published") {
-      const bad = Array.isArray(value.sources) ? checkSources(value.sources, ctx) : "sources must be a list.";
-      if (bad) add(field.key, "error", "source_invalid", `${prefix}: ${bad}`);
-      if (value.measurement) add(field.key, "error", "measurement_provenance", `${prefix}: a published figure uses its source, not a human measurement record.`);
+      if (isCartonLabelEvidence(value)) {
+        if (value.measurement) add(field.key, "error", "measurement_provenance", `${prefix}: a published carton figure uses its source string, not a human measurement record.`);
+      } else {
+        const bad = Array.isArray(value.sources) ? checkSources(value.sources, ctx) : "sources must be a list.";
+        if (bad) add(field.key, "error", "source_invalid", `${prefix}: ${bad}`);
+        if (value.measurement) add(field.key, "error", "measurement_provenance", `${prefix}: a published figure uses its source, not a human measurement record.`);
+      }
     } else {
       const m = value.measurement;
       if (!m || m.recordedBy !== "human" || m.unit !== measurementUnit(field) || typeof m.evidence !== "string" || !m.evidence.trim() || !(dateValid(m.date) || m.date === null && typeof m.dateNote === "string" && m.dateNote.trim())) {
@@ -81,7 +93,7 @@ export function validateMeasurementFields(category: ProductCategory, fields: Rec
     if (value.alternatives !== undefined && !Array.isArray(value.alternatives)) add(field.key, "error", "measurement_invalid", `${field.label}: alternatives must be a list.`);
     for (const alternative of Array.isArray(value.alternatives) ? value.alternatives : []) {
       if (!alternative || typeof alternative !== "object") { add(field.key, "error", "measurement_invalid", `${field.label}: an alternative must be an evidence record.`); continue; }
-      record(field, { ...alternative, status: "published", sources: [alternative.source], reference: value.reference }, `${field.label}, published alternative`);
+      record(field, { value: alternative.value, status: "published", sources: [alternative.source], reference: value.reference }, `${field.label}, published alternative`);
       if (alternative.value !== value.value) add(field.key, "warning", "evidence_disagreement", `${field.label}: a published alternative differs; its source is retained.`);
     }
   }
@@ -96,7 +108,7 @@ export function withObservation(current: FieldValue | undefined, observation: Fi
   return { ...structuredClone(observation), ...(current?.alternatives ? { alternatives: structuredClone(current.alternatives) } : {}), observations };
 }
 export const workingObservation = (current: FieldValue, index: number): FieldValue => ({ ...structuredClone(current.observations![index]), observations: structuredClone(current.observations), ...(current.alternatives ? { alternatives: structuredClone(current.alternatives) } : {}) });
-export const evidenceText = (value: FieldValue | undefined): string => [value?.measurement ? `${value.measurement.evidence}; measurement date ${value.measurement.date ?? `unknown (${value.measurement.dateNote})`}; human; ${value.measurement.unit}` : "", ...(value?.sources ?? []).map(source => `${source.url} (${source.locator ?? ""})`)].filter(Boolean).join("; ");
+export const evidenceText = (value: FieldValue | undefined): string => [value?.source && !(value.sources ?? []).length ? value.source : "", value?.measurement ? `${value.measurement.evidence}; measurement date ${value.measurement.date ?? `unknown (${value.measurement.dateNote})`}; human; ${value.measurement.unit}` : "", ...(value?.sources ?? []).map(source => `${source.url} (${source.locator ?? ""})`)].filter(Boolean).join("; ");
 const statusRank: ValueStatus[] = ["estimated", "proposed", "published", "measured", "site-confirmed"];
 export const evidenceStatus = (values: (FieldValue | undefined)[]): ValueStatus | undefined => values.filter(v => v?.value !== null && v?.value !== undefined && v?.status).map(v => v!.status!).sort((a, b) => statusRank.indexOf(a) - statusRank.indexOf(b))[0];
 
@@ -108,5 +120,5 @@ export function isProductSpecification(value: unknown): value is ProductSpecific
   // the fixed units, plus the units this category's quantity fields are recorded in
   const units = new Set<string>(["metres", "count", "choice", "text", ...(categoryById(spec.category)?.fields ?? []).flatMap((f) => f.type === "quantity" ? [f.unit] : [])]);
   const valid = (v: FieldObservation | FieldValue): boolean => !!v && typeof v === "object" && !Array.isArray(v) && (v.value === null || typeof v.value === "string" || typeof v.value === "number" && Number.isFinite(v.value)) && (v.status === undefined || VALUE_STATUSES.includes(v.status)) && (v.note === undefined || typeof v.note === "string") && (v.reference === undefined || typeof v.reference === "string" && Object.hasOwn(REFERENCES, v.reference)) && (v.sources === undefined || Array.isArray(v.sources) && v.sources.every(s => !!s && typeof s.url === "string" && (s.locator === undefined || typeof s.locator === "string"))) && (v.measurement === undefined || !!v.measurement && typeof v.measurement === "object" && v.measurement.recordedBy === "human" && typeof v.measurement.evidence === "string" && !!v.measurement.evidence.trim() && (dateValid(v.measurement.date) || v.measurement.date === null && typeof v.measurement.dateNote === "string" && !!v.measurement.dateNote.trim()) && typeof v.measurement.unit === "string" && units.has(v.measurement.unit));
-  return Object.values(spec.fields).every(v => valid(v) && (v.observations === undefined || Array.isArray(v.observations) && v.observations.every(valid)) && (v.alternatives === undefined || Array.isArray(v.alternatives) && v.alternatives.every(a => !!a && typeof a === "object" && valid({ ...a, status: "published", sources: [a.source] }))));
+  return Object.values(spec.fields).every(v => valid(v) && (v.observations === undefined || Array.isArray(v.observations) && v.observations.every(valid)) && (v.alternatives === undefined || Array.isArray(v.alternatives) && v.alternatives.every(a => !!a && typeof a === "object" && valid({ value: a.value, status: "published", sources: [a.source] }))));
 }

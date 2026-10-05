@@ -122,6 +122,18 @@ describe('explicit reused fitting evidence (#48)',()=>{
   const model=store.getState().model,it=model.items[0],sp=it.servicePoints![0];const rows=specRows(model,{id:`rough-in:${it.id}:${sp.id}`,layer:'services-waste',type:'service-point',ref:it.id,sub:sp.id,label:'Synthetic range'});const row=rows.find(r=>r.property.startsWith('out from'))!;
   expect(row).toMatchObject({value:'100–300',status:'proposed'});expect(row.source).toContain('Synthetic minimum ruler measurement');expect(row.source).toContain('Synthetic maximum proposed allowance');expect(rows.find(r=>r.property==='out source evidence')).toMatchObject({status:'measured',datum:'finished-wall'});expect(rows.find(r=>r.property==='outMax source evidence')).toMatchObject({status:'proposed',datum:'finished-wall'});
  });
+ it('accepts a published carton-label figure without a URL when the note names the carton',()=>{
+  const fields={...unknownMeasurementFields(cat),width:{value:.91,status:'published' as const,source:'carton label',reference:'fixture-end' as const,note:'Printed on the photographed carton.'},depth:human(.465,'fixture-side')};
+  expect(validateMeasurementFields(cat,fields).filter(p=>p.field==='width'&&p.severity==='error')).toEqual([]);
+ });
+ it.each(['guess','derived','','  '])('rejects a published %s source without a URL',source=>{
+  const fields={...unknownMeasurementFields(cat),width:{value:.91,status:'published' as const,source,reference:'fixture-end' as const,note:'Printed on the carton.'},depth:human(.465,'fixture-side')};
+  expect(validateMeasurementFields(cat,fields).some(p=>p.field==='width'&&p.code==='source_invalid')).toBe(true);
+ });
+ it('rejects carton label without a note that names the carton',()=>{
+  const fields={...unknownMeasurementFields(cat),width:{value:.91,status:'published' as const,source:'carton label',reference:'fixture-end' as const,note:'Printed on the box.'},depth:human(.465,'fixture-side')};
+  expect(validateMeasurementFields(cat,fields).some(p=>p.field==='width'&&p.code==='source_invalid')).toBe(true);
+ });
  it('handles malformed observations and alternatives without throwing',()=>{
   const fields=footprint();fields.width={...fields.width,observations:[null] as never,alternatives:{} as never};
   expect(()=>validateMeasurementFields(cat,fields)).not.toThrow();expect(validateMeasurementFields(cat,fields).some(p=>p.severity==='error')).toBe(true);

@@ -156,6 +156,13 @@ export interface LibraryResult {
   [k: string]: unknown;
 }
 
+/** Project-store hook so accepting a catalogue revision can retarget `room.heating` without a module cycle. */
+type HeatingRevisionHook = (fromProductId: string, product: LibraryProduct) => string | undefined;
+let heatingRevisionHook: HeatingRevisionHook | undefined;
+export function registerHeatingRevisionHook(fn: HeatingRevisionHook) {
+  heatingRevisionHook = fn;
+}
+
 const ok = (summary: string, extra: Record<string, unknown> = {}): LibraryResult => ({ ok: true, summary, ...extra });
 const fail = (summary: string, extra: Record<string, unknown> = {}): LibraryResult => ({ ok: false, summary, ...extra });
 const uid = (prefix: string) => `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -541,7 +548,11 @@ export const products = {
       products: [...s.products, product],
       requests: s.requests.map((r) => (r.id === req.id ? { ...r, status: "accepted" as const, productId: product.id } : r)),
     }));
-    return ok(`${product.manufacturer} ${product.model} added to the product library.`, { productId: product.id });
+    const heatingLine = parent && heatingRevisionHook ? heatingRevisionHook(parent.id, product) : undefined;
+    return ok(
+      `${product.manufacturer} ${product.model} added to the product library.${heatingLine ? ` ${heatingLine}` : ""}`,
+      { productId: product.id },
+    );
   },
 
   withdraw(requestId: string): LibraryResult {

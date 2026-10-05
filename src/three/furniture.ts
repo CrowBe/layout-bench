@@ -560,6 +560,8 @@ export interface PartSpec {
   metalness?: number;
   /** below 1, a see-through part (glass) */
   opacity?: number;
+  /** Stand-in geometry; renders dashed. Driven by this flag, not by matching note text. */
+  stopgap?: boolean;
 }
 
 /** Kinds an agent modelled at runtime with define_item_kind. */
@@ -603,6 +605,16 @@ function buildCustom(parts: PartSpec[], fallbackColor: string): THREE.Group {
     mesh.rotation.y = ((p.rotation ?? 0) * Math.PI) / 180;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    if (p.stopgap) {
+      mesh.userData.stopgap = true;
+      const edges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(mesh.geometry),
+        new THREE.LineDashedMaterial({ color: 0x555555, dashSize: 0.008, gapSize: 0.006 }),
+      );
+      edges.computeLineDistances();
+      edges.userData.stopgap = true;
+      mesh.add(edges);
+    }
     g.add(mesh);
   }
   return g;

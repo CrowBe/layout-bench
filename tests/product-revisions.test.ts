@@ -17,6 +17,7 @@ import { actions, store } from "../src/model/store";
 import { emptyModel } from "../src/model/types";
 import { catalogForItem, CATALOG } from "../src/model/catalog";
 import { previewProductUpdate } from "../src/model/productUpdates";
+import { CORNER_HAND_REANCHOR } from "../src/model/fittedWaste";
 import { checkSheet } from "../src/sheets/check";
 import { planningEvidence } from "../src/model/productRevision";
 import { parseImport } from "../src/model/projects";
@@ -633,7 +634,7 @@ it("retains archived stage content through update, undo and project import while
   ).toThrow();
 });
 
-it("keeps a reversible corner's pinned shape portable and isolated when its anchor changes hand", () => {
+it("refuses to re-anchor a reversible corner when the hand would change; pinned shape stays isolated", () => {
   const fields = {
     length: pub(1.4),
     width: pub(1.4),
@@ -672,18 +673,17 @@ it("keeps a reversible corner's pinned shape portable and isolated when its anch
   const placement = actions.placeProduct(product, anchor);
   expect(placement.ok).toBe(true);
   const left = structuredClone(store.getState().model.items[0]);
-  expect(
-    actions.anchorFixture(placement.id as string, { ...anchor, distance: 3.2 })
-      .ok,
-  ).toBe(true);
-  const right = structuredClone(store.getState().model.items[0]);
-  expect(right.kind).toBe(right.productGeometry!.kind);
-  expect(right.productSnapshot).toEqual(left.productSnapshot);
-  expect(right.productGeometry!.outline!.start.x).toBe(
-    -left.productGeometry!.outline!.start.x,
-  );
-  const footprint = itemPolygon(right);
-  actions.defineItemKind({ ...right.productGeometry!, w: 2 });
+  const before = structuredClone(store.getState().model);
+  const re = actions.anchorFixture(placement.id as string, { ...anchor, distance: 3.2 });
+  expect(re.ok).toBe(false);
+  expect(re.summary).toBe(CORNER_HAND_REANCHOR);
+  expect(store.getState().model).toEqual(before);
+  expect(store.getState().model.items[0].kind).toBe(left.kind);
+  expect(store.getState().model.items[0].corner).toEqual(left.corner);
+  expect(store.getState().model.items[0].servicePoints).toEqual(left.servicePoints);
+  expect(store.getState().model.items[0].productGeometry).toEqual(left.productGeometry);
+  const footprint = itemPolygon(left);
+  actions.defineItemKind({ ...left.productGeometry!, w: 2 });
   expect(catalogForItem(store.getState().model.items[0])!.w).toBe(1.4);
   expect(itemPolygon(store.getState().model.items[0])).toEqual(footprint);
   const project = {
@@ -695,15 +695,11 @@ it("keeps a reversible corner's pinned shape portable and isolated when its anch
     presentation: "planning",
   };
   const imported = parseImport(JSON.stringify(project));
-  expect(imported.model.items[0]).toEqual(right);
+  expect(imported.model.items[0]).toEqual(store.getState().model.items[0]);
   expect(itemPolygon(imported.model.items[0])).toEqual(footprint);
   expect(
     buildFixtureForTest(imported.model, imported.model.items[0]),
   ).not.toBeNull();
-  expect(actions.anchorFixture(placement.id as string, anchor).ok).toBe(true);
-  expect(store.getState().model.items[0].productGeometry).toEqual(
-    left.productGeometry,
-  );
 });
 
 it("retains both range endpoints and evidence when one confirmed axis uses a different wall datum", () => {
@@ -807,7 +803,7 @@ it("retains both range endpoints and evidence when one confirmed axis uses a dif
   }
 });
 
-it("refuses to reflect a site-confirmed corner service while allowing unchanged copied measurement evidence", () => {
+it("refuses any corner-hand re-anchor, including site-confirmed waste, and mutates nothing", () => {
   const fields = {
     length: pub(1.2),
     width: pub(1.2),
@@ -815,6 +811,7 @@ it("refuses to reflect a site-confirmed corner service while allowing unchanged 
     shape: pub("corner-round"),
     frontWidth: pub(1.4),
     frontProjection: pub(1.1),
+    wasteFromCorner: pub(0.52),
     wasteFromEnd: {
       value: 0.2,
       status: "measured" as const,
@@ -853,11 +850,10 @@ it("refuses to reflect a site-confirmed corner service while allowing unchanged 
   expect(placement.ok).toBe(true);
   expect(
     actions.anchorFixture(placement.id as string, { ...anchor, distance: 3.2 })
-      .ok,
-  ).toBe(true);
-  expect(actions.anchorFixture(placement.id as string, anchor).ok).toBe(true);
+      .summary,
+  ).toBe(CORNER_HAND_REANCHOR);
   const item = store.getState().model.items[0],
-    point = item.servicePoints![0];
+    point = { ...item.servicePoints![0], basis: undefined, status: "published" as const };
   for (const edited of [
     {
       ...point,
@@ -892,7 +888,64 @@ it("refuses to reflect a site-confirmed corner service while allowing unchanged 
       distance: 3.2,
     });
     expect(result.ok).toBe(false);
-    expect(result.summary).toContain("Reconcile");
+    expect(result.summary).toBe(CORNER_HAND_REANCHOR);
     expect(store.getState()).toEqual(before);
   }
+});
+
+it("retains prior derived waste coordinates when a catalogue revision would change them", () => {
+  const fields = {
+    length: pub(1),
+    width: pub(1),
+    height: pub(0.63),
+    installation: pub("corner"),
+    shape: pub("corner-round"),
+    frontWidth: pub(1.178),
+    frontProjection: pub(1.09),
+    wasteFromCorner: pub(0.52),
+    surround: pub("none-required"),
+  };
+  const first = {
+    ...original(),
+    category: "bath" as const,
+    fields,
+    roughIn: roughInPoints(categoryById("bath")!, fields),
+  };
+  const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
+  actions.setWallSide(wall, "right", {
+    existing: { value: 0, status: "measured" },
+    layers: [],
+  });
+  const id = actions.placeProduct(first, {
+    wallId: wall,
+    side: "right",
+    face: "existing",
+    distance: 0.55,
+    status: "proposed",
+  }).id as string;
+  const prior = store.getState().model.items[0].servicePoints!.find((p) => p.id === "waste")!;
+  expect(prior.status).toBe("derived");
+  expect(prior.across).toBeDefined();
+  const nextFields = { ...fields, wasteFromCorner: pub(0.8) };
+  const target = {
+    ...structuredClone(first),
+    id: "derived-retain-v2",
+    revision: { seriesId: first.id, number: 2, parentProductId: first.id },
+    fields: nextFields,
+    roughIn: roughInPoints(categoryById("bath")!, nextFields),
+  };
+  const preview = previewProductUpdate(
+    store.getState().model,
+    target,
+    [id],
+    [first, target],
+  );
+  expect(preview.rows[0].blocked).toBeUndefined();
+  const after = preview.rows[0].after!.servicePoints!.find((p) => p.id === "waste")!;
+  expect(after.across).toBe(prior.across);
+  expect(after.out).toBe(prior.out);
+  expect(after.face).toBe(prior.face);
+  expect(after.status).toBe("derived");
+  expect(after.basis).toBe("derived");
+  expect(preview.rows[0].preserved.join(" ")).toMatch(/derived host-frame coordinates retained/);
 });

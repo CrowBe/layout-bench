@@ -12,9 +12,8 @@ import {
 } from "./products";
 import { evidenceStatus, evidenceText } from "./productMeasurements";
 import { outlineExtents, outlineProblems } from "./outline";
-import { facingRotation } from "./fixtures";
-import { sideNormal } from "./faces";
-import { quantize, segLen } from "./geometry";
+import { hostWasteFields, productCornerSide, resolveHostFrameWaste } from "./fittedWaste";
+import { quantize } from "./geometry";
 import {
   validInstallation,
   mirroringProblem,
@@ -23,21 +22,7 @@ import {
 } from "./installation";
 import { revisionOf } from "./productRevision";
 
-export function productCornerSide(
-  anchor: FixtureAnchor,
-  wall: Wall,
-): "left" | "right" {
-  const length = segLen(wall.ax, wall.ay, wall.bx, wall.by);
-  const along =
-    anchor.from === "b" ? length - anchor.distance : anchor.distance;
-  const normal = sideNormal(wall, anchor.side);
-  const rotation = (-facingRotation(normal) * Math.PI) / 180;
-  const towardB =
-    Math.cos(rotation) * (wall.bx - wall.ax) +
-      Math.sin(rotation) * (wall.by - wall.ay) >
-    0;
-  return along <= length - along === towardB ? "left" : "right";
-}
+export { productCornerSide };
 
 export function productPlacement(
   product: LibraryProduct,
@@ -162,6 +147,14 @@ export function productPlacement(
       ? [entryFor(corner === "left" ? "right" : "left")]
       : [];
   const source = `${label}, product library ${product.id}`;
+  const hostWaste = resolveHostFrameWaste({
+    fields: hostWasteFields(product),
+    boxW: entry.w,
+    outlineStart: entry.outline?.start ?? outline?.start,
+    storedCorner: corner ?? undefined,
+    anchor,
+    wall,
+  });
   const servicePoints: ServicePoint[] = (product.roughIn ?? [])
     .filter((p) => !installationGeometry?.services?.some((s) => s.id === p.id))
     .filter(
@@ -174,30 +167,47 @@ export function productPlacement(
           point.up?.evidence,
         ]),
     )
-    .map((point) => {
+    .map((point): ServicePoint | null => {
+      const isWaste = point.service === "waste";
+      const wasteFromHost =
+        isWaste &&
+        hostWaste.resolved &&
+        hostWaste.across !== undefined &&
+        hostWaste.out !== undefined;
       const end = corner ?? product.fields.wasteEnd?.value;
-      const across =
-        point.across?.from === "fixture-centreline"
-          ? point.across.value
-          : point.across?.from === "fixture-end" &&
-              point.across.value !== undefined &&
-              (end === "left" || end === "right")
-            ? quantize(
-                end === "left"
-                  ? -box.w / 2 + point.across.value
-                  : box.w / 2 - point.across.value,
-              )
-            : undefined;
+      // Waste host-frame axes come only from resolveHostFrameWaste. Unresolved waste
+      // never falls through fixture-end/fixture-side conversion (that invented a
+      // published across). Already-in-frame axes (centreline, finished-wall) stay.
+      const across = wasteFromHost
+        ? hostWaste.across
+        : isWaste
+          ? point.across?.from === "fixture-centreline"
+            ? point.across.value
+            : undefined
+          : point.across?.from === "fixture-centreline"
+            ? point.across.value
+            : point.across?.from === "fixture-end" &&
+                point.across.value !== undefined &&
+                (end === "left" || end === "right")
+              ? quantize(
+                  end === "left"
+                    ? -box.w / 2 + point.across.value
+                    : box.w / 2 - point.across.value,
+                )
+              : undefined;
       let face = "finished",
         out: number | undefined,
         outMax: number | undefined;
-      if (point.out?.from === "finished-wall") {
+      if (wasteFromHost) {
+        face = anchor.face;
+        out = quantize(hostWaste.out! + anchor.gap);
+      } else if (point.out?.from === "finished-wall") {
         out = point.out.value ?? point.out.min;
         outMax =
           point.out.max !== undefined && point.out.min !== undefined
             ? point.out.max
             : undefined;
-      } else if (point.out?.from === "fixture-side") {
+      } else if (!isWaste && point.out?.from === "fixture-side") {
         face = anchor.face;
         out =
           point.out.value !== undefined
@@ -219,8 +229,20 @@ export function productPlacement(
         ...(point.out?.maxEvidence ? { outMax: point.out.maxEvidence } : {}),
         ...(point.up?.evidence ? { up: point.up.evidence } : {}),
       };
-      const status = evidenceStatus(Object.values(axisEvidence)) ?? "published";
-      const sourced = [source, ...Object.values(axisEvidence).map(evidenceText)]
+      const unresolvedWaste =
+        isWaste && !wasteFromHost && across === undefined && out === undefined;
+      if (unresolvedWaste) return null;
+      const derivedHostFrame = wasteFromHost || point.across?.basis === "derived" || point.out?.basis === "derived";
+      const status = derivedHostFrame ? "derived" : (evidenceStatus(Object.values(axisEvidence)) ?? "published");
+      const sourced = [
+        source,
+        ...Object.values(axisEvidence).map(evidenceText),
+        derivedHostFrame
+          ? hostWaste.fromCorner !== undefined
+            ? "host-frame across/out derived from wasteFromCorner (not published)"
+            : "host-frame across/out derived (not published)"
+          : "",
+      ]
         .filter(Boolean)
         .join("; ");
       return {
@@ -233,6 +255,7 @@ export function productPlacement(
         ...(across !== undefined ? { across } : {}),
         ...(up !== undefined ? { up } : {}),
         status,
+        ...(derivedHostFrame ? { basis: "derived" as const } : {}),
         ...(Object.keys(axisEvidence).length
           ? { axisEvidence: structuredClone(axisEvidence) }
           : {}),
@@ -240,18 +263,19 @@ export function productPlacement(
           ? `${sourced}; not converted: ${unconverted.join(", ")}`
           : sourced,
       };
-    });
+    })
+    .filter((p): p is ServicePoint => p !== null);
   return {
     ok: true as const,
     entry,
     additionalEntries,
     servicePoints,
     installationGeometry,
-    ...(corner && outline
+    ...(corner
       ? {
           corner: {
-            left: kindFor(fixedHand ? corner : "left"),
-            right: kindFor(fixedHand ? corner : "right"),
+            left: outline ? kindFor(fixedHand ? corner : "left") : entry.kind,
+            right: outline ? kindFor(fixedHand ? corner : "right") : entry.kind,
             side: corner,
           },
         }

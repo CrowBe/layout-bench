@@ -154,23 +154,56 @@ export interface Opening {
   side?: "left" | "right";
 }
 
-/** Proposed heating only. No unsupplied product value has a default. Lengths in metres; output in W. */
+export const THERMOSTAT_LOCATION_KINDS = ["wet-room", "outside-wet-room"] as const;
+export type ThermostatLocationKind = (typeof THERMOSTAT_LOCATION_KINDS)[number];
+
+/** User-entered thermostat location. Kind is not inferred from the IP code. */
+export interface ThermostatLocation {
+  description: string;
+  /** Absent or blank until a real source is entered; the IP-vs-location check stays required. */
+  source?: string;
+  /** Absent = unknown; the IP-vs-location check stays required. */
+  kind?: ThermostatLocationKind;
+}
+
+/**
+ * Proposed heating only. No unsupplied product value has a default. Lengths in metres; output in W.
+ * Length, rated output and coverage are read from a referenced heating-cable brief when present;
+ * they are not copied onto this record.
+ */
 export interface Heating {
   manufacturer?: string;
   model?: string;
   productSource?: string;
   requirements?: string;
+  /** Heating-record length only while the referenced brief has no numeric cableLength. */
   length?: Quantity;
   ratedOutput?: Quantity;
   minSpacing?: Quantity;
+  /**
+   * Entered clearance from the selected zone boundary or keep-out rectangle.
+   * Zone rectangles follow the room/plane as stored (the sample room is the existing internal
+   * surface). The intended trade datum for a wall setback is the finished wall face; that
+   * conversion is not applied here.
+   */
   edgeClearance?: Quantity;
-  /** Height of cable centre above selected screed bottom, not finished floor. */
+  /**
+   * Height of the cable centre above the bottom face of the selected screed layer (top of the
+   * layer below / subfloor stack). Not the underside of the tile, unless that face is the screed top.
+   */
   depthFromBottom?: Quantity;
   screedLayerId?: string;
   /** Room id means the whole room; otherwise ids of this room's drainage planes. */
   zoneIds: string[];
   path: { x: number; y: number }[];
   keepouts: { id: string; label: string; x: number; y: number; w: number; h: number; source?: string }[];
+  /** Accepted heating-cable product in this browser's library. Live fields win over the snapshot. */
+  cableProductId?: string;
+  /** Travels with the project when the library is absent. */
+  cableSpecification?: ProductSpecification;
+  thermostatProductId?: string;
+  thermostatSpecification?: ProductSpecification;
+  thermostatLocation?: ThermostatLocation;
 }
 
 export interface Room {
@@ -289,7 +322,8 @@ export interface Item {
   selectionStatus?: SelectionStatus;
   /**
    * A corner fixture that comes in a left and a right hand (#37): the kind for each, and which
-   * one is in use. Re-anchoring into the other corner swaps the kind and mirrors the service points.
+   * one is in use (the stored hand). Re-anchor is refused when that hand disagrees with the wall,
+   * or for derived corner waste; re-place the bath.
    */
   corner?: { left: string; right: string; side: "left" | "right" };
 }
@@ -326,7 +360,10 @@ export interface ServicePoint {
   outMax?: number;
   across?: number;
   up?: number;
-  status: ValueStatus;
+  /** Converted host-frame coordinates are `derived`, never `published`. Published stays on the source-datum evidence. */
+  status: ValueStatus | "derived";
+  /** Present when across/out were converted from another datum (e.g. corner bisector). */
+  basis?: "derived";
   source?: string;
   /** Original per-axis evidence; unsupported datums never become resolved coordinates. */
   axisEvidence?: { across?: FieldValue; out?: FieldValue; outMax?: FieldValue; up?: FieldValue };

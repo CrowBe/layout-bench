@@ -4,7 +4,7 @@
  * action set_room_floor calls. A blank value is unknown; levels above it read "unresolved".
  */
 
-import { heatingSection } from "../model/heating";
+import { CABLE_DEPTH_DATUM, heatingSection } from "../model/heating";
 import { useState } from "react";
 import { actions, logActivity, type FloorLayerInput, type FloorPatch } from "../model/store";
 import { formatMm } from "../model/geometry";
@@ -51,7 +51,7 @@ function Section({ room }: { room: Room }) {
           {r.unknown && <text x={80} y={r.y + r.h - 3} fontSize={10} textAnchor="middle" fill="#c0392b">?</text>}
         </g>
       ))}
-      {cableY !== undefined && <g data-role="heating-in-floor-section"><circle cx={80} cy={cableY} r={3} fill="#c64c19"/><text x={144} y={cableY} fontSize={8} fill="#c64c19">cable (first point)</text></g>}
+      {cableY !== undefined && <g data-role="heating-in-floor-section"><circle cx={80} cy={cableY} r={3} fill="#c64c19"/><text x={144} y={cableY} fontSize={8} fill="#c64c19">cable (from screed bottom)</text></g>}
       {datumY !== null && (
         <g>
           <line x1={0} y1={datumY} x2={200} y2={datumY} stroke="#4f86b0" strokeDasharray="4 3" />
@@ -106,6 +106,7 @@ export function FloorBuildUp({ room }: { room: Room }) {
         </div>
       </div>
       <Section room={room} />
+      {room.heating && <span className="hint">Cable centre in the stack is from the {CABLE_DEPTH_DATUM}. Sloped routes use the sampled profile, not this flat section.</span>}
       <table className="face-table" aria-label="Floor levels">
         <thead><tr><th>Level</th><th>Above datum</th><th>Basis</th></tr></thead>
         <tbody>

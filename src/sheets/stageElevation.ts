@@ -324,7 +324,7 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
   };
   heading(`Stage: ${opts.label}`);
   row(`Wall ${w.id.replace(/^wall_/, "")}, ${side} side, facing ${room?.label ?? "?"}. Same visible set as the stage plan; everything else hidden, not removed.`);
-  row("Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · ENT entered · DEF default · ? unknown", 1.8, `fill="#444"`);
+  row("Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ? unknown", 1.8, `fill="#444"`);
   y += 1.5;
   heading("This face");
   if (!face) row("No face or layer of this side is shown: the wall is drawn at its drawn length only.");
@@ -398,7 +398,8 @@ function vertical(model: PlanModel, it: Item, room: ReturnType<typeof roomBeside
   if (floor.level === undefined) return { basis: "unknown", heightNote: "finished floor level unknown here" };
   const z0 = floor.level + (cat.elevation ?? 0);
   const on = floor.datumOnly ? "the existing floor (no floor build-up recorded)" : "the finished floor";
+  const dashed = Boolean(cat.elevation || cat.stopgap);
   return cat.elevation
     ? { z0, z1: z0 + cat.h, basis: "estimated", dashed: true, heightNote: `${cat.elevationNote ? `${cat.elevationNote}; ` : ""}envelope bottom ${mm(cat.elevation)} above ${on} from the kind's data, not a set-out (dashed)` }
-    : { z0, z1: z0 + cat.h, basis: floor.basis, heightNote: `stands on ${on}; height ${mm(cat.h)} from the kind's envelope` };
+    : { z0, z1: z0 + cat.h, basis: floor.basis, ...(dashed ? { dashed: true } : {}), heightNote: `stands on ${on}; height ${mm(cat.h)} from the kind's envelope${dashed ? " (dashed)" : ""}` };
 }

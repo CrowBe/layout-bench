@@ -7,6 +7,7 @@ import { parseImport } from "../src/model/projects";
 import { emptyModel } from "../src/model/types";
 import { specRows } from "../src/sheets/stageView";
 import { catalogByKind } from "../src/model/catalog";
+import { CORNER_HAND_REANCHOR } from "../src/model/fittedWaste";
 
 // Synthetic fixture evidence: example.com is deliberately not a real manufacturer source.
 const source = { url: "https://example.com/synthetic-vanity.pdf", locator: "variant table, p. 2" };
@@ -182,7 +183,7 @@ describe("exact product variants (#47)", () => {
     expect(actions.anchorFixture(placed.id as string, { wallId, side: "right", face: "existing", distance: 3.2, status: "proposed" })).toMatchObject({ ok: false });
     expect(store.getState().model).toEqual(placedBefore);
   });
-  it.each(["reversible", "legacy"])("preserves %s corner bath movement and service point mirroring", hand => {
+  it.each(["reversible", "legacy"])("refuses to re-anchor a %s corner bath when the hand would change", hand => {
     const p = accept(spec());
     p.category = "bath";
     p.fields = { length: pub(1.4), width: pub(1.4), height: pub(.5), shape: pub("corner-round"), frontWidth: pub(1.75), frontProjection: pub(1.29) };
@@ -193,10 +194,11 @@ describe("exact product variants (#47)", () => {
     actions.setWallSide(wallId, "right", { existing: { value: 0, status: "measured" }, layers: [] });
     const placed = actions.placeProduct(p, { wallId, side: "right", face: "existing", distance: .8, status: "proposed" });
     expect(placed.ok).toBe(true);
-    const point = store.getState().model.items[0].servicePoints![0].across!;
     expect(catalogByKind(`product_${p.id}_right`)).toBeDefined();
-    expect(actions.anchorFixture(placed.id as string, { wallId, side: "right", face: "existing", distance: 3.2, status: "proposed" }).ok).toBe(true);
-    expect(store.getState().model.items[0].kind).toBe(`product_${p.id}_right`);
-    expect(store.getState().model.items[0].servicePoints![0].across).toBe(-point);
+    const before = structuredClone(store.getState().model);
+    const re = actions.anchorFixture(placed.id as string, { wallId, side: "right", face: "existing", distance: 3.2, status: "proposed" });
+    expect(re.ok).toBe(false);
+    expect(re.summary).toBe(CORNER_HAND_REANCHOR);
+    expect(store.getState().model).toEqual(before);
   });
 });

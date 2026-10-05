@@ -168,7 +168,17 @@ describe("purchased fittings in the sample project", () => {
     const waste = back.model.items.find((i) => i.id === "bath_waste")!;
     expect(waste.productSpecification?.fields.outletDiameter).toMatchObject({ value: null });
     expect(waste.productSpecification?.fields.outletDiameter.note).toMatch(/Carton prints 40 mm nominal/);
+    expect(waste.productSpecification?.fields.outletSizeKind).toMatchObject({ value: "connection", status: "published", source: "carton label" });
+    expect(waste.productSpecification?.fields.outletSizeKind.status).not.toBe("measured");
     expect(waste.productSpecification?.fields.connection).toBeUndefined();
+    const bath = back.model.items.find((i) => i.id === "bath")!;
+    expect(bath.productSpecification?.fields.wasteFromCorner).toMatchObject({ value: 0.52, status: "published" });
+    expect(bath.productSpecification?.fields.wasteFromEnd).toMatchObject({ value: null });
+    expect(bath.productSpecification?.fields.wasteFromEnd.note).toMatch(/520\/√2/);
+    expect(bath.productSpecification?.fields.wasteFromEnd.status).not.toBe("published");
+    expect(bath.productSpecification?.fields.wasteFromSide).toMatchObject({ value: null });
+    expect(bath.productSpecification?.fields.wasteHoleDiameter).toMatchObject({ value: 0.05, status: "published" });
+    expect(bath.productSpecification?.fields.wasteConnectionDiameter).toMatchObject({ value: null });
     const basin = back.model.items.find((i) => i.id === "basin_mixer")!;
     expect(basin.productSpecification?.fields.elevation).toBeUndefined();
     expect(basin.productSpecification?.fields.height).toMatchObject({ value: 0.148, status: "published" });
@@ -188,7 +198,6 @@ describe("purchased fittings in the sample project", () => {
     expect(back.notes.find((n) => n.id === "note-purchased")!.text).not.toMatch(/210\.3/);
     expect(back.notes.find((n) => n.id === "note-purchased")!.text).not.toMatch(/carton, measured/);
     expect(back.notes.find((n) => n.id === "note-purchased")!.text).not.toMatch(/25 mm stubs/);
-    const bath = back.model.items.find((i) => i.id === "bath")!;
     expect(bath.productSpecification?.fields.frontWidth).toMatchObject({ value: 1.4142, status: "published" });
     expect(bath.productSpecification?.fields.frontWidth.sources?.[0]?.locator).toMatch(/^derived:/);
   });
@@ -282,6 +291,7 @@ describe("purchased fittings in the sample project", () => {
     const waste = model.items.find((i) => i.id === "bath_waste")!.productSpecification!;
     expect(waste.fields.outletDiameter?.value).toBeNull();
     expect(waste.fields.outletDiameter?.note).toMatch(/Carton prints 40 mm nominal/);
+    expect(waste.fields.outletSizeKind?.value).toBe("connection");
   });
 
   it("draws the corner bath as a right-angle triangle with a rounded hypotenuse", () => {
@@ -372,7 +382,7 @@ describe("corner bath with unknown front depth", () => {
   const unknownDepth = (note = "Not on the carton label."): Record<string, FieldValue> => ({
     length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
     frontWidth: { value: null, note }, frontProjection: { value: null, note },
-    wasteFromEnd: { value: null, note }, wasteFromSide: { value: null, note }, surround: { value: null, note },
+    wasteFromEnd: { value: null, note }, wasteFromSide: { value: null, note }, wasteFromCorner: { value: null, note }, surround: { value: null, note },
   });
   const product = (fields: Record<string, FieldValue>): LibraryProduct =>
     ({ id: "angie", category: "bath", manufacturer: "", model: "Angie Corner 1000", fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0 });

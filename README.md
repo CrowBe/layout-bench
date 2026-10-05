@@ -383,8 +383,15 @@ A few design notes:
   `fit_item`: its place is given in the host's own frame (across its centreline, out from its back
   edge) and must lie inside the host's real outline. Its pose is derived from the host, so it
   moves, turns and is removed with it, and it is not an `items_overlap` with that host. An
-  accessory whose host is gone, or that falls outside it, is a warning. The sample's Ahrok waste
-  is fitted inside the bath.
+  accessory whose host is gone, or that falls outside it, is a warning. A waste-category accessory
+  is also checked against the host's waste point in that same host frame (a corner-bath sheet that
+  gives the waste from the right-angle corner on the bisector is converted as distance/√2 along
+  each wall; the host-frame result is derived, never published). `get_issues` warns when the
+  offset exceeds `FITTED_WASTE_OFFSET_TOLERANCE_M` (a named modelling tolerance, not a manufacturer
+  or code figure), naming both positions and their datums. Outlet sizes are compared only when both
+  are known and like-for-like (a waste hole is not a pipe connection); unknowns stay silent. Fit at
+  the host's waste point with `atHostWaste` (or the Inspector button). This is a set-out check, not
+  a plumbing verdict. The sample's Ahrok waste is fitted inside the bath.
 
 - Tapware and shower fittings take optional working limits (minimum and maximum pressure in kPa,
   maximum hot water temperature in °C). When sources disagree, the working value keeps the others
@@ -590,24 +597,37 @@ override. Without a partner origin, everything else in the app still works.
 
 ## Heating planning
 
-Heating planning (#8) uses the same `room.heating` record in the room Inspector, 2D plan,
+Heating planning (#8, #68) uses the same `room.heating` record in the room Inspector, 2D plan,
 WebMCP (`set_room_heating`, `get_room_heating`), printable review and selected construction-stage
-diagrams. All product values may stay unknown; numeric constraints carry provenance and a
-source. Route coordinates and rectangular keep-outs are in plan metres (UI entry is mm).
-Cable centre height is above the selected screed bottom; a room with drainage planes derives
-local screed levels from their finished surface and the layers above screed. Without entered
-levels the section stays unresolved. A changed screed thickness immediately rechecks the route.
+diagrams. Length, rated output and coverage are read from a referenced heating-cable brief
+(`cableProductId` of an accepted library product, else a travelling `cableSpecification` written
+from that product) through one shared accessor in `src/model/heatingProduct.ts`; they are not
+copied onto the heating record. `set_room_heating` does not accept specification objects: it
+writes the snapshot from the referenced accepted product and refuses unknown or wrong-category
+ids. Accepting a catalogue revision retargets `room.heating` to the new product id and rewrites
+the matching snapshot, with undo. A live library product wins so checks update; if the live
+product and snapshot disagree, or the id cannot be resolved, a problem is raised. Label figures
+stay `published`/`measured`; spacing from coverage area / cable length is `derived` only from
+confirmed coverage and length; plan and spatial route lengths are `modelled` from the drawn path;
+unknowns stay null and produce no comparison. The coverage-range check uses `availableArea`
+(zone footprints excluding entered keep-outs), not the path bounding box.
+Cable 3.2 A is compared like-for-like to thermostat switching current; 240 V to the 100–240 V
+range. IP21 vs location warns and does not decide (the electrician decides). Keep-outs and wall
+setback are only those entered with a source. Cable centre is from the bottom face of the
+selected screed. Route coordinates and rectangular keep-outs are in plan metres (UI entry is mm).
+A room with drainage planes derives local screed levels from their finished surface and the
+layers above screed. Without entered levels the section stays unresolved. A changed screed
+thickness immediately rechecks the route without mutating cable inputs.
 
 Select the whole-room footprint or one or more existing floor-plane ids, then draw a polyline
 or edit its exact points. Checks identify route crossing/touching/backtracking, departure
 from the zone union (including gaps between zones), entered exclusions and clearance, entered
-minimum non-adjacent spacing, and excess length only when the cable length has confirmed
-provenance (`published`, `measured` or `site-confirmed`). Area is zone footprint excluding
-entered keep-outs, not verified heat coverage. Straight segments do not define bend radii,
-cold tails, connection lengths, sensor placement or electrical design. Manufacturer and
-licensed electrician review always remains pending. The purchased cable's actual specifications
-have not been supplied; synthetic tests demonstrate the planning capability and cannot satisfy
-the actual purchased-product end-to-end acceptance check.
+minimum non-adjacent spacing, coverage/spacing derived from the brief, and excess length only
+when the cable length has confirmed provenance (`published`, `measured` or `site-confirmed`)
+and the whole spatial profile resolves. Area is zone footprint excluding entered keep-outs, not
+verified heat coverage. Straight segments do not define bend radii, cold tails, connection
+lengths, sensor placement or electrical design. Manufacturer and licensed electrician review
+always remains pending. No electrical or compliance approval is implied.
 
 Run the heating browser check with a local studio server:
 `ALZA_BASE_URL=http://127.0.0.1:5208 node tests/heating.e2e.mjs`.
