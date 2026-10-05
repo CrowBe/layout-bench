@@ -811,6 +811,7 @@ it("refuses any corner-hand re-anchor, including site-confirmed waste, and mutat
     shape: pub("corner-round"),
     frontWidth: pub(1.4),
     frontProjection: pub(1.1),
+    wasteFromCorner: pub(0.52),
     wasteFromEnd: {
       value: 0.2,
       status: "measured" as const,

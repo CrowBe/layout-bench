@@ -641,20 +641,29 @@ export function roughInPoints(category: ProductCategory, fields: Record<string, 
       if (value === undefined) missing.push(a.field);
       return { from: fields[a.field]?.reference ?? spec(a.field)?.reference ?? "other", field: a.field, ...(value !== undefined ? { value } : {}), ...(fields[a.field] ? { evidence: structuredClone(fields[a.field]) } : {}) };
     };
-    const fromCorner = category.id === "bath" && r.id === "waste" && fields.shape?.value === "corner-round" ? num("wasteFromCorner") : undefined;
-    if (fromCorner !== undefined) {
-      const alongEachWall = bisectorAlongEachWall(fromCorner);
-      const derived = (from: ReferenceId): AxisValue => ({
-        from,
-        field: "wasteFromCorner",
-        value: alongEachWall,
-        basis: "derived",
-        ...(fields.wasteFromCorner ? { evidence: structuredClone(fields.wasteFromCorner) } : {}),
-      });
-      const across = derived("fixture-end");
-      const out = derived("fixture-side");
+    if (category.id === "bath" && r.id === "waste" && fields.shape?.value === "corner-round") {
+      const fromCorner = num("wasteFromCorner");
+      if (fromCorner !== undefined) {
+        const alongEachWall = bisectorAlongEachWall(fromCorner);
+        const derived = (from: ReferenceId): AxisValue => ({
+          from,
+          field: "wasteFromCorner",
+          value: alongEachWall,
+          basis: "derived",
+          ...(fields.wasteFromCorner ? { evidence: structuredClone(fields.wasteFromCorner) } : {}),
+        });
+        const across = derived("fixture-end");
+        const out = derived("fixture-side");
+        const up = axis(r.up, "up");
+        points.push({ id: r.id, label: r.label, service: r.service, across, out, ...(up ? { up } : {}), resolved: missing.length === 0, missing });
+        continue;
+      }
+      missing.push("wasteFromCorner");
+      const evidence = fields.wasteFromCorner ? { evidence: structuredClone(fields.wasteFromCorner) } : {};
+      const across: AxisValue = { from: "other", field: "wasteFromCorner", ...evidence };
+      const out: AxisValue = { from: "other", field: "wasteFromCorner", ...evidence };
       const up = axis(r.up, "up");
-      points.push({ id: r.id, label: r.label, service: r.service, across, out, ...(up ? { up } : {}), resolved: missing.length === 0, missing });
+      points.push({ id: r.id, label: r.label, service: r.service, across, out, ...(up ? { up } : {}), resolved: false, missing });
       continue;
     }
     const across = axis(r.across, "across");

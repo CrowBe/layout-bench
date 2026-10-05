@@ -242,7 +242,7 @@ describe("fixtures set out from wall faces (#5)", () => {
     const pub = (value: number | string): FieldValue => ({ value, status: "published", sources: src });
     const fields: Record<string, FieldValue> = {
       length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
-      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
       surround: { value: null, note: "Not on the drawing." },
     };
     const product: LibraryProduct = { id: "angie", category: "bath", manufacturer: "Enflair", model: "Angie 1000 Corner", fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0 };
@@ -263,7 +263,7 @@ describe("fixtures set out from wall faces (#5)", () => {
     expect(codes()).not.toContain("items_overlap");
     const [waste] = roughIn(model(), bath);
     expect(waste.resolved).toBe(true);
-    expect(waste.alongFromA).toBe(0.418); // 368 from the corner end of the bath: 0.55 - 0.5 + 0.368
+    expect(waste.alongFromA).toBeCloseTo(0.418, 3); // 520 mm on the bisector → 520/√2 along the back from the corner end
   });
 
   it("flags a corner bath whose circular front disagrees with its printed lengths", () => {
@@ -285,7 +285,7 @@ describe("fixtures set out from wall faces (#5)", () => {
     const cornerBath = (over: Record<string, FieldValue> = {}): LibraryProduct => {
       const fields: Record<string, FieldValue> = {
         length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
-        frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+        frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
         surround: { value: null, note: "n/a" }, ...over,
       };
       return { id: "cb", category: "bath", manufacturer: "Example", model: "Corner", fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0 };

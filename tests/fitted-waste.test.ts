@@ -20,6 +20,7 @@ import {
   fittedWasteProblems,
   hostWasteInHostFrame,
   isDerivedServicePoint,
+  resolveHostFrameWaste,
   CORNER_HAND_REANCHOR,
 } from "../src/model/fittedWaste";
 import { categoryById, roughInPoints, validateSubmission, axisDisplayText, type FieldValue, type SpecSubmission } from "../src/model/products";
@@ -275,6 +276,13 @@ describe("fitted waste vs host waste point (#75)", () => {
     const missingCorner = { ...corner, fields: { ...corner.fields } };
     delete missingCorner.fields.wasteFromCorner;
     expect(validateSubmission(cat, missingCorner).some((p) => p.field === "wasteFromCorner" && p.code === "field_missing")).toBe(true);
+    const nullCorner = { ...corner, fields: { ...corner.fields, wasteFromCorner: { value: null, note: "Not on this sheet." } } };
+    const nullPoints = roughInPoints(cat, nullCorner.fields);
+    expect(nullPoints[0].resolved).toBe(false);
+    expect(nullPoints[0].missing).toEqual(["wasteFromCorner"]);
+    expect(nullPoints[0].across).toMatchObject({ field: "wasteFromCorner" });
+    expect(nullPoints[0].across?.field).not.toBe("wasteFromEnd");
+    expect(nullPoints[0].out?.field).not.toBe("wasteFromSide");
   });
 
   it("requires wasteFromEnd/wasteFromSide when shape is unknown, as required_unknown", () => {
@@ -417,6 +425,81 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(actions.fitItem(wasteId, bath.id, hostPt.across! + 0.15, hostPt.out!).ok).toBe(true);
     expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(true);
     expect(actions.fitItem(wasteId, bath.id, hostPt.across, hostPt.out).ok).toBe(true);
+    expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
+  });
+
+  it("does not resolve a corner-round waste from leftover end/side when the corner hand is unknown", () => {
+    const fields = {
+      length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52),
+      wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368), wasteEnd: pub("right"), surround: pub("none-required"),
+    };
+    const hostPt = resolveHostFrameWaste({ fields, boxW: 1 });
+    expect(hostPt.resolved).toBe(false);
+    expect(hostPt.across).toBeUndefined();
+    expect(hostPt.out).toBeUndefined();
+    expect(hostPt.missing.join(" ")).toMatch(/corner/);
+    expect(hostPt.missing.join(" ")).not.toMatch(/wasteFromEnd/);
+    expect(hostPt.missing.join(" ")).not.toMatch(/wasteFromSide/);
+    actions.defineItemKind({ kind: "corner_host", label: "Corner bath", w: 1, d: 1, h: 0.63 });
+    const hostId = actions.placeItem("corner_host", 1, 1).id as string;
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: store.getState().model.items.map((i) => i.id === hostId
+          ? { ...i, productSpecification: { category: "bath", fields, acceptedAt: 1 } }
+          : i),
+      },
+    });
+    actions.defineItemKind({ kind: "test_waste", label: "Test waste", w: 0.05, d: 0.05, h: 0.02 });
+    const wasteId = actions.placeItem("test_waste", 0, 0).id as string;
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: store.getState().model.items.map((i) => i.id === wasteId
+          ? { ...i, productSpecification: { category: "waste", fields: {}, acceptedAt: 1 } }
+          : i),
+      },
+    });
+    expect(actions.fitItem(wasteId, hostId, 0.15, 0.15).ok).toBe(true);
+    expect(hostWasteInHostFrame(item(hostId), catalogByKind, store.getState().model).resolved).toBe(false);
+    expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
+  });
+
+  it("does not resolve leftover end/side on a corner-round bath whose wasteFromCorner is unknown", () => {
+    const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: pub(1.178), frontProjection: pub(1.09),
+      wasteFromCorner: { value: null, note: "Not on this sheet." },
+      wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368), wasteEnd: pub("right"), surround: pub("none-required"),
+    };
+    const product: LibraryProduct = {
+      id: "leftover-end-side-corner", category: "bath", manufacturer: "Example Co", model: "Corner leftover",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+    };
+    const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    const bath = item(placed.id as string);
+    const hostPt = hostWasteInHostFrame(bath, catalogByKind, store.getState().model);
+    expect(hostPt.resolved).toBe(false);
+    expect(hostPt.across).toBeUndefined();
+    expect(hostPt.out).toBeUndefined();
+    expect(hostPt.missing.join(" ")).toMatch(/wasteFromCorner/);
+    expect(hostPt.missing.join(" ")).not.toMatch(/wasteFromEnd/);
+    expect(hostPt.missing.join(" ")).not.toMatch(/wasteFromSide/);
+    actions.defineItemKind({ kind: "test_waste", label: "Test waste", w: 0.05, d: 0.05, h: 0.02 });
+    const wasteId = actions.placeItem("test_waste", 0, 0).id as string;
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: store.getState().model.items.map((i) => i.id === wasteId
+          ? { ...i, productSpecification: { category: "waste", fields: {}, acceptedAt: 1 } }
+          : i),
+      },
+    });
+    expect(actions.fitItem(wasteId, bath.id, 0.15, 0.15).ok).toBe(true);
     expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
   });
 

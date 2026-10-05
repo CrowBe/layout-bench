@@ -205,61 +205,72 @@ export interface DiameterReading {
 
 /**
  * One host-frame waste resolver: corner-round uses wasteFromCorner (derived via
- * cornerBisectorToHostFrame) when the right-angle corner is known; otherwise end/side.
+ * cornerBisectorToHostFrame) when the right-angle corner is known; it never falls
+ * through to wasteFromEnd/wasteFromSide. Otherwise end/side.
  * An orphaned wasteFromCorner on a non-corner-round bath is ignored.
  */
 export function resolveHostFrameWaste(input: HostWasteInput): HostWastePoint {
   const fields = input.fields;
-  const missing: string[] = [];
-  const fromCorner = fields.shape?.value === "corner-round" ? num(fields.wasteFromCorner) : undefined;
-  if (fromCorner !== undefined) {
-    if (cornerHandDisagrees(input)) {
+  if (fields.shape?.value === "corner-round") {
+    const fromCorner = num(fields.wasteFromCorner);
+    if (fromCorner !== undefined) {
+      if (cornerHandDisagrees(input)) {
+        return {
+          resolved: false,
+          datum: "host frame (across centreline, out from back edge)",
+          source: sourceText(fields.wasteFromCorner),
+          missing: [
+            "corner hand needs review: the wall's nearer end no longer matches the stored right-angle (see fixture_corner_hand_review). No host-frame waste point is invented from a disputed hand",
+          ],
+        };
+      }
+      const corner = resolveWasteCorner(input);
+      if (corner) {
+        const { across, out, alongEachWall } = cornerBisectorToHostFrame(fromCorner, input.boxW, corner);
+        const conversion =
+          `${formatMm(fromCorner)} mm from the ${corner}-hand right-angle corner along the bisector ` +
+          `→ ${formatMm(alongEachWall)} mm along each wall (${formatMm(fromCorner)}/√2); ` +
+          `host frame (derived, not published): ${formatMm(across)} mm across the centreline (left negative), ` +
+          `${formatMm(out)} mm out from the back edge`;
+        return {
+          resolved: true,
+          across: quantize(across),
+          out: quantize(out),
+          basis: "derived",
+          datum:
+            `host frame: across the centreline (left negative, facing the host), out from the back edge; ` +
+            `taken from the ${corner}-hand right-angle corner along the bisector (not wasteFromEnd/wasteFromSide)`,
+          source: sourceText(fields.wasteFromCorner),
+          conversion,
+          missing: [],
+          fromCorner,
+          alongEachWall,
+          corner,
+        };
+      }
       return {
         resolved: false,
         datum: "host frame (across centreline, out from back edge)",
         source: sourceText(fields.wasteFromCorner),
-        missing: [
-          "corner hand needs review: the wall's nearer end no longer matches the stored right-angle (see fixture_corner_hand_review). No host-frame waste point is invented from a disputed hand",
-        ],
+        missing: ["which corner the right-angle sits in (plan outline, stored corner, or wall set-out)"],
       };
     }
-    const corner = resolveWasteCorner(input);
-    if (corner) {
-      const { across, out, alongEachWall } = cornerBisectorToHostFrame(fromCorner, input.boxW, corner);
-      const conversion =
-        `${formatMm(fromCorner)} mm from the ${corner}-hand right-angle corner along the bisector ` +
-        `→ ${formatMm(alongEachWall)} mm along each wall (${formatMm(fromCorner)}/√2); ` +
-        `host frame (derived, not published): ${formatMm(across)} mm across the centreline (left negative), ` +
-        `${formatMm(out)} mm out from the back edge`;
-      return {
-        resolved: true,
-        across: quantize(across),
-        out: quantize(out),
-        basis: "derived",
-        datum:
-          `host frame: across the centreline (left negative, facing the host), out from the back edge; ` +
-          `taken from the ${corner}-hand right-angle corner along the bisector (not wasteFromEnd/wasteFromSide)`,
-        source: sourceText(fields.wasteFromCorner),
-        conversion,
-        missing: [],
-        fromCorner,
-        alongEachWall,
-        corner,
-      };
-    }
-    missing.push("which corner the right-angle sits in (plan outline, stored corner, or wall set-out)");
+    return {
+      resolved: false,
+      datum: "host frame (across centreline, out from back edge)",
+      source: sourceText(fields.wasteFromCorner),
+      missing: ["wasteFromCorner along the bisector (the sheet datum for a corner-round bath)"],
+    };
   }
 
+  const missing: string[] = [];
   const fromEnd = num(fields.wasteFromEnd);
   const fromSide = num(fields.wasteFromSide);
   if (fromEnd === undefined && fromSide === undefined) {
     return {
       resolved: false,
       datum: "host frame (across centreline, out from back edge)",
-      source: fromCorner !== undefined ? sourceText(fields.wasteFromCorner) : undefined,
-      missing: missing.length
-        ? [...missing, "wasteFromEnd and wasteFromSide"]
-        : ["host waste point (wasteFromCorner along the bisector, or wasteFromEnd and wasteFromSide)"],
+      missing: ["host waste point (wasteFromEnd and wasteFromSide)"],
     };
   }
   if (fromSide === undefined) missing.push("wasteFromSide (out from the host's back edge / fixture-side)");
