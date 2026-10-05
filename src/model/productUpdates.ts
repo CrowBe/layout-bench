@@ -26,6 +26,14 @@ function preserveServices(
     unresolved: string[] = [];
   const points = proposed.map((p) => structuredClone(p) as EvidencedPoint);
   for (const prior of before as EvidencedPoint[]) {
+    const next = points.find((p) => p.id === prior.id);
+    if (next && (prior.status === "derived" || prior.basis === "derived") && next.status === "published") {
+      next.status = "derived";
+      next.basis = "derived";
+      if (prior.axisEvidence) next.axisEvidence = structuredClone(prior.axisEvidence);
+    }
+  }
+  for (const prior of before as EvidencedPoint[]) {
     const copied = source.find((p) => p.id === prior.id) as
       | EvidencedPoint
       | undefined;

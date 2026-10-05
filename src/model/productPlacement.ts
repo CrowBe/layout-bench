@@ -6,16 +6,14 @@ import { exactProductLabel, identityOf } from "./productIdentity";
 import {
   categoryById,
   cornerBathOutline,
-  cornerBisectorToHostFrame,
   envelopeOf,
   productPlacementProblem,
   validateProductGeometry,
 } from "./products";
 import { evidenceStatus, evidenceText } from "./productMeasurements";
 import { outlineExtents, outlineProblems } from "./outline";
-import { facingRotation } from "./fixtures";
-import { sideNormal } from "./faces";
-import { quantize, segLen } from "./geometry";
+import { productCornerSide, resolveHostFrameWaste } from "./fittedWaste";
+import { quantize } from "./geometry";
 import {
   validInstallation,
   mirroringProblem,
@@ -24,21 +22,7 @@ import {
 } from "./installation";
 import { revisionOf } from "./productRevision";
 
-export function productCornerSide(
-  anchor: FixtureAnchor,
-  wall: Wall,
-): "left" | "right" {
-  const length = segLen(wall.ax, wall.ay, wall.bx, wall.by);
-  const along =
-    anchor.from === "b" ? length - anchor.distance : anchor.distance;
-  const normal = sideNormal(wall, anchor.side);
-  const rotation = (-facingRotation(normal) * Math.PI) / 180;
-  const towardB =
-    Math.cos(rotation) * (wall.bx - wall.ax) +
-      Math.sin(rotation) * (wall.by - wall.ay) >
-    0;
-  return along <= length - along === towardB ? "left" : "right";
-}
+export { productCornerSide };
 
 export function productPlacement(
   product: LibraryProduct,
@@ -163,6 +147,14 @@ export function productPlacement(
       ? [entryFor(corner === "left" ? "right" : "left")]
       : [];
   const source = `${label}, product library ${product.id}`;
+  const hostWaste = resolveHostFrameWaste({
+    fields: product.fields,
+    boxW: box.w,
+    outlineStart: outline?.start,
+    storedCorner: corner ?? undefined,
+    anchor,
+    wall,
+  });
   const servicePoints: ServicePoint[] = (product.roughIn ?? [])
     .filter((p) => !installationGeometry?.services?.some((s) => s.id === p.id))
     .filter(
@@ -177,17 +169,18 @@ export function productPlacement(
     )
     .map((point) => {
       const end = corner ?? product.fields.wasteEnd?.value;
-      const fromCorner =
-        point.across?.field === "wasteFromCorner" &&
-        typeof product.fields.wasteFromCorner?.value === "number"
-          ? product.fields.wasteFromCorner.value
-          : undefined;
       const converted =
-        fromCorner !== undefined && (end === "left" || end === "right")
-          ? cornerBisectorToHostFrame(fromCorner, box.w, end)
+        hostWaste.resolved &&
+        hostWaste.fromCorner !== undefined &&
+        hostWaste.across !== undefined &&
+        hostWaste.out !== undefined &&
+        (point.across?.field === "wasteFromCorner" ||
+          point.out?.field === "wasteFromCorner" ||
+          point.across?.basis === "derived")
+          ? { across: hostWaste.across, out: hostWaste.out }
           : null;
       const across = converted
-        ? quantize(converted.across)
+        ? converted.across
         : point.across?.from === "fixture-centreline"
           ? point.across.value
           : point.across?.from === "fixture-end" &&
@@ -269,11 +262,11 @@ export function productPlacement(
     additionalEntries,
     servicePoints,
     installationGeometry,
-    ...(corner && outline
+    ...(corner
       ? {
           corner: {
-            left: kindFor(fixedHand ? corner : "left"),
-            right: kindFor(fixedHand ? corner : "right"),
+            left: outline ? kindFor(fixedHand ? corner : "left") : entry.kind,
+            right: outline ? kindFor(fixedHand ? corner : "right") : entry.kind,
             side: corner,
           },
         }

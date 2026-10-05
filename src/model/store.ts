@@ -45,9 +45,8 @@ import { emptyModel } from "./types";
 import { validHeating, heatingEvidence } from "./heating";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
-import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
-import { hostWasteInHostFrame } from "./fittedWaste";
-import { sideNormal } from "./faces";
+import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices } from "./fixtures";
+import { hostWasteInHostFrame, productCornerSide } from "./fittedWaste";
 import { drainageProblems, planeSurface } from "./drainage";
 import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
@@ -671,17 +670,6 @@ const heightPrompt = (o: Opening): string =>
 // ---------------------------------------------------------------------------
 // Shared actions (UI + WebMCP tools)
 // ---------------------------------------------------------------------------
-
-/** Which back corner of a placed corner bath is square: the end of the wall it sits nearer. */
-function cornerSide(anchor: FixtureAnchor, wall: Wall): "left" | "right" {
-  const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
-  const alongFromA = anchor.from === "b" ? len - anchor.distance : anchor.distance;
-  const cornerAtA = alongFromA <= len - alongFromA;
-  const n = sideNormal(wall, anchor.side);
-  const rot = (-facingRotation(n) * Math.PI) / 180;
-  const towardB = Math.cos(rot) * (wall.bx - wall.ax) + Math.sin(rot) * (wall.by - wall.ay) > 0;
-  return cornerAtA === towardB ? "left" : "right";
-}
 
 /** Validate an anchor as a caller supplied it. Nothing changes until the caller applies it. */
 function buildAnchor(input: AnchorInput):
@@ -1510,7 +1498,7 @@ export const actions = {
     let next: Item = { ...item, anchor };
     // a handed corner fixture moved into the other corner swaps hands, and its points mirror
     if (item.corner) {
-      const side = cornerSide(anchor, wall);
+      const side = productCornerSide(anchor, wall);
       if (side !== item.corner.side) {
         const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
         if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) return fail(`This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`);
@@ -1570,17 +1558,30 @@ export const actions = {
     const existing = item.servicePoints ?? [];
     if (input.id !== undefined && (typeof input.id !== "string" || !/^[A-Za-z0-9_:-]{1,40}$/.test(input.id))) return fail("id must be 1–40 letters, digits, _, : or -.");
     const id = input.id ?? uid("sp");
+    const prior = existing.find((p) => p.id === id);
+    const priorDerived = !!(prior && (prior.status === "derived" || prior.basis === "derived"));
+    if (priorDerived && input.status === "published") {
+      return fail(`Service point ${id} holds derived host-frame coordinates (converted, not published). Replacing it with status published is refused. Record a measured or site-confirmed site datum to replace the conversion.`);
+    }
+    const siteDatum = input.status === "measured" || input.status === "site-confirmed";
+    const keepDerived = priorDerived && !siteDatum;
     const point: ServicePoint = {
       id, label: input.label.trim(), service: input.service, face: input.face,
       ...(out !== undefined ? { out } : {}), ...(outMax !== undefined ? { outMax } : {}),
       ...(num(input.across, "across") !== undefined ? { across: num(input.across, "across") } : {}),
       ...(up !== undefined ? { up } : {}),
-      status: input.status, ...(input.source?.trim() ? { source: input.source.trim() } : {}),
+      status: keepDerived ? "derived" : input.status,
+      ...(keepDerived ? { basis: "derived" as const } : {}),
+      ...(keepDerived && prior?.axisEvidence ? { axisEvidence: structuredClone(prior.axisEvidence) } : {}),
+      ...(input.source?.trim() ? { source: input.source.trim() } : {}),
     };
     const next: Item = { ...item, servicePoints: existing.some((p) => p.id === id) ? existing.map((p) => (p.id === id ? point : p)) : [...existing, point] };
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
-    return r.ok(`${point.label} ${existing.some((p) => p.id === id) ? "updated" : "added"} on ${item.id}.`, { id: item.id, pointId: id });
+    const replaced = priorDerived && siteDatum
+      ? ` Replaced derived host-frame conversion with a ${input.status} site datum.`
+      : "";
+    return r.ok(`${point.label} ${existing.some((p) => p.id === id) ? "updated" : "added"} on ${item.id}.${keepDerived ? " Derived host-frame status, basis and axis evidence kept." : replaced}`, { id: item.id, pointId: id });
   },
 
   removeServicePoint(itemRef: string, pointId: string): ActionResult {
@@ -1709,7 +1710,7 @@ export const actions = {
     if (item.anchor) return fail(`${item.id} is set out from a wall face; release its anchor before fitting it inside a fixture.`);
     let acrossM = across, outM = out;
     if (atHostWaste) {
-      const pt = hostWasteInHostFrame(host);
+      const pt = hostWasteInHostFrame(host, catalogByKind, store.getState().model);
       if (!pt.resolved || pt.across === undefined || pt.out === undefined) {
         return fail(`${host.id} has no resolved waste point in its own frame: missing ${pt.missing.join(", ")}. No position is invented.`);
       }

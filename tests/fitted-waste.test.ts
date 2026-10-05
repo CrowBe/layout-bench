@@ -328,6 +328,120 @@ describe("fitted waste vs host waste point (#75)", () => {
     };
     expect(fittedWasteProblems(model).some((i) => i.refs.includes("bath_mixer"))).toBe(false);
   });
+
+  it("compares a rectangular bath via end/side even when a leftover wasteFromCorner is present", () => {
+    const wall = actions.addWall(0, 0, 3, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1.675), width: pub(0.75), height: pub(0.45), installation: pub("freestanding"), shape: pub("rectangular"),
+      wasteFromEnd: pub(0.2), wasteEnd: pub("right"), wasteFromSide: pub(0.375),
+      wasteFromCorner: pub(0.52),
+    };
+    const product: LibraryProduct = {
+      id: "rect-leftover-corner", category: "bath", manufacturer: "Example Co", model: "Rect leftover",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+    };
+    const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 1, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    const bath = item(placed.id as string);
+    const hostPt = hostWasteInHostFrame(bath, catalogByKind, store.getState().model);
+    expect(hostPt.resolved).toBe(true);
+    expect(hostPt.fromCorner).toBeUndefined();
+    expect(hostPt.out).toBeCloseTo(0.375, 4);
+    expect(hostPt.across).toBeCloseTo(1.675 / 2 - 0.2, 4);
+    expect(hostPt.datum).toMatch(/wasteFromEnd/);
+    expect(hostPt.datum).not.toMatch(/bisector/);
+    actions.defineItemKind({ kind: "test_waste", label: "Test waste", w: 0.05, d: 0.05, h: 0.02 });
+    const wasteId = actions.placeItem("test_waste", 0, 0).id as string;
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: store.getState().model.items.map((i) => i.id === wasteId ? { ...i, productSpecification: { category: "waste", fields: {}, acceptedAt: 1 } } : i),
+      },
+    });
+    expect(actions.fitItem(wasteId, bath.id, hostPt.across! + 0.15, hostPt.out!).ok).toBe(true);
+    expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(true);
+    expect(actions.fitItem(wasteId, bath.id, hostPt.across, hostPt.out).ok).toBe(true);
+    expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
+  });
+
+  it("resolves a corner-round bath drawn as a box from the wall corner, and placeProduct agrees with fittedWasteProblems", () => {
+    const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: { value: null, note: "Not on this sheet; drawn as its box." },
+      frontProjection: { value: null, note: "Not on this sheet; drawn as its box." },
+      wasteFromCorner: pub(0.52), surround: pub("none-required"),
+    };
+    const product: LibraryProduct = {
+      id: "box-corner-waste", category: "bath", manufacturer: "Example Co", model: "Box corner",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+    };
+    const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    const bath = item(placed.id as string);
+    expect(bath.corner?.side).toBeDefined();
+    expect(catalogByKind(bath.kind)?.outline).toBeUndefined();
+    const sp = bath.servicePoints?.find((p) => p.id === "waste");
+    const hostPt = hostWasteInHostFrame(bath, catalogByKind, store.getState().model);
+    expect(hostPt.resolved).toBe(true);
+    expect(hostPt.fromCorner).toBe(0.52);
+    expect(hostPt.basis).toBe("derived");
+    expect(sp?.status).toBe("derived");
+    expect(hostPt.across).toBeCloseTo(sp!.across!, 4);
+    expect(hostPt.out).toBeCloseTo(sp!.out! - (bath.anchor?.gap ?? 0), 4);
+    expect(hostWasteInHostFrame(bath).resolved).toBe(true);
+    actions.defineItemKind({ kind: "test_waste", label: "Test waste", w: 0.05, d: 0.05, h: 0.02 });
+    const wasteId = actions.placeItem("test_waste", 0, 0).id as string;
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: store.getState().model.items.map((i) => i.id === wasteId ? { ...i, productSpecification: { category: "waste", fields: {}, acceptedAt: 1 } } : i),
+      },
+    });
+    expect(actions.fitItem(wasteId, bath.id, hostPt.across! + 0.15, hostPt.out!).ok).toBe(true);
+    expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(true);
+    const atPoint = actions.fitItem(wasteId, bath.id, undefined, undefined, true);
+    expect(atPoint.ok).toBe(true);
+    expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
+  });
+
+  it("refuses published overwrite of a derived waste point and allows a measured site datum to replace it", () => {
+    const wall = actions.addWall(0, 0, 2.11, 0, 0.1, 2.4).id as string;
+    actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
+    const fields = {
+      length: pub(1), width: pub(1), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), surround: pub("none-required"),
+    };
+    const product: LibraryProduct = {
+      id: "derived-point-guard", category: "bath", manufacturer: "Example Co", model: "Corner",
+      fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0,
+    };
+    const placed = actions.placeProduct(product, { wallId: wall, side: "right", face: "existing", distance: 0.55, status: "proposed" });
+    expect(placed.ok).toBe(true);
+    const bath = item(placed.id as string);
+    const sp = bath.servicePoints!.find((p) => p.id === "waste")!;
+    expect(sp.status).toBe("derived");
+    const published = actions.setServicePoint(bath.id, {
+      id: "waste", label: sp.label, service: "waste", face: sp.face,
+      across: sp.across, out: sp.out, status: "published",
+    });
+    expect(published.ok).toBe(false);
+    expect(published.summary).toMatch(/derived/i);
+    expect(published.summary).toMatch(/published/i);
+    expect(item(bath.id).servicePoints!.find((p) => p.id === "waste")?.status).toBe("derived");
+    const measured = actions.setServicePoint(bath.id, {
+      id: "waste", label: sp.label, service: "waste", face: sp.face,
+      across: sp.across, out: sp.out, status: "measured", source: "tape from the finished wall face",
+    });
+    expect(measured.ok).toBe(true);
+    expect(measured.summary).toMatch(/measured/);
+    const next = item(bath.id).servicePoints!.find((p) => p.id === "waste")!;
+    expect(next.status).toBe("measured");
+    expect(next.basis).toBeUndefined();
+    expect(next.axisEvidence).toBeUndefined();
+  });
 });
 
 describe("stopgap geometry is dashed from a flag, not from note text", () => {

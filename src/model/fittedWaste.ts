@@ -8,9 +8,10 @@
  * This is a modelling/set-out check; it does not certify drainage or plumbing.
  */
 
-import type { Issue, Item, PlanModel, ValueStatus } from "./types";
+import type { FixtureAnchor, Issue, Item, PlanModel, ValueStatus, Wall } from "./types";
 import { catalogByKind, catalogForItem, type CatalogLookup } from "./catalog";
-import { formatMm, quantize } from "./geometry";
+import { formatMm, quantize, segLen } from "./geometry";
+import { sideNormal } from "./faces";
 import { cornerBisectorToHostFrame, type FieldValue } from "./products";
 
 export { cornerBisectorToHostFrame };
@@ -43,6 +44,39 @@ export const cornerFromOutlineStart = (start: { x: number } | undefined): "left"
   if (!start) return undefined;
   return start.x < 0 ? "left" : "right";
 };
+
+/** Same rotation as fixtures.facingRotation, kept here so this module does not import fixtures. */
+const facingRotationDeg = (n: { x: number; y: number }): number => {
+  const deg = (Math.atan2(n.x, n.y) * 180) / Math.PI;
+  return quantize(((deg % 360) + 360) % 360);
+};
+
+/** Which back corner of a placed corner bath is square: the end of the wall it sits nearer. */
+export function productCornerSide(anchor: FixtureAnchor, wall: Wall): "left" | "right" {
+  const length = segLen(wall.ax, wall.ay, wall.bx, wall.by);
+  const along = anchor.from === "b" ? length - anchor.distance : anchor.distance;
+  const normal = sideNormal(wall, anchor.side);
+  const rotation = (-facingRotationDeg(normal) * Math.PI) / 180;
+  const towardB =
+    Math.cos(rotation) * (wall.bx - wall.ax) + Math.sin(rotation) * (wall.by - wall.ay) > 0;
+  return along <= length - along === towardB ? "left" : "right";
+}
+
+export interface HostWasteInput {
+  fields: Record<string, FieldValue>;
+  boxW: number;
+  outlineStart?: { x: number };
+  storedCorner?: "left" | "right";
+  anchor?: FixtureAnchor;
+  wall?: Wall;
+}
+
+/** Outline start, else the item's stored corner, else the host anchor/wall. */
+export function resolveWasteCorner(input: HostWasteInput): "left" | "right" | undefined {
+  return cornerFromOutlineStart(input.outlineStart)
+    ?? input.storedCorner
+    ?? (input.anchor && input.wall ? productCornerSide(input.anchor, input.wall) : undefined);
+}
 
 const num = (field: FieldValue | undefined): number | undefined =>
   typeof field?.value === "number" && Number.isFinite(field.value) ? field.value : undefined;
@@ -81,46 +115,41 @@ export interface DiameterReading {
   note?: string;
 }
 
-export function hostWasteInHostFrame(host: Item, lookup: CatalogLookup = catalogByKind): HostWastePoint {
-  const spec = host.productSpecification;
-  const fields = spec?.fields ?? {};
-  const cat = catalogForItem(host, lookup);
+/**
+ * One host-frame waste resolver: corner-round uses wasteFromCorner (derived via
+ * cornerBisectorToHostFrame) when the right-angle corner is known; otherwise end/side.
+ * An orphaned wasteFromCorner on a non-corner-round bath is ignored.
+ */
+export function resolveHostFrameWaste(input: HostWasteInput): HostWastePoint {
+  const fields = input.fields;
   const missing: string[] = [];
-  if (!cat) return { resolved: false, datum: "host frame (across centreline, out from back edge)", missing: [`footprint of ${host.id}`] };
-
-  const fromCorner = num(fields.wasteFromCorner);
+  const fromCorner = fields.shape?.value === "corner-round" ? num(fields.wasteFromCorner) : undefined;
   if (fromCorner !== undefined) {
-    const corner = cornerFromOutlineStart(cat.outline?.start);
-    if (!corner) {
+    const corner = resolveWasteCorner(input);
+    if (corner) {
+      const { across, out, alongEachWall } = cornerBisectorToHostFrame(fromCorner, input.boxW, corner);
+      const conversion =
+        `${formatMm(fromCorner)} mm from the ${corner}-hand right-angle corner along the bisector ` +
+        `→ ${formatMm(alongEachWall)} mm along each wall (${formatMm(fromCorner)}/√2); ` +
+        `host frame (derived, not published): ${formatMm(across)} mm across the centreline (left negative), ` +
+        `${formatMm(out)} mm out from the back edge`;
       return {
-        resolved: false,
-        datum: "right-angle corner along the bisector, in the host's plan outline",
+        resolved: true,
+        across: quantize(across),
+        out: quantize(out),
+        basis: "derived",
+        datum:
+          `host frame: across the centreline (left negative, facing the host), out from the back edge; ` +
+          `taken from the ${corner}-hand right-angle corner along the bisector (not wasteFromEnd/wasteFromSide)`,
         source: sourceText(fields.wasteFromCorner),
+        conversion,
+        missing: [],
         fromCorner,
-        missing: ["host plan outline (which corner the right-angle sits in)"],
+        alongEachWall,
+        corner,
       };
     }
-    const { across, out, alongEachWall } = cornerBisectorToHostFrame(fromCorner, cat.w, corner);
-    const conversion =
-      `${formatMm(fromCorner)} mm from the ${corner}-hand right-angle corner along the bisector ` +
-      `→ ${formatMm(alongEachWall)} mm along each wall (${formatMm(fromCorner)}/√2); ` +
-      `host frame (derived, not published): ${formatMm(across)} mm across the centreline (left negative), ` +
-      `${formatMm(out)} mm out from the back edge`;
-    return {
-      resolved: true,
-      across: quantize(across),
-      out: quantize(out),
-      basis: "derived",
-      datum:
-        `host frame: across the centreline (left negative, facing the host), out from the back edge; ` +
-        `taken from the ${corner}-hand right-angle corner along the bisector (not wasteFromEnd/wasteFromSide)`,
-      source: sourceText(fields.wasteFromCorner),
-      conversion,
-      missing: [],
-      fromCorner,
-      alongEachWall,
-      corner,
-    };
+    missing.push("which corner the right-angle sits in (plan outline, stored corner, or wall set-out)");
   }
 
   const fromEnd = num(fields.wasteFromEnd);
@@ -129,7 +158,10 @@ export function hostWasteInHostFrame(host: Item, lookup: CatalogLookup = catalog
     return {
       resolved: false,
       datum: "host frame (across centreline, out from back edge)",
-      missing: ["host waste point (wasteFromCorner along the bisector, or wasteFromEnd and wasteFromSide)"],
+      source: fromCorner !== undefined ? sourceText(fields.wasteFromCorner) : undefined,
+      missing: missing.length
+        ? [...missing, "wasteFromEnd and wasteFromSide"]
+        : ["host waste point (wasteFromCorner along the bisector, or wasteFromEnd and wasteFromSide)"],
     };
   }
   if (fromSide === undefined) missing.push("wasteFromSide (out from the host's back edge / fixture-side)");
@@ -138,19 +170,19 @@ export function hostWasteInHostFrame(host: Item, lookup: CatalogLookup = catalog
   let across: number | undefined;
   let conversion: string | undefined;
   const wasteEnd = fields.wasteEnd?.value;
-  const outlineCorner = cornerFromOutlineStart(cat.outline?.start);
+  const corner = resolveWasteCorner(input);
   if (fromEnd !== undefined) {
     if (wasteEnd === "right") {
-      across = cat.w / 2 - fromEnd;
+      across = input.boxW / 2 - fromEnd;
       conversion = `wasteFromEnd ${formatMm(fromEnd)} mm from the right end → host-frame across ${formatMm(across)} mm (derived, not published)`;
     } else if (wasteEnd === "left") {
-      across = -(cat.w / 2 - fromEnd);
+      across = -(input.boxW / 2 - fromEnd);
       conversion = `wasteFromEnd ${formatMm(fromEnd)} mm from the left end → host-frame across ${formatMm(across)} mm (derived, not published)`;
-    } else if (outlineCorner) {
-      const sx = outlineCorner === "right" ? 1 : -1;
-      across = cat.outline!.start.x - sx * fromEnd;
+    } else if (corner && input.outlineStart) {
+      const sx = corner === "right" ? 1 : -1;
+      across = input.outlineStart.x - sx * fromEnd;
       conversion =
-        `wasteFromEnd ${formatMm(fromEnd)} mm from the ${outlineCorner}-hand right-angle along the back ` +
+        `wasteFromEnd ${formatMm(fromEnd)} mm from the ${corner}-hand right-angle along the back ` +
         `→ host-frame across ${formatMm(across)} mm (derived, not published; the sheet datum for a corner bath is the bisector when wasteFromCorner is known)`;
     } else {
       missing.push("wasteEnd (which end wasteFromEnd is measured from, facing the host)");
@@ -177,6 +209,20 @@ export function hostWasteInHostFrame(host: Item, lookup: CatalogLookup = catalog
     conversion,
     missing: [],
   };
+}
+
+export function hostWasteInHostFrame(host: Item, lookup: CatalogLookup = catalogByKind, model?: PlanModel): HostWastePoint {
+  const cat = catalogForItem(host, lookup);
+  if (!cat) return { resolved: false, datum: "host frame (across centreline, out from back edge)", missing: [`footprint of ${host.id}`] };
+  const wall = host.anchor && model ? model.walls.find((w) => w.id === host.anchor!.wallId) : undefined;
+  return resolveHostFrameWaste({
+    fields: host.productSpecification?.fields ?? {},
+    boxW: cat.w,
+    outlineStart: cat.outline?.start,
+    storedCorner: host.corner?.side,
+    anchor: host.anchor,
+    wall,
+  });
 }
 
 export function accessoryOutletDiameter(item: Item): DiameterReading {
@@ -269,7 +315,7 @@ export function fittedWasteProblems(model: PlanModel, lookup: CatalogLookup = ca
     const host = model.items.find((x) => x.id === it.fittedTo!.hostId);
     if (!host || host.fittedTo) continue;
 
-    const hostPt = hostWasteInHostFrame(host, lookup);
+    const hostPt = hostWasteInHostFrame(host, lookup, model);
     if (hostPt.resolved && hostPt.across !== undefined && hostPt.out !== undefined) {
       const dx = it.fittedTo.across - hostPt.across;
       const dy = it.fittedTo.out - hostPt.out;
