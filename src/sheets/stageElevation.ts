@@ -22,7 +22,7 @@ import { installationReading } from "../model/installation";
 import { itemPolygon } from "../model/outline";
 import { roomBeside, runLimit, tilingLayout, type RunLimit } from "../model/tiling";
 import { PAPER, esc, f1, mm, tag } from "./floorPlan";
-import type { ViewElement } from "./stageView";
+import { dimStatus, type ViewElement } from "./stageView";
 
 const DRAW = { x: 12, y: 12, w: 262, h: 268 };
 const PANEL = { x: 280, w: 132 };
@@ -178,8 +178,8 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
     rect(X(a), Y(o.sill + o.height), (b - a) * k * (mirror ? -1 : 1), o.height * k, `fill="#dfe9f2" stroke="#2f78b7" stroke-width="0.35" ${de(`opening:${o.id}`)}`);
     const cx = (X(a) + X(b)) / 2;
     const mid = Y(o.sill + o.height / 2);
-    text(cx, mid - 1, `${o.kind === "door" ? "DOOR" : "WINDOW"} ${mm(o.width)} × ${mm(o.height)}${o.heightDefaulted ? " (height DEF)" : ""}`, 2, `text-anchor="middle" fill="#2f78b7"`);
-    if (o.kind === "window") text(cx, mid + 2.4, `sill ${mm(o.sill)} above ${datum}${o.sillDefaulted ? " (DEF)" : ""}`, 1.8, `text-anchor="middle" fill="#2f78b7"`);
+    text(cx, mid - 1, `${o.kind === "door" ? "DOOR" : "WINDOW"} ${mm(o.width)} ${tag(dimStatus(o.widthDefaulted))} × ${mm(o.height)} ${tag(dimStatus(o.heightDefaulted))}`, 2, `text-anchor="middle" fill="#2f78b7"`);
+    if (o.kind === "window") text(cx, mid + 2.4, `sill ${mm(o.sill)} ${tag(dimStatus(o.sillDefaulted))} above ${datum}`, 1.8, `text-anchor="middle" fill="#2f78b7"`);
     text(cx, mid + 4.8, `jambs ${limA?.resolved ? `${mm(a - s0)} / ${mm(b - s0)} from ${face!.label} at A` : `${mm(a)} / ${mm(b)} from end A`}`, 1.8, `text-anchor="middle" fill="#2f78b7"`);
   }
 
@@ -295,7 +295,7 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
   }
   const xH = Math.max(X(s0), X(s1)) + 22;
   line(xH, Y(0), xH, Y(w.height), `stroke="#000" stroke-width="0.2"`);
-  text(xH + 1.5, Y(w.height / 2), `${mm(w.height)} ${w.heightDefaulted ? "DEF" : "ENT"} wall height above ${datum}`, 1.8, `transform="rotate(-90 ${f1(xH + 1.5)} ${f1(Y(w.height / 2))})" text-anchor="middle"`);
+  text(xH + 1.5, Y(w.height / 2), `${mm(w.height)} ${tag(dimStatus(w.heightDefaulted))} wall height above ${datum}`, 1.8, `transform="rotate(-90 ${f1(xH + 1.5)} ${f1(Y(w.height / 2))})" text-anchor="middle"`);
 
   // ---- scale bar ----
   const sbY = DRAW.y + DRAW.h - 7;
