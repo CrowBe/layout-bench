@@ -122,6 +122,47 @@ const thermostat: PartSpec[] = [
   box(0, 1.425, 0.007, 0.05, 0.035, 0.004, { color: "#1b1d1f", roughness: 0.2 }),
 ];
 
+// ---- Reused vanity: 910 W × 850 H × 465 D (owner's tape) -----------------------------------
+// Floor-standing, gloss white, on a plinth: two doors on the left, three drawers on the right, a
+// ceramic top with an integrated rectangular basin, overflow and a single tap hole. Only the three
+// overall sizes are measured; the split between the door bay and the drawer stack, the drawer
+// heights, plinth and top thickness and the basin's size are read off the photos as placeholders.
+// The bottle trap sits in the door bay, so the waste and both water points have to land behind
+// the doors, not behind the drawer stack.
+const VANITY = { w: 0.91, h: 0.85, d: 0.465 };
+const GLOSS = { color: "#f4f4f1", roughness: 0.25 } as const;
+const GLAZE = { color: "#fbfbfa", roughness: 0.1 } as const;
+const VANITY_TOP = 0.03; // placeholder: the rolled edge of the ceramic top
+const PLINTH = 0.1; // placeholder
+const vanityBack = -VANITY.d / 2;
+/** Door bay from the left end to here (facing the vanity), drawer stack beyond: placeholders. */
+const DOOR_BAY = { from: -0.445, to: 0.14 };
+const front = (x0: number, x1: number, y0: number, y1: number): PartSpec => box((x0 + x1) / 2, y0, 0.2065, x1 - x0, y1 - y0, 0.018, GLOSS);
+const vanity: PartSpec[] = [
+  box(0, 0, vanityBack + 0.21, 0.9, PLINTH, 0.42, GLOSS), // plinth, a little behind the fronts
+  box(0, PLINTH, vanityBack + 0.215, 0.9, VANITY.h - VANITY_TOP - PLINTH, 0.43, GLOSS), // carcass
+  front(DOOR_BAY.from, -0.152, 0.105, 0.815), // left door
+  front(-0.148, DOOR_BAY.to, 0.105, 0.815), // second door
+  front(0.145, 0.445, 0.105, 0.325), // bottom drawer
+  front(0.145, 0.445, 0.33, 0.55),
+  front(0.145, 0.445, 0.555, 0.815), // top drawer
+  box(0, VANITY.h - VANITY_TOP, 0, VANITY.w, VANITY_TOP, VANITY.d, GLAZE), // ceramic top
+  box(0, VANITY.h - 0.001, 0.03, 0.47, 0.002, 0.3, { color: "#e3e7e9", roughness: 0.1 }), // basin opening (placeholder size)
+  tube(0, VANITY.h, 0.03, 0.04, 0.002, NICKEL), // plug
+];
+
+// ---- Reused shaving cabinet: 750 W × 620 H × 160 D (owner's tape) ----------------------------
+// Two mirror doors on concealed hinges, white carcass, two adjustable shelves; no light or
+// demister seen. It screws to the wall through wall plugs and is hung last, after the tiles. Its
+// height is a placeholder: the old one hung a little above the tap, not measured.
+const CABINET = { w: 0.75, h: 0.62, d: 0.16, elevation: 1.15 };
+const MIRROR = { color: "#c9d6dc", roughness: 0.05, metalness: 0.6 } as const;
+const shavingCabinet: PartSpec[] = [
+  box(0, CABINET.elevation, -0.003, CABINET.w, CABINET.h, 0.154, GLOSS), // carcass
+  box(-CABINET.w / 4, CABINET.elevation, 0.077, CABINET.w / 2 - 0.003, CABINET.h, 0.006, MIRROR),
+  box(CABINET.w / 4, CABINET.elevation, 0.077, CABINET.w / 2 - 0.003, CABINET.h, 0.006, MIRROR),
+];
+
 export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "bath_sb184_1000gw", label: "Corner bath",
@@ -256,6 +297,22 @@ const toiletSuite: ExactProduct = {
   },
 };
 
+const reusedVanity: ExactProduct = {
+  manufacturer: "", model: "",
+  physicalItem: {
+    label: "Gloss white floor-standing vanity, ceramic top with integrated basin (reused)",
+    notes: "Owner's tape, 5 Oct 2026: 910 W × 850 H × 465 D overall. Photographed: two doors on the left and a stack of three drawers on the right (facing it), on a plinth; ceramic top with a rectangular integrated basin, overflow and one tap hole; one fixed shelf in the door bay, cut round the waste. Existing plumbing: a white plastic bottle trap behind the doors with its waste going down through the cabinet floor, and braided flexible hoses to the mixer. Maker and model not recorded. The door-bay width, drawer heights, plinth height, top thickness and basin size in the model are read off the photos, not measured.",
+  },
+};
+
+const reusedCabinet: ExactProduct = {
+  manufacturer: "", model: "",
+  physicalItem: {
+    label: "Two-door mirror shaving cabinet (reused)",
+    notes: "Owner's tape, 5 Oct 2026: 750 W × 620 H × 160 D. Photographed: two mirror doors on concealed hinges, white carcass, two adjustable shelves and the base; no light or demister seen, so no power drawn for it. Fixing: screws through the back into wall plugs; hung last, once everything else is fitted. Maker, model and mounting height not recorded.",
+  },
+};
+
 export const seedBathroom = (): PlanModel => ({
   name: "Bathroom Concept",
   walls: [
@@ -324,7 +381,10 @@ export const seedBathroom = (): PlanModel => ({
     ...purchasedFittings.flatMap((f) => [f.placement, ...(f.extra ?? [])].filter((p): p is Item_ => !!p).map((p): Item => ({
       ...p, productIdentity: structuredClone(f.product), selectionStatus: "purchased",
     }))),
-    { id: "vanity", kind: "vanity_recorded", x: 1.85, y: 1.7, rotation: 270 },
+    // back to the right wall's finished face, centred 1700 mm from the window wall (proposed)
+    { id: "vanity", kind: "vanity_recorded", x: 1.85, y: 1.7, rotation: 270, productIdentity: structuredClone(reusedVanity), selectionStatus: "reused" },
+    // centred over the vanity, back to the same face; screwed up last, after the tiles
+    { id: "shaving_cabinet", kind: "shaving_cabinet_recorded", x: 2.0, y: 1.7, rotation: 270, productIdentity: structuredClone(reusedCabinet), selectionStatus: "reused" },
     { id: "toilet", kind: "toilet_proxy", x: 1.7, y: 2.6, rotation: 270, productIdentity: structuredClone(toiletSuite), selectionStatus: "reused" },
     { id: "screen", kind: "screen_proposed", x: 0.45, y: 1.2, rotation: 0 },
   ],
@@ -340,7 +400,8 @@ export const bathroomKinds: ProjectKind[] = [
     } satisfies CatalogEntry,
     ...(f.parts.length ? { parts: structuredClone(f.parts) } : {}),
   })),
-  { entry: { kind: "vanity_recorded", label: "Vanity", w: 0.91, d: 0.465, h: 0.85, color: "#b59c7f", category: "bath" } },
+  { entry: { kind: "vanity_recorded", label: "Vanity", w: VANITY.w, d: VANITY.d, h: VANITY.h, color: "#f4f4f1", category: "bath" }, parts: structuredClone(vanity) },
+  { entry: { kind: "shaving_cabinet_recorded", label: "Shaving cabinet", w: CABINET.w, d: CABINET.d, h: CABINET.h, elevation: CABINET.elevation, color: "#c9d6dc", category: "bath" }, parts: structuredClone(shavingCabinet) },
   { entry: { kind: "toilet_proxy", label: "Toilet", w: 0.48, d: 0.7, h: 0.8, color: "#e2ded4", category: "bath" } },
   // owner: fixed glass panel 900 wide × 2000 high, 1200 mm from the window wall (face not stated);
   // workbook: 10 mm clear toughened, stainless wall channel and brace bar
@@ -359,7 +420,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-sequence", author: "human", at: at + 6,
-      text: "Construction order: (1) remove the asbestos wall sheeting first (under the 10 m² homeowner limit: whole, wetted, bagged, no power tools), clean up, then strip the walls to the timber frame and the floor right back to the concrete slab (about 120 mm below the current tile); (2) plumbing and electrical rough-in, with both drains' puddle flanges set, and 6 mm Villaboard lined behind it wall by wall; (3) waterproofing on the slab and walls, then cure; (4) the heating cable, laid by the owner in a snaking pattern and tested by the electrician before the screed; (5) the tiler's own screed and falls, then adhesive and tiles. A thin timber trim panel goes above the tiles later.",
+      text: "Construction order: (1) remove the asbestos wall sheeting first (under the 10 m² homeowner limit: whole, wetted, bagged, no power tools), clean up, then strip the walls to the timber frame and the floor right back to the concrete slab (about 120 mm below the current tile); (2) plumbing and electrical rough-in, with both drains' puddle flanges set, and 6 mm Villaboard lined behind it wall by wall; (3) waterproofing on the slab and walls, then cure; (4) the heating cable, laid by the owner in a snaking pattern and tested by the electrician before the screed; (5) the tiler's own screed and falls, then adhesive and tiles; (6) fit-out, with the reused vanity back in and the shaving cabinet screwed to the wall through wall plugs last, once everything else is fitted. A thin timber trim panel goes above the tiles later.",
     },
     {
       id: "note-tiles", author: "human", at: at + 7,
@@ -380,6 +441,14 @@ export const bathroomNotes = (): Note[] => {
     {
       id: "note-screen", author: "human", at: at + 5,
       text: "Shower screen: fixed glass panel, 900 mm wide × 2000 mm high (owner, 5 Oct 2026; an earlier note said 2100), set 1200 mm from the window wall. Workbook: 10 mm clear toughened, stainless wall channel and brace bar (an earlier note said black clips). Which face the 1200 mm is measured to and where the brace bar fixes are not recorded.",
+    },
+    {
+      id: "note-vanity", author: "human", at: at + 11,
+      text: "Reused vanity and shaving cabinet (owner's tape and photos, 5 Oct 2026). Vanity 910 W × 850 H × 465 D: gloss white, floor-standing on a plinth, two doors on the left and three drawers on the right facing it, ceramic top with an integrated rectangular basin and one tap hole. Inside, a bottle trap behind the doors drops through the cabinet floor, and braided hoses run to the mixer. Shaving cabinet 750 W × 620 H × 160 D: two mirror doors, white carcass, two adjustable shelves, no light; it screws to the wall through wall plugs and goes up last. The only power point in the room now is a double GPO on the wall just right of the basin, a little above the vanity top.",
+    },
+    {
+      id: "note-vanity-open", author: "agent", at: at + 12,
+      text: "Vanity and cabinet, still open: (1) with the vanity's back to the right wall, its drawers are on the toilet side; the waste and both water points must come out behind the doors (about the left 590 mm, facing it, read off the photo), where the bottle trap sits now, not behind the drawer stack; set them with the plumber against the vanity on site. (2) Waste through the floor, as now, or into the wall: not chosen. (3) The shaving cabinet's height (drawn with its bottom at 1150 mm, a placeholder) and whether noggins go in behind the Villaboard for its screws, decided before the board goes up. (4) GPOs: whether the existing one stays or moves, and the new positions including the bidet seat's, are the electrician's. The door bay, drawer, plinth, top and basin sizes in the 3D model are read off the photos, not measured.",
     },
     {
       id: "note-purchased-open", author: "agent", at: at + 4,

@@ -47,6 +47,18 @@ describe("purchased fittings in the sample project", () => {
     expect(model.items.find((i) => i.id === "screen")!.y).toBe(1.2);
   });
 
+  it("draws the reused vanity and shaving cabinet at the owner's sizes, the cabinet above the basin", () => {
+    load();
+    const vanity = catalogByKind("vanity_recorded")!, cabinet = catalogByKind("shaving_cabinet_recorded")!;
+    expect([vanity.w, vanity.h, vanity.d]).toEqual([0.91, 0.85, 0.465]);
+    expect([cabinet.w, cabinet.h, cabinet.d]).toEqual([0.75, 0.62, 0.16]);
+    expect(cabinet.elevation).toBeGreaterThan(vanity.h + 0.13); // clear of the basin mixer
+    const items = store.getState().model.items.filter((i) => i.id === "vanity" || i.id === "shaving_cabinet");
+    expect(items.map((i) => i.selectionStatus)).toEqual(["reused", "reused"]);
+    expect(buildFurniture("vanity_recorded")!.children.length).toBeGreaterThan(5); // doors, drawers, top
+    expect(hasCustomKind("shaving_cabinet_recorded")).toBe(true);
+  });
+
   it("copies printed dimensions only where a label gives them", () => {
     const rail = purchasedFittings.find((f) => f.kind === "towel_rail_vs900hbn")!.size;
     expect([rail.w, rail.d, rail.h]).toEqual([0.142, 0.1, 0.9]);
