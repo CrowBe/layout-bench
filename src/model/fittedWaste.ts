@@ -105,7 +105,8 @@ export function hostWasteFields(source: {
   return source.productSpecification?.fields ?? source.fields ?? {};
 }
 
-export const isDerivedServicePoint = (p: ServicePoint) => p.status === "derived" || p.basis === "derived";
+export const isDerivedServicePoint = (p: ServicePoint) =>
+  p.basis === "derived" && (typeof p.across === "number" || typeof p.out === "number");
 
 /** Same read-only rule for setServicePoint and removeServicePoint. */
 export function derivedServicePointMutation(
@@ -168,7 +169,10 @@ const num = (field: FieldValue | undefined): number | undefined =>
 const sourceText = (field: FieldValue | undefined): string => {
   if (!field) return "unknown";
   const src = field.sources?.[0];
-  const cited = src ? `${src.url}${src.locator ? ` (${src.locator})` : ""}` : field.note ? "" : "no source cited";
+  const carton = field.source && !(field.sources ?? []).length ? field.source : "";
+  const cited = src
+    ? `${src.url}${src.locator ? ` (${src.locator})` : ""}`
+    : carton || (field.note ? "" : "no source cited");
   const status = field.value === null || field.value === undefined ? "unknown" : (field.status ?? "unspecified status");
   return [status, cited, field.note].filter((s) => s && String(s).trim()).join("; ");
 };

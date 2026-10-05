@@ -229,17 +229,11 @@ export function productPlacement(
         ...(point.out?.maxEvidence ? { outMax: point.out.maxEvidence } : {}),
         ...(point.up?.evidence ? { up: point.up.evidence } : {}),
       };
-      const derivedHostFrame = wasteFromHost || point.across?.basis === "derived" || point.out?.basis === "derived";
-      const evidence = evidenceStatus(Object.values(axisEvidence));
       const unresolvedWaste =
         isWaste && !wasteFromHost && across === undefined && out === undefined;
-      const status = derivedHostFrame
-        ? "derived"
-        : unresolvedWaste
-          ? evidence && evidence !== "published"
-            ? evidence
-            : "derived"
-          : (evidence ?? "published");
+      if (unresolvedWaste) return null;
+      const derivedHostFrame = wasteFromHost || point.across?.basis === "derived" || point.out?.basis === "derived";
+      const status = derivedHostFrame ? "derived" : (evidenceStatus(Object.values(axisEvidence)) ?? "published");
       const sourced = [
         source,
         ...Object.values(axisEvidence).map(evidenceText),
@@ -269,7 +263,8 @@ export function productPlacement(
           ? `${sourced}; not converted: ${unconverted.join(", ")}`
           : sourced,
       };
-    });
+    })
+    .filter((p): p is ServicePoint => p !== null);
   return {
     ok: true as const,
     entry,

@@ -19,9 +19,11 @@ import {
   diametersAreLikeForLike,
   fittedWasteProblems,
   hostWasteInHostFrame,
+  isDerivedServicePoint,
   CORNER_HAND_REANCHOR,
 } from "../src/model/fittedWaste";
 import { categoryById, roughInPoints, validateSubmission, axisDisplayText, type FieldValue, type SpecSubmission } from "../src/model/products";
+import { previewProductUpdate } from "../src/model/productUpdates";
 import type { PartSpec } from "../src/three/furniture";
 import type { LibraryProduct } from "../src/model/productLibrary";
 
@@ -207,6 +209,45 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(item("bath_waste").productSpecification?.fields.outletSizeKind?.status).not.toBe("measured");
   });
 
+  it("names a carton-label source on an SDP-40BN size warning", () => {
+    load();
+    const wasteFields = {
+      ...item("bath_waste").productSpecification!.fields,
+      outletDiameter: {
+        value: 0.04,
+        status: "published" as const,
+        source: "carton label",
+        reference: "fixture-centreline" as const,
+        note: "Photographed carton: Dome Pop Short Bath Waste 40mm",
+      },
+      outletSizeKind: {
+        value: "connection" as const,
+        status: "published" as const,
+        source: "carton label",
+        note: "Photographed carton: 40 mm is the pipe connection",
+      },
+    };
+    const bathFields = {
+      ...item("bath").productSpecification!.fields,
+      wasteConnectionDiameter: pub(0.05, { reference: "fixture-centreline" }),
+    };
+    store.setState({
+      model: {
+        ...store.getState().model,
+        items: store.getState().model.items.map((i) => {
+          if (i.id === "bath_waste") return { ...i, productSpecification: { ...i.productSpecification!, fields: wasteFields } };
+          if (i.id === "bath") return { ...i, productSpecification: { ...i.productSpecification!, fields: bathFields } };
+          return i;
+        }),
+      },
+    });
+    const warn = fittedWasteProblems(store.getState().model).find((i) => i.code === "fitted_waste_size")!;
+    expect(warn).toBeDefined();
+    expect(warn.message).toMatch(/carton label/);
+    expect(warn.message).toMatch(/40 mm/);
+    expect(warn.message).toMatch(/connection/);
+  });
+
   it("requires wasteFromCorner for a corner-round bath and does not require end/side", () => {
     const cat = categoryById("bath")!;
     const corner: SpecSubmission = {
@@ -379,12 +420,12 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(fittedWasteProblems(store.getState().model).some((i) => i.code === "fitted_waste_offset")).toBe(false);
   });
 
-  it("does not invent a published host-frame waste axis from incomplete end/side", () => {
+  it("does not lock incomplete end/side waste as a derived conversion", () => {
     const wall = actions.addWall(0, 0, 3, 0, 0.1, 2.4).id as string;
     actions.setWallSide(wall, "right", { existing: { value: 0, status: "measured" }, layers: [] });
     const fields = {
       length: pub(1.675), width: pub(0.75), height: pub(0.45), installation: pub("freestanding"), shape: pub("rectangular"),
-      wasteFromEnd: pub(0.2), wasteEnd: pub("right"),
+      wasteFromEnd: pub(0.2), wasteFromSide: pub(0.375),
     };
     const product: LibraryProduct = {
       id: "incomplete-end-side", category: "bath", manufacturer: "Example Co", model: "Incomplete waste",
@@ -394,11 +435,38 @@ describe("fitted waste vs host waste point (#75)", () => {
     expect(placed.ok).toBe(true);
     const bath = item(placed.id as string);
     const sp = bath.servicePoints?.find((p) => p.id === "waste");
-    expect(sp).toBeDefined();
-    expect(sp!.across).toBeUndefined();
-    expect(sp!.out).toBeUndefined();
-    expect(sp!.status).not.toBe("published");
+    expect(sp?.across).toBeUndefined();
+    expect(sp?.out).toBeUndefined();
+    expect(sp?.status).not.toBe("published");
+    expect(sp?.status).not.toBe("derived");
+    expect(sp?.basis).not.toBe("derived");
+    if (sp) expect(isDerivedServicePoint(sp)).toBe(false);
     expect(hostWasteInHostFrame(bath, catalogByKind, store.getState().model).resolved).toBe(false);
+    const written = actions.setServicePoint(bath.id, {
+      id: "waste", label: "Bath waste", service: "waste", face: "existing",
+      across: 0.1, out: 0.375, status: "proposed",
+    });
+    expect(written.ok).toBe(true);
+    expect(item(bath.id).servicePoints!.find((p) => p.id === "waste")).toMatchObject({
+      across: 0.1, out: 0.375, status: "proposed",
+    });
+    expect(actions.removeServicePoint(bath.id, "waste").ok).toBe(true);
+    expect(item(bath.id).servicePoints?.find((p) => p.id === "waste")).toBeUndefined();
+    const completeFields = { ...fields, wasteEnd: pub("right") };
+    const target = {
+      ...structuredClone(product),
+      id: "incomplete-end-side-v2",
+      revision: { seriesId: product.id, number: 2, parentProductId: product.id },
+      fields: completeFields,
+      roughIn: roughInPoints(categoryById("bath")!, completeFields),
+    };
+    const preview = previewProductUpdate(store.getState().model, target, [bath.id], [product, target]);
+    expect(preview.rows[0].blocked).toBeUndefined();
+    const after = preview.rows[0].after!.servicePoints!.find((p) => p.id === "waste");
+    expect(after?.across).toBeDefined();
+    expect(after?.out).toBeDefined();
+    expect(after?.status).toBe("derived");
+    expect(after?.basis).toBe("derived");
   });
 
   it("resolves a corner-round bath drawn as a box from the wall corner, and placeProduct agrees with fittedWasteProblems", () => {
