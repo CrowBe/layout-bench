@@ -21,7 +21,10 @@ import {
   specRows,
 } from "../src/sheets/stageView";
 import { renderHeatingReview } from "../src/sheets/heating";
-import { productStore, type LibraryProduct } from "../src/model/productLibrary";
+import { productStore, products, type LibraryProduct } from "../src/model/productLibrary";
+import { requiredReviewKeys } from "../src/model/productReview";
+import { categoryById } from "../src/model/products";
+import { unknownMeasurementFields } from "../src/model/productMeasurements";
 import type { FieldValue } from "../src/model/products";
 import {
   heatingCableSpecification,
@@ -400,11 +403,12 @@ const THERMO_CURRENT = 16;
 const THERMO_VOLTAGE_MIN = 100;
 const THERMO_VOLTAGE_MAX = 240;
 
-const carton = (value: number, note: string): FieldValue => ({
+const carton = (value: number | string, note: string, reference?: FieldValue["reference"]): FieldValue => ({
   value,
   status: "published",
   source: CARTON_LABEL_SOURCE,
   note: `SCK0765L in-screed heating cable carton: ${note}`,
+  ...(reference ? { reference } : {}),
 });
 
 const libraryProduct = (
@@ -423,6 +427,45 @@ const libraryProduct = (
 });
 
 describe("heating-cable brief as the single source of truth (#68)", () => {
+  const attachCableSnapshot = (spec: ReturnType<typeof heatingCableSpecification>) => {
+    const r = room();
+    store.setState({
+      model: {
+        ...store.getState().model,
+        rooms: store.getState().model.rooms.map((x) =>
+          x.id === r.id ? { ...x, heating: { ...structuredClone(x.heating!), cableSpecification: spec } } : x,
+        ),
+      },
+    });
+  };
+  const attachThermoSnapshot = (spec: ReturnType<typeof thermostatSpecificationOf>) => {
+    const r = room();
+    store.setState({
+      model: {
+        ...store.getState().model,
+        rooms: store.getState().model.rooms.map((x) =>
+          x.id === r.id ? { ...x, heating: { ...structuredClone(x.heating!), thermostatSpecification: spec } } : x,
+        ),
+      },
+    });
+  };
+  const reviewAndAccept = (requestId: string) => {
+    const req = productStore.getState().requests.find((r) => r.id === requestId)!;
+    for (const key of requiredReviewKeys(req)) {
+      expect(products.review(requestId, key, "accepted").ok).toBe(true);
+    }
+    const accepted = products.accept(requestId);
+    expect(accepted.ok).toBe(true);
+    return productStore.getState().products.find((p) => p.id === accepted.productId)!;
+  };
+  const acceptCable = (fields: Record<string, FieldValue>, label = "SCK0765L carton") => {
+    const cat = categoryById("heating-cable")!;
+    const id = products.openMeasurements("heating-cable", { label }, { ...unknownMeasurementFields(cat), ...fields }).requestId as string;
+    const submitted = products.submitMeasurements(id);
+    expect(submitted, submitted.summary).toMatchObject({ ok: true });
+    return reviewAndAccept(id);
+  };
+
   it("fills length, output and coverage from the recorded SCK0765L snapshot and does not copy them onto the heating record", () => {
     setup();
     const spec = heatingCableSpecification();
@@ -430,10 +473,8 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(spec.fields.totalPower.value).toBe(LABEL_OUTPUT);
     expect(spec.fields.coverageAreaMin.value).toBe(LABEL_COVERAGE_MIN);
     expect(spec.fields.coverageAreaMax.value).toBe(LABEL_COVERAGE_MAX);
-    const stored = structuredClone(room().heating);
-    expect(actions.setRoomHeating(room().id, { cableSpecification: spec, length: published(3) }).ok).toBe(false);
-    expect(room().heating).toEqual(stored);
-    expect(actions.setRoomHeating(room().id, { cableSpecification: spec }).ok).toBe(true);
+    expect(actions.setRoomHeating(room().id, { cableSpecification: spec } as never).ok).toBe(false);
+    attachCableSnapshot(spec);
     expect(room().heating?.length).toBeUndefined();
     expect(room().heating?.ratedOutput).toBeUndefined();
     const cable = heatingCableFigures(room().heating);
@@ -449,9 +490,46 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(renderHeatingReview(room())).not.toMatch(/42\.5 m · modelled/);
   });
 
-  it("locks every writer of length and output while the brief holds a number, including null-clear", () => {
+  it("writes the snapshot from an accepted product, refuses unknown or wrong-category ids, and flags dangling or mismatched refs", () => {
     setup();
-    expect(actions.setRoomHeating(room().id, { cableSpecification: heatingCableSpecification() }).ok).toBe(true);
+    const fields = {
+      cableLength: carton(LABEL_LENGTH, "heated length 42.5 m"),
+      totalPower: carton(LABEL_OUTPUT, "765 W"),
+      coverageAreaMin: carton(LABEL_COVERAGE_MIN, "coverage minimum"),
+      coverageAreaMax: carton(LABEL_COVERAGE_MAX, "coverage maximum"),
+    };
+    productStore.setState({ products: [
+      libraryProduct("heating-cable", fields, "live-cable"),
+      libraryProduct("thermostat", { ratedCurrent: carton(THERMO_CURRENT, "16 A") }, "live-stat"),
+    ] });
+    expect(actions.setRoomHeating(room().id, { cableProductId: "no-such-product" }).ok).toBe(false);
+    expect(actions.setRoomHeating(room().id, { cableProductId: "live-stat" }).ok).toBe(false);
+    expect(actions.setRoomHeating(room().id, { thermostatProductId: "live-cable" }).ok).toBe(false);
+    expect(actions.setRoomHeating(room().id, { cableProductId: "live-cable" }).ok).toBe(true);
+    expect(room().heating?.cableProductId).toBe("live-cable");
+    expect(room().heating?.cableSpecification?.fields.cableLength.value).toBe(LABEL_LENGTH);
+    expect(room().heating?.cableSpecification?.fields.totalPower.value).toBe(LABEL_OUTPUT);
+    expect(codes()).not.toContain("heating_product_unresolved");
+    expect(codes()).not.toContain("heating_product_snapshot_mismatch");
+    const heating = structuredClone(room().heating)!;
+    heating.cableSpecification = { ...heating.cableSpecification!, fields: { ...heating.cableSpecification!.fields, cableLength: carton(3, "stale snapshot 3 m") } };
+    store.setState({
+      model: { ...store.getState().model, rooms: store.getState().model.rooms.map((x) => x.id === room().id ? { ...x, heating } : x) },
+    });
+    expect(heatingCableFigures(room().heating).length.value).toBe(LABEL_LENGTH);
+    expect(codes()).toContain("heating_product_snapshot_mismatch");
+    productStore.setState({ products: [] });
+    expect(codes()).toContain("heating_product_unresolved");
+    expect(heatingCableFigures(room().heating).length.value).toBe(3);
+  });
+
+  it("locks numeric length/output writes while the brief holds a number, but allows null-clear of a shadowed record value", () => {
+    setup();
+    productStore.setState({ products: [libraryProduct("heating-cable", {
+      cableLength: carton(LABEL_LENGTH, "heated length 42.5 m"),
+      totalPower: carton(LABEL_OUTPUT, "765 W"),
+    }, "lock-cable")] });
+    expect(actions.setRoomHeating(room().id, { cableProductId: "lock-cable" }).ok).toBe(true);
     const patch = { length: published(1) };
     const message = heatingProductWriteGuard(room().heating, patch);
     expect(message).toMatch(/length is locked/);
@@ -459,39 +537,119 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(refused.ok).toBe(false);
     expect(refused.summary).toBe(message);
     expect(actions.setRoomHeating(room().id, { ratedOutput: published(100) }).ok).toBe(false);
-    expect(actions.setRoomHeating(room().id, { length: null }).ok).toBe(false);
     expect(heatingProductLocks(room().heating).length).toBe(true);
+    expect(room().heating?.length).toBeUndefined();
+    expect(actions.setRoomHeating(room().id, { length: null }).ok).toBe(true);
     expect(room().heating?.length).toBeUndefined();
   });
 
-  it("re-reads a live library product so a field edit updates every check without copying onto the record", () => {
+  it("refuses to attach a brief while the record holds a numeric length, and clears that value when asked", () => {
     setup();
-    const fields = {
+    productStore.setState({ products: [libraryProduct("heating-cable", {
       cableLength: carton(LABEL_LENGTH, "heated length 42.5 m"),
+      totalPower: carton(LABEL_OUTPUT, "765 W"),
+    }, "attach-cable")] });
+    expect(actions.setRoomHeating(room().id, { length: published(3) }).ok).toBe(true);
+    const refused = actions.setRoomHeating(room().id, { cableProductId: "attach-cable" });
+    expect(refused.ok).toBe(false);
+    expect(refused.summary).toMatch(/numeric length/);
+    expect(room().heating?.length?.value).toBe(3);
+    expect(actions.setRoomHeating(room().id, { cableProductId: "attach-cable", length: null }).ok).toBe(true);
+    expect(room().heating?.length).toBeUndefined();
+    expect(heatingCableFigures(room().heating).length.value).toBe(LABEL_LENGTH);
+  });
+
+  it("locks manufacturer/model only when the referenced product itself has a non-empty value", () => {
+    setup();
+    attachCableSnapshot(heatingCableSpecification());
+    expect(heatingCableFigures(room().heating).model).toBe("SCK0765L");
+    expect(heatingProductLocks(room().heating).model).toBe(true);
+    expect(heatingProductLocks(room().heating).manufacturer).toBe(false);
+    productStore.setState({ products: [libraryProduct("heating-cable", {
+      cableLength: carton(LABEL_LENGTH, "heated length 42.5 m"),
+    }, "named-cable")] });
+    expect(actions.setRoomHeating(room().id, { cableProductId: "named-cable" }).ok).toBe(true);
+    expect(heatingCableFigures(room().heating).manufacturer).toBe("Test Cable Co");
+    expect(heatingCableFigures(room().heating).model).toBe("SCK0765L");
+    expect(heatingProductLocks(room().heating).manufacturer).toBe(true);
+    expect(heatingProductLocks(room().heating).model).toBe(true);
+    expect(actions.setRoomHeating(room().id, { manufacturer: "Other" }).ok).toBe(false);
+  });
+
+  it("retargets heating to a real catalogue revision, rewrites the snapshot, and keeps those figures when the library is empty", () => {
+    setup();
+    const v1Fields = {
+      cableType: carton("in-screed", "in-screed"),
+      cableLength: carton(LABEL_LENGTH, "heated length 42.5 m", "fixture-end"),
       totalPower: carton(LABEL_OUTPUT, "765 W"),
       coverageAreaMin: carton(LABEL_COVERAGE_MIN, "coverage minimum"),
       coverageAreaMax: carton(LABEL_COVERAGE_MAX, "coverage maximum"),
       ratedCurrent: carton(LABEL_CURRENT, "3.2 A"),
       ratedVoltage: carton(LABEL_VOLTAGE, "240 V"),
     };
-    productStore.setState({ products: [libraryProduct("heating-cable", fields, "live-cable")] });
-    expect(actions.setRoomHeating(room().id, { cableProductId: "live-cable" }).ok).toBe(true);
+    const v1 = acceptCable(v1Fields);
+    expect(actions.setRoomHeating(room().id, { cableProductId: v1.id }).ok).toBe(true);
     expect(heatingCableFigures(room().heating).length.value).toBe(LABEL_LENGTH);
-    expect(codes()).not.toContain("heating_length_exceeded");
-    const heatingBefore = structuredClone(room().heating);
-    productStore.setState({
-      products: [libraryProduct("heating-cable", { ...fields, cableLength: carton(3, "revised heated length 3 m") }, "live-cable")],
-    });
-    expect(room().heating).toEqual(heatingBefore);
-    expect(heatingCableFigures(room().heating).length.value).toBe(3);
-    expect(codes()).toContain("heating_length_exceeded");
+    const revised = products.reviseProduct(v1.id).requestId as string;
+    const v2Length = 40;
+    const v2Output = 720;
+    const v2Min = 3.5;
+    const v2Max = 4.8;
+    expect(products.recordMeasurement(revised, "cableLength", carton(v2Length, "revised heated length 40 m", "fixture-end")).ok).toBe(true);
+    expect(products.recordMeasurement(revised, "totalPower", carton(v2Output, "revised 720 W")).ok).toBe(true);
+    expect(products.recordMeasurement(revised, "coverageAreaMin", carton(v2Min, "revised coverage minimum")).ok).toBe(true);
+    expect(products.recordMeasurement(revised, "coverageAreaMax", carton(v2Max, "revised coverage maximum")).ok).toBe(true);
+    expect(products.submitMeasurements(revised).ok).toBe(true);
+    const v2 = reviewAndAccept(revised);
+    expect(v2.id).not.toBe(v1.id);
+    expect(v2.revision?.parentProductId).toBe(v1.id);
+    expect(room().heating?.cableProductId).toBe(v2.id);
+    expect(room().heating?.cableSpecification?.fields.cableLength.value).toBe(v2Length);
     expect(room().heating?.length).toBeUndefined();
+    const e = heatingEvidence(room());
+    expect(e.cable.length.value).toBe(v2Length);
+    expect(e.cable.ratedOutput.value).toBe(v2Output);
+    expect(e.cable.coverageMin.value).toBe(v2Min);
+    expect(e.cable.coverageMax.value).toBe(v2Max);
+    expect(e.cable.spacingMin.value).toBe(Math.round((v2Min / v2Length) * 1e4) / 1e4);
+    expect(e.cable.spacingMax.value).toBe(Math.round((v2Max / v2Length) * 1e4) / 1e4);
+    expect(e.problems.some((p) => p.code === "heating_length_exceeded")).toBe(false);
+    const html = renderHeatingReview(room());
+    expect(html).toMatch(/40 m · published/);
+    expect(html).toMatch(/720 W/);
+    const cable = catalogue(store.getState().model).elements.find((el) => el.type === "heating")!;
+    expect(specRows(store.getState().model, cable)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ property: "product length (m)", value: String(v2Length), status: "published" }),
+      expect.objectContaining({ property: "rated output (W)", value: String(v2Output), status: "published" }),
+      expect.objectContaining({ property: "coverage min (m²)", value: String(v2Min), status: "published" }),
+    ]));
+    const payload = { heating: room().heating, ...heatingEvidence(room()) };
+    expect(payload.cable.length.value).toBe(v2Length);
+    expect(payload.cable.ratedOutput.value).toBe(v2Output);
+    expect(payload.cable.coverageMin.value).toBe(v2Min);
+    expect(payload.cable.spacingMin.value).toBe(Math.round((v2Min / v2Length) * 1e4) / 1e4);
+    actions.undo();
+    expect(room().heating?.cableProductId).toBe(v1.id);
+    expect(heatingCableFigures(room().heating).length.value).toBe(LABEL_LENGTH);
+    const preview = actions.previewProductRevision(v2.id, []);
+    expect(preview).toBeTruthy();
+    const applied = actions.applyProductRevision(preview!);
+    expect(applied.ok).toBe(true);
+    expect(applied.summary).toMatch(/Heating on 1 room/);
+    expect(room().heating?.cableProductId).toBe(v2.id);
+    const snapshot = structuredClone(room().heating?.cableSpecification);
+    productStore.setState({ products: [] });
+    expect(heatingCableFigures(room().heating).length.value).toBe(v2Length);
+    expect(heatingCableFigures(room().heating).ratedOutput.value).toBe(v2Output);
+    expect(heatingCableFigures(room().heating).coverageMin.value).toBe(v2Min);
+    expect(heatingEvidence(room()).cable.spacingMin.value).toBe(Math.round((v2Min / v2Length) * 1e4) / 1e4);
+    expect(room().heating?.cableSpecification).toEqual(snapshot);
+    expect(codes()).toContain("heating_product_unresolved");
   });
 
   it("prefers the live library product over a travelling snapshot, and the snapshot when no id is set", () => {
     setup();
-    const snap = heatingCableSpecification();
-    expect(actions.setRoomHeating(room().id, { cableSpecification: snap }).ok).toBe(true);
+    attachCableSnapshot(heatingCableSpecification());
     expect(heatingCableFigures(room().heating).length.value).toBe(LABEL_LENGTH);
     productStore.setState({
       products: [libraryProduct("heating-cable", { cableLength: carton(10, "library 10 m") }, "other-cable")],
@@ -501,18 +659,9 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(heatingCableFigures(room().heating).length.value).toBe(10);
   });
 
-  it("leaves an existing heating-record length in place when a brief is attached, but reads the brief", () => {
-    setup();
-    expect(actions.setRoomHeating(room().id, { length: published(3) }).ok).toBe(true);
-    expect(actions.setRoomHeating(room().id, { cableSpecification: heatingCableSpecification() }).ok).toBe(true);
-    expect(room().heating?.length?.value).toBe(3);
-    expect(heatingCableFigures(room().heating).length.value).toBe(LABEL_LENGTH);
-    expect(codes()).not.toContain("heating_length_exceeded");
-  });
-
   it("labels derived spacing and modelled route length and never stores them as published", () => {
     setup();
-    expect(actions.setRoomHeating(room().id, { cableSpecification: heatingCableSpecification() }).ok).toBe(true);
+    attachCableSnapshot(heatingCableSpecification());
     const e = heatingEvidence(room());
     expect(e.cable.spacingMin).toMatchObject({ kind: "derived", formula: SPACING_FROM_COVERAGE_FORMULA });
     expect(e.figures.planRouteLength).toMatchObject({ kind: "modelled", value: 3.4 });
@@ -527,15 +676,15 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
       expect.objectContaining({ property: "product length (m)", value: String(LABEL_LENGTH), status: "published" }),
       expect.objectContaining({ property: "plan route length (m)", value: "3.4", status: "modelled" }),
       expect.objectContaining({ property: "derived spacing min (mm)", status: "derived" }),
+      expect.objectContaining({ property: "model", value: "SCK0765L" }),
+      expect.objectContaining({ property: "cable depth datum", status: "named" }),
     ]));
   });
 
   it("does not compare unlike quantities: current to current, voltage to voltage range", () => {
     setup();
-    expect(actions.setRoomHeating(room().id, {
-      cableSpecification: heatingCableSpecification(),
-      thermostatSpecification: thermostatSpecificationOf(),
-    }).ok).toBe(true);
+    attachCableSnapshot(heatingCableSpecification());
+    attachThermoSnapshot(thermostatSpecificationOf());
     const cable = heatingCableFigures(room().heating);
     const thermo = thermostatFigures(room().heating);
     expect(cable.ratedCurrent.value).toBe(LABEL_CURRENT);
@@ -566,14 +715,19 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(current.message).not.toMatch(/765\s*W/);
   });
 
-  it("keeps the IP-vs-location requirement when location is unknown and does not decide suitability", () => {
+  it("keeps the IP-vs-location requirement when location or its source is missing and does not invent a source", () => {
     setup();
-    expect(actions.setRoomHeating(room().id, { thermostatSpecification: thermostatSpecificationOf() }).ok).toBe(true);
+    attachThermoSnapshot(thermostatSpecificationOf());
     const missing = heatingProblems(room()).find((p) => p.code === "heating_ip_location")!;
     expect(missing.message).toMatch(/IP21/);
     expect(missing.message).toMatch(/remains required/);
     expect(missing.message).toMatch(/electrician decides/i);
     expect(missing.message).toMatch(/No compliance approval/);
+    expect(actions.setRoomHeating(room().id, {
+      thermostatLocation: { description: "Hallway next to the light switch" },
+    }).ok).toBe(true);
+    expect(room().heating?.thermostatLocation?.source).toBeUndefined();
+    expect(heatingProblems(room()).find((p) => p.code === "heating_ip_location")!.message).toMatch(/remains required/);
     expect(actions.setRoomHeating(room().id, {
       thermostatLocation: { description: "Hallway next to the light switch", source: "Owner, 5 Oct 2026", kind: "outside-wet-room" },
     }).ok).toBe(true);
@@ -591,9 +745,7 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
 
   it("withholds coverage and current comparisons when those brief numbers are absent", () => {
     setup();
-    expect(actions.setRoomHeating(room().id, {
-      cableSpecification: { category: "heating-cable", acceptedAt: 1, fields: { cableLength: carton(LABEL_LENGTH, "length only") } },
-    }).ok).toBe(true);
+    attachCableSnapshot({ category: "heating-cable", acceptedAt: 1, fields: { cableLength: carton(LABEL_LENGTH, "length only") } });
     expect(codes()).toContain("heating_coverage_unknown");
     expect(codes()).not.toContain("heating_coverage_range");
     expect(codes()).toContain("heating_current_unknown");
@@ -634,18 +786,19 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(e.cable.length.kind).toBe("published");
     expect(e.problems.map((p) => p.code)).toContain("heating_route_length_unknown");
     expect(e.problems.map((p) => p.code)).not.toContain("heating_length_exceeded");
+    expect(e.problems.map((p) => p.code)).toContain("heating_coverage_range");
+    expect(e.problems.find((p) => p.code === "heating_coverage_range")?.message).toMatch(/availableArea/);
     expect(e.problems.find((p) => p.code === "heating_ip_location")?.message).toMatch(/IP21/);
     expect(e.problems.find((p) => p.code === "heating_ip_location")?.message).toMatch(/outside a wet room/);
-    const xs = path.map((p) => p.x), ys = path.map((p) => p.y);
-    const envelope = (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
-    expect(envelope).toBeGreaterThanOrEqual(LABEL_COVERAGE_MIN);
-    expect(envelope).toBeLessThanOrEqual(LABEL_COVERAGE_MAX);
+    const envelope = 14 * 0.1 * 2.74;
     expect(e.pathEnvelopeArea).toBeCloseTo(envelope, 6);
     expect(e.minimumNonAdjacentSpacing).toBeCloseTo(PROPOSED_CABLE_SPACING_M, 6);
     expect(e.minimumNonAdjacentSpacing!).toBeGreaterThanOrEqual(LABEL_SPACING_MIN - 1e-8);
     expect(e.minimumNonAdjacentSpacing!).toBeLessThanOrEqual(LABEL_SPACING_MAX + 1e-8);
+    expect(sample.notes ?? demoProject().notes).toBeDefined();
     const original = structuredClone(sample.heating);
     store.setState({ model: demoProject().model, undoStack: [] });
+    expect(demoProject().notes.some((n) => /zero slack/.test(n.text))).toBe(true);
     actions.setRoomFloor(room().id, {
       layers: room().floorBuildUp!.layers.map((l) => l.id === "floor_screed" ? { ...l, thickness: proposed(0.04) } : l),
     });

@@ -11,8 +11,9 @@ import {
   confirmedNumber,
   heatingCableFigures,
   heatingLibrary,
+  heatingSnapshotsDisagree,
   SPACING_FROM_COVERAGE_FORMULA,
-  SPACING_FROM_COVERAGE_RATIONALE,
+  spacingFromCoverageRationale,
   thermostatFigures,
   validThermostatLocation,
   type HeatingFigure,
@@ -23,9 +24,11 @@ export {
   heatingCableFields,
   heatingProductLocks,
   heatingProductWriteGuard,
-  thermostatFigures,
+  specificationFromProduct,
   SPACING_FROM_COVERAGE_FORMULA,
   SPACING_FROM_COVERAGE_RATIONALE,
+  spacingFromCoverageRationale,
+  thermostatFigures,
 } from "./heatingProduct";
 
 /** Cable centre is this far above the bottom face of the selected screed (top of the layer below). */
@@ -73,6 +76,17 @@ const segments = (path: Pt[]) =>
     b,
     length: Math.hypot(b.x - path[i].x, b.y - path[i].y),
   }));
+/** Minimum distance between non-adjacent path segments. One helper for evidence and heating_spacing_derived. */
+export function minimumNonAdjacentSpacing(path: Pt[]): number | undefined {
+  const segs = segments(path);
+  let d: number | undefined;
+  for (let i = 0; i < segs.length; i++)
+    for (let j = i + 2; j < segs.length; j++) {
+      const x = segDist(segs[i].a, segs[i].b, segs[j].a, segs[j].b);
+      d = d === undefined ? x : Math.min(d, x);
+    }
+  return d === undefined ? undefined : quantize(d);
+}
 export const heatingZones = (room: Room): Rect[] =>
   (room.heating?.zoneIds ?? []).flatMap<Rect>((id) =>
     id === room.id
@@ -306,12 +320,7 @@ export function heatingEvidence(room: Room, library?: LibraryProduct[]) {
     zones = heatingZones(room);
   const section = heatingSection(room);
   const { planRouteLength, routeLength } = routeLengths(room, section);
-  let separation: number | undefined;
-  for (let i = 0; i < segs.length; i++)
-    for (let j = i + 2; j < segs.length; j++) {
-      const d = segDist(segs[i].a, segs[i].b, segs[j].a, segs[j].b);
-      separation = separation === undefined ? d : Math.min(separation, d);
-    }
+  const separation = minimumNonAdjacentSpacing(h?.path ?? []);
   const boundary = union(zones).boundary;
   let edgeDistance: number | undefined;
   let keepoutDistance: number | undefined;
@@ -404,10 +413,10 @@ export function heatingEvidence(room: Room, library?: LibraryProduct[]) {
       wallSetback: WALL_SETBACK_DATUM,
     },
     coverageNote:
-      "Zone footprints excluding entered keep-outs are not verified heat coverage. Drawn-path envelope area is modelled from the polyline, not a manufacturer coverage figure.",
+      "Coverage-range check uses availableArea (zone footprints excluding entered keep-outs), the same resolver as evidence. That area is not verified heat coverage. Drawn-path envelope area is modelled from the polyline AABB and is not used for the coverage-range check.",
     lengthNote: "Plan route length is the XY projection (modelled). Spatial route length follows the sampled cable profile (modelled) and drives confirmed product balance only when the whole profile resolves. Product length comes from the referenced brief. Unsupplied cold tails and connections are excluded.",
     sectionNote: `Sampled profile at vertices, plane boundaries and interval midpoints. Cable centre is measured from the ${CABLE_DEPTH_DATUM}. Entered screed thickness applies throughout the route; local screed top follows entered finished planes minus layers above. Trade must verify variable thickness, substrate and slope.`,
-    spacingNote: `${SPACING_FROM_COVERAGE_FORMULA}: ${SPACING_FROM_COVERAGE_RATIONALE}`,
+    spacingNote: `${SPACING_FROM_COVERAGE_FORMULA}: ${spacingFromCoverageRationale(cable.coverageMin.kind, cable.length.kind)}`,
     section,
     problems: heatingProblems(room, section, lib),
   };
@@ -428,6 +437,34 @@ export function heatingProblems(room: Room, section = heatingSection(room), libr
     "heating_signoff",
     "Proposed route only: manufacturer and licensed electrician must review cable identity, length, output, bend radius, spacing, exclusions, cover, sensor, cold tails, waterproofing and electrical installation. No compliance approval. No electrical approval is implied.",
   );
+  if (h.cableProductId) {
+    const live = lib.find((p) => p.id === h.cableProductId);
+    if (!live || live.category !== "heating-cable") {
+      add(
+        "heating_product_unresolved",
+        `cableProductId ${h.cableProductId} is not an accepted heating-cable in this library. Checks use the travelling snapshot if present; they do not invent a product.`,
+      );
+    } else if (heatingSnapshotsDisagree(live, h.cableSpecification)) {
+      add(
+        "heating_product_snapshot_mismatch",
+        `Live heating-cable ${live.id} disagrees with the travelling snapshot. Checks use the live library product.`,
+      );
+    }
+  }
+  if (h.thermostatProductId) {
+    const live = lib.find((p) => p.id === h.thermostatProductId);
+    if (!live || live.category !== "thermostat") {
+      add(
+        "heating_product_unresolved",
+        `thermostatProductId ${h.thermostatProductId} is not an accepted thermostat in this library. Checks use the travelling snapshot if present; they do not invent a product.`,
+      );
+    } else if (heatingSnapshotsDisagree(live, h.thermostatSpecification)) {
+      add(
+        "heating_product_snapshot_mismatch",
+        `Live thermostat ${live.id} disagrees with the travelling snapshot. Checks use the live library product.`,
+      );
+    }
+  }
   const unknown: string[] = [];
   if (!cable.manufacturer) unknown.push("manufacturer");
   if (!cable.model) unknown.push("model");
@@ -551,12 +588,12 @@ export function heatingProblems(room: Room, section = heatingSection(room), libr
       `Proposed spatial route (sampled profile, modelled) ${routeLength.toFixed(4)} m exceeds confirmed cable length ${cable.length.value} m (${cable.length.kind}, ${cable.length.origin}${cable.length.source ? `, ${cable.length.source}` : ""}). Do not cut or shorten a cable without manufacturer instructions.`,
       "error",
     );
-  const envelope = pathEnvelopeArea(h.path);
-  if (envelope !== undefined && typeof cable.coverageMin.value === "number" && typeof cable.coverageMax.value === "number") {
-    if (envelope + EPS < cable.coverageMin.value || envelope - EPS > cable.coverageMax.value) {
+  const availableArea = union(zones, h.keepouts).area;
+  if (typeof cable.coverageMin.value === "number" && typeof cable.coverageMax.value === "number") {
+    if (availableArea + EPS < cable.coverageMin.value || availableArea - EPS > cable.coverageMax.value) {
       add(
         "heating_coverage_range",
-        `Drawn-path envelope ${envelope} m² (modelled, axis-aligned polyline box, not heat coverage) is outside the brief coverage range ${cable.coverageMin.value}–${cable.coverageMax.value} m² (${cable.coverageMin.kind}, ${cable.coverageMin.origin}${cable.coverageMin.source ? `, ${cable.coverageMin.source}` : ""}).`,
+        `Zone area excluding entered keep-outs ${availableArea} m² (availableArea, same resolver as evidence; not a laid-cable heat-coverage model) is outside the brief coverage range ${cable.coverageMin.value}–${cable.coverageMax.value} m² (${cable.coverageMin.kind}, ${cable.coverageMin.origin}${cable.coverageMin.source ? `, ${cable.coverageMin.source}` : ""}).`,
       );
     }
   } else if (h.path.length >= 2 && (cable.coverageMin.value === undefined || cable.coverageMax.value === undefined)) {
@@ -565,15 +602,7 @@ export function heatingProblems(room: Room, section = heatingSection(room), libr
       "Coverage-range check remains pending: the heating-cable brief has no numeric coverage area. No comparison is made.",
     );
   }
-  const drawnSpacing = (() => {
-    let d: number | undefined;
-    for (let i = 0; i < segs.length; i++)
-      for (let j = i + 2; j < segs.length; j++) {
-        const x = segDist(segs[i].a, segs[i].b, segs[j].a, segs[j].b);
-        d = d === undefined ? x : Math.min(d, x);
-      }
-    return d;
-  })();
+  const drawnSpacing = minimumNonAdjacentSpacing(h.path);
   if (
     drawnSpacing !== undefined &&
     typeof cable.spacingMin.value === "number" &&
@@ -582,7 +611,7 @@ export function heatingProblems(room: Room, section = heatingSection(room), libr
   ) {
     add(
       "heating_spacing_derived",
-      `Drawn minimum non-adjacent spacing ${(drawnSpacing * 1000).toFixed(1)} mm (modelled from the path) is outside the derived range ${(cable.spacingMin.value * 1000).toFixed(1)}–${(cable.spacingMax.value * 1000).toFixed(1)} mm (${SPACING_FROM_COVERAGE_FORMULA}; ${SPACING_FROM_COVERAGE_RATIONALE}). Not a manufacturer spacing instruction.`,
+      `Drawn minimum non-adjacent spacing ${(drawnSpacing * 1000).toFixed(1)} mm (modelled from the path) is outside the derived range ${(cable.spacingMin.value * 1000).toFixed(1)}–${(cable.spacingMax.value * 1000).toFixed(1)} mm (${SPACING_FROM_COVERAGE_FORMULA}; ${spacingFromCoverageRationale(cable.coverageMin.kind, cable.length.kind)}). Not a manufacturer spacing instruction.`,
     );
   }
   const describe = (f: { quantity: string; value?: number | string; kind: string; origin?: string; source?: string; unit?: string }) =>
@@ -620,7 +649,7 @@ export function heatingProblems(room: Room, section = heatingSection(room), libr
   const ip = thermostat.ingressProtection;
   const location = h.thermostatLocation;
   const ipText = ip?.value ? `printed ${ip.value} (${ip.kind}${ip.source ? `, ${ip.source}` : ""})` : "printed IP code unknown";
-  if (!location) {
+  if (!location || !location.source?.trim()) {
     add(
       "heating_ip_location",
       `Thermostat ${ipText} cannot be compared to a plan location until a location is entered with its source. The IP-vs-location check remains required. The electrician decides suitability. No compliance approval.`,

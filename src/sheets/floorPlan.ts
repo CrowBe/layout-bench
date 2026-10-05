@@ -22,7 +22,7 @@ const SCALES = [10, 20, 25, 50, 100, 200];
 /** Status tags printed after every value; the legend spells them out. */
 export const TAGS: Record<string, string> = {
   "site-confirmed": "SC", measured: "M", published: "PUB", proposed: "P", estimated: "E",
-  derived: "DER", modelled: "MOD", entered: "ENT", defaulted: "DEF", unknown: "?",
+  derived: "DER", modelled: "MOD", entered: "ENT", defaulted: "DEF", named: "NAM", unknown: "?",
 };
 export const tag = (status: string | undefined) => TAGS[status ?? "unknown"] ?? "?";
 

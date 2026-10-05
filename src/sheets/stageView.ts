@@ -262,7 +262,11 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
       if (f.value === undefined) return { value: "?", status: "unknown" as RowStatus, ...(source ? { source } : {}), ...(f.datum ? { datum: f.datum } : {}), missing: [f.note ?? f.quantity] };
       return { value: asMm ? mm(f.value) : String(f.value), status, ...(source ? { source } : {}), ...(f.datum ? { datum: f.datum } : {}) };
     };
-    for (const property of ["manufacturer", "model", "productSource", "requirements"] as const) row(property, { value: h[property] || "?", status: h[property] ? "entered" : "unknown" });
+    for (const property of ["manufacturer", "model"] as const) {
+      const value = e.cable[property];
+      row(property, { value: value || "?", status: value ? "published" : "unknown" });
+    }
+    for (const property of ["productSource", "requirements"] as const) row(property, { value: h[property] || "?", status: h[property] ? "entered" : "unknown" });
     row("product length (m)", fig(e.cable.length));
     row("rated output (W)", fig(e.cable.ratedOutput));
     row("coverage min (m²)", fig(e.cable.coverageMin));
@@ -276,8 +280,8 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     row("thermostat voltage max (V)", fig(e.thermostat.voltageMax));
     row("thermostat printed IP", { value: e.thermostat.ingressProtection?.value || "?", status: (TAGS[e.thermostat.ingressProtection?.kind ?? ""] ? e.thermostat.ingressProtection!.kind : "unknown") as RowStatus, source: e.thermostat.ingressProtection?.source ?? e.thermostat.ingressProtection?.note });
     for (const property of ["minSpacing", "edgeClearance", "depthFromBottom"] as const) row(`${property} (mm)`, qRow(h[property]));
-    row("cable depth datum", { value: e.datums.cableDepth, status: "entered" });
-    row("wall setback datum", { value: e.datums.wallSetback, status: "entered" });
+    row("cable depth datum", { value: e.datums.cableDepth, status: "named" });
+    row("wall setback datum", { value: e.datums.wallSetback, status: "named" });
     row("plan route length (m)", fig(e.figures.planRouteLength));
     row("spatial route length, sampled profile (m)", fig(e.figures.spatialRouteLength));
     row("remaining confirmed product length (m)", fig(e.figures.remainingProductLength));

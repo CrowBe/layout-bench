@@ -158,7 +158,8 @@ export type ThermostatLocationKind = (typeof THERMOSTAT_LOCATION_KINDS)[number];
 /** User-entered thermostat location. Kind is not inferred from the IP code. */
 export interface ThermostatLocation {
   description: string;
-  source: string;
+  /** Absent or blank until a real source is entered; the IP-vs-location check stays required. */
+  source?: string;
   /** Absent = unknown; the IP-vs-location check stays required. */
   kind?: ThermostatLocationKind;
 }

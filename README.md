@@ -594,11 +594,17 @@ override. Without a partner origin, everything else in the app still works.
 Heating planning (#8, #68) uses the same `room.heating` record in the room Inspector, 2D plan,
 WebMCP (`set_room_heating`, `get_room_heating`), printable review and selected construction-stage
 diagrams. Length, rated output and coverage are read from a referenced heating-cable brief
-(`cableProductId` in this browser's library, else a travelling `cableSpecification`) through one
-shared accessor in `src/model/heatingProduct.ts`; they are not copied onto the heating record.
-A live library product wins so a product edit updates every check. Label figures stay
-`published`/`measured`; spacing from coverage area / cable length is `derived`; plan and spatial
-route lengths are `modelled` from the drawn path; unknowns stay null and produce no comparison.
+(`cableProductId` of an accepted library product, else a travelling `cableSpecification` written
+from that product) through one shared accessor in `src/model/heatingProduct.ts`; they are not
+copied onto the heating record. `set_room_heating` does not accept specification objects: it
+writes the snapshot from the referenced accepted product and refuses unknown or wrong-category
+ids. Accepting a catalogue revision retargets `room.heating` to the new product id and rewrites
+the matching snapshot, with undo. A live library product wins so checks update; if the live
+product and snapshot disagree, or the id cannot be resolved, a problem is raised. Label figures
+stay `published`/`measured`; spacing from coverage area / cable length is `derived` only from
+confirmed coverage and length; plan and spatial route lengths are `modelled` from the drawn path;
+unknowns stay null and produce no comparison. The coverage-range check uses `availableArea`
+(zone footprints excluding entered keep-outs), not the path bounding box.
 Cable 3.2 A is compared like-for-like to thermostat switching current; 240 V to the 100–240 V
 range. IP21 vs location warns and does not decide (the electrician decides). Keep-outs and wall
 setback are only those entered with a source. Cable centre is from the bottom face of the

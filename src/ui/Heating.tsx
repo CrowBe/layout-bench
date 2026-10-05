@@ -97,7 +97,11 @@ export function Heating({ room }: { room: Room }) {
       </label>
       {(
         ["manufacturer", "model", "productSource", "requirements"] as const
-      ).map((k) => (
+      ).map((k) => {
+        const lockedValue = k === "manufacturer" ? e.cable.manufacturer : k === "model" ? e.cable.model : undefined;
+        const locked = k === "manufacturer" ? locks.manufacturer : k === "model" ? locks.model : false;
+        const shown = locked ? (lockedValue ?? "") : (h?.[k] ?? "");
+        return (
         <label className="field inspector-field" key={k}>
           {
             {
@@ -109,17 +113,19 @@ export function Heating({ room }: { room: Room }) {
           }
           <textarea
             aria-label={`Cable ${k}`}
-            key={h?.[k] ?? ""}
-            defaultValue={h?.[k] ?? ""}
+            key={shown}
+            defaultValue={shown}
             placeholder="unknown"
-            readOnly={k === "manufacturer" ? locks.manufacturer : k === "model" ? locks.model : false}
+            readOnly={locked}
             onBlur={(event) => {
+              if (locked) return;
               if (event.target.value !== (h?.[k] ?? ""))
                 run({ [k]: event.target.value || null });
             }}
           />
         </label>
-      ))}
+        );
+      })}
       {locks.length && (
         <p className="hint" aria-label="Cable product length (m)">
           Cable product length (m): {figureText(e.cable.length)} (locked to the heating-cable brief)
@@ -194,7 +200,7 @@ export function Heating({ room }: { room: Room }) {
             run({
               thermostatLocation: {
                 description,
-                source: h?.thermostatLocation?.source || "source not supplied",
+                ...(h?.thermostatLocation?.source ? { source: h.thermostatLocation.source } : {}),
                 ...(h?.thermostatLocation?.kind ? { kind: h.thermostatLocation.kind } : {}),
               },
             });
@@ -210,8 +216,12 @@ export function Heating({ room }: { room: Room }) {
           placeholder="unknown"
           onBlur={(event) => {
             if (!h?.thermostatLocation) return;
-            if (event.target.value !== h.thermostatLocation.source)
-              run({ thermostatLocation: { ...h.thermostatLocation, source: event.target.value } });
+            const source = event.target.value.trim();
+            if (source === (h.thermostatLocation.source ?? "")) return;
+            const location = { ...h.thermostatLocation };
+            if (source) location.source = source;
+            else delete location.source;
+            run({ thermostatLocation: location });
           }}
         />
       </label>

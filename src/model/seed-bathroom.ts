@@ -647,7 +647,7 @@ export const heatingCableSpecification = (): ProductSpecification => {
   for (const [k, v] of Object.entries(fields)) {
     if (v.value === null) fields[k] = { value: null, note: "Not printed on the SCK0765L carton label." };
   }
-  return {
+  const spec: ProductSpecification = {
     category: "heating-cable",
     recordingMode: "human-measurement",
     acceptedAt: SPEC_ACCEPTED_AT,
@@ -664,10 +664,13 @@ export const heatingCableSpecification = (): ProductSpecification => {
       coverageAreaMax: cableCarton(5.1, "coverage 3.7–5.1 m², maximum"),
     },
   };
+  return Object.assign(spec, { model: "SCK0765L" });
 };
 
-export const thermostatSpecificationOf = (): ProductSpecification =>
-  specOf(purchasedFittings.find((f) => f.specCategory === "thermostat")!);
+export const thermostatSpecificationOf = (): ProductSpecification => {
+  const spec = specOf(purchasedFittings.find((f) => f.specCategory === "thermostat")!);
+  return Object.assign(spec, { manufacturer: "OJ Electronics", model: "MWD5-1999-CBP3" });
+};
 
 // ---- Construction spec from the owner ------------------------------------------------------
 // Survey (#1): existing internal surfaces 2110 × 3020 mm, measured. Each wall's drawn line sits
@@ -822,7 +825,7 @@ export const seedBathroom = (): PlanModel => ({
         kind: "outside-wet-room",
       },
       screedLayerId: "floor_screed", zoneIds: ["bathroom"], path: proposedSck0765lPath(), keepouts: [],
-      requirements: `Owner lays it in a snaking pattern on the cured membrane, before the tiler's screed, and may run it under the shower; the electrician tests it before and after the screed and wires the thermostat. Owner, 5 Oct 2026: the cable's thermostat end is at the bathroom doorway, where the floor beyond is timber; its lead goes down through it to under the house (on piers), so it can be hooked up to the thermostat at any time; the lead is long enough. Proposed loop: 15 north–south runs at ${PROPOSED_CABLE_SPACING_M * 1000} mm spacing (${PROPOSED_CABLE_SPACING_RATIONALE}). Keep-outs and wall setback are not on the carton, so none are entered; the route is unconstrained at the bath, toilet, vanity and walls.`,
+      requirements: `Owner lays it in a snaking pattern on the cured membrane, before the tiler's screed, and may run it under the shower; the electrician tests it before and after the screed and wires the thermostat. Owner, 5 Oct 2026: the cable's thermostat end is at the bathroom doorway, where the floor beyond is timber; its lead goes down through it to under the house (on piers), so it can be hooked up to the thermostat at any time; the lead is long enough. Proposed loop: 15 north–south runs at ${PROPOSED_CABLE_SPACING_M * 1000} mm spacing (${PROPOSED_CABLE_SPACING_RATIONALE}). Plan length is exactly 42.5 m, equal to the published heated length (zero slack): any resolved fall makes the spatial route exceed 42.5 m once screed levels resolve. Keep-outs and wall setback are not on the carton, so none are entered; the route is unconstrained at the bath, toilet, vanity and walls.`,
     },
   }],
   items: [
@@ -903,7 +906,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-purchased-open", author: "agent", at: at + 4,
-      text: "Open points from the labels and sheets: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. The K1130-##+KDPP30 drawing (Ø95 plate, 107 mm handle, 103 mm projection) is not entered as a kind. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat (IP21) goes outside the bathroom on the hallway wall, next to the light switch, which is on the right as you look into the bathroom, about 850 mm off the floor (owner, 5 Oct 2026); it is not drawn here; its CBP3 cover size is not on the OJ brochure. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² from the carton (published); derived spacing 3.7/42.5–5.1/42.5 m. A proposed 15-run loop is drawn; keep-outs and wall setback are not on the carton and are not invented. The cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. (7) Only the towel-rail foot and thermostat height are owner proposals; mixer/spout 800 mm and shower foot 400 mm stay unsourced (value null; drawn stand-ins on the kind) until finished faces are surveyed; #60 installation is not applied.",
+      text: "Open points from the labels and sheets: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. The K1130-##+KDPP30 drawing (Ø95 plate, 107 mm handle, 103 mm projection) is not entered as a kind. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat (IP21) goes outside the bathroom on the hallway wall, next to the light switch, which is on the right as you look into the bathroom, about 850 mm off the floor (owner, 5 Oct 2026); it is not drawn here; its CBP3 cover size is not on the OJ brochure. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² from the carton (published); derived spacing 3.7/42.5–5.1/42.5 m. A proposed 15-run loop is drawn at plan length exactly 42.5 m, equal to the published heated length (zero slack); any resolved fall exceeds that length once screed levels resolve. Keep-outs and wall setback are not on the carton and are not invented. The cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. (7) Only the towel-rail foot and thermostat height are owner proposals; mixer/spout 800 mm and shower foot 400 mm stay unsourced (value null; drawn stand-ins on the kind) until finished faces are surveyed; #60 installation is not applied.",
     },
   ];
 };
