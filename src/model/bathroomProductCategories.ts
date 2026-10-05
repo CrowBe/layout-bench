@@ -184,7 +184,8 @@ export const BATHROOM_PRODUCT_CATEGORIES: ProductCategory[] = [
     placement: unsupported("Waste bodies sit inside a bath or basin and below the finished surface; they have no floor envelope of their own."),
     fields: [
       ...envelope(),
-      length("outletDiameter", "Nominal outlet diameter", "Published connection size through its centreline; metres (a '40 mm' waste is 0.04).", "fixture-centreline", 0.01, 0.2),
+      length("outletDiameter", "Nominal outlet diameter", "Published connection size through its centreline; metres (a '40 mm' waste is 0.04). Name its kind in outletSizeKind; a hole is not a connection.", "fixture-centreline", 0.01, 0.2),
+      { type: "choice", key: "outletSizeKind", label: "Outlet size kind", group: "installation", required: false, options: ["hole", "outlet", "connection", "thread"], definition: "Which quantity outletDiameter is: a waste hole, an outlet, a pipe connection, or a thread. Compared only like-for-like (outlet and connection are both pipe sizes; a hole is not)." },
       choice("style", "Style", ["dome-pop", "pop-up", "click-clack", "plug-and-chain", "other"], "Published operating style."),
       choice("overflow", "Overflow", ["with", "without"], "Whether this waste takes an overflow."),
       text("strainer", "Strainer / basket", "Published strainer or basket arrangement, e.g. a pull-out basket; as printed."),

@@ -130,7 +130,7 @@ export const TOOLS: ToolDef[] = [
     name: "get_issues",
     title: "Check the plan for problems",
     description:
-      "Run the constraint checker over the plan. Detects: too-short walls, loose ends, collinear overlaps, mid-span crossings, openings overflowing their wall or overlapping each other, walls ending inside an opening, floating/overlapping/doorless rooms, furniture crossing walls, blocking doors/windows, or colliding, and on wall sides: out-of-order or negative build-up layers, unresolved faces (unknown frame or thickness), and a frame recorded in front of the existing surface. Use it after editing to self-repair.",
+      "Run the constraint checker over the plan. Detects: too-short walls, loose ends, collinear overlaps, mid-span crossings, openings overflowing their wall or overlapping each other, walls ending inside an opening, floating/overlapping/doorless rooms, furniture crossing walls, blocking doors/windows, or colliding, on wall sides: out-of-order or negative build-up layers, unresolved faces (unknown frame or thickness), and a frame recorded in front of the existing surface; and a waste-category accessory fitted inside a host whose position disagrees with the host's waste point (in the host frame) or whose outlet size disagrees like-for-like. Use it after editing to self-repair.",
     inputSchema: obj({}),
     annotations: { readOnlyHint: true },
     execute: () => {
@@ -839,9 +839,9 @@ export const TOOLS: ToolDef[] = [
     name: "fit_item",
     title: "Fit an accessory inside a fixture",
     description:
-      "Fit a placed accessory (a bath waste, a basket) inside a host fixture so it moves, turns and is removed with it, and does not count as overlapping it. `across` is metres from the host's centreline (left negative, facing the host) and `out` is metres from the host's back edge; the point must lie inside the host's real footprint. Set `release` to leave the accessory where it stands. An accessory cannot be anchored to a wall, and a host cannot itself be fitted inside another.",
-    inputSchema: obj({ id: str, host: str, across: num, out: num, release: { type: "boolean" } }, ["id"]),
-    execute: (i) => i.release ? actions.fitItem(i.id as string, null) : actions.fitItem(i.id as string, i.host as string, i.across as number | undefined, i.out as number | undefined),
+      "Fit a placed accessory (a bath waste, a basket) inside a host fixture so it moves, turns and is removed with it, and does not count as overlapping it. `across` is metres from the host's centreline (left negative, facing the host) and `out` is metres from the host's back edge; the point must lie inside the host's real footprint. Set `atHostWaste` to fit a waste at the host's resolved waste point in that same frame instead of an arbitrary place (refused when the point is unknown; nothing is invented). Set `release` to leave the accessory where it stands. An accessory cannot be anchored to a wall, and a host cannot itself be fitted inside another. get_issues warns when a fitted waste disagrees with the host waste point beyond FITTED_WASTE_OFFSET_TOLERANCE_M, or when like-for-like outlet sizes disagree; a waste hole is not a pipe connection. This is a set-out check, not a plumbing verdict.",
+    inputSchema: obj({ id: str, host: str, across: num, out: num, atHostWaste: { type: "boolean" }, release: { type: "boolean" } }, ["id"]),
+    execute: (i) => i.release ? actions.fitItem(i.id as string, null) : actions.fitItem(i.id as string, i.host as string, i.across as number | undefined, i.out as number | undefined, i.atHostWaste === true),
   },
   {
     name: "set_service_point",
@@ -1171,7 +1171,7 @@ export const TOOLS: ToolDef[] = [
     description:
       "Create a piece of furniture that is NOT in the catalogue, then place it with place_item. Use this whenever the plan draws something the catalogue does not have, or draws it at a different size — a corner bath, an L-shaped sofa, a kitchen island, a piano. Do NOT approximate with the nearest stock item when the plan shows something specific: define the real thing. " +
       "Required: kind (a stable snake_case id), label, and the true footprint w × d and height h in METRES. " +
-      "Optional `parts` models it in 3D from primitives; without it the piece is blocked out from its footprint. Each part is { shape: \"box\" | \"cylinder\" | \"sphere\", x, y, z, w, h, d, color, rotation }, in the piece's OWN local frame: x runs along its width, z along its depth, y is height above the floor and is the part's BOTTOM (a 0.4 m tall seat resting on the floor is y:0, h:0.4). The piece faces +z, so a backrest sits at negative z and the front is positive z — that keeps it consistent with the rotation convention in place_item. For a cylinder, w is the diameter and d makes it an ellipse. Optional `outline` gives the piece its real plan shape (a curved bath, a rounded basin): { start: {x, y}, segments: [{ to: {x, y}, via?: {x, y} }] }, closing back to start; a segment with via is an arc through that point. Coordinates are metres in the piece's frame: x across its width (centre 0), y from its back (-d/2) to its front (+d/2); the outline must stay inside the w × d box and touch its back edge. The outline is used for the plan, the trade sheet, clash checks and clearances, and is extruded in 3D when there are no parts. Optional `elevation` (metres) is the bottom of a wall- or deck-mounted piece above the finished floor: pieces whose heights do not overlap may share a footprint (a bath mixer over a bath), and `parts` must place themselves at that height. Sizes are metres, colours are hex.",
+      "Optional `parts` models it in 3D from primitives; without it the piece is blocked out from its footprint. Each part is { shape: \"box\" | \"cylinder\" | \"sphere\", x, y, z, w, h, d, color, rotation, stopgap }, in the piece's OWN local frame: x runs along its width, z along its depth, y is height above the floor and is the part's BOTTOM (a 0.4 m tall seat resting on the floor is y:0, h:0.4). The piece faces +z, so a backrest sits at negative z and the front is positive z — that keeps it consistent with the rotation convention in place_item. For a cylinder, w is the diameter and d makes it an ellipse. `stopgap: true` marks stand-in geometry: it renders dashed, driven by that flag, not by note text. Optional `outline` gives the piece its real plan shape (a curved bath, a rounded basin): { start: {x, y}, segments: [{ to: {x, y}, via?: {x, y} }] }, closing back to start; a segment with via is an arc through that point. Coordinates are metres in the piece's frame: x across its width (centre 0), y from its back (-d/2) to its front (+d/2); the outline must stay inside the w × d box and touch its back edge. The outline is used for the plan, the trade sheet, clash checks and clearances, and is extruded in 3D when there are no parts. Optional `elevation` (metres) is the bottom of a wall- or deck-mounted piece above the finished floor: pieces whose heights do not overlap may share a footprint (a bath mixer over a bath), and `parts` must place themselves at that height. Sizes are metres, colours are hex.",
     inputSchema: obj(
       {
         kind: str,
@@ -1196,6 +1196,7 @@ export const TOOLS: ToolDef[] = [
               d: num,
               color: str,
               rotation: num,
+              stopgap: { type: "boolean" },
             },
             required: [],
             additionalProperties: false,

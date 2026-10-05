@@ -178,7 +178,7 @@ export function renderFloorPlan(model: PlanModel, opts: RenderOptions): string {
   const fixtureNo = new Map(fixtures.map((it, i) => [it.id, `F${i + 1}`]));
   for (const it of fixtures) {
     const cat = catalogForItem(it)!;
-    poly(itemPolygon(it)!.map(P), `fill="#fff" stroke="#444" stroke-width="0.3" data-item="${esc(it.id)}"`);
+    poly(itemPolygon(it)!.map(P), `fill="#fff" stroke="#444" stroke-width="0.3"${cat.stopgap ? ` stroke-dasharray="1.2 0.6"` : ""} data-item="${esc(it.id)}"`);
     const c = P({ x: it.x, y: it.y });
     text(c.x, c.y, fixtureNo.get(it.id)!, 2.6, `text-anchor="middle" dominant-baseline="middle" font-weight="bold"`);
     const pose = anchorPose(model, it);

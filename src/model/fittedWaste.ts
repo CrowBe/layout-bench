@@ -1,0 +1,300 @@
+/**
+ * Fitted waste vs its host (#75). Positions are compared in the host's own frame (across the
+ * centreline, left negative facing the host; out from the host's back edge). A corner-bath
+ * sheet that gives the waste from the right-angle corner along the bisector is converted
+ * (along each wall = distance / √2) and the host-frame result is derived, never published.
+ * Outlet sizes are compared only when both are known and like-for-like: a waste hole is not a
+ * pipe outlet or connection. Unknown point or size means no comparison and no invented figure.
+ * This is a modelling/set-out check; it does not certify drainage or plumbing.
+ */
+
+import type { Issue, Item, PlanModel, ValueStatus } from "./types";
+import { catalogByKind, catalogForItem, type CatalogLookup } from "./catalog";
+import { formatMm, quantize } from "./geometry";
+import type { FieldValue } from "./products";
+
+/**
+ * Modelling/set-out check: a fitted waste whose centre is farther than this from the host's
+ * recorded waste centre, in the host's own frame, is flagged for review. 50 mm is this named
+ * modelling tolerance, not a manufacturer figure and not a plumbing-code requirement.
+ */
+export const FITTED_WASTE_OFFSET_TOLERANCE_M = 0.05;
+
+export const DIAMETER_KINDS = ["hole", "outlet", "connection", "thread"] as const;
+export type DiameterKind = (typeof DIAMETER_KINDS)[number];
+
+/** Pipe sizes that may be compared with each other. A hole or thread is not the same kind. */
+const PIPE_SIZE_KINDS: ReadonlySet<DiameterKind> = new Set(["outlet", "connection"]);
+
+export function diametersAreLikeForLike(a: DiameterKind, b: DiameterKind): boolean {
+  return a === b || (PIPE_SIZE_KINDS.has(a) && PIPE_SIZE_KINDS.has(b));
+}
+
+export const isDiameterKind = (v: unknown): v is DiameterKind =>
+  typeof v === "string" && (DIAMETER_KINDS as readonly string[]).includes(v);
+
+/**
+ * Convert a bisector distance from the right-angle corner into the host frame: across the
+ * centreline (left negative) and out from the back edge. Along each wall = fromCorner / √2.
+ * The numbers are geometric; callers must label them derived, never published.
+ */
+export function cornerBisectorToHostFrame(
+  fromCornerM: number,
+  boxW: number,
+  corner: "left" | "right",
+): { across: number; out: number; alongEachWall: number } {
+  const alongEachWall = fromCornerM / Math.SQRT2;
+  const across = corner === "right" ? boxW / 2 - alongEachWall : -(boxW / 2 - alongEachWall);
+  return { across, out: alongEachWall, alongEachWall };
+}
+
+export const cornerFromOutlineStart = (start: { x: number } | undefined): "left" | "right" | undefined => {
+  if (!start) return undefined;
+  return start.x < 0 ? "left" : "right";
+};
+
+const num = (field: FieldValue | undefined): number | undefined =>
+  typeof field?.value === "number" && Number.isFinite(field.value) ? field.value : undefined;
+
+const sourceText = (field: FieldValue | undefined): string => {
+  if (!field) return "unknown";
+  const src = field.sources?.[0];
+  const cited = src ? `${src.url}${src.locator ? ` (${src.locator})` : ""}` : field.note ? "" : "no source cited";
+  const status = field.value === null || field.value === undefined ? "unknown" : (field.status ?? "unspecified status");
+  return [status, cited, field.note].filter((s) => s && String(s).trim()).join("; ");
+};
+
+export interface HostWastePoint {
+  resolved: boolean;
+  across?: number;
+  out?: number;
+  /** Host-frame across/out obtained by converting another datum are never status `published`. */
+  basis?: "derived" | ValueStatus;
+  /** Reference point and frame of the compared position. */
+  datum: string;
+  source?: string;
+  conversion?: string;
+  missing: string[];
+  fromCorner?: number;
+  alongEachWall?: number;
+  corner?: "left" | "right";
+}
+
+export interface DiameterReading {
+  known: boolean;
+  value?: number;
+  kind?: DiameterKind;
+  status?: ValueStatus;
+  source?: string;
+  label: string;
+  note?: string;
+}
+
+export function hostWasteInHostFrame(host: Item, lookup: CatalogLookup = catalogByKind): HostWastePoint {
+  const spec = host.productSpecification;
+  const fields = spec?.fields ?? {};
+  const cat = catalogForItem(host, lookup);
+  const missing: string[] = [];
+  if (!cat) return { resolved: false, datum: "host frame (across centreline, out from back edge)", missing: [`footprint of ${host.id}`] };
+
+  const fromCorner = num(fields.wasteFromCorner);
+  if (fromCorner !== undefined) {
+    const corner = cornerFromOutlineStart(cat.outline?.start);
+    if (!corner) {
+      return {
+        resolved: false,
+        datum: "right-angle corner along the bisector, in the host's plan outline",
+        source: sourceText(fields.wasteFromCorner),
+        fromCorner,
+        missing: ["host plan outline (which corner the right-angle sits in)"],
+      };
+    }
+    const { across, out, alongEachWall } = cornerBisectorToHostFrame(fromCorner, cat.w, corner);
+    const conversion =
+      `${formatMm(fromCorner)} mm from the ${corner}-hand right-angle corner along the bisector ` +
+      `→ ${formatMm(alongEachWall)} mm along each wall (${formatMm(fromCorner)}/√2); ` +
+      `host frame (derived, not published): ${formatMm(across)} mm across the centreline (left negative), ` +
+      `${formatMm(out)} mm out from the back edge`;
+    return {
+      resolved: true,
+      across: quantize(across),
+      out: quantize(out),
+      basis: "derived",
+      datum:
+        `host frame: across the centreline (left negative, facing the host), out from the back edge; ` +
+        `taken from the ${corner}-hand right-angle corner along the bisector (not wasteFromEnd/wasteFromSide)`,
+      source: sourceText(fields.wasteFromCorner),
+      conversion,
+      missing: [],
+      fromCorner,
+      alongEachWall,
+      corner,
+    };
+  }
+
+  const fromEnd = num(fields.wasteFromEnd);
+  const fromSide = num(fields.wasteFromSide);
+  if (fromEnd === undefined && fromSide === undefined) {
+    return {
+      resolved: false,
+      datum: "host frame (across centreline, out from back edge)",
+      missing: ["host waste point (wasteFromCorner along the bisector, or wasteFromEnd and wasteFromSide)"],
+    };
+  }
+  if (fromSide === undefined) missing.push("wasteFromSide (out from the host's back edge / fixture-side)");
+  if (fromEnd === undefined) missing.push("wasteFromEnd (from the named end)");
+
+  let across: number | undefined;
+  let conversion: string | undefined;
+  const wasteEnd = fields.wasteEnd?.value;
+  const outlineCorner = cornerFromOutlineStart(cat.outline?.start);
+  if (fromEnd !== undefined) {
+    if (wasteEnd === "right") {
+      across = cat.w / 2 - fromEnd;
+      conversion = `wasteFromEnd ${formatMm(fromEnd)} mm from the right end → host-frame across ${formatMm(across)} mm (derived, not published)`;
+    } else if (wasteEnd === "left") {
+      across = -(cat.w / 2 - fromEnd);
+      conversion = `wasteFromEnd ${formatMm(fromEnd)} mm from the left end → host-frame across ${formatMm(across)} mm (derived, not published)`;
+    } else if (outlineCorner) {
+      const sx = outlineCorner === "right" ? 1 : -1;
+      across = cat.outline!.start.x - sx * fromEnd;
+      conversion =
+        `wasteFromEnd ${formatMm(fromEnd)} mm from the ${outlineCorner}-hand right-angle along the back ` +
+        `→ host-frame across ${formatMm(across)} mm (derived, not published; the sheet datum for a corner bath is the bisector when wasteFromCorner is known)`;
+    } else {
+      missing.push("wasteEnd (which end wasteFromEnd is measured from, facing the host)");
+    }
+  }
+
+  if (missing.length || across === undefined || fromSide === undefined) {
+    return {
+      resolved: false,
+      datum: "host frame (across centreline, out from the back edge / fixture-side)",
+      source: [fromEnd !== undefined ? `wasteFromEnd: ${sourceText(fields.wasteFromEnd)}` : "", fromSide !== undefined ? `wasteFromSide: ${sourceText(fields.wasteFromSide)}` : ""].filter(Boolean).join("; ") || undefined,
+      conversion,
+      missing,
+    };
+  }
+  return {
+    resolved: true,
+    across: quantize(across),
+    out: quantize(fromSide),
+    basis: "derived",
+    datum:
+      "host frame: across converted from wasteFromEnd (from the named end, not the centreline); out = wasteFromSide from the back / fixture-side edge",
+    source: `wasteFromEnd: ${sourceText(fields.wasteFromEnd)}; wasteFromSide: ${sourceText(fields.wasteFromSide)}`,
+    conversion,
+    missing: [],
+  };
+}
+
+export function accessoryOutletDiameter(item: Item): DiameterReading {
+  const fields = item.productSpecification?.fields ?? {};
+  const value = num(fields.outletDiameter);
+  const kindRaw = fields.outletSizeKind?.value;
+  const kind = isDiameterKind(kindRaw) ? kindRaw : undefined;
+  const source = sourceText(fields.outletDiameter);
+  if (value === undefined) {
+    return {
+      known: false,
+      kind,
+      label: "accessory outlet diameter",
+      source,
+      note: fields.outletDiameter?.note ?? "outlet diameter unknown",
+    };
+  }
+  if (!kind) {
+    return {
+      known: false,
+      value,
+      label: "accessory outlet diameter",
+      source,
+      note: "outletSizeKind unknown, so this figure is not compared (hole, outlet, connection and thread are different kinds)",
+    };
+  }
+  return {
+    known: true,
+    value,
+    kind,
+    status: fields.outletDiameter?.status,
+    source,
+    label: `accessory ${kind}`,
+    note: fields.outletDiameter?.note,
+  };
+}
+
+export function hostWasteDiameter(host: Item, want: DiameterKind): DiameterReading {
+  const fields = host.productSpecification?.fields ?? {};
+  const fieldKey = want === "hole" ? "wasteHoleDiameter" : want === "thread" ? "wasteThreadDiameter" : "wasteConnectionDiameter";
+  const field = fields[fieldKey];
+  const value = num(field);
+  const kind: DiameterKind = want === "hole" || want === "thread" ? want : "connection";
+  const label = `host ${kind}`;
+  if (value === undefined) {
+    return { known: false, kind, label, source: sourceText(field), note: field?.note ?? `${fieldKey} unknown` };
+  }
+  return { known: true, value, kind, status: field?.status, source: sourceText(field), label, note: field?.note };
+}
+
+/** Pick the host figure that is like-for-like with the accessory, or none. */
+export function likeForLikeHostDiameter(host: Item, accessory: DiameterReading): DiameterReading | null {
+  if (!accessory.known || !accessory.kind) return null;
+  if (accessory.kind === "hole") return hostWasteDiameter(host, "hole");
+  if (accessory.kind === "thread") return hostWasteDiameter(host, "thread");
+  // outlet and connection are pipe sizes: compare with the host's recorded connection/outlet
+  return hostWasteDiameter(host, "connection");
+}
+
+const offsetWarn = (item: Item, host: Item, fitted: { across: number; out: number }, hostPt: HostWastePoint, offset: number): Issue => ({
+  severity: "warning",
+  code: "fitted_waste_offset",
+  message:
+    `${item.id} is ${formatMm(offset)} mm from ${host.id}'s waste centre in the host frame ` +
+    `(tolerance FITTED_WASTE_OFFSET_TOLERANCE_M = ${formatMm(FITTED_WASTE_OFFSET_TOLERANCE_M)} mm, a modelling/set-out check, not a manufacturer figure). ` +
+    `Fitted position: ${formatMm(fitted.across)} mm across the host centreline (left negative, facing the host) and ` +
+    `${formatMm(fitted.out)} mm out from the host's back edge, as entered in that host frame. ` +
+    `Host waste: ${hostPt.datum}. ${hostPt.conversion ?? ""} ` +
+    `Source of the host figure: ${hostPt.source ?? "unknown"}; host-frame across/out basis: ${hostPt.basis ?? "unknown"}.`,
+  refs: [item.id, host.id],
+});
+
+const sizeWarn = (item: Item, host: Item, acc: DiameterReading, hostDia: DiameterReading): Issue => ({
+  severity: "warning",
+  code: "fitted_waste_size",
+  message:
+    `${item.id} ${acc.kind} ${formatMm(acc.value!)} mm (${acc.status ?? "unspecified status"}; ${acc.source ?? "no source"}) ` +
+    `does not match ${host.id} ${hostDia.kind} ${formatMm(hostDia.value!)} mm (${hostDia.status ?? "unspecified status"}; ${hostDia.source ?? "no source"}). ` +
+    `Each figure's kind is named (hole, outlet, connection, thread); this is a modelling comparison of like-for-like sizes, not a plumbing verdict.`,
+  refs: [item.id, host.id],
+});
+
+/** Problems when a waste-category accessory is fitted inside a host. */
+export function fittedWasteProblems(model: PlanModel, lookup: CatalogLookup = catalogByKind): Issue[] {
+  const out: Issue[] = [];
+  for (const it of model.items) {
+    if (!it.fittedTo) continue;
+    if (it.productSpecification?.category !== "waste") continue;
+    const host = model.items.find((x) => x.id === it.fittedTo!.hostId);
+    if (!host || host.fittedTo) continue;
+
+    const hostPt = hostWasteInHostFrame(host, lookup);
+    if (hostPt.resolved && hostPt.across !== undefined && hostPt.out !== undefined) {
+      const dx = it.fittedTo.across - hostPt.across;
+      const dy = it.fittedTo.out - hostPt.out;
+      const offset = Math.hypot(dx, dy);
+      if (offset > FITTED_WASTE_OFFSET_TOLERANCE_M + 1e-9) {
+        out.push(offsetWarn(it, host, it.fittedTo, hostPt, offset));
+      }
+    }
+
+    const acc = accessoryOutletDiameter(it);
+    if (!acc.known || !acc.kind) continue;
+    const hostDia = likeForLikeHostDiameter(host, acc);
+    if (!hostDia || !hostDia.known || !hostDia.kind) continue;
+    if (!diametersAreLikeForLike(acc.kind, hostDia.kind)) continue;
+    if (Math.abs(acc.value! - hostDia.value!) > 0.0005) {
+      out.push(sizeWarn(it, host, acc, hostDia));
+    }
+  }
+  return out;
+}

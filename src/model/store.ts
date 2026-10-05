@@ -46,6 +46,7 @@ import { validHeating, heatingEvidence } from "./heating";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
+import { hostWasteInHostFrame } from "./fittedWaste";
 import { sideNormal } from "./faces";
 import { drainageProblems, planeSurface } from "./drainage";
 import { floorTileLayout } from "./floorTiling";
@@ -1686,9 +1687,10 @@ export const actions = {
   /**
    * Fit an accessory (a bath waste, a basket) inside a host fixture, at `across` the host's
    * centreline and `out` from its back edge, in metres. Its centre must lie inside the host's
-   * footprint. Pass null to release it where it stands.
+   * footprint. Pass `atHostWaste` to use the host's resolved waste point in that same frame
+   * instead of an arbitrary place. Pass null as the host to release it where it stands.
    */
-  fitItem(accessoryRef: string, hostRef: string | null, across?: number, out?: number): ActionResult {
+  fitItem(accessoryRef: string, hostRef: string | null, across?: number, out?: number, atHostWaste = false): ActionResult {
     const acc = resolveItem(accessoryRef);
     if (!acc.ok) return rejected(acc);
     const item = acc.entity;
@@ -1705,16 +1707,30 @@ export const actions = {
     if (host.fittedTo) return fail(`${host.id} is itself fitted inside ${host.fittedTo.hostId}; fit to the outer fixture.`);
     if (store.getState().model.items.some((i) => i.fittedTo?.hostId === item.id)) return fail(`${item.id} is a host for other accessories; fit it only after releasing them.`);
     if (item.anchor) return fail(`${item.id} is set out from a wall face; release its anchor before fitting it inside a fixture.`);
-    if (typeof across !== "number" || typeof out !== "number" || !Number.isFinite(across) || !Number.isFinite(out)) return fail("Give across (metres from the host's centreline, left negative) and out (metres from the host's back edge).");
+    let acrossM = across, outM = out;
+    if (atHostWaste) {
+      const pt = hostWasteInHostFrame(host);
+      if (!pt.resolved || pt.across === undefined || pt.out === undefined) {
+        return fail(`${host.id} has no resolved waste point in its own frame: missing ${pt.missing.join(", ")}. No position is invented.`);
+      }
+      acrossM = pt.across;
+      outM = pt.out;
+    }
+    if (typeof acrossM !== "number" || typeof outM !== "number" || !Number.isFinite(acrossM) || !Number.isFinite(outM)) return fail("Give across (metres from the host's centreline, left negative) and out (metres from the host's back edge), or set atHostWaste to use the host's waste point.");
     const r = rounding();
-    const fitted: Item = { ...item, fittedTo: { hostId: host.id, across: r.q(across, "across"), out: r.q(out, "out") } };
+    const fitted: Item = { ...item, fittedTo: { hostId: host.id, across: r.q(acrossM, "across"), out: r.q(outM, "out") } };
     const pose = fittedPose(fitted, host);
     if (!pose) return fail(`${host.id} has no known footprint to fit into.`);
     const poly = itemPolygon(host);
     if (!poly || !pointNearPolygon({ x: pose.x, y: pose.y }, poly, 0)) return fail(`That point is outside ${host.id}'s footprint (its real outline, not its box). Choose a point inside it.`);
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? { ...fitted, ...pose } : i)) });
-    return r.ok(`${item.id} fitted inside ${host.id}, ${formatMm(fitted.fittedTo!.across)} mm across and ${formatMm(fitted.fittedTo!.out)} mm from its back edge.`, { id: item.id, hostId: host.id });
+    return r.ok(
+      atHostWaste
+        ? `${item.id} fitted inside ${host.id} at its waste point, ${formatMm(fitted.fittedTo!.across)} mm across and ${formatMm(fitted.fittedTo!.out)} mm from its back edge.`
+        : `${item.id} fitted inside ${host.id}, ${formatMm(fitted.fittedTo!.across)} mm across and ${formatMm(fitted.fittedTo!.out)} mm from its back edge.`,
+      { id: item.id, hostId: host.id },
+    );
   },
 
   // ---- model / view ----
@@ -1878,6 +1894,7 @@ export const actions = {
       ...(spec.outline ? { outline: structuredClone(spec.outline) } : {}),
       ...(spec.elevation ? { elevation: spec.elevation } : {}),
       ...(spec.installationMounting ? { installationMounting: spec.installationMounting } : {}),
+      ...(spec.parts?.some((p) => p.stopgap) ? { stopgap: true } : {}),
     };
     const known: CatalogEntry["category"][] = ["living", "bedroom", "kitchen", "bath", "office", "decor"];
     const category = known.includes(spec.category as CatalogEntry["category"])
@@ -1897,6 +1914,8 @@ export const actions = {
       else delete existing.outline;
       if (spec.elevation) existing.elevation = spec.elevation;
       else delete existing.elevation;
+      if (spec.parts?.some((p) => p.stopgap)) existing.stopgap = true;
+      else delete existing.stopgap;
     } else {
       registerCatalogEntry({ kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category, ...outline });
     }

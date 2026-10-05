@@ -607,7 +607,8 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     if (!vis.has(`item:${it.id}`)) continue;
     const pg = itemPolygon(it);
     if (!pg) continue;
-    poly(pg.map(P), `fill="#fff" stroke="#444" stroke-width="0.3" ${de(`item:${it.id}`)}`);
+    const cat = catalogForItem(it);
+    poly(pg.map(P), `fill="#fff" stroke="#444" stroke-width="0.3"${cat?.stopgap ? ` stroke-dasharray="1.2 0.6"` : ""} ${de(`item:${it.id}`)}`);
     if(it.installationGeometry){
       for(const r of clearanceRegions(model,it))if(r.resolved)poly(r.polygon.map(P),`fill="none" stroke="#8c6496" stroke-dasharray="1 1" stroke-width="0.2" data-access="${esc(r.id)}"`);
       for(const p of it.installationGeometry.fixings??[]){const r=localPointReading(model,it,p);if(r.x!==undefined && r.y!==undefined){const xy=P({x:r.x,y:r.y});parts.push(`<circle cx="${f1(xy.x)}" cy="${f1(xy.y)}" r="0.7" fill="#8c6496" data-fixing="${esc(p.id)}"/>`);}}
