@@ -3,7 +3,7 @@ import { actions, store } from "../src/model/store";
 import { checkModel } from "../src/model/issues";
 import { demoProject, parseImport } from "../src/model/projects";
 import { catalogByKind, resetRuntimeCatalog } from "../src/model/catalog";
-import { purchasedFittings } from "../src/model/seed-bathroom";
+import { purchasedFittings, stillNeedsCaptainsMeasurement } from "../src/model/seed-bathroom";
 import { buildFurniture, hasCustomKind } from "../src/three/furniture";
 import { emptyModel } from "../src/model/types";
 
@@ -53,7 +53,7 @@ describe("purchased fittings in the sample project", () => {
     expect([vanity.w, vanity.h, vanity.d]).toEqual([0.91, 0.85, 0.465]);
     expect([cabinet.w, cabinet.h, cabinet.d]).toEqual([0.75, 0.62, 0.16]);
     expect(cabinet.elevation).toBe(1.2); // owner: bottom edge as now, to clear the tap
-    expect(cabinet.elevation).toBeGreaterThan(vanity.h + 0.13); // clear of the basin mixer
+    expect(cabinet.elevation).toBeGreaterThan(vanity.h + 0.148); // clear of the basin mixer (K1110: 148 mm from the deck)
     const items = store.getState().model.items.filter((i) => i.id === "vanity" || i.id === "shaving_cabinet");
     expect(items.map((i) => i.selectionStatus)).toEqual(["reused", "reused"]);
     expect(buildFurniture("vanity_recorded")!.children.length).toBeGreaterThan(5); // doors, drawers, top
@@ -66,6 +66,42 @@ describe("purchased fittings in the sample project", () => {
     const shower = purchasedFittings.find((f) => f.kind === "shower_y1173_31_11_250")!.size;
     expect(shower.printed).toEqual(["w"]);
     expect(purchasedFittings.filter((f) => f.size.printed.length === 0).every((f) => f.size.caveat)).toBe(true);
+  });
+
+  it("records manufacturer-sheet sizes with a source URL, and keeps unsourced figures labelled", () => {
+    const byKind = Object.fromEntries(purchasedFittings.map((f) => [f.kind, f]));
+    expect(byKind.mixer_k1132_31.size).toMatchObject({ w: 0.065, h: 0.065, elevation: 0.8 });
+    expect(byKind.spout_k1150_31_0_150.size).toMatchObject({ w: 0.065, d: 0.15, elevation: 0.8 });
+    expect(byKind.mixer_k1110_31.size).toMatchObject({ h: 0.148, elevation: 0.85 });
+    expect(byKind.shower_y1173_31_11_250.size).toMatchObject({ w: 0.25, d: 0.427, h: 0.981, elevation: 0.4 });
+    expect(byKind.towel_rail_vs900hbn.size).toMatchObject({ w: 0.142, d: 0.1, h: 0.9, elevation: 0.75 });
+    expect(byKind.thermostat_mwd5_1999_cbp3.size.caveat).toMatch(/placeholder/);
+    expect(byKind.waste_sdp40bn.size.caveat).toMatch(/placeholder/);
+    for (const f of purchasedFittings) {
+      expect(f.measures.length).toBeGreaterThan(0);
+      for (const m of f.measures.filter((x) => x.status === "published")) {
+        expect(m.sources?.[0]?.url).toMatch(/^https:\/\//);
+        expect(m.reference).toBeDefined();
+      }
+    }
+  });
+
+  it("does not give wall fittings #60 installation: no wall anchor and no surveyed finished face", () => {
+    const { model, kinds } = demoProject();
+    for (const it of model.items.filter((i) => i.selectionStatus === "purchased")) {
+      expect(it.anchor).toBeUndefined();
+      expect(it.installation).toBeUndefined();
+    }
+    expect(kinds.find((k) => k.entry.kind === "mixer_k1132_31")!.entry.elevation).toBe(0.8);
+    expect(kinds.find((k) => k.entry.kind === "shower_y1173_31_11_250")!.entry.elevation).toBe(0.4);
+  });
+
+  it("lists every remaining placeholder for the captain to measure", () => {
+    expect(stillNeedsCaptainsMeasurement.length).toBeGreaterThan(5);
+    expect(stillNeedsCaptainsMeasurement.every((e) => e.fitting && e.what && e.from)).toBe(true);
+    expect(stillNeedsCaptainsMeasurement.map((e) => e.fitting).join(" ")).toMatch(/SDP-40BN/);
+    expect(stillNeedsCaptainsMeasurement.map((e) => e.fitting).join(" ")).toMatch(/MWD5-1999-CBP3/);
+    expect(stillNeedsCaptainsMeasurement.some((e) => /finished \(tile\) face/i.test(e.from))).toBe(true);
   });
 
   it("raises no errors: mounted pieces share a footprint with what is below them", () => {

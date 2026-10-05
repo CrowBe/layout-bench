@@ -1,17 +1,19 @@
 import type { CatalogEntry } from "./catalog";
-import { cornerBathOutline } from "./products";
+import { cornerBathOutline, type ReferenceId, type SourceRef } from "./products";
 import { quantize } from "./geometry";
 import { outlineExtents, type Outline } from "./outline";
 import type { ExactProduct, ProductComponent } from "./productIdentity";
 import type { PartSpec } from "../three/furniture";
 import type { ProjectKind } from "./projects";
-import type { Item, Note, PlanModel, Quantity, Wall, WallSide, WallTiling } from "./types";
+import type { Item, Note, PlanModel, Quantity, ValueStatus, Wall, WallSide, WallTiling } from "./types";
 
 /**
  * A rough bathroom concept sample. Geometry and placements are illustrative, not set-out.
- * The purchased fittings below are the exception in one respect only: their codes and any
- * dimension a label prints are copied as printed. Every other size, mounting height and
- * position is a placeholder and says so in the kind's label.
+ * Purchased fitting sizes come from the manufacturer's own specification drawing or sheet
+ * when that sheet names the exact model; a carton label; or a human measurement. Mounting
+ * heights stay proposed/placeholder: the room has no wall anchors and no surveyed finished
+ * faces, so #60 installation placement is not used and the catalogue `elevation` stopgap
+ * remains. A value with no manufacturer sheet stays a labelled placeholder.
  */
 
 type Item_ = Pick<Item, "id" | "kind" | "x" | "y" | "rotation"> & Partial<Pick<Item, "fittedTo">>;
@@ -23,6 +25,16 @@ const box = (x: number, y: number, z: number, w: number, h: number, d: number, s
 const tube = (x: number, y: number, z: number, dia: number, h: number, style: Partial<PartSpec> = NICKEL): PartSpec =>
   ({ shape: "cylinder", x, y, z, w: dia, d: dia, h, ...style });
 
+/** One recorded figure on a purchased fitting. Reuses product `SourceRef` so a sheet can carry its URL. */
+export interface FittingMeasure {
+  key: string;
+  value: number;
+  status: ValueStatus;
+  sources?: SourceRef[];
+  reference?: ReferenceId;
+  note?: string;
+}
+
 /** Where each fitting's figures come from. "label" = printed on the carton or sticker. */
 export interface PurchasedFitting {
   kind: string;
@@ -31,6 +43,8 @@ export interface PurchasedFitting {
   product: ExactProduct;
   /** footprint w × d × h; `printed` names the ones copied from a label */
   size: { w: number; d: number; h: number; printed: ("w" | "d" | "h")[]; elevation?: number; caveat?: string };
+  /** envelope, extras and mounting height, each with status and a source URL when one exists */
+  measures: FittingMeasure[];
   parts: PartSpec[];
   /** real plan shape; drawn in 3D from the outline when there are no parts */
   outline?: Outline;
@@ -39,6 +53,29 @@ export interface PurchasedFitting {
   /** further purchased units of the same fitting, placed separately */
   extra?: Item_[];
 }
+
+const sheet = (url: string, locator: string): SourceRef => ({ url, locator });
+const published = (key: string, value: number, source: SourceRef, reference: ReferenceId, note?: string): FittingMeasure =>
+  ({ key, value, status: "published", sources: [source], reference, ...(note ? { note } : {}) });
+const proposedDim = (key: string, value: number, note: string, reference?: ReferenceId): FittingMeasure =>
+  ({ key, value, status: "proposed", note, ...(reference ? { reference } : {}) });
+const measuredDim = (key: string, value: number, note: string, reference: ReferenceId): FittingMeasure =>
+  ({ key, value, status: "measured", note, reference });
+
+/** A figure the captain still has to take: no manufacturer sheet, or no surveyed face for a height. */
+export interface CaptainMeasurement {
+  fitting: string;
+  what: string;
+  from: string;
+}
+
+const ENFLAIR_BATH = "https://enflair.com.au/products/angie-1000mm-corner-fit-japanese-soaking-bathtub-gloss-white";
+const ENFLAIR_K1110 = "https://enflair.com.au/products/profile-iii-petite-basin-mixer-brushed-ss-nickel";
+const ENFLAIR_K1132 = "https://enflair.com.au/products/profile-iii-150mm-basin-bath-wall-mixer-set-with-round-plates-brushed-ss-nickel";
+const ENFLAIR_K1150 = "https://enflair.com.au/products/profile-iii-150mm-basin-bath-wall-spout-brushed-ss-nickel";
+const ENFLAIR_Y1173 = "https://enflair.com.au/products/profile-round-twin-shower-system-with-adjustable-rail-and-250mm-head-brushed-nickel";
+const THERMO_VS900 = "https://www.thermogroup.com.au/wp-content/uploads/2021/02/2022-VS900HBN-Specification-Sheet.pdf";
+const OJ_MWD5 = "https://www.coldbuster.com.au/wp-content/uploads/2021/04/MWD5-1999-Brochure-CB.pdf";
 
 const fitting = (m: string, code: string, label: string, notes: string, manufacturer = "", components?: ProductComponent[]): ExactProduct =>
   ({ manufacturer, model: m, code, physicalItem: { label, notes }, ...(components ? { components, componentsStatus: "documented" as const } : {}) });
@@ -74,64 +111,79 @@ const bathWaste = { across: +(BATH_BOX / 2 - BATH_WASTE_FROM_CORNER / Math.SQRT2
 const BATH_CORNER = { x: 2.1, y: 0 };
 
 // ---- Enflair wall set for the bath: K1132-31 outside part + K1150-31-0-150 spout ---------------
+// Mixer geometry from the K1132-##-150 set drawing (mixer plate, handle and parenthetical body
+// projection only; the set's 150 mm spout is the separate K1150). Spout from the K1150 drawing.
+// Mounting height 800 mm is proposed: no wall anchor and no surveyed finished face (#60 unused).
+const MIXER_EL = 0.8;
+const MIXER_PLATE = 0.065;
 const wallMixer: PartSpec[] = [
-  // a cylinder's axis is vertical, so a square plate stands in for the round trim
-  box(0, 0.8, -0.03, 0.07, 0.07, 0.02),
-  box(0.045, 0.825, 0.015, 0.1, 0.014, 0.014), // lever
+  // a cylinder's axis is vertical, so a square plate stands in for the Ø65 round trim
+  box(0, MIXER_EL, -0.002, MIXER_PLATE, MIXER_PLATE, 0.004),
+  box(0, MIXER_EL + MIXER_PLATE / 2 - 0.1055, 0.02, 0.01, 0.1055, 0.01), // handle Ø10, 105.5 mm down from plate centre
 ];
 const spout: PartSpec[] = [
-  box(0, 0.8, -0.015, 0.045, 0.045, 0.03),
-  box(0, 0.815, 0.075, 0.025, 0.025, 0.15), // 150 mm projection, as the label names it
+  box(0, MIXER_EL, -0.002, MIXER_PLATE, MIXER_PLATE, 0.004),
+  box(0, MIXER_EL + MIXER_PLATE / 2 - 0.012, 0.075, 0.024, 0.024, 0.15), // Ø24 tube, 150 mm from the plate face
 ];
 
 // ---- Ahrok SDP-40BN bath waste, dome pop with pull-out basket, 40 mm -------------------------
-// Fitted inside the bath. The 40 mm is the connection size printed on the carton; the visible
-// dome, its height and where it sits in the tub are placeholders.
+// Fitted inside the bath. The 40 mm is the connection size printed on the carton; no manufacturer
+// sheet was found. The visible dome, its height and where it sits in the tub stay placeholders.
+const WASTE_EL = 0.59;
 const waste: PartSpec[] = [
-  tube(0, 0.59, 0, 0.07, 0.012),
-  tube(0, 0.602, 0, 0.05, 0.008),
+  tube(0, WASTE_EL, 0, 0.07, 0.012),
+  tube(0, WASTE_EL + 0.012, 0, 0.05, 0.008),
 ];
 
 // ---- Basin: Enflair K1110-31 petite basin mixer, on the vanity top ----------------------------
+const BASIN_EL = 0.85; // vanity top, owner's tape
 const basinMixer: PartSpec[] = [
-  tube(0, 0.85, -0.01, 0.035, 0.12),
-  box(0, 0.94, 0.03, 0.02, 0.02, 0.1),
-  box(0.03, 0.9, -0.01, 0.05, 0.012, 0.012), // lever
+  tube(0, BASIN_EL, 0, 0.048, 0.0055), // flange Ø48 × 5.5 mm
+  tube(0, BASIN_EL + 0.0055, 0, 0.04, 0.1425), // body Ø40, 148 mm from the deck
+  box(0, BASIN_EL + 0.128, 0.05, 0.02, 0.02, 0.1), // spout Ø20
+  box(0.04, BASIN_EL + 0.1, 0, 0.05, 0.012, 0.012), // lever; overall back-to-front 145 mm
 ];
 
-// ---- Shower: Y1173-31-11-250 system on a K1130 wall mixer -------------------------------------
-// 250 mm rain head and 3F handpiece as printed; rail, arm reach and height are placeholders.
+// ---- Shower: Y1173-31-11-250 system. K1130 mixer trim was not photographed, so it is not drawn.
+// Sheet: rail Ø22 × 981 mm, head Ø250 × 7 mm (53.1 with connector), arm 427 mm (datum unnamed on
+// the drawing), handpiece 210.3 × Ø106. Foot 400 mm is the existing proposed placeholder; the
+// real 981 mm rail therefore sits low. Do not invent a "nicer" height.
+const SHOWER_FOOT = 0.4;
+const SHOWER_H = 0.981;
+const SHOWER_ARM = 0.427;
 const shower: PartSpec[] = [
-  box(0, 0.4, -0.185, 0.04, 1.6, 0.03), // rail
-  box(0, 1.98, -0.07, 0.03, 0.03, 0.27), // arm
-  tube(0, 1.96, 0.06, 0.25, 0.02), // 250 mm rain head
-  box(0, 1.1, -0.15, 0.06, 0.1, 0.05), // slider
-  tube(0, 0.98, -0.12, 0.05, 0.18, { color: "#2e2c2a", roughness: 0.5 }), // 3F handpiece
+  box(0, SHOWER_FOOT, -0.185, 0.022, SHOWER_H, 0.022), // rail Ø22 × 981
+  box(0, SHOWER_FOOT + SHOWER_H - 0.022, -0.185 + SHOWER_ARM / 2, 0.022, 0.022, SHOWER_ARM), // arm 427 mm
+  tube(0, SHOWER_FOOT + SHOWER_H - 0.053, -0.185 + SHOWER_ARM - 0.125, 0.25, 0.053), // Ø250 head, 53.1 with connector
+  box(0, SHOWER_FOOT + 0.5, -0.16, 0.055, 0.106, 0.049), // slider; 106.4 mm, 49 mm from the wall
+  tube(0, SHOWER_FOOT + 0.4, -0.12, 0.106, 0.210, { color: "#2e2c2a", roughness: 0.5 }), // 3F handpiece 210.3 × Ø106
 ];
 
 // ---- Thermorail VS900HBN, 12 V vertical rail, concealed wiring: 142 × 900 × 100 mm -------------
-// The carton's drawing: one round upright, a short crossbar with knob ends across its top (the
-// 142 mm), and two wall brackets, one under the crossbar and one near the foot (the 100 mm off
-// the wall). Owner: the foot is 750 mm above the finished floor tiles. The tube diameter and the
-// bracket and crossbar heights are read off the drawing, not measured.
+// Manufacturer sheet: tube Ø38, 780 mm mounting centres, 24 W. Carton agrees W142 × H900 × D100.
+// Owner: the foot is 750 mm above the finished floor tiles (proposed, not surveyed).
 const RAIL_FOOT = 0.75;
-const RAIL_TUBE = 0.032; // placeholder
+const RAIL_TUBE = 0.038;
 const RAIL_Z = 0.05 - RAIL_TUBE / 2; // the upright's front at the 100 mm projection
 const railBracket = (up: number): PartSpec[] => [
   tube(0, RAIL_FOOT + up - 0.025, -0.045, 0.05, 0.05, { ...NICKEL, d: 0.01 }), // wall rose
   box(0, RAIL_FOOT + up - 0.01, (-0.04 + RAIL_Z - RAIL_TUBE / 2) / 2, 0.02, 0.02, RAIL_Z - RAIL_TUBE / 2 + 0.04),
 ];
 const rail: PartSpec[] = [
-  tube(0, RAIL_FOOT, RAIL_Z, RAIL_TUBE, 0.9), // upright
-  box(0, RAIL_FOOT + 0.84, RAIL_Z, 0.11, 0.018, 0.018), // crossbar
-  box(-0.0625, RAIL_FOOT + 0.835, RAIL_Z, 0.017, 0.028, 0.028), box(0.0625, RAIL_FOOT + 0.835, RAIL_Z, 0.017, 0.028, 0.028), // knob ends
-  ...railBracket(0.79), ...railBracket(0.08),
+  tube(0, RAIL_FOOT, RAIL_Z, RAIL_TUBE, 0.9), // upright Ø38 × 900
+  box(0, RAIL_FOOT + 0.882, RAIL_Z, 0.142, 0.019, 0.019), // crossbar, 142 mm overall
+  box(-0.0625, RAIL_FOOT + 0.882, RAIL_Z, 0.017, 0.028, 0.028), box(0.0625, RAIL_FOOT + 0.882, RAIL_Z, 0.017, 0.028, 0.028), // knob ends
+  // 780 mm centres: 60 mm from each end of the 900 mm tube
+  ...railBracket(0.84), ...railBracket(0.06),
 ];
 
 // ---- OJ Electronics MWD5-1999-CBP3 (Coldbuster 2" WiFi thermostat), flush --------------------
+// Brochure lists OxD5 82×82×40, MxD5 84×84×40, MxD5-UA 115×84×40; it does not name the CBP3 cover,
+// so the plate size stays a labelled placeholder. Owner: hallway wall, about 850 mm off the floor.
+const THERMO_EL = 0.85;
 const thermostat: PartSpec[] = [
-  box(0, 1.4, 0, 0.085, 0.085, 0.012, { color: "#f1f4f5", roughness: 0.4 }),
-  box(0, 1.425, 0.007, 0.05, 0.035, 0.004, { color: "#1b1d1f", roughness: 0.2 }),
+  box(0, THERMO_EL, 0, 0.085, 0.085, 0.012, { color: "#f1f4f5", roughness: 0.4 }),
+  box(0, THERMO_EL + 0.025, 0.007, 0.05, 0.035, 0.004, { color: "#1b1d1f", roughness: 0.2 }),
 ];
 
 // ---- Reused vanity: 910 W × 850 H × 465 D (owner's tape) -----------------------------------
@@ -180,30 +232,58 @@ export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "bath_sb184_1000gw", label: "Corner bath",
     product: fitting("Angie Corner 1000mm Bath, GW", "SB184-1000GW", "Angie Corner 1000mm Bath, GW (SB184-1000GW)",
-      "Carton label: 1 pc, 36 kg net, 46 kg gross, 1000 × 1000 × 630 mm. Enflair dimension drawing: 1000 mm sides, 1090 mm from the corner to the front of the curve, 630 mm high, 550 mm inside depth, 278 L, 36 kg net, Ø50 waste centred 520 mm from the corner, no overflow shown. The drawing notes slight variations; check the delivered bath."),
+      "Carton label: 1 pc, 36 kg net, 46 kg gross, 1000 × 1000 × 630 mm. Enflair dimension drawing: 1000 mm sides, 1090 mm from the corner to the front of the curve, 630 mm high, 550 mm inside depth, 278 L, 36 kg net, Ø50 waste centred 520 mm from the corner, no overflow shown. The drawing notes slight variations; check the delivered bath. The drawing's 1178 and 920 widths are not used: their extension lines do not show which edges they measure."),
     size: { w: BATH_BOX, d: BATH_BOX, h: 0.63, printed: ["h"], caveat: "1000 mm sides; the box is the extent of a circular front 1090 mm from the corner" },
+    measures: [
+      published("side", BATH_LEG, sheet(ENFLAIR_BATH, "SB184-1000 dimension drawing: 1000 mm along each wall side"), "fixture-side", "From the right-angle corner along each wall"),
+      published("frontProjection", BATH_PROJECTION, sheet(ENFLAIR_BATH, "section A-A: 1090 mm from the corner to the front of the curve"), "other", "Along the bisector, from the right-angle corner to the front of the curve"),
+      published("height", 0.63, sheet(ENFLAIR_BATH, "A-A: 630 mm overall height"), "fixture-bottom"),
+      published("insideDepth", 0.55, sheet(ENFLAIR_BATH, "A-A: 550 mm inside depth"), "other", "Inside water depth on section A-A"),
+      published("wasteFromCorner", BATH_WASTE_FROM_CORNER, sheet(ENFLAIR_BATH, "plan: Ø50 waste 520 mm from the corner on the bisector; 368 mm along each side"), "other", "Waste centre on the bisector"),
+    ],
     parts: [], outline: bathOutline, placement: { id: "bath", kind: "bath_sb184_1000gw", x: quantize(BATH_CORNER.x - BATH_BOX / 2), y: quantize(BATH_CORNER.y + BATH_BOX / 2), rotation: 0 },
   },
   {
     kind: "mixer_k1132_31", label: "Bath mixer",
     product: fitting("Profile III wall basin/bath mixer", "K1132-31", "Enflair K1132-31 outside part (K1132 inner part is the in-wall body)",
-      "Label: brushed SS nickel, max static inlet pressure 500 kPa, max hot water 80°, WaterMark AS 3718:2021 WM-080082.", "Enflair",
+      "Label: brushed SS nickel, max static inlet pressure 500 kPa, max hot water 80°, WaterMark AS 3718:2021 WM-080082. Trim geometry from the K1132-##-150 set drawing (plate, handle, parenthetical body projection); the set's 150 mm spout is the separate K1150, not this mixer.", "Enflair",
       [part("K1132 inner part (in-wall body)", "Its carton was photographed; whether it is the body for this trim is not confirmed by a sourced sheet.")]),
-    size: { w: 0.07, d: 0.06, h: 0.07, printed: [], elevation: 0.8, caveat: "size and height are placeholders" },
+    size: { w: MIXER_PLATE, d: 0.065, h: MIXER_PLATE, printed: [], elevation: MIXER_EL, caveat: "mounting height 800 mm is proposed; no surveyed wall face. Body projection 61 mm is in parentheses on the set drawing" },
+    measures: [
+      published("plateDiameter", 0.065, sheet(ENFLAIR_K1132, "K1132-##-150 set drawing: cover plate Ø65"), "other", "Cover plate diameter"),
+      published("plateThickness", 0.004, sheet(ENFLAIR_K1132, "K1132-##-150 set drawing: plate 4 mm"), "finished-wall", "Plate thickness from the wall face of the plate"),
+      published("handleDrop", 0.1055, sheet(ENFLAIR_K1132, "K1132-##-150 set drawing: handle 105.5 mm down from plate centre, Ø10"), "other", "From plate centre down to the handle end"),
+      published("bodyProjection", 0.061, sheet(ENFLAIR_K1132, "K1132-##-150 set drawing: (61) in parentheses"), "finished-wall", "Sheet puts 61 mm in parentheses; from the plate face"),
+      proposedDim("elevation", MIXER_EL, "Proposed 800 mm to the underside of the cover plate. No wall anchor and no surveyed finished face, so #60 installation is not used.", "finished-floor"),
+    ],
     parts: wallMixer, placement: { id: "bath_mixer", kind: "mixer_k1132_31", x: 1.85, y: 0.03, rotation: 0 },
   },
   {
     kind: "spout_k1150_31_0_150", label: "Bath spout",
     product: fitting("Profile III 150mm spout for basin/bath", "K1150-31-0-150", "Enflair K1150-31-0-150 spout (304SS, brushed SS nickel)",
       "Carton label: 304 stainless steel, brushed SS nickel, 150 mm.", "Enflair"),
-    size: { w: 0.045, d: 0.15, h: 0.045, printed: ["d"], elevation: 0.8, caveat: "only the 150 mm reach is printed" },
+    size: { w: MIXER_PLATE, d: 0.15, h: MIXER_PLATE, printed: ["d"], elevation: MIXER_EL, caveat: "mounting height 800 mm is proposed; no surveyed wall face" },
+    measures: [
+      published("plateDiameter", 0.065, sheet(ENFLAIR_K1150, "K1150-##-0-150 drawing: cover plate Ø65"), "other", "Cover plate diameter"),
+      published("plateThickness", 0.004, sheet(ENFLAIR_K1150, "K1150-##-0-150 drawing: plate 4 mm"), "finished-wall"),
+      published("reach", 0.15, sheet(ENFLAIR_K1150, "K1150-##-0-150 drawing: 150 mm from the plate face to the outlet"), "finished-wall", "Reach from the plate face; also printed 150 mm on the carton"),
+      published("tubeDiameter", 0.024, sheet(ENFLAIR_K1150, "K1150-##-0-150 drawing: tube Ø24"), "other"),
+      published("outletDrop", 0.045, sheet(ENFLAIR_K1150, "K1150-##-0-150 drawing: 45 mm drop, 15°"), "other", "Drop from the tube axis to the outlet"),
+      proposedDim("elevation", MIXER_EL, "Proposed 800 mm to the underside of the cover plate. No wall anchor and no surveyed finished face, so #60 installation is not used.", "finished-floor"),
+    ],
     parts: spout, placement: { id: "bath_spout", kind: "spout_k1150_31_0_150", x: 1.55, y: 0.075, rotation: 0 },
   },
   {
     kind: "waste_sdp40bn", label: "Bath waste",
     product: fitting("Dome Pop Short Bath Waste 40mm, with pull out basket", "SDP-40BN", "Ahrok SDP-40BN dome pop short bath waste, 40 mm, pull-out basket, brushed nickel",
-      "Carton label: WaterMark licence WM-022812, AS 1589-2001.", "Ahrok"),
-    size: { w: 0.07, d: 0.07, h: 0.02, printed: [], elevation: 0.59, caveat: "dome size is a placeholder; its place is the drawing's waste point" },
+      "Carton label: WaterMark licence WM-022812, AS 1589-2001. No manufacturer sheet found for this code.", "Ahrok"),
+    size: { w: 0.07, d: 0.07, h: 0.02, printed: [], elevation: WASTE_EL, caveat: "dome size is a placeholder; 40 mm connection is from the carton; its place is the drawing's waste point" },
+    measures: [
+      measuredDim("connection", 0.04, "40 mm pipe connection printed on the carton (photographed). No manufacturer sheet found.", "other"),
+      proposedDim("domeDiameter", 0.07, "Placeholder for the visible dome; no manufacturer sheet.", "other"),
+      proposedDim("domeHeight", 0.02, "Placeholder for the dome height above the waste flange; no manufacturer sheet.", "fixture-bottom"),
+      proposedDim("elevation", WASTE_EL, "Placeholder height of the dome above the finished floor, inside the bath. Measure from the bath floor / waste flange.", "finished-floor"),
+    ],
     // the drawing's waste point: on the bisector, 520 mm from the corner (368 mm along each side).
     // Its hole is drawn Ø50; this waste's 40 mm is the pipe connection, so check the fit (#75).
     parts: waste, placement: { id: "bath_waste", kind: "waste_sdp40bn", x: quantize(BATH_CORNER.x - BATH_BOX / 2 + bathWaste.across), y: quantize(BATH_CORNER.y + bathWaste.out), rotation: 0, fittedTo: { hostId: "bath", ...bathWaste } },
@@ -212,23 +292,52 @@ export const purchasedFittings: PurchasedFitting[] = [
     kind: "mixer_k1110_31", label: "Basin mixer",
     product: fitting("Profile III petite basin mixer", "K1110-31", "Enflair K1110-31 petite basin mixer, brushed SS nickel",
       "Label: 6 L/min WELS licence 2054 (Jina Enterprises Pty Ltd), max static inlet pressure 500 kPa, max hot water 80°, WaterMark AS 3718:2021 WM-080082.", "Enflair"),
-    size: { w: 0.08, d: 0.12, h: 0.13, printed: [], elevation: 0.85, caveat: "size is a placeholder; elevation is the vanity top" },
+    size: { w: 0.048, d: 0.145, h: 0.148, printed: [], elevation: BASIN_EL, caveat: "elevation is the measured vanity top (owner's tape 850 mm); mixer sizes from the K1110 drawing" },
+    measures: [
+      published("height", 0.148, sheet(ENFLAIR_K1110, "K1110 drawing: 148 mm from the deck/flange to the top"), "fixture-bottom", "Overall height from the deck"),
+      published("flangeDiameter", 0.048, sheet(ENFLAIR_K1110, "K1110 drawing: flange Ø48"), "other"),
+      published("flangeThickness", 0.0055, sheet(ENFLAIR_K1110, "K1110 drawing: flange 5.5 mm"), "fixture-bottom"),
+      published("bodyDiameter", 0.04, sheet(ENFLAIR_K1110, "K1110 drawing: body Ø40"), "other"),
+      published("overallDepth", 0.145, sheet(ENFLAIR_K1110, "K1110 drawing: 145 mm back-to-front"), "fixture-side"),
+      published("spoutDiameter", 0.02, sheet(ENFLAIR_K1110, "K1110 drawing: spout Ø20"), "other"),
+      published("basinClearance", 0.062, sheet(ENFLAIR_K1110, "K1110 drawing: 62 mm under the spout; text says 60 mm approx."), "other", "Drawing 62 mm; marketing text 60 mm approx. Drawing figure kept."),
+      measuredDim("elevation", BASIN_EL, "Vanity top, owner's tape 850 mm, 5 Oct 2026.", "finished-floor"),
+    ],
     parts: basinMixer, placement: { id: "basin_mixer", kind: "mixer_k1110_31", x: 2.02, y: 1.7, rotation: 270 },
   },
   {
     kind: "shower_y1173_31_11_250", label: "Shower system",
     product: fitting("Profile round twin shower system with adjustable rail", "Y1173-31-11-250", "Y1173-31-11-250 twin shower, 250 mm rain head, 3F handpiece, brushed nickel",
-      "Label: 9.0 L/min WELS licence 1281 (Kaiping Huipu Shower Metalwork Industrial Co Ltd), WaterMark AS/NZS 3662 WMKT25262. Brand is not printed on the label.", "",
+      "Label: 9.0 L/min WELS licence 1281 (Kaiping Huipu Shower Metalwork Industrial Co Ltd), WaterMark AS/NZS 3662 WMKT25262. Brand is not printed on the label. Envelope from the Y1173 drawing: rail 981 mm, head Ø250, arm 427 mm (datum unnamed on the sheet). The 66 mm lower-bracket offset is not added to the 427 mm arm.", "",
       [part("K1130 wall shower/bath mixer, inner part", "Its carton was photographed; the shower mixer instruction sheet shows its 45 mm and 60 mm dimensions without a clear datum."),
-        part("K1130 outside part (handle trim)", "No carton for the trim was photographed; not confirmed as held.")]),
-    size: { w: 0.25, d: 0.4, h: 2, printed: ["w"], caveat: "only the 250 mm head is printed; arm reach, rail and height are placeholders" },
+        part("K1130 outside part (handle trim)", "No carton for the trim was photographed; not confirmed as held. Enflair K1130-##+KDPP30 drawing (Ø95 plate, 107 mm handle, 103 mm projection) is not entered as a kind because the trim was not seen.")]),
+    size: { w: 0.25, d: SHOWER_ARM, h: SHOWER_H, printed: ["w"], elevation: SHOWER_FOOT, caveat: "rail foot 400 mm is the existing proposed placeholder; no surveyed wall face. Arm 427 mm datum is unnamed on the sheet" },
+    measures: [
+      published("headDiameter", 0.25, sheet(ENFLAIR_Y1173, "Y1173-##-11-250 drawing: rain head Ø250"), "other"),
+      published("headThickness", 0.007, sheet(ENFLAIR_Y1173, "Y1173 drawing: head plate 7 mm; 53.1 mm with connector"), "other"),
+      published("railHeight", SHOWER_H, sheet(ENFLAIR_Y1173, "Y1173 drawing: rail overall 981 mm"), "fixture-bottom"),
+      published("railDiameter", 0.022, sheet(ENFLAIR_Y1173, "Y1173 drawing: rail Ø22"), "other"),
+      published("armReach", SHOWER_ARM, sheet(ENFLAIR_Y1173, "Y1173 drawing: 427 mm along the arm and head"), "unresolved", "Sheet does not name whether 427 mm is from the wall face or from the riser; kept as written, not used as set-out from a named face"),
+      published("handpieceLength", 0.2103, sheet(ENFLAIR_Y1173, "Y1173 drawing B: handpiece 210.3 mm"), "fixture-bottom"),
+      published("handpieceDiameter", 0.106, sheet(ENFLAIR_Y1173, "Y1173 drawing B: handpiece Ø106"), "other"),
+      published("lowerBracket", 0.066, sheet(ENFLAIR_Y1173, "Y1173 drawing: lower bracket 66 mm, plate 10 mm, rose Ø55"), "unresolved", "Offset of the lower bracket; not added to the 427 mm arm for the envelope"),
+      proposedDim("elevation", SHOWER_FOOT, "Proposed 400 mm to the rail foot (the existing placeholder). No wall anchor and no surveyed finished face. The 981 mm product therefore sits low; that height is not replaced with a guessed rain-head height.", "finished-floor"),
+    ],
     parts: shower, placement: { id: "shower_system", kind: "shower_y1173_31_11_250", x: 0.2, y: 0.6, rotation: 90 },
   },
   {
     kind: "towel_rail_vs900hbn", label: "Towel rail",
     product: fitting("VS900HBN", "VS900HBN", "Thermorail VS900HBN, 12 V vertical rail, round, brushed nickel, concealed wiring",
-      "Carton label: 142 × 900 × 100 mm. Carton drawing: a single round upright with a short knobbed crossbar at the top and two wall brackets. 12 V: a transformer came with each rail (owner); both go up in the ceiling space for access later.", "Thermorail"),
-    size: { w: 0.142, d: 0.1, h: 0.9, printed: ["w", "d", "h"], elevation: RAIL_FOOT, caveat: "foot 750 mm above the floor tiles (owner)" },
+      "Carton label: 142 × 900 × 100 mm. Manufacturer sheet: W142 × H900 × D100, tube Ø38, 780 mm mounting centres, 24 W (this sheet; a product page that says 22 W is not used). 12 V: a transformer came with each rail (owner); both go up in the ceiling space for access later.", "Thermorail"),
+    size: { w: 0.142, d: 0.1, h: 0.9, printed: ["w", "d", "h"], elevation: RAIL_FOOT, caveat: "foot 750 mm above the floor tiles (owner, proposed); no surveyed wall face" },
+    measures: [
+      published("width", 0.142, sheet(THERMO_VS900, "VS900HBN specification sheet: Size W142 × H900 × D100"), "other"),
+      published("depth", 0.1, sheet(THERMO_VS900, "VS900HBN specification sheet: D100"), "finished-wall"),
+      published("height", 0.9, sheet(THERMO_VS900, "VS900HBN specification sheet: H900"), "fixture-bottom"),
+      published("tubeDiameter", RAIL_TUBE, sheet(THERMO_VS900, "VS900HBN specification sheet: tube Ø38"), "other"),
+      published("mountingCentres", 0.78, sheet(THERMO_VS900, "VS900HBN specification sheet: 780 mm between fixing centres"), "other"),
+      proposedDim("elevation", RAIL_FOOT, "Owner: foot 750 mm above the finished floor tiles. Proposed, not surveyed; no wall anchor, so #60 installation is not used.", "finished-floor"),
+    ],
     parts: rail, placement: { id: "towel_rail", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.825, rotation: 90 },
     // the owner bought two; the second hangs beside the first on the left wall, its foot also at 750
     extra: [{ id: "towel_rail_2", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.575, rotation: 90 }],
@@ -236,11 +345,33 @@ export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "thermostat_mwd5_1999_cbp3", label: "Thermostat",
     product: fitting("MWD5-1999-CBP3", "MWD5-1999-CBP3", "OJ Electronics Coldbuster 2\" WiFi thermostat, flush mount",
-      "Label: incl. limitation sensor, 100–240 V AC / 16 A, 5–40 °C, housing IP21, flush mounting. The plate size is not printed.", "OJ Electronics"),
-    size: { w: 0.085, d: 0.012, h: 0.085, printed: [], elevation: 1.4, caveat: "size is a placeholder" },
+      "Label: incl. limitation sensor, 100–240 V AC / 16 A, 5–40 °C, housing IP21, flush mounting. The plate size is not printed. OJ Microline brochure lists OxD5 82×82×40, MxD5 84×84×40 and MxD5-UA 115×84×40 without naming the CBP3 cover, so none of those sizes is entered as this product.", "OJ Electronics"),
+    size: { w: 0.085, d: 0.012, h: 0.085, printed: [], elevation: THERMO_EL, caveat: "plate size is a placeholder; CBP3 cover is not identified on the brochure. Height 850 mm is the owner's hallway proposal; this fitting is not placed in the bathroom" },
+    measures: [
+      proposedDim("width", 0.085, "Placeholder plate width. OJ brochure lists family sizes (OxD5 82×82×40, MxD5 84×84×40, MxD5-UA 115×84×40) without naming CBP3; none is used as this cover.", "other"),
+      proposedDim("height", 0.085, "Placeholder plate height; CBP3 cover not identified on the manufacturer brochure.", "other"),
+      proposedDim("projection", 0.012, "Placeholder projection of the flush plate; brochure build-in 22 mm is a family figure, not used as this cover.", "finished-wall"),
+      proposedDim("elevation", THERMO_EL, "Owner: hallway wall outside the bathroom, next to the light switch, about 850 mm off the floor. Proposed, not surveyed. Not placed in this plan.", "finished-floor"),
+    ],
     // owner: on the hallway wall outside the bathroom, so it is not placed in this plan
     parts: thermostat,
   },
+];
+
+/** Remaining placeholders: no manufacturer sheet, or a height with no surveyed face. */
+export const stillNeedsCaptainsMeasurement: CaptainMeasurement[] = [
+  { fitting: "Bath mixer K1132-31", what: "Mounting height to the underside of the cover plate", from: "finished floor tiles, on the window-wall finished (tile) face once that face is surveyed" },
+  { fitting: "Bath spout K1150-31-0-150", what: "Mounting height to the underside of the cover plate", from: "finished floor tiles, on the window-wall finished (tile) face once that face is surveyed" },
+  { fitting: "Shower Y1173-31-11-250", what: "Height of the rail foot (lower bracket)", from: "finished floor tiles, on the left-wall finished (tile) face once that face is surveyed" },
+  { fitting: "Shower Y1173-31-11-250", what: "Reach of the rain head from the finished wall face (sheet 427 mm does not name wall vs riser)", from: "left-wall finished (tile) face, out to the front of the Ø250 head" },
+  { fitting: "Towel rail VS900HBN (both)", what: "Height of the rail foot", from: "finished floor tiles, on the left-wall finished (tile) face (owner proposed 750 mm; not surveyed)" },
+  { fitting: "Ahrok SDP-40BN bath waste", what: "Visible dome diameter and dome height above the waste flange", from: "the bath floor / waste flange of SB184-1000GW (no manufacturer sheet; carton names the 40 mm connection only)" },
+  { fitting: "Ahrok SDP-40BN bath waste", what: "Fit of the 40 mm connection in the bath's Ø50 waste hole", from: "the Ø50 waste on the bath bisector, 520 mm from the right-angle corner" },
+  { fitting: "OJ MWD5-1999-CBP3 thermostat", what: "Cover-plate width, height and projection of this exact CBP3 cover", from: "the CBP3 cover itself (brochure lists OxD5 / MxD5 / MxD5-UA sizes without naming CBP3)" },
+  { fitting: "OJ MWD5-1999-CBP3 thermostat", what: "Mounting height to the plate", from: "hallway finished floor, next to the light switch (owner: about 850 mm; not surveyed)" },
+  { fitting: "K1130 shower mixer outside part", what: "Confirm the trim is held, then mounting height to the cover plate", from: "finished floor tiles, on the shower-wall finished (tile) face. Not drawn: no outside part was photographed" },
+  { fitting: "Bath SB184-1000GW", what: "Check the delivered bath: 1000 mm wall sides, 1090 mm corner-to-front, 630 mm height, waste 520 mm from the corner", from: "the two wall sides and the right-angle corner (sheet notes slight variations)" },
+  { fitting: "Room walls", what: "Survey finished wall faces (or confirm the frame after strip-out) so #60 installation can replace the catalogue elevation stopgap", from: "each room-facing wall: existing surface is measured; finished face is still estimated from the frame plus proposed layers" },
 ];
 
 // ---- Construction spec from the owner ------------------------------------------------------
@@ -430,7 +561,7 @@ export const bathroomNotes = (): Note[] => {
     { id: "note-limits", author: "human", text: "This sample is not measured set-out or a trade drawing. Drainage, services and falls are not represented; construction layers are recorded with their unknown thicknesses left unknown.", at: at + 2 },
     {
       id: "note-purchased", author: "agent", at: at + 3,
-      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle corner bath, 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste centred 520 mm from the corner, per the Enflair dimension drawing); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); two Thermorail VS900HBN 142 × 900 × 100 mm (feet 750 mm above the floor tiles, owner); OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L; replacement window 1810 × 600 (Stock Windows & Doors). Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
+      text: "Purchased fittings, from photographed labels and the manufacturer's own specification drawing or sheet for the exact model: bath SB184-1000GW (Enflair drawing: 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste 520 mm from the corner); Enflair K1132-31 trim (set drawing: plate Ø65 × 4 mm, handle 105.5 mm, body (61) mm) with K1132 inner part, K1150-31-0-150 spout (drawing: plate Ø65, 150 mm from the plate face, Ø24, 45 mm drop); Enflair K1110-31 basin mixer (drawing: 148 mm high, flange Ø48 × 5.5, overall 145 mm, spout Ø20); Enflair K1130 shower/bath mixer inner part (outside part not photographed, not drawn); Y1173-31-11-250 shower (drawing: rail 981 mm Ø22, head Ø250, arm 427 mm with unnamed datum, handpiece 210.3 × Ø106); Ahrok SDP-40BN 40 mm bath waste (carton only; no manufacturer sheet); two Thermorail VS900HBN 142 × 900 × 100 mm, tube Ø38, 780 mm centres, 24 W (Thermogroup sheet; feet 750 mm above the floor tiles, owner, proposed); OJ MWD5-1999-CBP3 thermostat (brochure does not name the CBP3 cover; plate size stays a placeholder). Wall-fitting mounting heights stay proposed: the room has no wall anchors and no surveyed finished faces, so #60 installation is not used and the catalogue elevation stopgap remains. Remaining placeholders are listed as stillNeedsCaptainsMeasurement.",
     },
     {
       id: "note-sequence", author: "human", at: at + 6,
@@ -466,7 +597,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-purchased-open", author: "agent", at: at + 4,
-      text: "Open points from the labels: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat (IP21) goes outside the bathroom on the hallway wall, next to the light switch, which is on the right as you look into the bathroom, about 850 mm off the floor (owner, 5 Oct 2026); it is not drawn here. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² (about 87–120 mm spacing); the cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. No route is drawn; use the heating tools for that.",
+      text: "Open points from the labels and sheets: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. The K1130-##+KDPP30 drawing (Ø95 plate, 107 mm handle, 103 mm projection) is not entered as a kind. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat (IP21) goes outside the bathroom on the hallway wall, next to the light switch, which is on the right as you look into the bathroom, about 850 mm off the floor (owner, 5 Oct 2026); it is not drawn here; its CBP3 cover size is not on the OJ brochure. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² (about 87–120 mm spacing); the cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. No route is drawn; use the heating tools for that. (7) Wall-fitting heights stay proposed until finished faces are surveyed; #60 installation is not applied. Remaining placeholders: stillNeedsCaptainsMeasurement.",
     },
   ];
 };
