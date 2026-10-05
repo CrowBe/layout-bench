@@ -285,7 +285,8 @@ export interface Item {
   selectionStatus?: SelectionStatus;
   /**
    * A corner fixture that comes in a left and a right hand (#37): the kind for each, and which
-   * one is in use. Re-anchoring into the other corner swaps the kind and mirrors the service points.
+   * one is in use (the stored hand). Re-anchor is refused when that hand disagrees with the wall,
+   * or for derived corner waste; re-place the bath.
    */
   corner?: { left: string; right: string; side: "left" | "right" };
 }

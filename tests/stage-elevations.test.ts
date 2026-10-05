@@ -93,6 +93,21 @@ describe("stage wall elevations", () => {
     expect(east).not.toMatch(new RegExp(`stroke-dasharray[^>]*data-element="item:${vanity}"`));
   });
 
+  it("dashes a stopgap kind that has no elevation", () => {
+    const { walls } = bathroom();
+    actions.defineItemKind({
+      kind: "stopgap_box", label: "Stopgap box", w: 0.4, d: 0.3, h: 0.5, category: "bath",
+      parts: [{ shape: "box", w: 0.4, d: 0.3, h: 0.5, y: 0, stopgap: true }],
+    });
+    expect(store.getState().kinds.find((k) => k.entry.kind === "stopgap_box")?.entry.stopgap).toBe(true);
+    expect(store.getState().kinds.find((k) => k.entry.kind === "stopgap_box")?.entry.elevation).toBeUndefined();
+    const id = actions.placeItem("stopgap_box", 1.05, 2.7).id as string;
+    actions.anchorFixture(id, { wallId: walls[2], side: "right", face: "finished", distance: 1.05, status: "proposed" });
+    const svg = renderStageElevation(model(), ids(["walls", "fixtures"]), walls[2], "right", opts);
+    expect(svg).toMatch(new RegExp(`stroke-dasharray="1.2 0.6"[^>]*data-element="item:${id}"`));
+    expect(svg).toMatch(/\(dashed\)/);
+  });
+
   it("shows only what the stage shows", () => {
     const { walls, vanity } = bathroom();
     const frameOnly = renderStageElevation(model(), ids(["walls", "wall-frame", "services-waste"]), walls[1], "right", { ...opts, label: "Rough-in" });

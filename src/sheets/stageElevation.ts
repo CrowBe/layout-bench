@@ -398,7 +398,8 @@ function vertical(model: PlanModel, it: Item, room: ReturnType<typeof roomBeside
   if (floor.level === undefined) return { basis: "unknown", heightNote: "finished floor level unknown here" };
   const z0 = floor.level + (cat.elevation ?? 0);
   const on = floor.datumOnly ? "the existing floor (no floor build-up recorded)" : "the finished floor";
+  const dashed = Boolean(cat.elevation || cat.stopgap);
   return cat.elevation
     ? { z0, z1: z0 + cat.h, basis: "estimated", dashed: true, heightNote: `${cat.elevationNote ? `${cat.elevationNote}; ` : ""}envelope bottom ${mm(cat.elevation)} above ${on} from the kind's data, not a set-out (dashed)` }
-    : { z0, z1: z0 + cat.h, basis: floor.basis, heightNote: `stands on ${on}; height ${mm(cat.h)} from the kind's envelope` };
+    : { z0, z1: z0 + cat.h, basis: floor.basis, ...(dashed ? { dashed: true } : {}), heightNote: `stands on ${on}; height ${mm(cat.h)} from the kind's envelope${dashed ? " (dashed)" : ""}` };
 }
