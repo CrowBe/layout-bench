@@ -640,6 +640,10 @@ const cableCarton = (value: number | string, note: string, reference?: Reference
   ...(reference ? { reference } : {}),
 });
 
+/** Stable ids the sample heating record references; they name the carton/label products, not a live library insert. */
+export const SAMPLE_CABLE_PRODUCT_ID = "sample-sck0765l-carton";
+export const SAMPLE_THERMOSTAT_PRODUCT_ID = "sample-mwd5-1999-cbp3";
+
 /** Label figures are published from the carton; nothing here is derived or modelled. */
 export const heatingCableSpecification = (): ProductSpecification => {
   const cat = categoryById("heating-cable")!;
@@ -664,12 +668,12 @@ export const heatingCableSpecification = (): ProductSpecification => {
       coverageAreaMax: cableCarton(5.1, "coverage 3.7–5.1 m², maximum"),
     },
   };
-  return Object.assign(spec, { model: "SCK0765L" });
+  return Object.assign(spec, { model: "SCK0765L", productId: SAMPLE_CABLE_PRODUCT_ID });
 };
 
 export const thermostatSpecificationOf = (): ProductSpecification => {
   const spec = specOf(purchasedFittings.find((f) => f.specCategory === "thermostat")!);
-  return Object.assign(spec, { manufacturer: "OJ Electronics", model: "MWD5-1999-CBP3" });
+  return Object.assign(spec, { manufacturer: "OJ Electronics", model: "MWD5-1999-CBP3", productId: SAMPLE_THERMOSTAT_PRODUCT_ID });
 };
 
 // ---- Construction spec from the owner ------------------------------------------------------
@@ -815,8 +819,9 @@ export const seedBathroom = (): PlanModel => ({
       note: `${BEIGE}. Long side runs toward the window wall and continues up it. Full tiles start at the doorway.`,
     },
     heating: {
-      model: "SCK0765L",
       productSource: "SCK0765L carton label",
+      cableProductId: SAMPLE_CABLE_PRODUCT_ID,
+      thermostatProductId: SAMPLE_THERMOSTAT_PRODUCT_ID,
       cableSpecification: heatingCableSpecification(),
       thermostatSpecification: thermostatSpecificationOf(),
       thermostatLocation: {

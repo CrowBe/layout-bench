@@ -1177,6 +1177,30 @@ export const actions = {
     if (patch.clear === true) delete nextRoom.heating;
     else {
       const library = productStore.getState().products;
+      const validateProductId = (
+        key: "cableProductId" | "thermostatProductId",
+        category: "heating-cable" | "thermostat",
+        value: string | null,
+      ): string | null => {
+        if (value === null) return null;
+        if (typeof value !== "string" || !value.trim() || value.length > 200) {
+          return `Heating rejected: ${key} must be an accepted ${category} id or null.`;
+        }
+        const product = library.find((p) => p.id === value);
+        if (!product) return `Heating rejected: no accepted product "${value}" in this library.`;
+        if (product.category !== category) {
+          return `Heating rejected: "${value}" is category ${product.category}, not ${category}.`;
+        }
+        return null;
+      };
+      if (patch.cableProductId !== undefined) {
+        const err = validateProductId("cableProductId", "heating-cable", patch.cableProductId);
+        if (err) return fail(err);
+      }
+      if (patch.thermostatProductId !== undefined) {
+        const err = validateProductId("thermostatProductId", "thermostat", patch.thermostatProductId);
+        if (err) return fail(err);
+      }
       const locked = heatingProductWriteGuard(room.heating, patch as Record<string, unknown>, library);
       if (locked) return fail(locked);
       const next: Heating = structuredClone(room.heating ?? { zoneIds: [], path: [], keepouts: [] });
@@ -1191,14 +1215,7 @@ export const actions = {
           delete next[specKey];
           return null;
         }
-        if (typeof value !== "string" || !value.trim() || value.length > 200) {
-          return `Heating rejected: ${key} must be an accepted ${category} id or null.`;
-        }
-        const product = library.find((p) => p.id === value);
-        if (!product) return `Heating rejected: no accepted product "${value}" in this library.`;
-        if (product.category !== category) {
-          return `Heating rejected: "${value}" is category ${product.category}, not ${category}.`;
-        }
+        const product = library.find((p) => p.id === value)!;
         next[key] = product.id;
         next[specKey] = specificationFromProduct(product);
         return null;
@@ -1223,7 +1240,7 @@ export const actions = {
         const quantity = next[key];
         if (quantity && quantity.value === null) delete quantity.value;
       }
-      if (!validHeating(next)) return fail("Heating rejected: finite non-negative quantities need provenance; paths need finite x/y; keep-outs need unique ids, labels and positive rectangles; product snapshots must match their category. Maximum 1000 points and 100 keep-outs.");
+      if (!validHeating(next)) return fail("Heating rejected: finite non-negative quantities need provenance; paths need finite x/y; keep-outs need unique ids, labels and positive rectangles; product snapshots must match their category and name the accepted productId they were written from. Maximum 1000 points and 100 keep-outs.");
       for (const key of ["length", "minSpacing", "edgeClearance", "depthFromBottom"] as const) if (next[key]?.value !== undefined) next[key]!.value = quantize(next[key]!.value!);
       next.path = next.path.map((p) => ({ x: quantize(p.x), y: quantize(p.y) }));
       next.keepouts = next.keepouts.map((r) => ({ ...r, x: quantize(r.x), y: quantize(r.y), w: quantize(r.w), h: quantize(r.h) }));
@@ -1661,15 +1678,13 @@ export const actions = {
     const next = this.previewProductRevision(preview.targetId, preview.selected);
     if (!next || next.fingerprint !== preview.fingerprint) return fail("The project or accepted evidence changed. Preview the selected instances again before applying.");
     const product = productStore.getState().products.find((p) => p.id === next.targetId);
-    const parentId = product ? revisionOf(product).parentProductId : undefined;
-    const heatingFrom = [parentId, next.targetId, ...next.rows.map((row) => row.before.productId)];
     if (!next.applicable) {
       if (!product || next.selected.length > 0) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
-      const heating = retargetHeatingInModel(store.getState().model, heatingFrom, product);
+      const heating = retargetHeatingInModel(store.getState().model, product);
       if (!heating.rooms.length) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
       pushUndo();
       setModel(heating.model);
-      return ok(`0 selected instance(s) updated. ${heatingRevisionSummary(product, heating.rooms, heating.changed)} Issued outputs remain historical.`, { ids: next.selected });
+      return ok(`0 selected instance(s) updated. ${heatingRevisionSummary(product, heating.rooms, heating.changed, heating.cleared)} Issued outputs remain historical.`, { ids: next.selected });
     }
     for (const entry of next.entries) {
       const result = this.defineItemKind(entry);
@@ -1680,10 +1695,10 @@ export const actions = {
       const row = next.rows.find(row => row.id === item.id);
       return row ? { ...item, productUpdates: [...(item.productUpdates ?? []), { from: row.before.productId!, to: next.targetId, at, preserved: row.preserved, unresolved: row.unresolved }] } : item;
     }) };
-    const heating = product ? retargetHeatingInModel(model, heatingFrom, product) : { model, rooms: [] as string[], changed: [] as Array<"cable" | "thermostat"> };
+    const heating = product ? retargetHeatingInModel(model, product) : { model, rooms: [] as string[], changed: [] as Array<"cable" | "thermostat">, cleared: [] as [] };
     model = heating.model;
     pushUndo(); setModel(model);
-    const heatingLine = product && heating.rooms.length ? ` ${heatingRevisionSummary(product, heating.rooms, heating.changed)}` : "";
+    const heatingLine = product && heating.rooms.length ? ` ${heatingRevisionSummary(product, heating.rooms, heating.changed, heating.cleared)}` : "";
     return ok(`${next.rows.length} selected instance(s) updated explicitly. Preserved project confirmations and reconciliation notes remain in instance history. Issued outputs remain historical.${heatingLine}`, { ids: next.selected });
   },
 
@@ -2013,12 +2028,12 @@ export const actions = {
   },
 };
 
-registerHeatingRevisionHook((fromProductId, product) => {
-  const heating = retargetHeatingInModel(store.getState().model, [fromProductId, product.id], product);
+registerHeatingRevisionHook((_fromProductId, product) => {
+  const heating = retargetHeatingInModel(store.getState().model, product);
   if (!heating.rooms.length) return undefined;
   pushUndo();
   setModel(heating.model);
-  return heatingRevisionSummary(product, heating.rooms, heating.changed);
+  return heatingRevisionSummary(product, heating.rooms, heating.changed, heating.cleared);
 });
 
 // Convenience re-exports for tools

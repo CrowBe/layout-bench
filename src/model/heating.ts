@@ -4,7 +4,6 @@ import { floorLevels } from "./floor";
 import { heightAt } from "./drainage";
 import { VALUE_STATUSES, known, weakest, input } from "./faces";
 import { pointSegDist, quantize, segmentsCross, type Pt } from "./geometry";
-import { isProductSpecification } from "./productMeasurements";
 import type { LibraryProduct } from "./productLibrary";
 import {
   CONFIRMED,
@@ -12,9 +11,11 @@ import {
   heatingCableFigures,
   heatingLibrary,
   heatingSnapshotsDisagree,
+  resolveHeatingProduct,
   SPACING_FROM_COVERAGE_FORMULA,
   spacingFromCoverageRationale,
   thermostatFigures,
+  validHeatingProductSnapshot,
   validThermostatLocation,
   type HeatingFigure,
 } from "./heatingProduct";
@@ -24,6 +25,7 @@ export {
   heatingCableFields,
   heatingProductLocks,
   heatingProductWriteGuard,
+  resolveHeatingProduct,
   specificationFromProduct,
   SPACING_FROM_COVERAGE_FORMULA,
   SPACING_FROM_COVERAGE_RATIONALE,
@@ -437,34 +439,34 @@ export function heatingProblems(room: Room, section = heatingSection(room), libr
     "heating_signoff",
     "Proposed route only: manufacturer and licensed electrician must review cable identity, length, output, bend radius, spacing, exclusions, cover, sensor, cold tails, waterproofing and electrical installation. No compliance approval. No electrical approval is implied.",
   );
-  if (h.cableProductId) {
-    const live = lib.find((p) => p.id === h.cableProductId);
-    if (!live || live.category !== "heating-cable") {
+  const addProductRefProblems = (which: "cable" | "thermostat") => {
+    const category = which === "cable" ? "heating-cable" : "thermostat";
+    const spec = which === "cable" ? h.cableSpecification : h.thermostatSpecification;
+    const resolved = resolveHeatingProduct(h, category, lib);
+    if (!resolved.referencedId && !spec) return;
+    if (resolved.unresolved) {
       add(
         "heating_product_unresolved",
-        `cableProductId ${h.cableProductId} is not an accepted heating-cable in this library. Checks use the travelling snapshot if present; they do not invent a product.`,
+        resolved.unresolvedReason ?? `${which} product is not an accepted ${category} in this library.`,
       );
-    } else if (heatingSnapshotsDisagree(live, h.cableSpecification)) {
+      return;
+    }
+    if (resolved.superseded && resolved.live) {
+      add(
+        "heating_product_superseded",
+        `Referenced ${category} ${resolved.referencedId} has a newer accepted revision ${resolved.live.id}. Checks use the latest accepted revision.`,
+      );
+      return;
+    }
+    if (resolved.live && heatingSnapshotsDisagree(resolved.live, spec)) {
       add(
         "heating_product_snapshot_mismatch",
-        `Live heating-cable ${live.id} disagrees with the travelling snapshot. Checks use the live library product.`,
+        `Live ${category} ${resolved.live.id} disagrees with the travelling snapshot. Checks use the live library product.`,
       );
     }
-  }
-  if (h.thermostatProductId) {
-    const live = lib.find((p) => p.id === h.thermostatProductId);
-    if (!live || live.category !== "thermostat") {
-      add(
-        "heating_product_unresolved",
-        `thermostatProductId ${h.thermostatProductId} is not an accepted thermostat in this library. Checks use the travelling snapshot if present; they do not invent a product.`,
-      );
-    } else if (heatingSnapshotsDisagree(live, h.thermostatSpecification)) {
-      add(
-        "heating_product_snapshot_mismatch",
-        `Live thermostat ${live.id} disagrees with the travelling snapshot. Checks use the live library product.`,
-      );
-    }
-  }
+  };
+  addProductRefProblems("cable");
+  addProductRefProblems("thermostat");
   const unknown: string[] = [];
   if (!cable.manufacturer) unknown.push("manufacturer");
   if (!cable.model) unknown.push("model");
@@ -738,9 +740,9 @@ export function validHeating(v: unknown): v is Heating {
     ) &&
     new Set(h.keepouts.map((r) => r.id)).size === h.keepouts.length &&
     (h.cableProductId === undefined || (typeof h.cableProductId === "string" && h.cableProductId.length > 0 && h.cableProductId.length <= 200)) &&
-    (h.cableSpecification === undefined || (isProductSpecification(h.cableSpecification) && h.cableSpecification.category === "heating-cable")) &&
+    validHeatingProductSnapshot(h.cableSpecification, "heating-cable") &&
     (h.thermostatProductId === undefined || (typeof h.thermostatProductId === "string" && h.thermostatProductId.length > 0 && h.thermostatProductId.length <= 200)) &&
-    (h.thermostatSpecification === undefined || (isProductSpecification(h.thermostatSpecification) && h.thermostatSpecification.category === "thermostat")) &&
+    validHeatingProductSnapshot(h.thermostatSpecification, "thermostat") &&
     validThermostatLocation(h.thermostatLocation)
   );
 }

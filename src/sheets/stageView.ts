@@ -18,6 +18,7 @@ import { openingSpan } from "../model/issues";
 import { input, known, layerLabel, resolveFace, sideFaces, sideNormal, wallBody, weakest } from "../model/faces";
 import { DEFAULT_DATUM, floorFill, floorLayerLabel, floorLevels } from "../model/floor";
 import { heatingEvidence } from "../model/heating";
+import { heatingNameSource } from "../model/heatingProduct";
 import { planeSurface } from "../model/drainage";
 import { placementLimitations, anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
@@ -181,7 +182,7 @@ const dimStatus = (defaulted: boolean | undefined): RowStatus => (defaulted === 
 const qRow = (q: Quantity | undefined) => (known(q) ? { value: mm(q.value), status: q.status as RowStatus, ...(q.source ? { source: q.source } : {}) } : { value: "?", status: "unknown" as RowStatus, ...(q?.source ? { source: q.source } : {}) });
 
 /** The specification rows for one element: every property with its status and source. */
-export function specRows(model: PlanModel, el: ViewElement, products: LibraryProduct[] = []): SpecRow[] {
+export function specRows(model: PlanModel, el: ViewElement, products?: LibraryProduct[]): SpecRow[] {
   const rows: SpecRow[] = [];
   const row = (property: string, r: Omit<SpecRow, "element" | "layer" | "label" | "property">) =>
     rows.push({ element: el.id, layer: el.layer, label: el.label, property, ...r, ...(r.value === "?" && !r.missing ? { missing: [property] } : {}) });
@@ -255,7 +256,7 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     return rows;
   }
   if (el.type === "heating") {
-    const r = room(), h = r.heating!, e = heatingEvidence(r);
+    const r = room(), h = r.heating!, e = heatingEvidence(r, products);
     const fig = (f: (typeof e.cable)["length"], asMm = false) => {
       const status = (TAGS[f.kind] ? f.kind : "unknown") as RowStatus;
       const source = [f.formula, f.source, f.note].filter(Boolean).join(" · ") || undefined;
@@ -264,7 +265,9 @@ export function specRows(model: PlanModel, el: ViewElement, products: LibraryPro
     };
     for (const property of ["manufacturer", "model"] as const) {
       const value = e.cable[property];
-      row(property, { value: value || "?", status: value ? "published" : "unknown" });
+      const origin = property === "manufacturer" ? e.cable.manufacturerOrigin : e.cable.modelOrigin;
+      const source = heatingNameSource(origin);
+      row(property, { value: value || "?", status: value ? "entered" : "unknown", ...(source ? { source } : {}) });
     }
     for (const property of ["productSource", "requirements"] as const) row(property, { value: h[property] || "?", status: h[property] ? "entered" : "unknown" });
     row("product length (m)", fig(e.cable.length));
@@ -592,7 +595,7 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     const points = r.heating.path.map(P);
     parts.push(`<polyline points="${points.map((p) => `${f1(p.x)},${f1(p.y)}`).join(" ")}" fill="none" stroke="#c64c19" stroke-width="0.5" ${de(id)}/>`);
     points.forEach((p, i) => text(p.x+1, p.y-1, String(i+1), 1.8, `fill="#c64c19"`));
-    const evidence = heatingEvidence(r);
+    const evidence = heatingEvidence(r, opts.products);
     if (points.length) text(points[0].x, points[0].y-4, `PROPOSED CABLE plan ${evidence.planRouteLength} m; spatial ${evidence.routeLength === undefined ? "unknown" : `${evidence.routeLength} m`} (sampled); trade review pending`, 1.8, `fill="#c64c19"`);
   }
 

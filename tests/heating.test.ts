@@ -11,7 +11,7 @@ import {
   heatingSection,
   SPACING_FROM_COVERAGE_FORMULA,
 } from "../src/model/heating";
-import { heatingCableFigures, thermostatFigures } from "../src/model/heatingProduct";
+import { heatingCableFigures, heatingSnapshotProductId, thermostatFigures } from "../src/model/heatingProduct";
 import { checkModel } from "../src/model/issues";
 import { demoProject, parseImport } from "../src/model/projects";
 import {
@@ -30,6 +30,8 @@ import {
   heatingCableSpecification,
   proposedSck0765lPath,
   PROPOSED_CABLE_SPACING_M,
+  SAMPLE_CABLE_PRODUCT_ID,
+  SAMPLE_THERMOSTAT_PRODUCT_ID,
   thermostatSpecificationOf,
 } from "../src/model/seed-bathroom";
 import { CARTON_LABEL_SOURCE } from "../src/model/productMeasurements";
@@ -576,6 +578,191 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(actions.setRoomHeating(room().id, { manufacturer: "Other" }).ok).toBe(false);
   });
 
+  it("uses user-entered manufacturer/model when no product name exists, and never marks those names published", () => {
+    setup();
+    expect(actions.setRoomHeating(room().id, { manufacturer: "Acme Cables", model: "User Model" }).ok).toBe(true);
+    const cable = heatingCableFigures(room().heating);
+    expect(cable.manufacturer).toBe("Acme Cables");
+    expect(cable.model).toBe("User Model");
+    expect(cable.manufacturerOrigin).toBe("heating-record");
+    expect(cable.modelOrigin).toBe("heating-record");
+    expect(heatingProductLocks(room().heating).manufacturer).toBe(false);
+    expect(heatingProductLocks(room().heating).model).toBe(false);
+    expect(codes()).not.toContain("heating_product_unresolved");
+    const unknown = heatingProblems(room()).find((p) => p.code === "heating_metadata_unknown")!;
+    expect(unknown.message).not.toMatch(/manufacturer/);
+    expect(unknown.message).not.toMatch(/model/);
+    const html = renderHeatingReview(room());
+    expect(html).toContain("Acme Cables");
+    expect(html).toContain("User Model");
+    expect(html).toContain("user-entered on the heating record");
+    const el = catalogue(store.getState().model).elements.find((e) => e.type === "heating")!;
+    expect(specRows(store.getState().model, el)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ property: "manufacturer", value: "Acme Cables", status: "entered", source: "user-entered on the heating record" }),
+      expect.objectContaining({ property: "model", value: "User Model", status: "entered", source: "user-entered on the heating record" }),
+    ]));
+  });
+
+  it("reads heating spec rows from the products argument rather than the global library", () => {
+    setup();
+    productStore.setState({ products: [libraryProduct("heating-cable", {
+      cableLength: carton(LABEL_LENGTH, "heated length 42.5 m"),
+    }, "live-cable")] });
+    expect(actions.setRoomHeating(room().id, { cableProductId: "live-cable" }).ok).toBe(true);
+    const el = catalogue(store.getState().model).elements.find((e) => e.type === "heating")!;
+    expect(specRows(store.getState().model, el)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ property: "product length (m)", value: String(LABEL_LENGTH) }),
+    ]));
+    const otherLib = [libraryProduct("heating-cable", { cableLength: carton(10, "other library 10 m") }, "live-cable")];
+    expect(specRows(store.getState().model, el, otherLib)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ property: "product length (m)", value: "10" }),
+    ]));
+  });
+
+  it("allows null-clear of manufacturer/model and refuses attaching a named product over leftover record names", () => {
+    setup();
+    productStore.setState({ products: [libraryProduct("heating-cable", {
+      cableLength: carton(LABEL_LENGTH, "heated length 42.5 m"),
+    }, "named-cable")] });
+    expect(actions.setRoomHeating(room().id, { manufacturer: "Acme Cables", model: "SCK0765L" }).ok).toBe(true);
+    const refused = actions.setRoomHeating(room().id, { cableProductId: "named-cable" });
+    expect(refused.ok).toBe(false);
+    expect(refused.summary).toMatch(/manufacturer/);
+    expect(refused.summary).toMatch(/model/);
+    expect(room().heating?.manufacturer).toBe("Acme Cables");
+    expect(room().heating?.model).toBe("SCK0765L");
+    expect(actions.setRoomHeating(room().id, { cableProductId: "named-cable", manufacturer: null, model: null }).ok).toBe(true);
+    expect(room().heating?.manufacturer).toBeUndefined();
+    expect(room().heating?.model).toBeUndefined();
+    expect(heatingCableFigures(room().heating)).toMatchObject({
+      manufacturer: "Test Cable Co",
+      manufacturerOrigin: "product-brief",
+      model: "SCK0765L",
+      modelOrigin: "product-brief",
+    });
+    expect(actions.setRoomHeating(room().id, { manufacturer: null, model: null }).ok).toBe(true);
+    expect(room().heating?.manufacturer).toBeUndefined();
+    expect(room().heating?.model).toBeUndefined();
+    expect(heatingCableFigures(room().heating).manufacturer).toBe("Test Cable Co");
+  });
+
+  it("validates the product id before write-lock messages so an unknown id is not reported as a locked length", () => {
+    setup();
+    productStore.setState({ products: [libraryProduct("heating-cable", {
+      cableLength: carton(LABEL_LENGTH, "heated length 42.5 m"),
+    }, "lock-cable")] });
+    expect(actions.setRoomHeating(room().id, { cableProductId: "lock-cable" }).ok).toBe(true);
+    const refused = actions.setRoomHeating(room().id, { cableProductId: "no-such-product", length: published(1) });
+    expect(refused.ok).toBe(false);
+    expect(refused.summary).toMatch(/no accepted product "no-such-product"/);
+    expect(refused.summary).not.toMatch(/length is locked/);
+  });
+
+  it("retargets a rev1→rev2→rev3 chain even when the record is still pinned to rev1", () => {
+    setup();
+    const v1 = acceptCable({
+      cableType: carton("in-screed", "in-screed"),
+      cableLength: carton(LABEL_LENGTH, "heated length 42.5 m", "fixture-end"),
+      totalPower: carton(LABEL_OUTPUT, "765 W"),
+    });
+    expect(actions.setRoomHeating(room().id, { cableProductId: v1.id }).ok).toBe(true);
+    const r2 = products.reviseProduct(v1.id).requestId as string;
+    const v2Length = 40;
+    const v2Output = 720;
+    expect(products.recordMeasurement(r2, "cableLength", carton(v2Length, "revised heated length 40 m", "fixture-end")).ok).toBe(true);
+    expect(products.recordMeasurement(r2, "totalPower", carton(v2Output, "revised 720 W")).ok).toBe(true);
+    expect(products.submitMeasurements(r2).ok).toBe(true);
+    const v2 = reviewAndAccept(r2);
+    expect(room().heating?.cableProductId).toBe(v2.id);
+    expect(actions.setRoomHeating(room().id, { cableProductId: v1.id }).ok).toBe(true);
+    expect(room().heating?.cableProductId).toBe(v1.id);
+    expect(heatingCableFigures(room().heating).length.value).toBe(v2Length);
+    expect(codes()).toContain("heating_product_superseded");
+    const r3 = products.reviseProduct(v2.id).requestId as string;
+    const v3Length = 38;
+    const v3Output = 684;
+    expect(products.recordMeasurement(r3, "cableLength", carton(v3Length, "revised heated length 38 m", "fixture-end")).ok).toBe(true);
+    expect(products.recordMeasurement(r3, "totalPower", carton(v3Output, "revised 684 W")).ok).toBe(true);
+    expect(products.submitMeasurements(r3).ok).toBe(true);
+    const v3 = reviewAndAccept(r3);
+    expect(v3.revision?.parentProductId).toBe(v2.id);
+    expect(room().heating?.cableProductId).toBe(v3.id);
+    expect(heatingCableFigures(room().heating).length.value).toBe(v3Length);
+    expect(heatingCableFigures(room().heating).ratedOutput.value).toBe(v3Output);
+    expect(codes()).not.toContain("heating_product_superseded");
+  });
+
+  it("follows the latest accepted revision when rev3 is accepted while another project is open", () => {
+    setup();
+    const v1 = acceptCable({
+      cableType: carton("in-screed", "in-screed"),
+      cableLength: carton(LABEL_LENGTH, "heated length 42.5 m", "fixture-end"),
+      totalPower: carton(LABEL_OUTPUT, "765 W"),
+    });
+    expect(actions.setRoomHeating(room().id, { cableProductId: v1.id }).ok).toBe(true);
+    const r2 = products.reviseProduct(v1.id).requestId as string;
+    expect(products.recordMeasurement(r2, "cableLength", carton(40, "revised heated length 40 m", "fixture-end")).ok).toBe(true);
+    expect(products.recordMeasurement(r2, "totalPower", carton(720, "revised 720 W")).ok).toBe(true);
+    expect(products.submitMeasurements(r2).ok).toBe(true);
+    const v2 = reviewAndAccept(r2);
+    expect(actions.setRoomHeating(room().id, { cableProductId: v1.id }).ok).toBe(true);
+    const saved = structuredClone(store.getState().model);
+    store.setState({ model: emptyModel(), undoStack: [] });
+    const r3 = products.reviseProduct(v2.id).requestId as string;
+    expect(products.recordMeasurement(r3, "cableLength", carton(38, "revised heated length 38 m", "fixture-end")).ok).toBe(true);
+    expect(products.recordMeasurement(r3, "totalPower", carton(684, "revised 684 W")).ok).toBe(true);
+    expect(products.submitMeasurements(r3).ok).toBe(true);
+    const v3 = reviewAndAccept(r3);
+    expect(store.getState().model.rooms).toEqual([]);
+    store.setState({ model: saved, undoStack: [] });
+    expect(room().heating?.cableProductId).toBe(v1.id);
+    expect(heatingCableFigures(room().heating).length.value).toBe(38);
+    expect(heatingCableFigures(room().heating).ratedOutput.value).toBe(684);
+    expect(codes()).toContain("heating_product_superseded");
+    expect(heatingProblems(room()).find((p) => p.code === "heating_product_superseded")?.message).toContain(v3.id);
+  });
+
+  it("runs the write guard during retarget and null-clears a shadowed record length", () => {
+    setup();
+    const v1 = acceptCable({
+      cableType: carton("in-screed", "in-screed"),
+      cableLength: carton(LABEL_LENGTH, "heated length 42.5 m", "fixture-end"),
+      totalPower: carton(LABEL_OUTPUT, "765 W"),
+    });
+    expect(actions.setRoomHeating(room().id, { cableProductId: v1.id }).ok).toBe(true);
+    const heating = structuredClone(room().heating)!;
+    heating.length = published(3);
+    store.setState({
+      model: { ...store.getState().model, rooms: store.getState().model.rooms.map((x) => x.id === room().id ? { ...x, heating } : x) },
+    });
+    expect(room().heating?.length?.value).toBe(3);
+    const r2 = products.reviseProduct(v1.id).requestId as string;
+    expect(products.recordMeasurement(r2, "cableLength", carton(40, "revised heated length 40 m", "fixture-end")).ok).toBe(true);
+    expect(products.submitMeasurements(r2).ok).toBe(true);
+    const req = productStore.getState().requests.find((r) => r.id === r2)!;
+    for (const key of requiredReviewKeys(req)) {
+      expect(products.review(r2, key, "accepted").ok).toBe(true);
+    }
+    const accepted = products.accept(r2);
+    expect(accepted.ok).toBe(true);
+    expect(accepted.summary).toMatch(/Cleared shadowed heating-record length/);
+    expect(room().heating?.length).toBeUndefined();
+    expect(heatingCableFigures(room().heating).length.value).toBe(40);
+  });
+
+  it("refuses to import a heating snapshot that does not name the product it was written from, and does not treat that snapshot as published", () => {
+    setup();
+    const orphan = heatingCableSpecification();
+    delete (orphan as { productId?: string }).productId;
+    attachCableSnapshot(orphan);
+    expect(heatingSnapshotProductId(room().heating?.cableSpecification)).toBeUndefined();
+    expect(heatingCableFigures(room().heating).length.value).toBeUndefined();
+    expect(heatingCableFigures(room().heating).length.origin).toBe("heating-record");
+    expect(codes()).toContain("heating_product_unresolved");
+    const doc = { ...demoProject(), model: store.getState().model };
+    expect(() => parseImport(JSON.stringify(doc))).toThrow(/invalid model data/i);
+  });
+
   it("retargets heating to a real catalogue revision, rewrites the snapshot, and keeps those figures when the library is empty", () => {
     setup();
     const v1Fields = {
@@ -630,7 +817,8 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(payload.cable.spacingMin.value).toBe(Math.round((v2Min / v2Length) * 1e4) / 1e4);
     actions.undo();
     expect(room().heating?.cableProductId).toBe(v1.id);
-    expect(heatingCableFigures(room().heating).length.value).toBe(LABEL_LENGTH);
+    expect(heatingCableFigures(room().heating).length.value).toBe(v2Length);
+    expect(codes()).toContain("heating_product_superseded");
     const preview = actions.previewProductRevision(v2.id, []);
     expect(preview).toBeTruthy();
     const applied = actions.applyProductRevision(preview!);
@@ -745,7 +933,7 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
 
   it("withholds coverage and current comparisons when those brief numbers are absent", () => {
     setup();
-    attachCableSnapshot({ category: "heating-cable", acceptedAt: 1, fields: { cableLength: carton(LABEL_LENGTH, "length only") } });
+    attachCableSnapshot(Object.assign({ category: "heating-cable", acceptedAt: 1, fields: { cableLength: carton(LABEL_LENGTH, "length only") } }, { productId: "length-only-brief" }));
     expect(codes()).toContain("heating_coverage_unknown");
     expect(codes()).not.toContain("heating_coverage_range");
     expect(codes()).toContain("heating_current_unknown");
@@ -772,6 +960,12 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(sample.heating?.edgeClearance).toBeUndefined();
     expect(sample.heating?.length).toBeUndefined();
     expect(sample.heating?.ratedOutput).toBeUndefined();
+    expect(sample.heating?.model).toBeUndefined();
+    expect(sample.heating?.manufacturer).toBeUndefined();
+    expect(sample.heating?.cableProductId).toBe(SAMPLE_CABLE_PRODUCT_ID);
+    expect(sample.heating?.thermostatProductId).toBe(SAMPLE_THERMOSTAT_PRODUCT_ID);
+    expect(heatingSnapshotProductId(sample.heating?.cableSpecification)).toBe(SAMPLE_CABLE_PRODUCT_ID);
+    expect(heatingSnapshotProductId(sample.heating?.thermostatSpecification)).toBe(SAMPLE_THERMOSTAT_PRODUCT_ID);
     let plan = 0;
     for (let i = 1; i < path.length; i++) plan += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
     expect(plan).toBeCloseTo(15 * 2.74 + 14 * PROPOSED_CABLE_SPACING_M, 6);
@@ -779,6 +973,8 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     const e = heatingEvidence(sample);
     expect(e.planRouteLength).toBe(LABEL_LENGTH);
     expect(e.cable.length.value).toBe(LABEL_LENGTH);
+    expect(e.cable.model).toBe("SCK0765L");
+    expect(e.cable.modelOrigin).toBe("product-brief");
     expect(e.cable.ratedOutput.value).toBe(LABEL_OUTPUT);
     expect(e.routeLength).toBeUndefined();
     expect(e.remainingProductLength).toBeUndefined();
