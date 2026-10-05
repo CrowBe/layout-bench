@@ -22,7 +22,7 @@ const SCALES = [10, 20, 25, 50, 100, 200];
 /** Status tags printed after every value; the legend spells them out. */
 export const TAGS: Record<string, string> = {
   "site-confirmed": "SC", measured: "M", published: "PUB", proposed: "P", estimated: "E",
-  entered: "ENT", defaulted: "DEF", unknown: "?",
+  derived: "DER", entered: "ENT", defaulted: "DEF", unknown: "?",
 };
 export const tag = (status: string | undefined) => TAGS[status ?? "unknown"] ?? "?";
 
@@ -178,7 +178,7 @@ export function renderFloorPlan(model: PlanModel, opts: RenderOptions): string {
   const fixtureNo = new Map(fixtures.map((it, i) => [it.id, `F${i + 1}`]));
   for (const it of fixtures) {
     const cat = catalogForItem(it)!;
-    poly(itemPolygon(it)!.map(P), `fill="#fff" stroke="#444" stroke-width="0.3" data-item="${esc(it.id)}"`);
+    poly(itemPolygon(it)!.map(P), `fill="#fff" stroke="#444" stroke-width="0.3"${cat.stopgap ? ` stroke-dasharray="1.2 0.6"` : ""} data-item="${esc(it.id)}"`);
     const c = P({ x: it.x, y: it.y });
     text(c.x, c.y, fixtureNo.get(it.id)!, 2.6, `text-anchor="middle" dominant-baseline="middle" font-weight="bold"`);
     const pose = anchorPose(model, it);
@@ -234,7 +234,7 @@ export function renderFloorPlan(model: PlanModel, opts: RenderOptions): string {
 
   heading("Legend");
   row("Status: SC site-confirmed · M measured · PUB published · P proposed");
-  row("E estimated · ENT entered (not site-confirmed) · DEF default · ? unknown");
+  row("E estimated · DER derived (converted, not published) · ENT entered (not site-confirmed) · DEF default · ? unknown");
   row("Faces: blue dashed existing · brown dotted frame · black finished");
   row("Points: brown waste · blue water · red power. Grey = wall as built.");
   y += 2;

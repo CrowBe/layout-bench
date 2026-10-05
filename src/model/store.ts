@@ -45,17 +45,17 @@ import { emptyModel } from "./types";
 import { validHeating, heatingEvidence } from "./heating";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
-import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices, facingRotation } from "./fixtures";
-import { sideNormal } from "./faces";
+import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices } from "./fixtures";
+import { hostWasteInHostFrame, productCornerSide, applyCornerHandChange, derivedServicePointMutation, isDerivedServicePoint } from "./fittedWaste";
 import { drainageProblems, planeSurface } from "./drainage";
 import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
-import { exactProductLabel, exactSnapshot, identityOf, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
+import { exactSnapshot, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
 import { productStore, type LibraryProduct } from "./productLibrary";
 import { productPlacement } from "./productPlacement";
 import { previewProductUpdate, type ProductUpdatePreview } from "./productUpdates";
-import { evidenceFingerprint, planningEvidence, revisionOf } from "./productRevision";
+import { planningEvidence, revisionOf } from "./productRevision";
 import { itemPolygon, outlineExtents, outlineProblems, pointNearPolygon, type Outline } from "./outline";
 import { checkSheet, reconcile, revisionLetter, sheetById, type AckInput } from "../sheets/check";
 import { renderFloorPlan } from "../sheets/floorPlan";
@@ -670,17 +670,6 @@ const heightPrompt = (o: Opening): string =>
 // ---------------------------------------------------------------------------
 // Shared actions (UI + WebMCP tools)
 // ---------------------------------------------------------------------------
-
-/** Which back corner of a placed corner bath is square: the end of the wall it sits nearer. */
-function cornerSide(anchor: FixtureAnchor, wall: Wall): "left" | "right" {
-  const len = segLen(wall.ax, wall.ay, wall.bx, wall.by);
-  const alongFromA = anchor.from === "b" ? len - anchor.distance : anchor.distance;
-  const cornerAtA = alongFromA <= len - alongFromA;
-  const n = sideNormal(wall, anchor.side);
-  const rot = (-facingRotation(n) * Math.PI) / 180;
-  const towardB = Math.cos(rot) * (wall.bx - wall.ax) + Math.sin(rot) * (wall.by - wall.ay) > 0;
-  return cornerAtA === towardB ? "left" : "right";
-}
 
 /** Validate an anchor as a caller supplied it. Nothing changes until the caller applies it. */
 function buildAnchor(input: AnchorInput):
@@ -1507,32 +1496,12 @@ export const actions = {
     if (!built.ok) return built.result;
     const { anchor, r, wall } = built;
     let next: Item = { ...item, anchor };
-    // a handed corner fixture moved into the other corner swaps hands, and its points mirror
+    // Live nearer end ≠ stored corner: refuse. Re-place the bath; do not mirror across.
     if (item.corner) {
-      const side = cornerSide(anchor, wall);
-      if (side !== item.corner.side) {
-        const hand = item.productIdentity ? identityOf(item.productIdentity).handedness : undefined;
-        if (hand?.state === "known" && ["left", "right"].includes(hand.value ?? "")) return fail(`This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`);
-        const oldWall=item.anchor && store.getState().model.walls.find(w=>w.id===item.anchor!.wallId);
-        const sourcePlacement=item.productSnapshot && item.anchor && oldWall ? productPlacement(item.productSnapshot,item.anchor,oldWall,item.installation) : undefined;
-        const confirmed=(status?:string)=>status === "measured" || status === "site-confirmed";
-        const conflict=(item.servicePoints??[]).find(point=>{
-          if(point.across === undefined || point.across === 0)return false;
-          const copied=sourcePlacement?.ok ? sourcePlacement.servicePoints.find(p=>p.id===point.id) : undefined;
-          return (!point.axisEvidence && confirmed(point.status) && evidenceFingerprint(point)!==evidenceFingerprint(copied)) ||
-            (confirmed(point.axisEvidence?.across?.status) && (point.across!==copied?.across || evidenceFingerprint(point.axisEvidence?.across)!==evidenceFingerprint(copied?.axisEvidence?.across)));
-        });
-        if(conflict)return fail(`Changing corner hand would reflect the measured/site-confirmed project axis on ${conflict.id}. Reconcile that instance connection individually; its coordinate, evidence and anchor remain unchanged.`);
-        if(item.installationGeometry) return fail("Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged.");
-        const pinned = item.productGeometry;
-        const mirrorPoint = (point: {x:number;y:number}) => ({x:-point.x,y:point.y});
-        const geometry = pinned ? {...structuredClone(pinned),kind:item.corner[side],...(pinned.outline ? {outline:{...structuredClone(pinned.outline),start:mirrorPoint(pinned.outline.start),segments:pinned.outline.segments.map(segment=>({...segment,to:mirrorPoint(segment.to),...(segment.via ? {via:mirrorPoint(segment.via)} : {})}))}} : {})} : undefined;
-        next = {
-          ...next, kind: item.corner[side], corner: { ...item.corner, side },
-          ...(geometry ? {productGeometry:geometry} : {}),
-          ...(item.servicePoints ? { servicePoints: item.servicePoints.map((p) => (p.across === undefined ? p : { ...p, across: quantize(-p.across) })) } : {}),
-        };
-      }
+      const side = productCornerSide(anchor, wall);
+      const changed = applyCornerHandChange(next, side);
+      if (!changed.ok) return fail(changed.summary);
+      next = changed.item;
     }
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
@@ -1569,24 +1538,36 @@ export const actions = {
     const existing = item.servicePoints ?? [];
     if (input.id !== undefined && (typeof input.id !== "string" || !/^[A-Za-z0-9_:-]{1,40}$/.test(input.id))) return fail("id must be 1–40 letters, digits, _, : or -.");
     const id = input.id ?? uid("sp");
+    const prior = existing.find((p) => p.id === id);
+    const derivedWrite = prior ? derivedServicePointMutation(prior, { status: input.status, source: input.source }) : { ok: true as const };
+    if (!derivedWrite.ok) return fail(derivedWrite.summary);
+    const priorDerived = !!(prior && isDerivedServicePoint(prior));
+    const siteSource = input.source?.trim() ?? "";
     const point: ServicePoint = {
       id, label: input.label.trim(), service: input.service, face: input.face,
       ...(out !== undefined ? { out } : {}), ...(outMax !== undefined ? { outMax } : {}),
       ...(num(input.across, "across") !== undefined ? { across: num(input.across, "across") } : {}),
       ...(up !== undefined ? { up } : {}),
-      status: input.status, ...(input.source?.trim() ? { source: input.source.trim() } : {}),
+      status: input.status,
+      ...(siteSource ? { source: siteSource } : {}),
     };
     const next: Item = { ...item, servicePoints: existing.some((p) => p.id === id) ? existing.map((p) => (p.id === id ? point : p)) : [...existing, point] };
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
-    return r.ok(`${point.label} ${existing.some((p) => p.id === id) ? "updated" : "added"} on ${item.id}.`, { id: item.id, pointId: id });
+    const replaced = priorDerived
+      ? ` Replaced derived host-frame conversion with a ${input.status} site datum.`
+      : "";
+    return r.ok(`${point.label} ${existing.some((p) => p.id === id) ? "updated" : "added"} on ${item.id}.${replaced}`, { id: item.id, pointId: id });
   },
 
   removeServicePoint(itemRef: string, pointId: string): ActionResult {
     const hit = resolveItem(itemRef);
     if (!hit.ok) return rejected(hit);
     const item = hit.entity;
-    if (!(item.servicePoints ?? []).some((p) => p.id === pointId)) return fail(`No service point "${pointId}" on ${item.id}.`);
+    const prior = (item.servicePoints ?? []).find((p) => p.id === pointId);
+    if (!prior) return fail(`No service point "${pointId}" on ${item.id}.`);
+    const derivedWrite = derivedServicePointMutation(prior);
+    if (!derivedWrite.ok) return fail(derivedWrite.summary);
     pushUndo();
     const next: Item = { ...item, servicePoints: item.servicePoints!.filter((p) => p.id !== pointId) };
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
@@ -1686,9 +1667,10 @@ export const actions = {
   /**
    * Fit an accessory (a bath waste, a basket) inside a host fixture, at `across` the host's
    * centreline and `out` from its back edge, in metres. Its centre must lie inside the host's
-   * footprint. Pass null to release it where it stands.
+   * footprint. Pass `atHostWaste` to use the host's resolved waste point in that same frame
+   * instead of an arbitrary place. Pass null as the host to release it where it stands.
    */
-  fitItem(accessoryRef: string, hostRef: string | null, across?: number, out?: number): ActionResult {
+  fitItem(accessoryRef: string, hostRef: string | null, across?: number, out?: number, atHostWaste = false): ActionResult {
     const acc = resolveItem(accessoryRef);
     if (!acc.ok) return rejected(acc);
     const item = acc.entity;
@@ -1705,16 +1687,30 @@ export const actions = {
     if (host.fittedTo) return fail(`${host.id} is itself fitted inside ${host.fittedTo.hostId}; fit to the outer fixture.`);
     if (store.getState().model.items.some((i) => i.fittedTo?.hostId === item.id)) return fail(`${item.id} is a host for other accessories; fit it only after releasing them.`);
     if (item.anchor) return fail(`${item.id} is set out from a wall face; release its anchor before fitting it inside a fixture.`);
-    if (typeof across !== "number" || typeof out !== "number" || !Number.isFinite(across) || !Number.isFinite(out)) return fail("Give across (metres from the host's centreline, left negative) and out (metres from the host's back edge).");
+    let acrossM = across, outM = out;
+    if (atHostWaste) {
+      const pt = hostWasteInHostFrame(host, catalogByKind, store.getState().model);
+      if (!pt.resolved || pt.across === undefined || pt.out === undefined) {
+        return fail(`${host.id} has no resolved waste point in its own frame: missing ${pt.missing.join(", ")}. No position is invented.`);
+      }
+      acrossM = pt.across;
+      outM = pt.out;
+    }
+    if (typeof acrossM !== "number" || typeof outM !== "number" || !Number.isFinite(acrossM) || !Number.isFinite(outM)) return fail("Give across (metres from the host's centreline, left negative) and out (metres from the host's back edge), or set atHostWaste to use the host's waste point.");
     const r = rounding();
-    const fitted: Item = { ...item, fittedTo: { hostId: host.id, across: r.q(across, "across"), out: r.q(out, "out") } };
+    const fitted: Item = { ...item, fittedTo: { hostId: host.id, across: r.q(acrossM, "across"), out: r.q(outM, "out") } };
     const pose = fittedPose(fitted, host);
     if (!pose) return fail(`${host.id} has no known footprint to fit into.`);
     const poly = itemPolygon(host);
     if (!poly || !pointNearPolygon({ x: pose.x, y: pose.y }, poly, 0)) return fail(`That point is outside ${host.id}'s footprint (its real outline, not its box). Choose a point inside it.`);
     pushUndo();
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? { ...fitted, ...pose } : i)) });
-    return r.ok(`${item.id} fitted inside ${host.id}, ${formatMm(fitted.fittedTo!.across)} mm across and ${formatMm(fitted.fittedTo!.out)} mm from its back edge.`, { id: item.id, hostId: host.id });
+    return r.ok(
+      atHostWaste
+        ? `${item.id} fitted inside ${host.id} at its waste point, ${formatMm(fitted.fittedTo!.across)} mm across and ${formatMm(fitted.fittedTo!.out)} mm from its back edge.`
+        : `${item.id} fitted inside ${host.id}, ${formatMm(fitted.fittedTo!.across)} mm across and ${formatMm(fitted.fittedTo!.out)} mm from its back edge.`,
+      { id: item.id, hostId: host.id },
+    );
   },
 
   // ---- model / view ----
@@ -1878,6 +1874,7 @@ export const actions = {
       ...(spec.outline ? { outline: structuredClone(spec.outline) } : {}),
       ...(spec.elevation ? { elevation: spec.elevation } : {}),
       ...(spec.installationMounting ? { installationMounting: spec.installationMounting } : {}),
+      ...(spec.parts?.some((p) => p.stopgap) ? { stopgap: true } : {}),
     };
     const known: CatalogEntry["category"][] = ["living", "bedroom", "kitchen", "bath", "office", "decor"];
     const category = known.includes(spec.category as CatalogEntry["category"])
@@ -1897,6 +1894,8 @@ export const actions = {
       else delete existing.outline;
       if (spec.elevation) existing.elevation = spec.elevation;
       else delete existing.elevation;
+      if (spec.parts?.some((p) => p.stopgap)) existing.stopgap = true;
+      else delete existing.stopgap;
     } else {
       registerCatalogEntry({ kind, label: spec.label, w: spec.w, d: spec.d, h: spec.h, color, category, ...outline });
     }

@@ -377,8 +377,15 @@ A few design notes:
   `fit_item`: its place is given in the host's own frame (across its centreline, out from its back
   edge) and must lie inside the host's real outline. Its pose is derived from the host, so it
   moves, turns and is removed with it, and it is not an `items_overlap` with that host. An
-  accessory whose host is gone, or that falls outside it, is a warning. The sample's Ahrok waste
-  is fitted inside the bath.
+  accessory whose host is gone, or that falls outside it, is a warning. A waste-category accessory
+  is also checked against the host's waste point in that same host frame (a corner-bath sheet that
+  gives the waste from the right-angle corner on the bisector is converted as distance/√2 along
+  each wall; the host-frame result is derived, never published). `get_issues` warns when the
+  offset exceeds `FITTED_WASTE_OFFSET_TOLERANCE_M` (a named modelling tolerance, not a manufacturer
+  or code figure), naming both positions and their datums. Outlet sizes are compared only when both
+  are known and like-for-like (a waste hole is not a pipe connection); unknowns stay silent. Fit at
+  the host's waste point with `atHostWaste` (or the Inspector button). This is a set-out check, not
+  a plumbing verdict. The sample's Ahrok waste is fitted inside the bath.
 
 - Tapware and shower fittings take optional working limits (minimum and maximum pressure in kPa,
   maximum hot water temperature in °C). When sources disagree, the working value keeps the others

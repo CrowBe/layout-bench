@@ -285,7 +285,8 @@ export interface Item {
   selectionStatus?: SelectionStatus;
   /**
    * A corner fixture that comes in a left and a right hand (#37): the kind for each, and which
-   * one is in use. Re-anchoring into the other corner swaps the kind and mirrors the service points.
+   * one is in use (the stored hand). Re-anchor is refused when that hand disagrees with the wall,
+   * or for derived corner waste; re-place the bath.
    */
   corner?: { left: string; right: string; side: "left" | "right" };
 }
@@ -322,7 +323,10 @@ export interface ServicePoint {
   outMax?: number;
   across?: number;
   up?: number;
-  status: ValueStatus;
+  /** Converted host-frame coordinates are `derived`, never `published`. Published stays on the source-datum evidence. */
+  status: ValueStatus | "derived";
+  /** Present when across/out were converted from another datum (e.g. corner bisector). */
+  basis?: "derived";
   source?: string;
   /** Original per-axis evidence; unsupported datums never become resolved coordinates. */
   axisEvidence?: { across?: FieldValue; out?: FieldValue; outMax?: FieldValue; up?: FieldValue };

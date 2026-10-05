@@ -474,6 +474,7 @@ export function Editor() {
                 fillOpacity={0.85}
                 stroke={selected ? "#e07b39" : "#5a5248"}
                 strokeWidth={selected ? 2.5 : 1}
+                strokeDasharray={cat.stopgap ? "6 4" : undefined}
               />
             ) : (
               <rect
@@ -486,6 +487,7 @@ export function Editor() {
                 fillOpacity={0.85}
                 stroke={selected ? "#e07b39" : "#5a5248"}
                 strokeWidth={selected ? 2.5 : 1}
+                strokeDasharray={cat.stopgap ? "6 4" : undefined}
               />
             )}
             {(it.installationGeometry?.fixings??[]).map(p=>{const r=localPointReading(model,it,p);return r.x!==undefined && r.y!==undefined?<circle key={p.id} data-fixing={p.id} cx={(it.installation?.mirror?-1:1)*p.x!*S} cy={(p.y!-cat.d/2)*S} r={3} fill="#8c6496"/>:null;})}

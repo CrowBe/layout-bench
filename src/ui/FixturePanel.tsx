@@ -155,6 +155,21 @@ function InstallationForm({model,item}:{model:PlanModel;item:Item}) {
 const cell = (f: FaceDistance | undefined) =>
   !f ? "—" : f.resolved ? `${formatMm(f.value!)}${f.max !== undefined ? `–${formatMm(f.max)}` : ""}` : "?";
 
+function FitAtHostWaste({ item }: { item: Item }) {
+  const [error, setError] = useState("");
+  const hostId = item.fittedTo?.hostId;
+  if (!hostId) return null;
+  return (
+    <div className="fixture-actions">
+      <button type="button" data-fit-at-host-waste onClick={() => {
+        const r = human("fit_item", actions.fitItem(item.id, hostId, undefined, undefined, true));
+        setError(r.ok ? "" : r.summary);
+      }}>Fit at host waste point</button>
+      {error && <span className="inspector-error" role="alert">{error}</span>}
+    </div>
+  );
+}
+
 export function FixturePanel({ model, item }: { model: PlanModel; item: Item }) {
   const pose = anchorPose(model, item);
   const points = roughIn(model, item);
@@ -172,6 +187,7 @@ export function FixturePanel({ model, item }: { model: PlanModel; item: Item }) 
       {/* keyed on the stored anchor, so an edit made elsewhere (the agent) resets the form */}
       {item.productIdentity && <ExactIdentity product={item.productIdentity} />}
       {item.fittedTo && <p className="hint" data-fitted-to>Fitted inside {item.fittedTo.hostId}: {formatMm(item.fittedTo.across)} mm across, {formatMm(item.fittedTo.out)} mm from its back edge. It moves with that fixture.</p>}
+      {item.fittedTo && item.productSpecification?.category === "waste" && <FitAtHostWaste item={item} />}
       {placementLimitations(item).map((message, i) => <p className="inspector-warn" data-placement-limitation key={i}>{message}</p>)}
       <label className="field inspector-field">Project selection<select aria-label="Project selection" value={item.selectionStatus ?? "unknown"} onChange={e => human("set_fixture_selection", actions.setFixtureSelection(item.id, e.target.value as SelectionStatus))}>{SELECTION_STATUSES.map(status => <option key={status}>{status}</option>)}</select></label>
       <AnchorForm key={`${item.id}:${JSON.stringify(item.anchor ?? null)}`} model={model} item={item} />
@@ -194,7 +210,7 @@ export function FixturePanel({ model, item }: { model: PlanModel; item: Item }) 
           <tbody>
             {points.map((r) => (
               <tr key={r.pointId} data-point={r.pointId} title={r.missing.length ? `Missing: ${r.missing.join(", ")}` : `${r.status}${r.source ? ` · ${r.source}` : ""}`}>
-                <td>{r.label}<div className="hint">{r.service} · {r.status}</div>{!r.resolved && <div className="inspector-warn">missing {r.missing.join(", ")}</div>}</td>
+                <td>{r.label}<div className="hint">{r.service} · {r.status}{r.status === "derived" ? " (not published)" : ""}</div>{!r.resolved && <div className="inspector-warn">missing {r.missing.join(", ")}</div>}</td>
                 <td>{cell(r.fromFaces.find((f) => f.face === "frame"))}</td>
                 <td>{cell(r.fromFaces.find((f) => f.face === "board"))}</td>
                 <td>{cell(r.fromFaces.find((f) => f.face === "finished"))}</td>

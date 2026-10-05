@@ -1,12 +1,13 @@
 import type { CatalogEntry } from "./catalog";
 import { categoryById, cornerBathOutline, type FieldValue, type ReferenceId, type SourceRef } from "./products";
-import { quantize } from "./geometry";
+import { formatMm, quantize } from "./geometry";
 import { outlineExtents, type Outline } from "./outline";
 import type { ExactProduct, ProductComponent } from "./productIdentity";
 import { unknownMeasurementFields, type MeasurementRecord, type ProductSpecification } from "./productMeasurements";
 import type { PartSpec } from "../three/furniture";
 import type { ProjectKind } from "./projects";
 import type { Item, Note, PlanModel, Quantity, ValueStatus, Wall, WallSide, WallTiling } from "./types";
+import { cornerBisectorToHostFrame } from "./fittedWaste";
 
 /**
  * A rough bathroom concept sample. Geometry and placements are illustrative, not set-out.
@@ -128,7 +129,8 @@ const part = (name: string, note: string): ProductComponent =>
 // Enflair dimension drawing (SB184-1000): 1000 mm sides along the two walls, a right angle at the
 // back-right (the NE corner), 1090 mm from that corner to the front of the curve along the
 // bisector (section A-A), 630 mm high, 550 mm inside depth, 278 L, 36 kg net. Ø50 waste on the
-// bisector, 520 mm from the corner (368 mm along each side). The drawing's 1178 and 920 widths
+// bisector, 520 mm from the corner. Along each wall that is 520/√2 (derived, not a sheet
+// wasteFromEnd/wasteFromSide). The drawing's 1178 and 920 widths
 // are not used: their extension lines do not show which edges they measure.
 // Its outline is extruded in 3D with a recessed basin, so it has no hand-built parts. The
 // outline comes from the same function the product library uses for a corner bath: 1000 mm
@@ -146,8 +148,9 @@ const bathFields = {
 // square, so the bath's box is the curve's own extent; the sides stay 1000 mm along the walls.
 const BATH_BOX = (({ maxX, minX }) => Math.ceil((maxX - minX) * 1000) / 1000)(outlineExtents(cornerBathOutline(bathFields, 10, 10, "right")!));
 const bathOutline: Outline = cornerBathOutline(bathFields, BATH_BOX, BATH_BOX, "right")!;
-/** The waste on the bisector, in the bath's own frame: across from its centre, out from its back. */
-const bathWaste = { across: +(BATH_BOX / 2 - BATH_WASTE_FROM_CORNER / Math.SQRT2).toFixed(3), out: +(BATH_WASTE_FROM_CORNER / Math.SQRT2).toFixed(3) };
+/** Host-frame waste from the sheet's 520 mm on the bisector: along each wall = 520/√2. Quantized to the model's 0.1 mm so the sample sits on the derived host-frame point, not a 1 mm rounding of it. */
+const bathWasteConverted = cornerBisectorToHostFrame(BATH_WASTE_FROM_CORNER, BATH_BOX, "right");
+const bathWaste = { across: quantize(bathWasteConverted.across), out: quantize(bathWasteConverted.out) };
 /** The square corner stays where it was drawn before: 2100 mm across, against the window wall. */
 const BATH_CORNER = { x: 2.1, y: 0 };
 
@@ -199,8 +202,8 @@ const spout: PartSpec[] = [
 // sheet was found. The visible dome, its height and where it sits in the tub stay placeholders.
 const WASTE_EL = 0.59;
 const waste: PartSpec[] = [
-  tube(0, WASTE_EL, 0, 0.07, 0.012),
-  tube(0, WASTE_EL + 0.012, 0, 0.05, 0.008),
+  tube(0, WASTE_EL, 0, 0.07, 0.012, { ...NICKEL, stopgap: true }),
+  tube(0, WASTE_EL + 0.012, 0, 0.05, 0.008, { ...NICKEL, stopgap: true }),
 ];
 
 // ---- Basin: Enflair K1110-31 petite basin mixer, on the vanity top ----------------------------
@@ -359,7 +362,7 @@ export const purchasedFittings: PurchasedFitting[] = [
       published("frontProjection", BATH_PROJECTION, sheet(ENFLAIR_BATH, "section A-A: 1090 mm from the corner to the front of the curve"), "other", "Along the bisector, from the right-angle corner to the front of the curve"),
       published("height", 0.63, sheet(ENFLAIR_BATH, "A-A: 630 mm overall height"), "fixture-bottom"),
       published("insideDepth", 0.55, sheet(ENFLAIR_BATH, "A-A: 550 mm inside depth"), "other", "Inside water depth on section A-A"),
-      published("wasteFromCorner", BATH_WASTE_FROM_CORNER, sheet(ENFLAIR_BATH, "plan: Ø50 waste 520 mm from the corner on the bisector; 368 mm along each side"), "other", "Waste centre on the bisector"),
+      published("wasteFromCorner", BATH_WASTE_FROM_CORNER, sheet(ENFLAIR_BATH, "plan: Ø50 waste 520 mm from the corner on the bisector"), "other", "Waste centre on the bisector, from the right-angle corner"),
     ],
     specFields: {
       length: pubLen(BATH_LEG, sheet(ENFLAIR_BATH, "SB184-1000 dimension drawing: 1000 mm along each wall side"), "fixture-end", "Wall-side length from the right-angle corner"),
@@ -369,8 +372,11 @@ export const purchasedFittings: PurchasedFitting[] = [
       shape: pubVal("corner-round", sheet(ENFLAIR_BATH, "SB184-1000: two straight wall sides and a rounded front")),
       frontWidth: pubLen(BATH_FRONT_WIDTH, sheet(ENFLAIR_BATH, "derived: chord of the two 1000 mm wall sides"), "other", "Straight-line distance between the ends of the curved front"),
       frontProjection: pubLen(BATH_PROJECTION, sheet(ENFLAIR_BATH, "section A-A: 1090 mm from the corner to the front of the curve"), "other", "Along the bisector, from the right-angle corner to the front of the curve"),
-      wasteFromEnd: pubLen(0.368, sheet(ENFLAIR_BATH, "plan: 368 mm along each side to the Ø50 waste"), "fixture-end", "Along each wall from the right-angle corner; waste is on the bisector, 520 mm from the corner"),
-      wasteFromSide: pubLen(0.368, sheet(ENFLAIR_BATH, "plan: 368 mm along each side to the Ø50 waste"), "fixture-side", "Along each wall from the right-angle corner; waste is on the bisector"),
+      wasteFromCorner: pubLen(BATH_WASTE_FROM_CORNER, sheet(ENFLAIR_BATH, "plan: Ø50 waste 520 mm from the corner on the bisector"), "other", "Waste centre on the bisector, from the right-angle corner; not wasteFromEnd/wasteFromSide"),
+      wasteHoleDiameter: pubLen(0.05, sheet(ENFLAIR_BATH, "plan: Ø50 waste hole"), "other", "Waste hole diameter; not a pipe connection or outlet size"),
+      wasteConnectionDiameter: { value: null, note: "The Enflair drawing names a Ø50 waste hole, not a pipe connection or outlet size. No connection diameter is entered." },
+      wasteFromEnd: { value: null, note: `Sheet gives 520 mm from the right-angle corner along the bisector, not from the end. Along each wall that is 520/√2 ≈ ${formatMm(bathWasteConverted.alongEachWall)} mm; that conversion is derived in the host-frame check, not entered as published wasteFromEnd.` },
+      wasteFromSide: { value: null, note: `Sheet gives 520 mm from the right-angle corner along the bisector, not from the side. Along each wall that is 520/√2 ≈ ${formatMm(bathWasteConverted.alongEachWall)} mm; that conversion is derived in the host-frame check, not entered as published wasteFromSide.` },
       overflow: pubVal("no", sheet(ENFLAIR_BATH, "dimension drawing: no overflow shown")),
     },
     parts: [], outline: bathOutline, placement: { id: "bath", kind: "bath_sb184_1000gw", x: quantize(BATH_CORNER.x - BATH_BOX / 2), y: quantize(BATH_CORNER.y + BATH_BOX / 2), rotation: 0 },
@@ -434,12 +440,13 @@ export const purchasedFittings: PurchasedFitting[] = [
     ],
     specFields: {
       outletDiameter: { value: null, note: "Carton prints 40 mm nominal connection; no manufacturer sheet, so not entered as a published figure" },
+      outletSizeKind: { value: "connection", status: "published", source: "carton label", note: "Photographed carton: Dome Pop Short Bath Waste 40mm; 40 mm is the pipe connection, not a hole diameter" },
       style: measuredField("dome-pop", "choice", "Photographed carton: Dome Pop Short Bath Waste"),
       strainer: measuredField("pull-out basket", "text", "Photographed carton: with pull out basket"),
       certification: measuredField("WaterMark licence WM-022812, AS 1589-2001", "text", "Photographed SDP-40BN carton"),
     },
-    // the drawing's waste point: on the bisector, 520 mm from the corner (368 mm along each side).
-    // Its hole is drawn Ø50; this waste's 40 mm is the pipe connection, so check the fit (#75).
+    // the drawing's waste point: on the bisector, 520 mm from the corner. Along each wall that
+    // is 520/√2 (derived). Its hole is drawn Ø50; this waste's 40 mm is the pipe connection.
     parts: waste, placement: { id: "bath_waste", kind: "waste_sdp40bn", x: quantize(BATH_CORNER.x - BATH_BOX / 2 + bathWaste.across), y: quantize(BATH_CORNER.y + bathWaste.out), rotation: 0, fittedTo: { hostId: "bath", ...bathWaste } },
   },
   {
@@ -767,6 +774,7 @@ export const bathroomKinds: ProjectKind[] = [
       ...(f.size.elevation ? { elevation: f.size.elevation } : {}),
       ...(f.size.elevationNote ? { elevationNote: f.size.elevationNote } : {}),
       ...(f.outline ? { outline: structuredClone(f.outline) } : {}),
+      ...(f.parts.some((p) => p.stopgap) ? { stopgap: true } : {}),
     } satisfies CatalogEntry,
     ...(f.parts.length ? { parts: structuredClone(f.parts) } : {}),
   })),

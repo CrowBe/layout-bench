@@ -6,6 +6,7 @@ import { clearances, roughIn } from "../src/model/fixtures";
 import { roughInPoints, categoryById, validateSubmission, type FieldValue } from "../src/model/products";
 import { itemPolygon, polygonsOverlap } from "../src/model/outline";
 import { catalogByKind } from "../src/model/catalog";
+import { CORNER_HAND_REANCHOR, hostWasteInHostFrame } from "../src/model/fittedWaste";
 import type { LibraryProduct } from "../src/model/productLibrary";
 import { buildPlan } from "../src/three/build";
 import { demoProject, parseImport } from "../src/model/projects";
@@ -241,7 +242,7 @@ describe("fixtures set out from wall faces (#5)", () => {
     const pub = (value: number | string): FieldValue => ({ value, status: "published", sources: src });
     const fields: Record<string, FieldValue> = {
       length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
-      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
       surround: { value: null, note: "Not on the drawing." },
     };
     const product: LibraryProduct = { id: "angie", category: "bath", manufacturer: "Enflair", model: "Angie 1000 Corner", fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0 };
@@ -262,7 +263,7 @@ describe("fixtures set out from wall faces (#5)", () => {
     expect(codes()).not.toContain("items_overlap");
     const [waste] = roughIn(model(), bath);
     expect(waste.resolved).toBe(true);
-    expect(waste.alongFromA).toBe(0.418); // 368 from the corner end of the bath: 0.55 - 0.5 + 0.368
+    expect(waste.alongFromA).toBeCloseTo(0.418, 3); // 520 mm on the bisector → 520/√2 along the back from the corner end
   });
 
   it("flags a corner bath whose circular front disagrees with its printed lengths", () => {
@@ -270,7 +271,7 @@ describe("fixtures set out from wall faces (#5)", () => {
     const pub = (value: number | string): FieldValue => ({ value, status: "published", sources: src });
     const sub = { manufacturer: "Enflair", model: "Angie", fields: {
       length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
-      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+      frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52),
       surround: { value: null, note: "Not on the drawing." },
     } };
     const problems = validateSubmission(categoryById("bath")!, sub);
@@ -284,7 +285,7 @@ describe("fixtures set out from wall faces (#5)", () => {
     const cornerBath = (over: Record<string, FieldValue> = {}): LibraryProduct => {
       const fields: Record<string, FieldValue> = {
         length: pub(1.0), width: pub(1.0), height: pub(0.63), installation: pub("corner"), shape: pub("corner-round"),
-        frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
+        frontWidth: pub(1.178), frontProjection: pub(1.09), wasteFromCorner: pub(0.52), wasteFromEnd: pub(0.368), wasteFromSide: pub(0.368),
         surround: { value: null, note: "n/a" }, ...over,
       };
       return { id: "cb", category: "bath", manufacturer: "Example", model: "Corner", fields, roughIn: roughInPoints(categoryById("bath")!, fields), requestId: "r", acceptedAt: 0 };
@@ -298,21 +299,28 @@ describe("fixtures set out from wall faces (#5)", () => {
       const bath = item(placed.id as string);
       const box = catalogByKind(bath.kind)!.w;
       expect(box).toBeGreaterThan(1.0);
+      const hostPt = hostWasteInHostFrame(bath, catalogByKind, model());
+      expect(hostPt.resolved).toBe(true);
+      const sp = bath.servicePoints!.find((p) => p.id === "waste")!;
+      expect(sp.status).toBe("derived");
+      expect(sp.across).toBe(hostPt.across);
       const [waste] = roughIn(model(), bath);
-      expect(waste.alongFromA! - (0.6 - box / 2)).toBeCloseTo(0.368, 4);
+      expect(waste.alongFromA! - (0.6 - box / 2)).toBeCloseTo(box / 2 + hostPt.across!, 4);
     });
 
-    it("swaps hands and mirrors its points when moved into the other corner", () => {
+    it("refuses to re-anchor when the corner hand would change; re-place the bath", () => {
       const [back] = bathroom();
       faceBackWall(back);
       const placed = actions.placeProduct(cornerBath(), { wallId: back, side: "right", face: "finished", distance: 0.55, status: "proposed" });
       const id = placed.id as string;
       expect(item(id).kind).toBe("product_cb_left");
-      expect(actions.anchorFixture(id, { wallId: back, side: "right", face: "finished", from: "b", distance: 0.55, status: "proposed" }).ok).toBe(true);
-      expect(item(id).kind).toBe("product_cb_right");
-      const [waste] = roughIn(model(), item(id));
-      expect(waste.alongFromB).toBe(0.418); // 368 from the B-end corner
-      expect(codes()).not.toContain("item_through_wall");
+      const before = structuredClone(item(id));
+      const re = actions.anchorFixture(id, { wallId: back, side: "right", face: "finished", from: "b", distance: 0.55, status: "proposed" });
+      expect(re.ok).toBe(false);
+      expect(re.summary).toBe(CORNER_HAND_REANCHOR);
+      expect(item(id).kind).toBe("product_cb_left");
+      expect(item(id).corner).toEqual(before.corner);
+      expect(item(id).servicePoints).toEqual(before.servicePoints);
     });
 
     it("keeps the inside of a concave outline free", () => {
