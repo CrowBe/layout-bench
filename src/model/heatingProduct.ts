@@ -31,8 +31,6 @@ export const SPACING_FROM_COVERAGE_FORMULA = "coverage area / cable length";
 export function spacingFromCoverageRationale(coverageKind: string, lengthKind: string): string {
   return `Implied loop spacing if the ${coverageKind} coverage range is spread along the ${lengthKind} heated length. Derived, not a manufacturer spacing instruction and not a code requirement.`;
 }
-export const SPACING_FROM_COVERAGE_RATIONALE =
-  "Implied loop spacing if the coverage range is spread along the heated length, using each input's recorded kind. Derived only from confirmed coverage and length. Not a manufacturer spacing instruction and not a code requirement.";
 
 /** Travelling snapshot written from an accepted library product (fields plus identity names). */
 export type HeatingProductSnapshot = ProductSpecification & {
@@ -40,6 +38,8 @@ export type HeatingProductSnapshot = ProductSpecification & {
   model?: string;
   productId?: string;
 };
+
+export const PROJECT_SNAPSHOT_ORIGIN = "project-snapshot (unresolved)";
 
 export type HeatingNameOrigin = "product-brief" | "heating-record";
 
@@ -109,16 +109,31 @@ export function latestInSeries(id: string | undefined, category: string, library
 export interface HeatingProductRef {
   referencedId?: string;
   live?: LibraryProduct;
-  /** Set only when the snapshot names the accepted product it was written from. */
+  /** Set only when the snapshot names the referenced product (or a revision in its series). */
   snapshot?: HeatingProductSnapshot;
   unresolved: boolean;
   superseded: boolean;
+  mismatch: boolean;
   unresolvedReason?: string;
+}
+
+function idInSeries(id: string | undefined, seriesOf: string | undefined, category: string, library: LibraryProduct[]): boolean {
+  if (!id || !seriesOf) return false;
+  if (id === seriesOf) return true;
+  const foundId = library.find((p) => p.id === id);
+  const foundRef = library.find((p) => p.id === seriesOf);
+  if (foundId && foundRef) return revisionOf(foundId).seriesId === revisionOf(foundRef).seriesId;
+  if (foundId && revisionOf(foundId).seriesId === seriesOf) return true;
+  if (foundRef && revisionOf(foundRef).seriesId === id) return true;
+  const liveId = latestInSeries(id, category, library);
+  const liveRef = latestInSeries(seriesOf, category, library);
+  return !!liveId && !!liveRef && liveId.id === liveRef.id;
 }
 
 /**
  * Shared resolver: stored id or snapshot productId → latest accepted revision in that series.
- * A snapshot without productId is not published evidence.
+ * A snapshot is used only when its productId equals the stored id or is in that series.
+ * No live product for the referenced id is unresolved; a snapshot of a different product is a mismatch.
  */
 export function resolveHeatingProduct(
   heating: Heating | undefined,
@@ -131,16 +146,17 @@ export function resolveHeatingProduct(
   const extra = snapshotExtra(spec);
   const snapshotHasId = !!extra.productId;
   const categoryMatch = !!spec && spec.category === category;
-  const snapshot = categoryMatch && snapshotHasId ? (spec as HeatingProductSnapshot) : undefined;
   const referencedId = (storedId && storedId.trim()) || extra.productId;
   const live = latestInSeries(referencedId, category, lib);
-  const missingStored = !!storedId && !live;
+  const belongs = snapshotHasId && (!storedId || idInSeries(extra.productId, storedId, category, lib));
+  const snapshot = categoryMatch && belongs ? (spec as HeatingProductSnapshot) : undefined;
+  const mismatch = categoryMatch && snapshotHasId && !!storedId && !belongs;
   const missingSnapshotId = categoryMatch && !snapshotHasId;
-  const unresolved = missingStored || missingSnapshotId;
+  const unresolved = (!!referencedId && !live) || missingSnapshotId;
   const unresolvedReason = missingSnapshotId
     ? `${category} snapshot has no productId of the accepted product it was written from. Those fields are not shown as published.`
-    : missingStored
-      ? `${storedId} is not an accepted ${category} in this library. Checks use the travelling snapshot if it carries a productId; they do not invent a product.`
+    : referencedId && !live
+      ? `${referencedId} is not an accepted ${category} in this library. Checks use the travelling snapshot only when its productId is that id or in its series.`
       : undefined;
   return {
     ...(referencedId ? { referencedId } : {}),
@@ -148,6 +164,7 @@ export function resolveHeatingProduct(
     ...(snapshot ? { snapshot } : {}),
     unresolved,
     superseded: !!live && !!referencedId && live.id !== referencedId,
+    mismatch,
     ...(unresolvedReason ? { unresolvedReason } : {}),
   };
 }
@@ -191,6 +208,7 @@ export function applyHeatingProductRetarget(
     if (!heatingRefersToSeries(heating, product, which, lib)) return;
     const idKey = which === "cable" ? "cableProductId" : "thermostatProductId";
     const specKey = which === "cable" ? "cableSpecification" : "thermostatSpecification";
+    if (heating[idKey] === product.id) return;
     const patch: Record<string, unknown> = { [idKey]: product.id };
     const shadowed = which === "cable" ? shadowedWriteKeys(heating, product) : [];
     for (const key of shadowed) patch[key] = null;
@@ -205,6 +223,12 @@ export function applyHeatingProductRetarget(
   applySide("cable");
   applySide("thermostat");
   return { heating: next, changed, cleared };
+}
+
+export function heatingAlreadyOnProduct(heating: Heating, product: LibraryProduct): boolean {
+  if (product.category === "heating-cable") return heating.cableProductId === product.id;
+  if (product.category === "thermostat") return heating.thermostatProductId === product.id;
+  return false;
 }
 
 export function retargetHeatingInModel(
@@ -259,7 +283,7 @@ export interface HeatingFigure {
   source?: string;
   note?: string;
   formula?: string;
-  origin: "product-brief" | "heating-record" | "drawn-path" | "coverage-area / cable-length" | "product-minus-route";
+  origin: "product-brief" | "heating-record" | "drawn-path" | "coverage-area / cable-length" | "product-minus-route" | typeof PROJECT_SNAPSHOT_ORIGIN;
   /** What the number is (rated current, switching current, …), for like-for-like warnings. */
   quantity: string;
   datum?: string;
@@ -311,12 +335,10 @@ export function thermostatFields(heating: Heating | undefined, library?: Library
   return {};
 }
 
-export function heatingCableProduct(heating: Heating | undefined, library?: LibraryProduct[]): LibraryProduct | undefined {
-  return resolveHeatingProduct(heating, "heating-cable", library).live;
-}
-
-export function thermostatProduct(heating: Heating | undefined, library?: LibraryProduct[]): LibraryProduct | undefined {
-  return resolveHeatingProduct(heating, "thermostat", library).live;
+function fieldOrigin(resolved: HeatingProductRef): HeatingFigure["origin"] {
+  if (resolved.live) return "product-brief";
+  if (resolved.snapshot) return PROJECT_SNAPSHOT_ORIGIN;
+  return "product-brief";
 }
 
 function fieldNumber(fields: Record<string, FieldValue>, key: string): FieldValue | undefined {
@@ -411,18 +433,19 @@ export function heatingNameSource(origin: HeatingNameOrigin | undefined): string
 export function heatingCableFigures(heating: Heating | undefined, library?: LibraryProduct[]): HeatingCableFigures {
   const resolved = resolveHeatingProduct(heating, "heating-cable", library);
   const fields = heatingCableFields(heating, library);
+  const origin = fieldOrigin(resolved);
   const manufacturer = resolvedName(resolved.live, resolved.snapshot, heating, "manufacturer");
   const model = resolvedName(resolved.live, resolved.snapshot, heating, "model");
   const length = preferBrief(
-    figureFromField(fields, CABLE_LENGTH_KEY, "heated cable length", "m"),
+    figureFromField(fields, CABLE_LENGTH_KEY, "heated cable length", "m", origin),
     figureFromQuantity(heating?.length, "heated cable length", "m"),
   );
   const ratedOutput = preferBrief(
-    figureFromField(fields, CABLE_OUTPUT_KEY, "rated total power", "W"),
+    figureFromField(fields, CABLE_OUTPUT_KEY, "rated total power", "W", origin),
     figureFromQuantity(heating?.ratedOutput, "rated total power", "W"),
   );
-  const coverageMin = figureFromField(fields, CABLE_COVERAGE_MIN_KEY, "coverage area, minimum", "m²");
-  const coverageMax = figureFromField(fields, CABLE_COVERAGE_MAX_KEY, "coverage area, maximum", "m²");
+  const coverageMin = figureFromField(fields, CABLE_COVERAGE_MIN_KEY, "coverage area, minimum", "m²", origin);
+  const coverageMax = figureFromField(fields, CABLE_COVERAGE_MAX_KEY, "coverage area, maximum", "m²", origin);
   const spacing = (coverage: HeatingFigure, label: string): HeatingFigure => {
     if (!confirmedNumber(coverage) || !confirmedNumber(length) || !(length.value > 0)) {
       return {
@@ -452,10 +475,10 @@ export function heatingCableFigures(heating: Heating | undefined, library?: Libr
     ratedOutput,
     coverageMin,
     coverageMax,
-    ratedCurrent: figureFromField(fields, CABLE_CURRENT_KEY, "cable rated current", "A"),
-    ratedVoltage: figureFromField(fields, CABLE_VOLTAGE_KEY, "cable rated voltage", "V"),
-    outputPerMetre: figureFromField(fields, CABLE_OUTPUT_PER_M_KEY, "output per metre", "W/m"),
-    resistance: figureFromField(fields, CABLE_RESISTANCE_KEY, "cable resistance", "Ω"),
+    ratedCurrent: figureFromField(fields, CABLE_CURRENT_KEY, "cable rated current", "A", origin),
+    ratedVoltage: figureFromField(fields, CABLE_VOLTAGE_KEY, "cable rated voltage", "V", origin),
+    outputPerMetre: figureFromField(fields, CABLE_OUTPUT_PER_M_KEY, "output per metre", "W/m", origin),
+    resistance: figureFromField(fields, CABLE_RESISTANCE_KEY, "cable resistance", "Ω", origin),
     spacingMin: spacing(coverageMin, "derived minimum spacing"),
     spacingMax: spacing(coverageMax, "derived maximum spacing"),
   };
@@ -475,6 +498,7 @@ export interface ThermostatFigures {
 export function thermostatFigures(heating: Heating | undefined, library?: LibraryProduct[]): ThermostatFigures {
   const resolved = resolveHeatingProduct(heating, "thermostat", library);
   const fields = thermostatFields(heating, library);
+  const origin = fieldOrigin(resolved);
   const manufacturer = resolvedName(resolved.live, resolved.snapshot, undefined, "manufacturer");
   const model = resolvedName(resolved.live, resolved.snapshot, undefined, "model");
   const ip = fields[THERMO_IP_KEY];
@@ -482,9 +506,9 @@ export function thermostatFigures(heating: Heating | undefined, library?: Librar
   return {
     ...(manufacturer ? { manufacturer: manufacturer.value, manufacturerOrigin: manufacturer.origin } : {}),
     ...(model ? { model: model.value, modelOrigin: model.origin } : {}),
-    ratedCurrent: figureFromField(fields, THERMO_CURRENT_KEY, "thermostat rated switching current", "A"),
-    voltageMin: figureFromField(fields, THERMO_VOLTAGE_MIN_KEY, "thermostat rated voltage, minimum", "V"),
-    voltageMax: figureFromField(fields, THERMO_VOLTAGE_MAX_KEY, "thermostat rated voltage, maximum", "V"),
+    ratedCurrent: figureFromField(fields, THERMO_CURRENT_KEY, "thermostat rated switching current", "A", origin),
+    voltageMin: figureFromField(fields, THERMO_VOLTAGE_MIN_KEY, "thermostat rated voltage, minimum", "V", origin),
+    voltageMax: figureFromField(fields, THERMO_VOLTAGE_MAX_KEY, "thermostat rated voltage, maximum", "V", origin),
     ingressProtection: ip
       ? {
           quantity: "printed ingress protection",
@@ -521,6 +545,18 @@ export function heatingProductLocks(heating: Heating | undefined, library?: Libr
 }
 
 export type HeatingWriteKey = "length" | "ratedOutput" | "manufacturer" | "model";
+
+/** Record keys the brief would silently shadow. Same lock rule as set and retarget. */
+export function heatingShadowedRecordKeys(heating: Heating | undefined, library?: LibraryProduct[]): HeatingWriteKey[] {
+  if (!heating) return [];
+  const locks = heatingProductLocks(heating, library);
+  const keys: HeatingWriteKey[] = [];
+  if (locks.length && typeof heating.length?.value === "number") keys.push("length");
+  if (locks.ratedOutput && typeof heating.ratedOutput?.value === "number") keys.push("ratedOutput");
+  if (locks.manufacturer && heating.manufacturer?.trim()) keys.push("manufacturer");
+  if (locks.model && heating.model?.trim()) keys.push("model");
+  return keys;
+}
 
 /**
  * Same refusal for set, clear-of-locked-field, tools, retarget and any later catalogue writer.
@@ -600,10 +636,4 @@ export function validThermostatLocation(v: unknown): boolean {
   if (!loc || typeof loc.description !== "string" || !loc.description.trim()) return false;
   if (loc.source !== undefined && typeof loc.source !== "string") return false;
   return loc.kind === undefined || loc.kind === "wet-room" || loc.kind === "outside-wet-room";
-}
-
-export function validHeatingProductRef(v: unknown, category: "heating-cable" | "thermostat"): boolean {
-  if (v === undefined) return true;
-  if (typeof v === "string") return v.length > 0 && v.length <= 200;
-  return validHeatingProductSnapshot(v, category);
 }

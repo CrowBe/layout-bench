@@ -76,7 +76,10 @@ export function Heating({ room }: { room: Room }) {
           value={h?.cableProductId ?? ""}
           onChange={(ev) => run({ cableProductId: ev.target.value || null })}
         >
-          <option value="">{h?.cableSpecification ? "Project snapshot (no library id)" : "none — enter length on this record"}</option>
+          <option value="">none — clears product and snapshot</option>
+          {h?.cableProductId && !cables.some((p) => p.id === h.cableProductId) ? (
+            <option value={h.cableProductId}>{`unresolved: ${h.cableProductId} (project snapshot)`}</option>
+          ) : null}
           {cables.map((p) => (
             <option key={p.id} value={p.id}>{p.physicalItem?.label || [p.manufacturer, p.model].filter(Boolean).join(" ") || p.id}</option>
           ))}
@@ -89,7 +92,10 @@ export function Heating({ room }: { room: Room }) {
           value={h?.thermostatProductId ?? ""}
           onChange={(ev) => run({ thermostatProductId: ev.target.value || null })}
         >
-          <option value="">{h?.thermostatSpecification ? "Project snapshot (no library id)" : "none"}</option>
+          <option value="">none — clears product and snapshot</option>
+          {h?.thermostatProductId && !thermostats.some((p) => p.id === h.thermostatProductId) ? (
+            <option value={h.thermostatProductId}>{`unresolved: ${h.thermostatProductId} (project snapshot)`}</option>
+          ) : null}
           {thermostats.map((p) => (
             <option key={p.id} value={p.id}>{p.physicalItem?.label || [p.manufacturer, p.model].filter(Boolean).join(" ") || p.id}</option>
           ))}
@@ -431,7 +437,7 @@ export function Heating({ room }: { room: Room }) {
       <p aria-label="Heating evidence">
         Product length: {figureText(e.cable.length)} · rated output: {figureText(e.cable.ratedOutput)} · coverage {figureText(e.cable.coverageMin)}–{figureText(e.cable.coverageMax)} · derived spacing ({e.spacingNote}): {figureText(e.cable.spacingMin, true)}–{figureText(e.cable.spacingMax, true)}.
         Cable current: {figureText(e.cable.ratedCurrent)} · thermostat switching current: {figureText(e.thermostat.ratedCurrent)} · cable voltage: {figureText(e.cable.ratedVoltage)} · thermostat voltage {figureText(e.thermostat.voltageMin)}–{figureText(e.thermostat.voltageMax)} · printed IP: {e.thermostat.ingressProtection?.value ?? "unknown"} ({e.thermostat.ingressProtection?.kind ?? "unknown"}).
-        Plan route length: {figureText(e.figures.planRouteLength)} · spatial route length (sampled profile): {figureText(e.figures.spatialRouteLength)} · remaining confirmed cable length: {figureText(e.figures.remainingProductLength)} · drawn-path envelope: {figureText(e.figures.pathEnvelopeArea)} · selected {e.selectedArea} m² · excluding
+        Plan route length: {figureText(e.figures.planRouteLength)} · spatial route length (sampled profile): {figureText(e.figures.spatialRouteLength)} · remaining confirmed cable length: {figureText(e.figures.remainingProductLength)} · selected {e.selectedArea} m² · excluding
         keep-outs {e.availableArea} m². Minimum non-adjacent spacing:{" "}
         {e.minimumNonAdjacentSpacing === undefined
           ? "unknown"

@@ -9,9 +9,11 @@ import {
   heatingProductLocks,
   heatingProductWriteGuard,
   heatingSection,
+  heatingShadowedRecordKeys,
   SPACING_FROM_COVERAGE_FORMULA,
+  validHeating,
 } from "../src/model/heating";
-import { heatingCableFigures, heatingSnapshotProductId, thermostatFigures } from "../src/model/heatingProduct";
+import { heatingCableFigures, heatingSnapshotProductId, PROJECT_SNAPSHOT_ORIGIN, resolveHeatingProduct, thermostatFigures } from "../src/model/heatingProduct";
 import { checkModel } from "../src/model/issues";
 import { demoProject, parseImport } from "../src/model/projects";
 import {
@@ -399,8 +401,8 @@ const LABEL_CURRENT = 3.2;
 const LABEL_VOLTAGE = 240;
 const LABEL_COVERAGE_MIN = 3.7;
 const LABEL_COVERAGE_MAX = 5.1;
-const LABEL_SPACING_MIN = LABEL_COVERAGE_MIN / LABEL_LENGTH;
-const LABEL_SPACING_MAX = LABEL_COVERAGE_MAX / LABEL_LENGTH;
+const LABEL_SPACING_MIN = 0.0871;
+const LABEL_SPACING_MAX = 0.12;
 const THERMO_CURRENT = 16;
 const THERMO_VOLTAGE_MIN = 100;
 const THERMO_VOLTAGE_MAX = 240;
@@ -480,10 +482,10 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(room().heating?.length).toBeUndefined();
     expect(room().heating?.ratedOutput).toBeUndefined();
     const cable = heatingCableFigures(room().heating);
-    expect(cable.length).toMatchObject({ value: LABEL_LENGTH, kind: "published", origin: "product-brief" });
+    expect(cable.length).toMatchObject({ value: LABEL_LENGTH, kind: "published", origin: PROJECT_SNAPSHOT_ORIGIN });
     expect(cable.ratedOutput).toMatchObject({ value: LABEL_OUTPUT, kind: "published" });
-    expect(cable.spacingMin.value).toBe(Math.round((LABEL_COVERAGE_MIN / LABEL_LENGTH) * 1e4) / 1e4);
-    expect(cable.spacingMax.value).toBe(Math.round((LABEL_COVERAGE_MAX / LABEL_LENGTH) * 1e4) / 1e4);
+    expect(cable.spacingMin.value).toBe(0.0871);
+    expect(cable.spacingMax.value).toBe(0.12);
     expect(cable.spacingMin.kind).toBe("derived");
     expect(cable.spacingMin.formula).toBe(SPACING_FROM_COVERAGE_FORMULA);
     expect(heatingEvidence(room()).cable.length.value).toBe(LABEL_LENGTH);
@@ -763,6 +765,99 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(() => parseImport(JSON.stringify(doc))).toThrow(/invalid model data/i);
   });
 
+  it("imports a snapshot that names an unresolvable productId, uses those figures, and flags unresolved", () => {
+    setup();
+    attachCableSnapshot(heatingCableSpecification());
+    expect(room().heating?.cableProductId).toBeUndefined();
+    expect(heatingSnapshotProductId(room().heating?.cableSpecification)).toBe(SAMPLE_CABLE_PRODUCT_ID);
+    const resolved = resolveHeatingProduct(room().heating, "heating-cable", []);
+    expect(resolved.unresolved).toBe(true);
+    expect(resolved.mismatch).toBe(false);
+    expect(resolved.live).toBeUndefined();
+    expect(resolved.snapshot?.productId).toBe(SAMPLE_CABLE_PRODUCT_ID);
+    expect(heatingCableFigures(room().heating).length).toMatchObject({
+      value: LABEL_LENGTH,
+      kind: "published",
+      origin: PROJECT_SNAPSHOT_ORIGIN,
+    });
+    expect(codes()).toContain("heating_product_unresolved");
+    expect(codes()).not.toContain("heating_product_snapshot_mismatch");
+    const imported = parseImport(JSON.stringify({ ...demoProject(), model: store.getState().model }));
+    const heating = imported.model.rooms[0].heating;
+    expect(heating?.cableProductId).toBeUndefined();
+    expect(heatingCableFigures(heating).length.origin).toBe(PROJECT_SNAPSHOT_ORIGIN);
+    expect(heatingProblems(imported.model.rooms[0]).map((p) => p.code)).toContain("heating_product_unresolved");
+  });
+
+  it("does not use a snapshot whose productId is a different product than the stored id", () => {
+    setup();
+    const heating = structuredClone(room().heating)!;
+    heating.cableProductId = "stored-cable";
+    heating.cableSpecification = Object.assign(heatingCableSpecification(), {
+      productId: "other-product",
+      fields: { ...heatingCableSpecification().fields, cableLength: carton(3, "other product 3 m") },
+    });
+    store.setState({
+      model: { ...store.getState().model, rooms: store.getState().model.rooms.map((x) => x.id === room().id ? { ...x, heating } : x) },
+    });
+    const resolved = resolveHeatingProduct(room().heating, "heating-cable", []);
+    expect(resolved.referencedId).toBe("stored-cable");
+    expect(resolved.unresolved).toBe(true);
+    expect(resolved.mismatch).toBe(true);
+    expect(resolved.snapshot).toBeUndefined();
+    expect(heatingCableFigures(room().heating).length.value).toBeUndefined();
+    expect(codes()).toContain("heating_product_unresolved");
+    expect(codes()).toContain("heating_product_snapshot_mismatch");
+    productStore.setState({ products: [libraryProduct("heating-cable", { cableLength: carton(10, "library 10 m") }, "stored-cable")] });
+    expect(resolveHeatingProduct(room().heating, "heating-cable").mismatch).toBe(true);
+    expect(resolveHeatingProduct(room().heating, "heating-cable").snapshot).toBeUndefined();
+    expect(heatingCableFigures(room().heating).length.value).toBe(10);
+    expect(codes()).toContain("heating_product_snapshot_mismatch");
+    expect(codes()).not.toContain("heating_product_unresolved");
+  });
+
+  it("writes thermostat label voltage, current and IP as published so like-for-like compares published to published", () => {
+    setup();
+    attachCableSnapshot(heatingCableSpecification());
+    attachThermoSnapshot(thermostatSpecificationOf());
+    expect(heatingCableSpecification().acceptedAt).toBe(0);
+    expect(thermostatSpecificationOf().acceptedAt).toBe(0);
+    const cable = heatingCableFigures(room().heating);
+    const thermo = thermostatFigures(room().heating);
+    expect(cable.ratedCurrent).toMatchObject({ value: LABEL_CURRENT, kind: "published", origin: PROJECT_SNAPSHOT_ORIGIN });
+    expect(thermo.ratedCurrent).toMatchObject({ value: THERMO_CURRENT, kind: "published", origin: PROJECT_SNAPSHOT_ORIGIN });
+    expect(thermo.voltageMin).toMatchObject({ value: THERMO_VOLTAGE_MIN, kind: "published", origin: PROJECT_SNAPSHOT_ORIGIN });
+    expect(thermo.voltageMax).toMatchObject({ value: THERMO_VOLTAGE_MAX, kind: "published", origin: PROJECT_SNAPSHOT_ORIGIN });
+    expect(thermo.ingressProtection).toMatchObject({ value: "IP21", kind: "published" });
+    expect(thermo.ratedCurrent.source).toMatch(/Photographed MWD5-1999-CBP3 carton label/);
+    expect(codes()).not.toContain("heating_current_unknown");
+    expect(codes()).not.toContain("heating_current_rating");
+    expect(codes()).not.toContain("heating_voltage_unknown");
+    expect(codes()).not.toContain("heating_voltage_range");
+    const ip = heatingProblems(room()).find((p) => p.code === "heating_ip_location")!;
+    expect(ip.message).toMatch(/published/);
+    expect(ip.message).not.toMatch(/measured/);
+  });
+
+  it("refuses to import a heating record whose brief would silently shadow leftover length, output or names", () => {
+    setup();
+    attachCableSnapshot(heatingCableSpecification());
+    const heating = structuredClone(room().heating)!;
+    heating.length = published(3);
+    expect(validHeating(heating)).toBe(false);
+    expect(heatingShadowedRecordKeys(heating)).toEqual(["length"]);
+    store.setState({
+      model: { ...store.getState().model, rooms: store.getState().model.rooms.map((x) => x.id === room().id ? { ...x, heating } : x) },
+    });
+    expect(() => parseImport(JSON.stringify({ ...demoProject(), model: store.getState().model }))).toThrow(/invalid model data/i);
+    const refused = actions.setRoomHeating(room().id, { requirements: "leave leftover length" });
+    expect(refused.ok).toBe(false);
+    expect(refused.summary).toMatch(/length:null/);
+    expect(actions.setRoomHeating(room().id, { length: null, requirements: "cleared" }).ok).toBe(true);
+    expect(room().heating?.length).toBeUndefined();
+    expect(heatingCableFigures(room().heating).length.value).toBe(LABEL_LENGTH);
+  });
+
   it("retargets heating to a real catalogue revision, rewrites the snapshot, and keeps those figures when the library is empty", () => {
     setup();
     const v1Fields = {
@@ -986,8 +1081,6 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(e.problems.find((p) => p.code === "heating_coverage_range")?.message).toMatch(/availableArea/);
     expect(e.problems.find((p) => p.code === "heating_ip_location")?.message).toMatch(/IP21/);
     expect(e.problems.find((p) => p.code === "heating_ip_location")?.message).toMatch(/outside a wet room/);
-    const envelope = 14 * 0.1 * 2.74;
-    expect(e.pathEnvelopeArea).toBeCloseTo(envelope, 6);
     expect(e.minimumNonAdjacentSpacing).toBeCloseTo(PROPOSED_CABLE_SPACING_M, 6);
     expect(e.minimumNonAdjacentSpacing!).toBeGreaterThanOrEqual(LABEL_SPACING_MIN - 1e-8);
     expect(e.minimumNonAdjacentSpacing!).toBeLessThanOrEqual(LABEL_SPACING_MAX + 1e-8);

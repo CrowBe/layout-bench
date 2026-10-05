@@ -568,12 +568,12 @@ export const purchasedFittings: PurchasedFitting[] = [
       height: { value: null, note: `CBP3 cover height is not named on the OJ Microline brochure (${OJ_MWD5}). Drawn stand-in lives only on the kind size.` },
       depth: { value: null, note: `CBP3 cover projection is not named on the OJ Microline brochure (${OJ_MWD5}; family build-in 22 mm is not used). Drawn stand-in lives only on the kind size.` },
       mounting: measuredField("flush", "choice", "Photographed MWD5-1999-CBP3 label: flush mounting"),
-      ratedVoltageMin: measuredQty(100, "V", "Photographed label: 100–240 V AC"),
-      ratedVoltageMax: measuredQty(240, "V", "Photographed label: 100–240 V AC"),
-      ratedCurrent: measuredQty(16, "A", "Photographed label: 16 A"),
+      ratedVoltageMin: { value: 100, status: "published", source: CARTON_LABEL_SOURCE, note: "Photographed MWD5-1999-CBP3 carton label: 100–240 V AC" },
+      ratedVoltageMax: { value: 240, status: "published", source: CARTON_LABEL_SOURCE, note: "Photographed MWD5-1999-CBP3 carton label: 100–240 V AC" },
+      ratedCurrent: { value: 16, status: "published", source: CARTON_LABEL_SOURCE, note: "Photographed MWD5-1999-CBP3 carton label: 16 A" },
       tempRangeMin: measuredQty(5, "°C", "Photographed label: 5–40 °C"),
       tempRangeMax: measuredQty(40, "°C", "Photographed label: 5–40 °C"),
-      ingressProtection: measuredField("IP21", "text", "Photographed label: housing IP21"),
+      ingressProtection: { value: "IP21", status: "published", source: CARTON_LABEL_SOURCE, note: "Photographed MWD5-1999-CBP3 carton label: housing IP21" },
       floorSensor: measuredField("included", "choice", "Photographed label: incl. limitation sensor"),
       connectivity: measuredField("wifi", "choice", "Photographed label / Coldbuster 2\" WiFi thermostat"),
     },
@@ -654,7 +654,7 @@ export const heatingCableSpecification = (): ProductSpecification => {
   const spec: ProductSpecification = {
     category: "heating-cable",
     recordingMode: "human-measurement",
-    acceptedAt: SPEC_ACCEPTED_AT,
+    acceptedAt: 0,
     fields: {
       ...fields,
       cableType: cableCarton("in-screed", "installation type in-screed"),
@@ -673,7 +673,7 @@ export const heatingCableSpecification = (): ProductSpecification => {
 
 export const thermostatSpecificationOf = (): ProductSpecification => {
   const spec = specOf(purchasedFittings.find((f) => f.specCategory === "thermostat")!);
-  return Object.assign(spec, { manufacturer: "OJ Electronics", model: "MWD5-1999-CBP3", productId: SAMPLE_THERMOSTAT_PRODUCT_ID });
+  return Object.assign(spec, { manufacturer: "OJ Electronics", model: "MWD5-1999-CBP3", productId: SAMPLE_THERMOSTAT_PRODUCT_ID, acceptedAt: 0 });
 };
 
 // ---- Construction spec from the owner ------------------------------------------------------

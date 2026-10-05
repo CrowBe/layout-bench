@@ -42,7 +42,7 @@ import type {
   TileFloorReference,
 } from "./types";
 import { emptyModel } from "./types";
-import { validHeating, heatingEvidence, heatingProductWriteGuard } from "./heating";
+import { validHeating, heatingEvidence, heatingProductWriteGuard, heatingShadowedRecordKeys } from "./heating";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices } from "./fixtures";
 import { hostWasteInHostFrame, productCornerSide, applyCornerHandChange, derivedServicePointMutation, isDerivedServicePoint } from "./fittedWaste";
@@ -51,7 +51,7 @@ import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
 import { exactSnapshot, SELECTION_STATUSES, type SelectionStatus } from "./productIdentity";
-import { heatingRevisionSummary, retargetHeatingInModel, specificationFromProduct } from "./heatingProduct";
+import { heatingAlreadyOnProduct, heatingRevisionSummary, retargetHeatingInModel, specificationFromProduct } from "./heatingProduct";
 import { productStore, registerHeatingRevisionHook, type LibraryProduct } from "./productLibrary";
 import { checkModel } from "./issues";
 import { productPlacement } from "./productPlacement";
@@ -1240,6 +1240,10 @@ export const actions = {
         const quantity = next[key];
         if (quantity && quantity.value === null) delete quantity.value;
       }
+      const shadowed = heatingShadowedRecordKeys(next, library);
+      if (shadowed.length) {
+        return fail(`Heating rejected: ${shadowed.join(", ")} is locked to the heating-cable brief; pass ${shadowed.map((k) => `${k}:null`).join(", ")} to clear the shadowed record value.`);
+      }
       if (!validHeating(next)) return fail("Heating rejected: finite non-negative quantities need provenance; paths need finite x/y; keep-outs need unique ids, labels and positive rectangles; product snapshots must match their category and name the accepted productId they were written from. Maximum 1000 points and 100 keep-outs.");
       for (const key of ["length", "minSpacing", "edgeClearance", "depthFromBottom"] as const) if (next[key]?.value !== undefined) next[key]!.value = quantize(next[key]!.value!);
       next.path = next.path.map((p) => ({ x: quantize(p.x), y: quantize(p.y) }));
@@ -1680,6 +1684,10 @@ export const actions = {
     const product = productStore.getState().products.find((p) => p.id === next.targetId);
     if (!next.applicable) {
       if (!product || next.selected.length > 0) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
+      const heatingRooms = store.getState().model.rooms.filter((r) => r.heating);
+      if (heatingRooms.length && heatingRooms.every((r) => heatingAlreadyOnProduct(r.heating!, product))) {
+        return ok("0 selected instance(s) updated. Issued outputs remain historical.", { ids: next.selected });
+      }
       const heating = retargetHeatingInModel(store.getState().model, product);
       if (!heating.rooms.length) return fail("Selected instances have unresolved update prerequisites; review the preview before applying.");
       pushUndo();
@@ -1695,7 +1703,9 @@ export const actions = {
       const row = next.rows.find(row => row.id === item.id);
       return row ? { ...item, productUpdates: [...(item.productUpdates ?? []), { from: row.before.productId!, to: next.targetId, at, preserved: row.preserved, unresolved: row.unresolved }] } : item;
     }) };
-    const heating = product ? retargetHeatingInModel(model, product) : { model, rooms: [] as string[], changed: [] as Array<"cable" | "thermostat">, cleared: [] as [] };
+    const heating = product && model.rooms.some((r) => r.heating && !heatingAlreadyOnProduct(r.heating, product))
+      ? retargetHeatingInModel(model, product)
+      : { model, rooms: [] as string[], changed: [] as Array<"cable" | "thermostat">, cleared: [] as [] };
     model = heating.model;
     pushUndo(); setModel(model);
     const heatingLine = product && heating.rooms.length ? ` ${heatingRevisionSummary(product, heating.rooms, heating.changed, heating.cleared)}` : "";

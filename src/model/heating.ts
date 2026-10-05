@@ -10,7 +10,9 @@ import {
   confirmedNumber,
   heatingCableFigures,
   heatingLibrary,
+  heatingShadowedRecordKeys,
   heatingSnapshotsDisagree,
+  heatingSnapshotProductId,
   resolveHeatingProduct,
   SPACING_FROM_COVERAGE_FORMULA,
   spacingFromCoverageRationale,
@@ -25,10 +27,10 @@ export {
   heatingCableFields,
   heatingProductLocks,
   heatingProductWriteGuard,
+  heatingShadowedRecordKeys,
   resolveHeatingProduct,
   specificationFromProduct,
   SPACING_FROM_COVERAGE_FORMULA,
-  SPACING_FROM_COVERAGE_RATIONALE,
   spacingFromCoverageRationale,
   thermostatFigures,
 } from "./heatingProduct";
@@ -294,15 +296,6 @@ export const modelledFigure = (value: number | undefined, quantity: string, unit
     ? { kind: "unknown", unit, quantity, origin: "drawn-path", note }
     : { value, kind: "modelled", unit, quantity, origin: "drawn-path", note };
 
-/** Axis-aligned envelope of the drawn path. Modelled, not published heat coverage. */
-export function pathEnvelopeArea(path: Pt[]): number | undefined {
-  if (path.length < 2) return undefined;
-  const xs = path.map((p) => p.x), ys = path.map((p) => p.y);
-  const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
-  if (!(w > 0) || !(h > 0)) return undefined;
-  return quantize(w * h);
-}
-
 /** Length follows every resolved profile interval, including plane boundaries and midpoints. */
 function routeLengths(room: Room, section: CableLevel[]) {
   const planRouteLength = quantize(segments(room.heating?.path ?? []).reduce((n, s) => n + s.length, 0));
@@ -347,13 +340,11 @@ export function heatingEvidence(room: Room, library?: LibraryProduct[]) {
     productLength !== undefined && routeLength !== undefined
       ? quantize(productLength - routeLength)
       : undefined;
-  const envelope = pathEnvelopeArea(h?.path ?? []);
   return {
     planRouteLength,
     ...(routeLength !== undefined ? { routeLength: quantize(routeLength) } : {}),
     selectedArea: union(zones).area,
     availableArea: union(zones, h?.keepouts).area,
-    ...(envelope !== undefined ? { pathEnvelopeArea: envelope } : {}),
     ...(separation !== undefined
       ? { minimumNonAdjacentSpacing: quantize(separation) }
       : {}),
@@ -403,19 +394,13 @@ export function heatingEvidence(room: Room, library?: LibraryProduct[]) {
               origin: "product-minus-route" as const,
               formula: "confirmed product length − modelled spatial route length",
             },
-      pathEnvelopeArea: modelledFigure(
-        envelope,
-        "drawn-path envelope area",
-        "m²",
-        "Axis-aligned envelope of the drawn path. Modelled, not published or measured heat coverage.",
-      ),
     },
     datums: {
       cableDepth: CABLE_DEPTH_DATUM,
       wallSetback: WALL_SETBACK_DATUM,
     },
     coverageNote:
-      "Coverage-range check uses availableArea (zone footprints excluding entered keep-outs), the same resolver as evidence. That area is not verified heat coverage. Drawn-path envelope area is modelled from the polyline AABB and is not used for the coverage-range check.",
+      "Coverage-range check uses availableArea (zone footprints excluding entered keep-outs), the same resolver as evidence. That area is not verified heat coverage.",
     lengthNote: "Plan route length is the XY projection (modelled). Spatial route length follows the sampled cable profile (modelled) and drives confirmed product balance only when the whole profile resolves. Product length comes from the referenced brief. Unsupplied cold tails and connections are excluded.",
     sectionNote: `Sampled profile at vertices, plane boundaries and interval midpoints. Cable centre is measured from the ${CABLE_DEPTH_DATUM}. Entered screed thickness applies throughout the route; local screed top follows entered finished planes minus layers above. Trade must verify variable thickness, substrate and slope.`,
     spacingNote: `${SPACING_FROM_COVERAGE_FORMULA}: ${spacingFromCoverageRationale(cable.coverageMin.kind, cable.length.kind)}`,
@@ -449,9 +434,13 @@ export function heatingProblems(room: Room, section = heatingSection(room), libr
         "heating_product_unresolved",
         resolved.unresolvedReason ?? `${which} product is not an accepted ${category} in this library.`,
       );
-      return;
     }
-    if (resolved.superseded && resolved.live) {
+    if (resolved.mismatch) {
+      add(
+        "heating_product_snapshot_mismatch",
+        `${which} snapshot productId ${heatingSnapshotProductId(spec)} is not referenced id ${resolved.referencedId} and is not in that series. Checks do not use that snapshot.`,
+      );
+    } else if (resolved.superseded && resolved.live) {
       add(
         "heating_product_superseded",
         `Referenced ${category} ${resolved.referencedId} has a newer accepted revision ${resolved.live.id}. Checks use the latest accepted revision.`,
@@ -639,7 +628,7 @@ export function heatingProblems(room: Room, section = heatingSection(room), libr
     if (cable.ratedVoltage.value + EPS < thermostat.voltageMin.value || cable.ratedVoltage.value - EPS > thermostat.voltageMax.value) {
       add(
         "heating_voltage_range",
-        `${describe(cable.ratedVoltage)} compared like-for-like to the thermostat range ${thermostat.voltageMin.value}–${thermostat.voltageMax.value} V (${thermostat.voltageMin.kind}, product-brief${thermostat.voltageMin.source ? `, ${thermostat.voltageMin.source}` : ""}). Cable rated voltage (used as the supply figure from the label; not a measured site supply) is outside that range. The electrician decides. No electrical approval.`,
+        `${describe(cable.ratedVoltage)} compared like-for-like to the thermostat range ${thermostat.voltageMin.value}–${thermostat.voltageMax.value} V (${thermostat.voltageMin.kind}, ${thermostat.voltageMin.origin}${thermostat.voltageMin.source ? `, ${thermostat.voltageMin.source}` : ""}). Cable rated voltage (used as the supply figure from the label; not a measured site supply) is outside that range. The electrician decides. No electrical approval.`,
       );
     }
   } else {
@@ -743,6 +732,7 @@ export function validHeating(v: unknown): v is Heating {
     validHeatingProductSnapshot(h.cableSpecification, "heating-cable") &&
     (h.thermostatProductId === undefined || (typeof h.thermostatProductId === "string" && h.thermostatProductId.length > 0 && h.thermostatProductId.length <= 200)) &&
     validHeatingProductSnapshot(h.thermostatSpecification, "thermostat") &&
-    validThermostatLocation(h.thermostatLocation)
+    validThermostatLocation(h.thermostatLocation) &&
+    heatingShadowedRecordKeys(h).length === 0
   );
 }

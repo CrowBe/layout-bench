@@ -289,7 +289,6 @@ export function specRows(model: PlanModel, el: ViewElement, products?: LibraryPr
     row("plan route length (m)", fig(e.figures.planRouteLength));
     row("spatial route length, sampled profile (m)", fig(e.figures.spatialRouteLength));
     row("remaining confirmed product length (m)", fig(e.figures.remainingProductLength));
-    row("drawn-path envelope (m²), modelled not coverage", fig(e.figures.pathEnvelopeArea));
     row("length basis", { value: e.lengthNote, status: "proposed" });
     row("spacing formula", { value: e.spacingNote, status: "derived" });
     row("zone ids", { value: h.zoneIds.join(", ") || "?", status: h.zoneIds.length ? "proposed" : "unknown" });
