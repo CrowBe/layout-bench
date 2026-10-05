@@ -317,7 +317,7 @@ export const seedBathroom = (): PlanModel => ({
     heating: {
       model: "SCK0765L", length: { value: 42.5, status: "published", source: "carton label" }, ratedOutput: { value: 765, status: "published", source: "carton label" },
       screedLayerId: "floor_screed", zoneIds: ["bathroom"], path: [], keepouts: [],
-      requirements: "Owner: laid in a snaking pattern on the membrane, before the tiler's screed. Route not drawn yet.",
+      requirements: "Owner lays it in a snaking pattern on the cured membrane, before the tiler's screed, and may run it under the shower; the electrician tests it before and after the screed and wires the thermostat. Route not drawn yet.",
     },
   }],
   items: [
@@ -355,11 +355,11 @@ export const bathroomNotes = (): Note[] => {
     { id: "note-limits", author: "human", text: "This sample is not measured set-out or a trade drawing. Drainage, services and falls are not represented; construction layers are recorded with their unknown thicknesses left unknown.", at: at + 2 },
     {
       id: "note-purchased", author: "agent", at: at + 3,
-      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle corner bath, 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste centred 520 mm from the corner, per the Enflair dimension drawing); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); two Thermorail VS900HBN 142 × 900 × 100 mm; OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L. Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
+      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle corner bath, 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste centred 520 mm from the corner, per the Enflair dimension drawing); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); two Thermorail VS900HBN 142 × 900 × 100 mm; OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L; replacement window 1810 × 600 (Stock Windows & Doors). Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
     },
     {
       id: "note-sequence", author: "human", at: at + 6,
-      text: "Construction order: (1) strip the walls to the timber frame and the floor right back to the concrete slab (about 120 mm below the current tile); (2) plumbing and electrical rough-in; (3) 6 mm Villaboard on the frame; (4) waterproofing; (5) the heating cable, laid in a snaking pattern; (6) the tiler's own screed and adhesive up to the finished-level target, then tiles. A thin timber trim panel goes above the tiles later.",
+      text: "Construction order: (1) remove the asbestos wall sheeting first (under the 10 m² homeowner limit: whole, wetted, bagged, no power tools), clean up, then strip the walls to the timber frame and the floor right back to the concrete slab (about 120 mm below the current tile); (2) plumbing and electrical rough-in, with both drains' puddle flanges set, and 6 mm Villaboard lined behind it wall by wall; (3) waterproofing on the slab and walls, then cure; (4) the heating cable, laid by the owner in a snaking pattern and tested by the electrician before the screed; (5) the tiler's own screed and falls, then adhesive and tiles. A thin timber trim panel goes above the tiles later.",
     },
     {
       id: "note-tiles", author: "human", at: at + 7,
