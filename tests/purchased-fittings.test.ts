@@ -24,7 +24,7 @@ describe("purchased fittings in the sample project", () => {
     const doc = demoProject();
     const back = parseImport(JSON.stringify(doc));
     expect(back.model.items.map((i) => i.id).sort()).toEqual(doc.model.items.map((i) => i.id).sort());
-    expect(back.kinds.find((k) => k.entry.kind === "towel_rail_vs900hbn")?.entry.elevation).toBe(0.5);
+    expect(back.kinds.find((k) => k.entry.kind === "towel_rail_vs900hbn")?.entry.elevation).toBe(0.75);
   });
 
   it("places every fitting with a printed code, marked purchased", () => {
@@ -34,7 +34,7 @@ describe("purchased fittings in the sample project", () => {
       expect(it.selectionStatus).toBe("purchased");
       expect(it.productIdentity?.code).toBe(f.product.code);
     }
-    expect(model.items.some((i) => i.id === "thermostat")).toBe(true);
+    expect(model.items.some((i) => i.kind === "thermostat_mwd5_1999_cbp3")).toBe(false); // hallway wall, outside this plan
   });
 
   it("carries both purchased towel rails and the owner's 900 × 2000 fixed screen", () => {
@@ -45,6 +45,19 @@ describe("purchased fittings in the sample project", () => {
     const screen = kinds.find((k) => k.entry.kind === "screen_proposed")!.entry;
     expect([screen.w, screen.h]).toEqual([0.9, 2]);
     expect(model.items.find((i) => i.id === "screen")!.y).toBe(1.2);
+  });
+
+  it("draws the reused vanity and shaving cabinet at the owner's sizes, the cabinet above the basin", () => {
+    load();
+    const vanity = catalogByKind("vanity_recorded")!, cabinet = catalogByKind("shaving_cabinet_recorded")!;
+    expect([vanity.w, vanity.h, vanity.d]).toEqual([0.91, 0.85, 0.465]);
+    expect([cabinet.w, cabinet.h, cabinet.d]).toEqual([0.75, 0.62, 0.16]);
+    expect(cabinet.elevation).toBe(1.2); // owner: bottom edge as now, to clear the tap
+    expect(cabinet.elevation).toBeGreaterThan(vanity.h + 0.13); // clear of the basin mixer
+    const items = store.getState().model.items.filter((i) => i.id === "vanity" || i.id === "shaving_cabinet");
+    expect(items.map((i) => i.selectionStatus)).toEqual(["reused", "reused"]);
+    expect(buildFurniture("vanity_recorded")!.children.length).toBeGreaterThan(5); // doors, drawers, top
+    expect(hasCustomKind("shaving_cabinet_recorded")).toBe(true);
   });
 
   it("copies printed dimensions only where a label gives them", () => {

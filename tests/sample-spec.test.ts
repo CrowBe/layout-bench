@@ -59,6 +59,11 @@ describe("owner's construction spec in the sample", () => {
     // full tiles start at the door end
     expect(wall(m, "wall_s").tiling!.right).toMatchObject({ originFrom: "jamb-a", originOpening: "door_s" });
     expect(m.rooms[0].floorTiling).toMatchObject({ originXFrom: "west", originYFrom: "south" });
+    // the beige runs from the floor around the window to the fourth course, which clears the window head
+    const north = tilingLayout(m, wall(m, "wall_n"), "right");
+    expect(north.band).toEqual({ z0: 0, z1: 2.416 });
+    expect(north.openings.map((o) => o.openingId)).toEqual(["window_n"]);
+    expect(north.openings[0].z1).toBeLessThan(north.band!.z1);
     // the courses start from the target: the finished floor is known without the tiler's thicknesses
     expect(tilingLayout(m, wall(m, "wall_e"), "right").band).toEqual({ z0: 0, z1: 2.416 });
   });

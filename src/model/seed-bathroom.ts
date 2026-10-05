@@ -110,16 +110,70 @@ const shower: PartSpec[] = [
 ];
 
 // ---- Thermorail VS900HBN, 12 V vertical rail, concealed wiring: 142 × 900 × 100 mm -------------
-// The carton does not show its form. Two uprights and rungs are a stand-in inside that envelope.
+// The carton's drawing: one round upright, a short crossbar with knob ends across its top (the
+// 142 mm), and two wall brackets, one under the crossbar and one near the foot (the 100 mm off
+// the wall). Owner: the foot is 750 mm above the finished floor tiles. The tube diameter and the
+// bracket and crossbar heights are read off the drawing, not measured.
+const RAIL_FOOT = 0.75;
+const RAIL_TUBE = 0.032; // placeholder
+const RAIL_Z = 0.05 - RAIL_TUBE / 2; // the upright's front at the 100 mm projection
+const railBracket = (up: number): PartSpec[] => [
+  tube(0, RAIL_FOOT + up - 0.025, -0.045, 0.05, 0.05, { ...NICKEL, d: 0.01 }), // wall rose
+  box(0, RAIL_FOOT + up - 0.01, (-0.04 + RAIL_Z - RAIL_TUBE / 2) / 2, 0.02, 0.02, RAIL_Z - RAIL_TUBE / 2 + 0.04),
+];
 const rail: PartSpec[] = [
-  tube(-0.0545, 0.5, 0, 0.025, 0.9), tube(0.0545, 0.5, 0, 0.025, 0.9),
-  ...[0.55, 0.7, 0.85, 1.0, 1.15, 1.3].map((y) => box(0, y, 0, 0.1, 0.02, 0.025)),
+  tube(0, RAIL_FOOT, RAIL_Z, RAIL_TUBE, 0.9), // upright
+  box(0, RAIL_FOOT + 0.84, RAIL_Z, 0.11, 0.018, 0.018), // crossbar
+  box(-0.0625, RAIL_FOOT + 0.835, RAIL_Z, 0.017, 0.028, 0.028), box(0.0625, RAIL_FOOT + 0.835, RAIL_Z, 0.017, 0.028, 0.028), // knob ends
+  ...railBracket(0.79), ...railBracket(0.08),
 ];
 
 // ---- OJ Electronics MWD5-1999-CBP3 (Coldbuster 2" WiFi thermostat), flush --------------------
 const thermostat: PartSpec[] = [
   box(0, 1.4, 0, 0.085, 0.085, 0.012, { color: "#f1f4f5", roughness: 0.4 }),
   box(0, 1.425, 0.007, 0.05, 0.035, 0.004, { color: "#1b1d1f", roughness: 0.2 }),
+];
+
+// ---- Reused vanity: 910 W × 850 H × 465 D (owner's tape) -----------------------------------
+// Floor-standing, gloss white, on a plinth: two doors on the left, three drawers on the right, a
+// ceramic top with an integrated rectangular basin, overflow and a single tap hole. Only the three
+// overall sizes are measured; the split between the door bay and the drawer stack, the drawer
+// heights, plinth and top thickness and the basin's size are read off the photos as placeholders.
+// Owner: the waste and water points move about 300 mm right of where they are now, so they keep
+// the same place behind the doors (bottle trap, waste through the cabinet floor, braided hoses).
+const VANITY = { w: 0.91, h: 0.85, d: 0.465 };
+const GLOSS = { color: "#f4f4f1", roughness: 0.25 } as const;
+const GLAZE = { color: "#fbfbfa", roughness: 0.1 } as const;
+const VANITY_TOP = 0.03; // placeholder: the rolled edge of the ceramic top
+const PLINTH = 0.1; // placeholder
+const vanityBack = -VANITY.d / 2;
+/** Door bay from the left end to here (facing the vanity), drawer stack beyond: placeholders. */
+const DOOR_BAY = { from: -0.445, to: 0.14 };
+const front = (x0: number, x1: number, y0: number, y1: number): PartSpec => box((x0 + x1) / 2, y0, 0.2065, x1 - x0, y1 - y0, 0.018, GLOSS);
+const vanity: PartSpec[] = [
+  box(0, 0, vanityBack + 0.21, 0.9, PLINTH, 0.42, GLOSS), // plinth, a little behind the fronts
+  box(0, PLINTH, vanityBack + 0.215, 0.9, VANITY.h - VANITY_TOP - PLINTH, 0.43, GLOSS), // carcass
+  front(DOOR_BAY.from, -0.152, 0.105, 0.815), // left door
+  front(-0.148, DOOR_BAY.to, 0.105, 0.815), // second door
+  front(0.145, 0.445, 0.105, 0.325), // bottom drawer
+  front(0.145, 0.445, 0.33, 0.55),
+  front(0.145, 0.445, 0.555, 0.815), // top drawer
+  box(0, VANITY.h - VANITY_TOP, 0, VANITY.w, VANITY_TOP, VANITY.d, GLAZE), // ceramic top
+  box(0, VANITY.h - 0.001, 0.03, 0.47, 0.002, 0.3, { color: "#e3e7e9", roughness: 0.1 }), // basin opening (placeholder size)
+  tube(0, VANITY.h, 0.03, 0.04, 0.002, NICKEL), // plug
+];
+
+// ---- Reused shaving cabinet: 750 W × 620 H × 160 D (owner's tape) ----------------------------
+// Two mirror doors on concealed hinges, white carcass, two adjustable shelves; no light or
+// demister seen. It screws to the wall through wall plugs and is hung last, after the tiles.
+// Owner: bottom edge 1200 mm, where it is now, to clear the tap; it moves about 300 mm right
+// with the vanity at the same height.
+const CABINET = { w: 0.75, h: 0.62, d: 0.16, elevation: 1.2 };
+const MIRROR = { color: "#c9d6dc", roughness: 0.05, metalness: 0.6 } as const;
+const shavingCabinet: PartSpec[] = [
+  box(0, CABINET.elevation, -0.003, CABINET.w, CABINET.h, 0.154, GLOSS), // carcass
+  box(-CABINET.w / 4, CABINET.elevation, 0.077, CABINET.w / 2 - 0.003, CABINET.h, 0.006, MIRROR),
+  box(CABINET.w / 4, CABINET.elevation, 0.077, CABINET.w / 2 - 0.003, CABINET.h, 0.006, MIRROR),
 ];
 
 export const purchasedFittings: PurchasedFitting[] = [
@@ -173,18 +227,19 @@ export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "towel_rail_vs900hbn", label: "Towel rail",
     product: fitting("VS900HBN", "VS900HBN", "Thermorail VS900HBN, 12 V vertical rail, round, brushed nickel, concealed wiring",
-      "Carton label: 142 × 900 × 100 mm. 12 V: a low-voltage supply is needed and is not in the photos.", "Thermorail"),
-    size: { w: 0.142, d: 0.1, h: 0.9, printed: ["w", "d", "h"], elevation: 0.5, caveat: "mounting height is a placeholder" },
+      "Carton label: 142 × 900 × 100 mm. Carton drawing: a single round upright with a short knobbed crossbar at the top and two wall brackets. 12 V: a transformer came with each rail (owner); both go up in the ceiling space for access later.", "Thermorail"),
+    size: { w: 0.142, d: 0.1, h: 0.9, printed: ["w", "d", "h"], elevation: RAIL_FOOT, caveat: "foot 750 mm above the floor tiles (owner)" },
     parts: rail, placement: { id: "towel_rail", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.825, rotation: 90 },
-    // the owner bought two; the second hangs beside the first on the left wall
+    // the owner bought two; the second hangs beside the first on the left wall, its foot also at 750
     extra: [{ id: "towel_rail_2", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.575, rotation: 90 }],
   },
   {
     kind: "thermostat_mwd5_1999_cbp3", label: "Thermostat",
     product: fitting("MWD5-1999-CBP3", "MWD5-1999-CBP3", "OJ Electronics Coldbuster 2\" WiFi thermostat, flush mount",
       "Label: incl. limitation sensor, 100–240 V AC / 16 A, 5–40 °C, housing IP21, flush mounting. The plate size is not printed.", "OJ Electronics"),
-    size: { w: 0.085, d: 0.012, h: 0.085, printed: [], elevation: 1.4, caveat: "size and position are placeholders; IP21 may not suit this room" },
-    parts: thermostat, placement: { id: "thermostat", kind: "thermostat_mwd5_1999_cbp3", x: 0.006, y: 2.1, rotation: 90 },
+    size: { w: 0.085, d: 0.012, h: 0.085, printed: [], elevation: 1.4, caveat: "size is a placeholder" },
+    // owner: on the hallway wall outside the bathroom, so it is not placed in this plan
+    parts: thermostat,
   },
 ];
 
@@ -235,7 +290,7 @@ const side = (wall: string, tile: string): WallSide => ({
 /** Four full 600 mm courses on every wall, starting from the door end. */
 const courses = (wall: string, tile: "white" | "beige"): WallTiling => tile === "white"
   ? { tileLength: proposed(0.6), tileWidth: proposed(0.6), orientation: "landscape", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${WHITE}. Four full courses; full tiles start at the door end; timber trim above, later.` }
-  : { tileLength: proposed(0.6), tileWidth: proposed(0.3), orientation: "portrait", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${BEIGE}, the floor tile carried up the window wall: long side vertical so its courses match the 600 mm courses on the other walls. Timber trim above, later.` };
+  : { tileLength: proposed(0.6), tileWidth: proposed(0.3), orientation: "portrait", joint: JOINT, floor: "finished", originUp: BASE_JOINT, tiledHeight: FOUR_COURSES, ...START[wall], note: `${BEIGE}, the floor tile carried up the whole window wall from the floor, around the window frame, to the top of the fourth course: 600 mm edge vertical so its courses match the 600 mm courses on the other walls. Timber trim above, later.` };
 const wall = (id: string, ax: number, ay: number, bx: number, by: number, tile: "white" | "beige"): Wall => ({
   // owner: about 2700 mm from the current floor to the cornice (about 2850 from the slab once stripped)
   id, ax, ay, bx, by, thickness: 0.1, height: 2.7,
@@ -253,6 +308,22 @@ const toiletSuite: ExactProduct = {
   physicalItem: {
     label: "American Standard Cygnet Square back-to-wall suite with Spalet E-bidet seat (reused)",
     notes: "Reece product code 9509830, from the owner's screenshot of the listing. Spalet seat label (photographed 5 Oct 2026): American Standard Spalet E-Bidet, full function with deodoriser, model type CEAS7SS1-0100510R0, product number SAR1101330, 230 V 50 Hz, rated 300 W, water pressure 0.06–0.75 MPa, IPX4, WaterMark WMTS-051 WM-022901. The workbook's 1800 W (from the installation sheet) is the figure to size the GPO circuit until the electrician says otherwise. Markings recorded from the pan and cistern: cistern TF-4325 (a model candidate), WaterMark AS 1172.2 / WMK A21024, 4.5 L. Spec: cistern 385 × 165 mm, centred; projection just under 700 mm; seat footprint about 480 mm wide. Workbook: seat 1800 W on a ~1.7 m cord; G1/2 water point with an isolating stop tap on the left facing the pan. Pan waste set-out not recorded.",
+  },
+};
+
+const reusedVanity: ExactProduct = {
+  manufacturer: "", model: "",
+  physicalItem: {
+    label: "Gloss white floor-standing vanity, ceramic top with integrated basin (reused)",
+    notes: "Owner's tape, 5 Oct 2026: 910 W × 850 H × 465 D overall. Photographed: two doors on the left and a stack of three drawers on the right (facing it), on a plinth; ceramic top with a rectangular integrated basin, overflow and one tap hole; one fixed shelf in the door bay, cut round the waste. Existing plumbing: a white plastic bottle trap behind the doors with its waste going down through the cabinet floor, and braided flexible hoses to the mixer. Maker and model not recorded. The door-bay width, drawer heights, plinth height, top thickness and basin size in the model are read off the photos, not measured.",
+  },
+};
+
+const reusedCabinet: ExactProduct = {
+  manufacturer: "", model: "",
+  physicalItem: {
+    label: "Two-door mirror shaving cabinet (reused)",
+    notes: "Owner's tape, 5 Oct 2026: 750 W × 620 H × 160 D. Photographed: two mirror doors on concealed hinges, white carcass, two adjustable shelves and the base; no light or demister seen, so no power drawn for it. Fixing: screws through the back into wall plugs; hung last, once everything else is fitted. Bottom edge 1200 mm (owner, as now, to clear the tap). Maker and model not recorded.",
   },
 };
 
@@ -317,14 +388,17 @@ export const seedBathroom = (): PlanModel => ({
     heating: {
       model: "SCK0765L", length: { value: 42.5, status: "published", source: "carton label" }, ratedOutput: { value: 765, status: "published", source: "carton label" },
       screedLayerId: "floor_screed", zoneIds: ["bathroom"], path: [], keepouts: [],
-      requirements: "Owner lays it in a snaking pattern on the cured membrane, before the tiler's screed, and may run it under the shower; the electrician tests it before and after the screed and wires the thermostat. Route not drawn yet.",
+      requirements: "Owner lays it in a snaking pattern on the cured membrane, before the tiler's screed, and may run it under the shower; the electrician tests it before and after the screed and wires the thermostat. Owner, 5 Oct 2026: the cable's thermostat end is at the bathroom doorway, where the floor beyond is timber; its lead goes down through it to under the house (on piers), so it can be hooked up to the thermostat at any time; the lead is long enough. Route not drawn yet.",
     },
   }],
   items: [
     ...purchasedFittings.flatMap((f) => [f.placement, ...(f.extra ?? [])].filter((p): p is Item_ => !!p).map((p): Item => ({
       ...p, productIdentity: structuredClone(f.product), selectionStatus: "purchased",
     }))),
-    { id: "vanity", kind: "vanity_recorded", x: 1.85, y: 1.7, rotation: 270 },
+    // back to the right wall's finished face, centred 1700 mm from the window wall (proposed)
+    { id: "vanity", kind: "vanity_recorded", x: 1.85, y: 1.7, rotation: 270, productIdentity: structuredClone(reusedVanity), selectionStatus: "reused" },
+    // centred over the vanity, back to the same face; screwed up last, after the tiles
+    { id: "shaving_cabinet", kind: "shaving_cabinet_recorded", x: 2.0, y: 1.7, rotation: 270, productIdentity: structuredClone(reusedCabinet), selectionStatus: "reused" },
     { id: "toilet", kind: "toilet_proxy", x: 1.7, y: 2.6, rotation: 270, productIdentity: structuredClone(toiletSuite), selectionStatus: "reused" },
     { id: "screen", kind: "screen_proposed", x: 0.45, y: 1.2, rotation: 0 },
   ],
@@ -340,7 +414,8 @@ export const bathroomKinds: ProjectKind[] = [
     } satisfies CatalogEntry,
     ...(f.parts.length ? { parts: structuredClone(f.parts) } : {}),
   })),
-  { entry: { kind: "vanity_recorded", label: "Vanity", w: 0.91, d: 0.465, h: 0.85, color: "#b59c7f", category: "bath" } },
+  { entry: { kind: "vanity_recorded", label: "Vanity", w: VANITY.w, d: VANITY.d, h: VANITY.h, color: "#f4f4f1", category: "bath" }, parts: structuredClone(vanity) },
+  { entry: { kind: "shaving_cabinet_recorded", label: "Shaving cabinet", w: CABINET.w, d: CABINET.d, h: CABINET.h, elevation: CABINET.elevation, color: "#c9d6dc", category: "bath" }, parts: structuredClone(shavingCabinet) },
   { entry: { kind: "toilet_proxy", label: "Toilet", w: 0.48, d: 0.7, h: 0.8, color: "#e2ded4", category: "bath" } },
   // owner: fixed glass panel 900 wide × 2000 high, 1200 mm from the window wall (face not stated);
   // workbook: 10 mm clear toughened, stainless wall channel and brace bar
@@ -355,15 +430,15 @@ export const bathroomNotes = (): Note[] => {
     { id: "note-limits", author: "human", text: "This sample is not measured set-out or a trade drawing. Drainage, services and falls are not represented; construction layers are recorded with their unknown thicknesses left unknown.", at: at + 2 },
     {
       id: "note-purchased", author: "agent", at: at + 3,
-      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle corner bath, 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste centred 520 mm from the corner, per the Enflair dimension drawing); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); two Thermorail VS900HBN 142 × 900 × 100 mm; OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L; replacement window 1810 × 600 (Stock Windows & Doors). Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
+      text: "Purchased fittings, from photographed labels (no dimensions inferred): bath SB184-1000GW (right-angle corner bath, 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste centred 520 mm from the corner, per the Enflair dimension drawing); Enflair K1132-31 trim with K1132 inner part, K1150-31-0-150 spout; Enflair K1110-31 basin mixer; Enflair K1130 shower/bath mixer inner part; Y1173-31-11-250 shower system; Ahrok SDP-40BN 40 mm bath waste (fitted inside the bath); two Thermorail VS900HBN 142 × 900 × 100 mm (feet 750 mm above the floor tiles, owner); OJ MWD5-1999-CBP3 thermostat; in-screed heating cable SCK0765L; replacement window 1810 × 600 (Stock Windows & Doors). Models of these use placeholder shapes, reach and mounting heights; confirm each against its product sheet before ordering or setting out.",
     },
     {
       id: "note-sequence", author: "human", at: at + 6,
-      text: "Construction order: (1) remove the asbestos wall sheeting first (under the 10 m² homeowner limit: whole, wetted, bagged, no power tools), clean up, then strip the walls to the timber frame and the floor right back to the concrete slab (about 120 mm below the current tile); (2) plumbing and electrical rough-in, with both drains' puddle flanges set, and 6 mm Villaboard lined behind it wall by wall; (3) waterproofing on the slab and walls, then cure; (4) the heating cable, laid by the owner in a snaking pattern and tested by the electrician before the screed; (5) the tiler's own screed and falls, then adhesive and tiles. A thin timber trim panel goes above the tiles later.",
+      text: "Construction order: (1) remove the asbestos wall sheeting first (under the 10 m² homeowner limit: whole, wetted, bagged, no power tools), clean up, then strip the walls to the timber frame and the floor right back to the concrete slab (about 120 mm below the current tile); (2) plumbing and electrical rough-in, with both drains' puddle flanges set and a frame piece behind the shaving cabinet's marked hanging plate if there is none, and 6 mm Villaboard lined behind it wall by wall; (3) waterproofing on the slab and walls, then cure; (4) the heating cable, laid by the owner in a snaking pattern and tested by the electrician before the screed; (5) the tiler's own screed and falls, then adhesive and tiles; (6) fit-out, with the reused vanity back in and the shaving cabinet screwed to the wall through wall plugs last (bottom edge 1200 mm), once everything else is fitted. A thin timber trim panel goes above the tiles later.",
     },
     {
       id: "note-tiles", author: "human", at: at + 7,
-      text: "Tiles: left, right and door walls 600 × 600 white gloss with a few light grey streaks. Floor and window wall 300 × 600 sandy beige matte: on the floor the long side runs toward the window wall, and it carries on up the window wall with the long side vertical so its courses match the other walls. Every wall gets four full 600 mm courses on a thin joint of silicone or tile glue at the floor (about 2416 mm in all with 4 mm joints); the rest of the height is a timber trim, later. Joints about 4 mm. To keep cuts down, full tiles start at the door: at the doorway on the floor, at the door-wall corner on the side walls, at the door's jamb on the door wall, and at the corner nearer the door on the window wall.",
+      text: "Tiles (owner, 5 Oct 2026): beige 300 × 600 sandy matte on the whole floor, and on the whole window wall from the floor up, around the window frame, to the top of the fourth course, with the 600 mm edge vertical so its courses match the other walls; on the floor the long side runs toward the window wall. The left, right and door walls are 600 × 600 white gloss with a few light grey streaks. Every wall gets four full 600 mm courses on a thin joint of silicone or tile glue at the floor (about 2416 mm in all with 4 mm joints); the rest of the height is a timber trim, later. Joints about 4 mm. To keep cuts down, full tiles start at the door: at the doorway on the floor, at the door-wall corner on the side walls, at the door's jamb on the door wall, and at the corner nearer the door on the window wall.",
     },
     {
       id: "note-tiles-open", author: "agent", at: at + 8,
@@ -382,8 +457,16 @@ export const bathroomNotes = (): Note[] => {
       text: "Shower screen: fixed glass panel, 900 mm wide × 2000 mm high (owner, 5 Oct 2026; an earlier note said 2100), set 1200 mm from the window wall. Workbook: 10 mm clear toughened, stainless wall channel and brace bar (an earlier note said black clips). Which face the 1200 mm is measured to and where the brace bar fixes are not recorded.",
     },
     {
+      id: "note-vanity", author: "human", at: at + 11,
+      text: "Reused vanity and shaving cabinet (owner's tape and photos, 5 Oct 2026). Vanity 910 W × 850 H × 465 D: gloss white, floor-standing on a plinth, two doors on the left and three drawers on the right facing it, ceramic top with an integrated rectangular basin and one tap hole. Inside, a bottle trap behind the doors drops through the cabinet floor, and braided hoses run to the mixer. Shaving cabinet 750 W × 620 H × 160 D: two mirror doors, white carcass, two adjustable shelves, no light; it screws to the wall through wall plugs and goes up last. The only power point in the room now is a double GPO on the wall just right of the basin, a little above the vanity top. Owner, 5 Oct 2026: the vanity set-up moves about 300 mm to the right (facing it) and otherwise stays as it is: the waste and water points move about 300 mm right of where they are now, so the trap and hoses keep the same place behind the doors and the waste still goes down through the cabinet floor; the shaving cabinet moves the same 300 mm at the same height, its bottom edge 1200 mm to clear the tap; the GPO moves the same 300 mm right at its present height, so it is near both the vanity and the bidet seat. The owner will mark where the cabinet's hanging plate goes, and a frame piece goes in behind it if there is none.",
+    },
+    {
+      id: "note-vanity-open", author: "agent", at: at + 12,
+      text: "Vanity and cabinet, still open: (1) the present positions of the waste, water points, cabinet and GPO are not measured, so the 300 mm moves are recorded as notes, not drawn; the plan's vanity, 1700 mm from the window wall to its centre, is a proposal and has not been checked against the old position plus 300 mm. Measure them before strip-out so the plumber and electrician can set them out. (2) The frame piece behind the cabinet's hanging plate goes in before the Villaboard, once the plate's position is marked. (3) The electrician confirms the moved GPO and the bidet seat's supply (the workbook's 1800 W sizes the circuit). The door bay, drawer, plinth, top and basin sizes in the 3D model are read off the photos, not measured.",
+    },
+    {
       id: "note-purchased-open", author: "agent", at: at + 4,
-      text: "Open points from the labels: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; its supply or driver was not photographed. (5) The thermostat is IP21; check where it may go with the electrician. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² (about 87–120 mm spacing); the cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. No route is drawn; use the heating tools for that.",
+      text: "Open points from the labels: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat (IP21) goes outside the bathroom on the hallway wall, next to the light switch, which is on the right as you look into the bathroom, about 850 mm off the floor (owner, 5 Oct 2026); it is not drawn here. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² (about 87–120 mm spacing); the cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. No route is drawn; use the heating tools for that.",
     },
   ];
 };
