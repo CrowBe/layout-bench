@@ -105,7 +105,7 @@ try {
   assert.equal(sampleState.model.walls.length, 4);
   assert.equal(sampleState.model.items.length, 12);
   assert.ok(sampleState.notes.some((note) => /approximate|not set-out/i.test(note.text)));
-  assert.equal(sampleState.kinds.length, 11);
+  assert.equal(sampleState.kinds.length, 12);
   await page.getByRole("button", { name: "Build 3D" }).click();
   assert.equal(await page.getByLabel("3D presentation").inputValue(), "planning");
   await nextSceneFrame();
