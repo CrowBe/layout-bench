@@ -795,10 +795,10 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(e.minimumNonAdjacentSpacing).toBeCloseTo(PROPOSED_CABLE_SPACING_M, 6);
     expect(e.minimumNonAdjacentSpacing!).toBeGreaterThanOrEqual(LABEL_SPACING_MIN - 1e-8);
     expect(e.minimumNonAdjacentSpacing!).toBeLessThanOrEqual(LABEL_SPACING_MAX + 1e-8);
-    expect(sample.notes ?? demoProject().notes).toBeDefined();
     const original = structuredClone(sample.heating);
     store.setState({ model: demoProject().model, undoStack: [] });
     expect(demoProject().notes.some((n) => /zero slack/.test(n.text))).toBe(true);
+    expect(room().heating?.requirements).toMatch(/zero slack/);
     actions.setRoomFloor(room().id, {
       layers: room().floorBuildUp!.layers.map((l) => l.id === "floor_screed" ? { ...l, thickness: proposed(0.04) } : l),
     });

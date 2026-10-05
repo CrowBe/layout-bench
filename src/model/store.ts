@@ -1211,7 +1211,7 @@ export const actions = {
         const err = bindProduct("thermostatProductId", "thermostatSpecification", "thermostat", patch.thermostatProductId);
         if (err) return fail(err);
       }
-      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts", "thermostatLocation"] as (keyof Heating)[]) {
+      for (const key of ["manufacturer", "model", "productSource", "requirements", "screedLayerId", "length", "ratedOutput", "minSpacing", "edgeClearance", "depthFromBottom", "zoneIds", "path", "keepouts", "thermostatLocation"] as const) {
         if (patch[key] === undefined) continue;
         if (patch[key] === null) {
           if (key === "path" || key === "zoneIds" || key === "keepouts") Object.assign(next, { [key]: [] });
