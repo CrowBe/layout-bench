@@ -87,12 +87,49 @@ export function cornerHandDisagrees(input: HostWasteInput): boolean {
 }
 
 export type CornerHandChange = { ok: true; item: Item } | { ok: false; summary: string };
-export type CornerHandBlock = { blocked: false } | { blocked: true; summary: string; remediation: string };
+export type CornerHandBlock = { blocked: false } | { blocked: true; summary: string };
 
-const isDerivedPoint = (p: ServicePoint) => p.status === "derived" || p.basis === "derived";
+/**
+ * Canonical waste-datum fields for resolveHostFrameWaste.
+ * A placed item uses productSpecification.fields: that is the live spec copied at
+ * placeProduct, and the bag hostWasteInHostFrame / fittedWasteProblems / fitItem already
+ * read. productSnapshot is the frozen accepted library product (revision/identity), not
+ * the live spec. A library product uses its own fields, which become the specification
+ * on placement.
+ */
+export function hostWasteFields(source: {
+  productSpecification?: { fields?: Record<string, FieldValue> };
+  fields?: Record<string, FieldValue>;
+}): Record<string, FieldValue> {
+  return source.productSpecification?.fields ?? source.fields ?? {};
+}
+
+export const isDerivedServicePoint = (p: ServicePoint) => p.status === "derived" || p.basis === "derived";
 const confirmedStatus = (status?: string) => status === "measured" || status === "site-confirmed";
 
-/** Same preconditions as applyCornerHandChange / anchorFixture; used for the review warning too. */
+/** Same read-only rule for setServicePoint and removeServicePoint. */
+export function derivedServicePointMutation(
+  prior: ServicePoint,
+  input?: { status?: string; source?: string },
+): { ok: true } | { ok: false; summary: string } {
+  if (!isDerivedServicePoint(prior)) return { ok: true };
+  const siteDatum = input?.status === "measured" || input?.status === "site-confirmed";
+  const siteSource = input?.source?.trim() ?? "";
+  if (input && siteDatum && siteSource) return { ok: true };
+  const why = !input
+    ? "Removal is not a site-datum replacement."
+    : !siteDatum
+      ? `Status "${input.status}" is not a site datum.`
+      : `A ${input.status} replacement needs a non-empty source naming the site datum.`;
+  return {
+    ok: false,
+    summary:
+      `Service point ${prior.id} is a derived host-frame conversion and is read-only. ${why} ` +
+      `The only allowed change is a full replacement by a measured or site-confirmed site datum with a non-empty source naming that datum.`,
+  };
+}
+
+/** Same preconditions as applyCornerHandChange / anchorFixture. */
 export function cornerHandChangeBlock(
   item: Item,
   ctx: { sourcePlacement?: { ok: true; servicePoints: ServicePoint[] } | { ok: false } } = {},
@@ -102,7 +139,6 @@ export function cornerHandChangeBlock(
     return {
       blocked: true,
       summary: `This exact product is ${hand.value}-handed; choose a separate documented variant for the other corner.`,
-      remediation: `check the product's ${hand.value} hand; choose a separate documented variant for the other corner rather than re-anchoring this fixture`,
     };
   }
   const copiedOf = (id: string) => (ctx.sourcePlacement?.ok ? ctx.sourcePlacement.servicePoints.find((p) => p.id === id) : undefined);
@@ -116,14 +152,12 @@ export function cornerHandChangeBlock(
     return {
       blocked: true,
       summary: `Changing corner hand would reflect the measured/site-confirmed project axis on ${conflict.id}. Reconcile that instance connection individually; its coordinate, evidence and anchor remain unchanged.`,
-      remediation: `re-measure the site datum on ${conflict.id}; a sourced measured or site-confirmed across is not mirrored by re-anchoring`,
     };
   }
   if (item.installationGeometry) {
     return {
       blocked: true,
       summary: "Changing corner hand with sourced installation geometry needs an explicit reflection review; its source coordinates and pinned shape remain unchanged.",
-      remediation: "review the sourced installation geometry; its source coordinates and pinned shape stay unchanged",
     };
   }
   return { blocked: false };
@@ -176,7 +210,7 @@ export function applyCornerHandChange(
   const cat = catalogForItem(proposed);
   const hostPt = cat
     ? resolveHostFrameWaste({
-        fields: proposed.productSpecification?.fields ?? proposed.productSnapshot?.fields ?? {},
+        fields: hostWasteFields(proposed),
         boxW: cat.w,
         outlineStart: (geometry?.outline ?? cat.outline)?.start,
         storedCorner: side,
@@ -184,7 +218,7 @@ export function applyCornerHandChange(
         wall: ctx.wall,
       })
     : { resolved: false as const, missing: ["footprint"] as string[], datum: "" };
-  const hasDerived = (item.servicePoints ?? []).some(isDerivedPoint);
+  const hasDerived = (item.servicePoints ?? []).some(isDerivedServicePoint);
   if (hasDerived && !hostPt.resolved) {
     const why = hostPt.missing.length ? hostPt.missing.join(", ") : "the host waste point is unresolved";
     return {
@@ -198,7 +232,7 @@ export function applyCornerHandChange(
   const next: Item = { ...proposed };
   if (item.servicePoints) {
     next.servicePoints = item.servicePoints.map((p) => {
-      if (isDerivedPoint(p)) {
+      if (isDerivedServicePoint(p)) {
         return { ...p, across: hostPt.across, out: quantize(hostPt.out! + gap) };
       }
       return p.across === undefined ? p : { ...p, across: quantize(-p.across) };
@@ -216,10 +250,10 @@ export function cornerHandProblems(model: PlanModel): Issue[] {
     if (!wall) continue;
     const live = productCornerSide(it.anchor, wall);
     if (live === it.corner.side) continue;
-    const block = cornerHandChangeBlock(it);
-    const nextStep = block.blocked
-      ? block.remediation
-      : "Re-anchor the fixture to update the corner hand";
+    const trial = applyCornerHandChange(it, live, { wall });
+    const nextStep = trial.ok
+      ? "Re-anchor the fixture to update the corner hand"
+      : trial.summary;
     out.push({
       severity: "warning",
       code: "fixture_corner_hand_review",
@@ -285,7 +319,7 @@ export function resolveHostFrameWaste(input: HostWasteInput): HostWastePoint {
         datum: "host frame (across centreline, out from back edge)",
         source: sourceText(fields.wasteFromCorner),
         missing: [
-          "corner hand review: the wall's nearer end no longer matches the stored right-angle; re-anchor the fixture to update it. No host-frame waste point is invented from a disputed hand",
+          "corner hand needs review: the wall's nearer end no longer matches the stored right-angle (see fixture_corner_hand_review). No host-frame waste point is invented from a disputed hand",
         ],
       };
     }
@@ -380,7 +414,7 @@ export function hostWasteInHostFrame(host: Item, lookup: CatalogLookup = catalog
   if (!cat) return { resolved: false, datum: "host frame (across centreline, out from back edge)", missing: [`footprint of ${host.id}`] };
   const wall = host.anchor && model ? model.walls.find((w) => w.id === host.anchor!.wallId) : undefined;
   return resolveHostFrameWaste({
-    fields: host.productSpecification?.fields ?? {},
+    fields: hostWasteFields(host),
     boxW: cat.w,
     outlineStart: cat.outline?.start,
     storedCorner: host.corner?.side,

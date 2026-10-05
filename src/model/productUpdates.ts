@@ -8,6 +8,7 @@ import { productPlacement } from "./productPlacement";
 import { evidenceFingerprint, revisionOf } from "./productRevision";
 import type { FieldValue } from "./products";
 import type { InstallationGeometry, LocalService } from "./installation";
+import { isDerivedServicePoint } from "./fittedWaste";
 import type { Item, PlanModel, ServicePoint } from "./types";
 
 type Axis = "across" | "out" | "outMax" | "up";
@@ -27,7 +28,7 @@ function preserveServices(
   const points = proposed.map((p) => structuredClone(p) as EvidencedPoint);
   for (const prior of before as EvidencedPoint[]) {
     const next = points.find((p) => p.id === prior.id);
-    if (next && (prior.status === "derived" || prior.basis === "derived") && next.status === "published") {
+    if (next && isDerivedServicePoint(prior) && next.status === "published") {
       next.status = "derived";
       next.basis = "derived";
       if (prior.axisEvidence) next.axisEvidence = structuredClone(prior.axisEvidence);
@@ -39,6 +40,11 @@ function preserveServices(
       | undefined;
     const index = points.findIndex((p) => p.id === prior.id);
     const next = index < 0 ? undefined : points[index];
+    if (index < 0 && isDerivedServicePoint(prior)) {
+      preserved.push(`${prior.id}: derived host-frame conversion retained (not removed)`);
+      points.push(structuredClone(prior));
+      continue;
+    }
     // Legacy confirmations cover the whole point; retain even explicitly unknown axes.
     if (!prior.axisEvidence && confirmed(prior.status)) {
       preserved.push(`${prior.id}: entire ${prior.status} project connection`);
@@ -109,7 +115,7 @@ function preserveServices(
       "measured",
       "site-confirmed",
     ];
-    if (prior.status === "derived" || next?.status === "derived") {
+    if (isDerivedServicePoint(prior) || (next && isDerivedServicePoint(next))) {
       retained.status = "derived";
       retained.basis = "derived";
     } else {

@@ -857,7 +857,8 @@ export const TOOLS: ToolDef[] = [
   {
     name: "remove_service_point",
     title: "Remove a fixture's service point",
-    description: "Remove one service point from a fixture by its id.",
+    description:
+      "Remove one service point from a fixture by its id. A derived host-frame point is read-only: it cannot be removed. The only allowed change is a full replacement via set_service_point by measured or site-confirmed with a non-empty source naming the site datum, or leave it.",
     inputSchema: obj({ itemId: str, pointId: str }, ["itemId", "pointId"]),
     execute: (i) => actions.removeServicePoint(i.itemId as string, i.pointId as string),
   },

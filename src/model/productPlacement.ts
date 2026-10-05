@@ -12,7 +12,7 @@ import {
 } from "./products";
 import { evidenceStatus, evidenceText } from "./productMeasurements";
 import { outlineExtents, outlineProblems } from "./outline";
-import { productCornerSide, resolveHostFrameWaste } from "./fittedWaste";
+import { hostWasteFields, productCornerSide, resolveHostFrameWaste } from "./fittedWaste";
 import { quantize } from "./geometry";
 import {
   validInstallation,
@@ -148,7 +148,7 @@ export function productPlacement(
       : [];
   const source = `${label}, product library ${product.id}`;
   const hostWaste = resolveHostFrameWaste({
-    fields: product.fields,
+    fields: hostWasteFields(product),
     boxW: box.w,
     outlineStart: outline?.start,
     storedCorner: corner ?? undefined,

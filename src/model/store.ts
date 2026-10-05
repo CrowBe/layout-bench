@@ -46,7 +46,7 @@ import { validHeating, heatingEvidence } from "./heating";
 import { checkModel } from "./issues";
 import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices } from "./fixtures";
-import { hostWasteInHostFrame, productCornerSide, applyCornerHandChange } from "./fittedWaste";
+import { hostWasteInHostFrame, productCornerSide, applyCornerHandChange, derivedServicePointMutation, isDerivedServicePoint } from "./fittedWaste";
 import { drainageProblems, planeSurface } from "./drainage";
 import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
@@ -1548,18 +1548,10 @@ export const actions = {
     if (input.id !== undefined && (typeof input.id !== "string" || !/^[A-Za-z0-9_:-]{1,40}$/.test(input.id))) return fail("id must be 1–40 letters, digits, _, : or -.");
     const id = input.id ?? uid("sp");
     const prior = existing.find((p) => p.id === id);
-    const priorDerived = !!(prior && (prior.status === "derived" || prior.basis === "derived"));
-    const siteDatum = input.status === "measured" || input.status === "site-confirmed";
+    const derivedWrite = prior ? derivedServicePointMutation(prior, { status: input.status, source: input.source }) : { ok: true as const };
+    if (!derivedWrite.ok) return fail(derivedWrite.summary);
+    const priorDerived = !!(prior && isDerivedServicePoint(prior));
     const siteSource = input.source?.trim() ?? "";
-    if (priorDerived && (!siteDatum || !siteSource)) {
-      const why = !siteDatum
-        ? `Status "${input.status}" is not a site datum.`
-        : `A ${input.status} replacement needs a non-empty source naming the site datum.`;
-      return fail(
-        `Service point ${id} is a derived host-frame conversion and is read-only. ${why} ` +
-        `The only allowed change is a full replacement by a measured or site-confirmed site datum with a non-empty source naming that datum.`,
-      );
-    }
     const point: ServicePoint = {
       id, label: input.label.trim(), service: input.service, face: input.face,
       ...(out !== undefined ? { out } : {}), ...(outMax !== undefined ? { outMax } : {}),
@@ -1581,7 +1573,10 @@ export const actions = {
     const hit = resolveItem(itemRef);
     if (!hit.ok) return rejected(hit);
     const item = hit.entity;
-    if (!(item.servicePoints ?? []).some((p) => p.id === pointId)) return fail(`No service point "${pointId}" on ${item.id}.`);
+    const prior = (item.servicePoints ?? []).find((p) => p.id === pointId);
+    if (!prior) return fail(`No service point "${pointId}" on ${item.id}.`);
+    const derivedWrite = derivedServicePointMutation(prior);
+    if (!derivedWrite.ok) return fail(derivedWrite.summary);
     pushUndo();
     const next: Item = { ...item, servicePoints: item.servicePoints!.filter((p) => p.id !== pointId) };
     setModel({ ...store.getState().model, items: store.getState().model.items.map((i) => (i.id === item.id ? next : i)) });
