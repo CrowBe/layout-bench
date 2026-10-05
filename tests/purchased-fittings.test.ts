@@ -34,7 +34,7 @@ describe("purchased fittings in the sample project", () => {
       expect(it.selectionStatus).toBe("purchased");
       expect(it.productIdentity?.code).toBe(f.product.code);
     }
-    expect(model.items.some((i) => i.id === "thermostat")).toBe(true);
+    expect(model.items.some((i) => i.kind === "thermostat_mwd5_1999_cbp3")).toBe(false); // hallway wall, outside this plan
   });
 
   it("carries both purchased towel rails and the owner's 900 × 2000 fixed screen", () => {

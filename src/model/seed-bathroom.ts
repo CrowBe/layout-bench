@@ -237,11 +237,9 @@ export const purchasedFittings: PurchasedFitting[] = [
     kind: "thermostat_mwd5_1999_cbp3", label: "Thermostat",
     product: fitting("MWD5-1999-CBP3", "MWD5-1999-CBP3", "OJ Electronics Coldbuster 2\" WiFi thermostat, flush mount",
       "Label: incl. limitation sensor, 100–240 V AC / 16 A, 5–40 °C, housing IP21, flush mounting. The plate size is not printed.", "OJ Electronics"),
-    size: { w: 0.085, d: 0.012, h: 0.085, printed: [], elevation: 1.4, caveat: "size, height and which side of the door are placeholders" },
-    // owner: on the hallway wall just outside the bathroom, next to the light switch. Drawn on the
-    // door wall's hallway face, 150 mm past the latch-side jamb (hinge at end b); the switch's side
-    // and height are not recorded.
-    parts: thermostat, placement: { id: "thermostat", kind: "thermostat_mwd5_1999_cbp3", x: 1.07, y: 3.126, rotation: 0 },
+    size: { w: 0.085, d: 0.012, h: 0.085, printed: [], elevation: 1.4, caveat: "size is a placeholder" },
+    // owner: on the hallway wall outside the bathroom, so it is not placed in this plan
+    parts: thermostat,
   },
 ];
 
@@ -468,7 +466,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-purchased-open", author: "agent", at: at + 4,
-      text: "Open points from the labels: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat is IP21; the owner wants it outside the bathroom, on the hallway wall next to the light switch (5 Oct 2026), which keeps it out of the wet room. It is drawn on the latch side of the door, 1400 mm up: which side the switch is on and its height are not recorded. The cable's thermostat end is at the doorway; its floor (limitation) sensor lead needs the same route out of the bathroom to the thermostat, to confirm with the electrician. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² (about 87–120 mm spacing); the cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. No route is drawn; use the heating tools for that.",
+      text: "Open points from the labels: (1) the K1130 shower/bath mixer photo is its inner part only; no outside part (handle trim) was seen, so none is drawn. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) The sheet's 45 mm and 60 mm dimensions have no clear datum; they are not entered as a rough-in depth. (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat (IP21) goes outside the bathroom on the hallway wall (owner, 5 Oct 2026), so it is not drawn here. (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² (about 87–120 mm spacing); the cable cannot be shortened. Owner, 5 Oct 2026: the electrician says the cable can run under the shower as needed to use its length. No route is drawn; use the heating tools for that.",
     },
   ];
 };
