@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { actions, store } from "../src/model/store";
 import { demoProject } from "../src/model/projects";
 import { resetRuntimeCatalog } from "../src/model/catalog";
-import { emptyModel } from "../src/model/types";
+import { emptyModel, type FloorAssembly, type FloorLayer, type PlanModel } from "../src/model/types";
 import { bathroomKinds } from "../src/model/seed-bathroom";
 import { applyStageVisibility, buildFixture, buildPlan, tagStages } from "../src/three/build";
 import { floorFill } from "../src/model/floor";
@@ -245,5 +245,108 @@ describe("3D follows a stage view", () => {
 
     applyStageVisibility(group, null);
     expect(meshes(group).every((m) => m.visible)).toBe(true);
+  });
+});
+
+describe("review round 1: sizes tied to products, per-wall foot, stage-safe fill, falls", () => {
+  const P = (value: number) => ({ value, status: "proposed" as const });
+  const square = (id: string, x: number, w: number, h: number) => [
+    { id: `${id}_n`, ax: x, ay: 0, bx: x + w, by: 0, thickness: 0.1, height: 2.4 },
+    { id: `${id}_e`, ax: x + w, ay: 0, bx: x + w, by: h, thickness: 0.1, height: 2.4 },
+    { id: `${id}_s`, ax: x + w, ay: h, bx: x, by: h, thickness: 0.1, height: 2.4 },
+    { id: `${id}_w`, ax: x, ay: h, bx: x, by: 0, thickness: 0.1, height: 2.4 },
+  ];
+  const L = (id: string, kind: FloorLayer["kind"], thickness?: number): FloorLayer => ({ id, kind, name: id, thickness: thickness === undefined ? {} : P(thickness) });
+  const stripped: FloorAssembly = { datum: "existing floor", substrateTop: { value: -0.12, status: "estimated" }, finishedTarget: P(0), layers: [L("t", "tile", 0.01)] };
+  const built = (model: PlanModel) => { const { group } = buildPlan(model, "planning"); tagStages(model, group); return group; };
+
+  it("gives a reused waste id with another product no sourced body; the sample keeps its packing-slip sizes", () => {
+    const model: PlanModel = {
+      ...emptyModel(), walls: square("a", 0, 2, 2),
+      rooms: [{ id: "r", x: 0, y: 0, w: 2, h: 2, label: "R", floor: "tile", drainage: { planes: [], wastes: [
+        { id: "linear_drain", label: "Some other channel", kind: "linear", ax: 0.2, ay: 0.2, bx: 0.2, by: 1.2, level: P(0) },
+        { id: "square_waste", label: "Some other grate", kind: "point", ax: 1, ay: 1, bx: 1, by: 1, level: P(0) },
+      ] } }],
+    };
+    const group = built(model);
+    for (const id of ["linear_drain", "square_waste"]) {
+      const w = byName(group, `r:waste:${id}`)[0];
+      expect(w.userData.stopgap, id).toBe(true);
+      expect(w.userData.body).toMatch(/not recorded/);
+      const b = box(w);
+      expect(Math.min(b.max.x - b.min.x, b.max.z - b.min.z), id).toBeLessThan(0.01);
+    }
+    const { group: sampleGroup } = sample();
+    const lauxes = box(byName(sampleGroup, "bathroom:waste:linear_drain")[0]);
+    expect(lauxes.max.x - lauxes.min.x).toBeCloseTo(0.1, 3);
+    expect(lauxes.max.y - lauxes.min.y).toBeCloseTo(0.035, 3);
+    const kano = box(byName(sampleGroup, "bathroom:waste:square_waste")[0]);
+    expect(kano.max.x - kano.min.x).toBeCloseTo(0.12, 3);
+    expect(kano.max.z - kano.min.z).toBeCloseTo(0.12, 3);
+  });
+
+  it("takes each wall's foot from the rooms it bounds: only the stripped room's walls go down", () => {
+    const model: PlanModel = {
+      ...emptyModel(), walls: [...square("a", 0, 2, 2), ...square("b", 4, 2, 2)],
+      rooms: [
+        { id: "ra", x: 0.05, y: 0.05, w: 1.9, h: 1.9, label: "Stripped", floor: "tile", floorBuildUp: stripped },
+        { id: "rb", x: 4.05, y: 0.05, w: 1.9, h: 1.9, label: "Other", floor: "tile" },
+      ],
+    };
+    const group = built(model);
+    const foot = (id: string) => Math.min(...byName(group, id).map((m) => box(m).min.y));
+    for (const id of ["a_n", "a_e", "a_s", "a_w"]) expect(foot(id), id).toBeCloseTo(-0.12, 4);
+    for (const id of ["b_n", "b_e", "b_s", "b_w"]) expect(foot(id), id).toBeCloseTo(0, 4);
+    const footInfo = (id: string) => group.children.find((c) => c.children.some((m) => m.name === id))?.userData.foot;
+    expect(footInfo("a_n")).toMatchObject({ level: -0.12, status: "estimated" });
+    expect(footInfo("b_n")).toBeUndefined();
+  });
+
+  it("hides the fill in the lower layer's stage when two unknown layers have nothing between them", () => {
+    const model: PlanModel = {
+      ...emptyModel(), walls: square("a", 0, 2, 2),
+      rooms: [{ id: "r", x: 0.05, y: 0.05, w: 1.9, h: 1.9, label: "R", floor: "tile", floorBuildUp: {
+        datum: "existing floor", substrateTop: { value: -0.1, status: "measured" }, finishedTarget: P(0),
+        layers: [L("wp", "waterproofing"), L("sc", "screed"), L("t", "tile", 0.01)],
+      } }],
+    };
+    const group = built(model);
+    const fill = byName(group, "r:floor-fill")[0];
+    expect(fill.userData.stages).toEqual(["room:r:floor:sc"]);
+    const visible = (ids: string[]) => new Set(resolveVisible(model, ids).elements.map((e) => e.id));
+    applyStageVisibility(group, visible(["floor-substrate", "floor-waterproofing"]));
+    expect(fill.visible).toBe(false);
+    expect(byName(group, "r:floor:wp")[0].visible).toBe(true);
+    applyStageVisibility(group, visible(["floor-substrate", "floor-waterproofing", "floor-screed"]));
+    expect(fill.visible).toBe(true);
+  });
+
+  it("draws only the substrate under resolved falls, like the floor and floor-tiling builders", () => {
+    const model: PlanModel = {
+      ...emptyModel(), walls: square("a", 0, 2, 2),
+      rooms: [{ id: "r", x: 0.05, y: 0.05, w: 1.9, h: 1.9, label: "R", floor: "tile",
+        floorBuildUp: { datum: "existing floor", substrateTop: { value: -0.1, status: "measured" }, finishedTarget: P(0),
+          layers: [L("wp", "waterproofing"), L("sc", "screed"), L("ad", "adhesive", 0.004), L("t", "tile", 0.01)] },
+        drainage: {
+          wastes: [{ id: "w", label: "Channel", kind: "linear", ax: 0.2, ay: 0.2, bx: 1.8, by: 0.2, level: P(-0.02) }],
+          planes: [{ id: "pl", label: "Floor", x: 0.05, y: 0.05, w: 1.9, h: 1.9, wasteId: "w", fall: P(0.015), controls: [] }],
+        } }],
+    };
+    const group = built(model);
+    const names = meshes(group.getObjectByName("r:build-up")!).map((m) => m.name);
+    expect(names).toEqual(["r:substrate"]);
+    expect(group.getObjectByName("r:fall:pl")).toBeDefined();
+  });
+
+  it("marks the block under a doorway down to the substrate as a stopgap", () => {
+    const model: PlanModel = {
+      ...emptyModel(), walls: square("a", 0, 2, 2),
+      openings: [{ id: "d", kind: "door", wallId: "a_s", t: 0.5, width: 0.8, sill: 0, height: 2 }],
+      rooms: [{ id: "r", x: 0.05, y: 0.05, w: 1.9, h: 1.9, label: "R", floor: "tile", floorBuildUp: stripped }],
+    };
+    const group = built(model);
+    const under = byName(group, "a_s").filter((m) => box(m).max.y <= 0.001);
+    expect(under.length).toBeGreaterThan(0);
+    for (const m of under) expect(m.userData.stopgap).toBe(true);
   });
 });

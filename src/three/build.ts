@@ -329,8 +329,15 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
     const x0 = toX(span[0]);
     const x1 = toX(span[1]);
     addSeg(cursor, x0, base, wall.height);
-    // below a door's threshold, down to a stripped floor's substrate
-    if (o.sill <= 0.005 && base < -0.005) addSeg(x0, x1, base, 0);
+    // below a door's threshold, down to a stripped floor's substrate: what fills it is not recorded
+    if (o.sill <= 0.005 && base < -0.005) {
+      const before = g.children.length;
+      addSeg(x0, x1, base, 0);
+      for (const m of g.children.slice(before)) {
+        m.userData.stopgapReason = "under the doorway down to the substrate; what fills it is not recorded";
+        applyStopgapVisual(m as THREE.Mesh);
+      }
+    }
     // lintel above the opening
     addSeg(x0, x1, o.sill + o.height, wall.height);
     // sill below windows
@@ -505,7 +512,7 @@ function buildFalls(room: Room, material: THREE.Material, flatTop?: number): THR
     let mesh: THREE.Mesh;
     let stopgap = false;
     if (w.kind === "linear") {
-      const body = sampleLinearWasteBody(w.id);
+      const body = sampleLinearWasteBody(w);
       // Packing-slip width across the channel and depth below the grate, when known.
       // Never use the outlet size as the channel width. Unsourced bodies are a film marker.
       const width = body?.width ?? FILM;
@@ -522,7 +529,7 @@ function buildFalls(room: Room, material: THREE.Material, flatTop?: number): THR
         : "location marker; product body not recorded";
       stopgap = !body;
     } else {
-      const grate = samplePointWasteGrate(w.id);
+      const grate = samplePointWasteGrate(w);
       // Grate plan size when known. Never use the 50 mm outlet as the grate diameter.
       // Body depth below the grate is not on the packing slip: a film on the finished floor.
       const gw = grate?.w ?? FILM;
@@ -711,6 +718,9 @@ function buildFloorBuildUp(room: Room): THREE.Group | null {
     stopgap: true,
     provenance: { status: fb.substrateTop.status ?? allLevels[0].basis, ...(fb.substrateTop.source ? { source: fb.substrateTop.source } : {}), datum: fb.datum },
   });
+  // on resolved falls the layers above the substrate follow sloped planes the model does not
+  // derive per layer, so only the substrate is drawn (as the floor and floor tiling builders do)
+  if (hasResolvedFalls(room)) return g;
   const layers = fb.layers;
   // the top layer is the floor mesh itself
   const below = layers.slice(0, -1);
@@ -735,7 +745,9 @@ function buildFloorBuildUp(room: Room): THREE.Group | null {
       slab(bottom, bottom + FILM, floorLayerMaterials[first.kind], `${room.id}:floor:${first.id}`, { drawnThickness: "unknown; drawn as a film", stopgap: true });
       if (last) slab(top - FILM, top, floorLayerMaterials[last.kind], `${room.id}:floor:${last.id}`, { drawnThickness: "unknown; drawn as a film", stopgap: true });
       const middle = run.slice(1, last ? -1 : undefined);
-      const fill = middle.length ? middle : run;
+      // with no layer between the two films, the gap is shown with the upper layer only, so an
+      // earlier layer's stage never shows it as if the later layer were already laid
+      const fill = middle.length ? middle : last ? [last] : run;
       const fillMat = (floorLayerMaterials[fill[0].kind] as THREE.MeshStandardMaterial).clone();
       fillMat.transparent = true;
       fillMat.opacity = 0.55;
@@ -758,11 +770,29 @@ interface WallFoot {
   datum: string;
 }
 
-/** Lowest substrate top of any room with a stripped-back assembly, or 0, and the quantity it came from. Walls run down to it. */
-function floorBase(model: PlanModel): { base: number; foot?: WallFoot } {
+/** Does this wall run along one of the room's edges (parallel, within its thickness plus 50 mm, overlapping)? */
+function bounds(wall: Wall, r: Room): boolean {
+  const reach = wall.thickness + 0.05;
+  const along = (a0: number, a1: number, b0: number, b1: number) => Math.min(Math.max(a0, a1), b1) - Math.max(Math.min(a0, a1), b0) > 0.01;
+  if (Math.abs(wall.ay - wall.by) < 1e-6) {
+    const near = Math.min(Math.abs(wall.ay - r.y), Math.abs(wall.ay - (r.y + r.h)));
+    return near <= reach && along(wall.ax, wall.bx, r.x, r.x + r.w);
+  }
+  if (Math.abs(wall.ax - wall.bx) < 1e-6) {
+    const near = Math.min(Math.abs(wall.ax - r.x), Math.abs(wall.ax - (r.x + r.w)));
+    return near <= reach && along(wall.ay, wall.by, r.y, r.y + r.h);
+  }
+  return false;
+}
+
+/**
+ * Lowest substrate top of the rooms this wall bounds, or 0 when none has one, and the quantity
+ * it came from. The wall (and its board) runs down to it; walls of other rooms stay at 0.
+ */
+function floorBase(model: PlanModel, wall: Wall): { base: number; foot?: WallFoot } {
   let base = 0;
   let foot: WallFoot | undefined;
-  for (const r of model.rooms) {
+  for (const r of model.rooms.filter((room) => bounds(wall, room))) {
     const q = r.floorBuildUp?.substrateTop;
     if (q?.value !== undefined && q.value < base) {
       base = q.value;
@@ -888,8 +918,8 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
     }
   }
 
-  const { base, foot } = floorBase(model);
   for (const w of model.walls) {
+    const { base, foot } = floorBase(model, w);
     group.add(buildWall(w, openingsByWall.get(w.id) ?? [], model.walls, curtained, presentation, base, foot));
   }
   for (const r of model.rooms) {
@@ -951,7 +981,8 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
   );
   ground.rotation.x = -Math.PI / 2;
   // under a stripped floor's drawn slab, so the ground never covers it
-  ground.position.y = Math.min(-0.02, base - SUBSTRATE_DRAWN - 0.02);
+  const lowest = Math.min(0, ...model.rooms.map((r) => r.floorBuildUp?.substrateTop?.value ?? 0));
+  ground.position.y = Math.min(-0.02, lowest - SUBSTRATE_DRAWN - 0.02);
   ground.receiveShadow = true;
   group.add(ground);
 
