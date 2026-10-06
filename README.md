@@ -253,7 +253,13 @@ A few design notes:
   same set (`export_diagram_view`). The view is kept per project for the page session, outside
   the project document and its undo history, so composing or switching stages never edits,
   copies or versions the geometry, services or their provenance. An id the model does not have
-  is refused. The `floor-heating-cable` layer appears when a room has a heating record;
+  is refused. The 3D view follows the current stage too: it shows exactly that visible set,
+  with **Show stage / Show all** to toggle, so each stage can be walked as well as printed.
+  In 3D a floor with a known substrate is drawn down to it: the slab, each layer whose two
+  faces resolve at its real thickness, and layers of unknown thickness between known levels as
+  a film on the known face (or one translucent fill, labelled with what it holds), never an
+  invented split. `node stage-shots.mjs` captures the sample's stages
+  ([`shots/renovation-3d/`](shots/renovation-3d/)). The `floor-heating-cable` layer appears when a room has a heating record;
   projects without one explicitly list heating as absent instead of inventing a route.
   Values keep their status tags and the face or datum they are measured from; unknowns print
   as "?" with what is missing. Each export also draws one A3 elevation per room-facing wall side

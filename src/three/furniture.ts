@@ -558,6 +558,8 @@ export interface PartSpec {
   rotation?: number;
   roughness?: number;
   metalness?: number;
+  /** below 1, a see-through part (glass) */
+  opacity?: number;
   /** Stand-in geometry; renders dashed. Driven by this flag, not by matching note text. */
   stopgap?: boolean;
 }
@@ -577,6 +579,18 @@ export function hasCustomKind(kind: string): boolean {
   return CUSTOM_PARTS.has(kind);
 }
 
+/** Stand-in geometry: dashed edges, driven by this flag, not by matching note text. */
+export function applyStopgapVisual(mesh: THREE.Mesh): void {
+  mesh.userData.stopgap = true;
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(mesh.geometry),
+    new THREE.LineDashedMaterial({ color: 0x555555, dashSize: 0.008, gapSize: 0.006 }),
+  );
+  edges.computeLineDistances();
+  edges.userData.stopgap = true;
+  mesh.add(edges);
+}
+
 function buildCustom(parts: PartSpec[], fallbackColor: string): THREE.Group {
   const g = new THREE.Group();
   for (const p of parts) {
@@ -584,6 +598,11 @@ function buildCustom(parts: PartSpec[], fallbackColor: string): THREE.Group {
     const h = Math.max(0.01, p.h ?? 0.3);
     const d = Math.max(0.01, p.d ?? 0.3);
     const m = mat(p.color ?? fallbackColor, p.roughness ?? 0.7, p.metalness ?? 0);
+    if (p.opacity !== undefined && p.opacity < 1) {
+      m.transparent = true;
+      m.opacity = Math.max(0.05, p.opacity);
+      m.depthWrite = false;
+    }
     let mesh: THREE.Mesh;
     if (p.shape === "cylinder") {
       mesh = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, h, 24), m);
@@ -598,16 +617,7 @@ function buildCustom(parts: PartSpec[], fallbackColor: string): THREE.Group {
     mesh.rotation.y = ((p.rotation ?? 0) * Math.PI) / 180;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    if (p.stopgap) {
-      mesh.userData.stopgap = true;
-      const edges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(mesh.geometry),
-        new THREE.LineDashedMaterial({ color: 0x555555, dashSize: 0.008, gapSize: 0.006 }),
-      );
-      edges.computeLineDistances();
-      edges.userData.stopgap = true;
-      mesh.add(edges);
-    }
+    if (p.stopgap) applyStopgapVisual(mesh);
     g.add(mesh);
   }
   return g;
