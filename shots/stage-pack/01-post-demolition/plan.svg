@@ -14,10 +14,10 @@
 <line x1="81" y1="224" x2="81" y2="68" stroke="#8a5a1c" stroke-width="0.25" stroke-dasharray="0.6 0.6" data-element="wall:wall_w:right:frame"/>
 <polygon points="90.75,63.25 181.25,63.25 181.25,68.25 90.75,68.25" fill="#fff" stroke="#222" stroke-width="0.25" data-element="opening:window_n"/>
 <text x="136" y="62.55" font-size="2.2" text-anchor="middle">W 1810 ?</text>
-<text x="136" y="70.35" font-size="1.9" text-anchor="middle" fill="#444">c/l 1105 from A</text>
+<text x="136" y="70.35" font-size="1.9" text-anchor="middle" fill="#444">c/l 1105 ENT from A</text>
 <polygon points="129.25,228.75 89.25,228.75 89.25,223.75 129.25,223.75" fill="#fff" stroke="#222" stroke-width="0.25" data-element="opening:door_s"/>
 <text x="109.25" y="223.05" font-size="2.2" text-anchor="middle">D 800 ?</text>
-<text x="109.25" y="230.85" font-size="1.9" text-anchor="middle" fill="#444">c/l 1640 from A</text>
+<text x="109.25" y="230.85" font-size="1.9" text-anchor="middle" fill="#444">c/l 1640 ENT from A</text>
 <line x1="80.75" y1="54" x2="191.25" y2="54" stroke="#000" stroke-width="0.18"/>
 <line x1="79.75" y1="53" x2="81.75" y2="55" stroke="#000" stroke-width="0.3"/>
 <line x1="190.25" y1="53" x2="192.25" y2="55" stroke="#000" stroke-width="0.3"/>

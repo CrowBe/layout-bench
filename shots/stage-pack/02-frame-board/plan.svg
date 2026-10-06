@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" font-family="Helvetica, Arial, sans-serif" data-sheet="stage-view" data-scale="20">
+<metadata id="stage-view">{&quot;label&quot;:&quot;2. Frame prep: board lined to the frame&quot;,&quot;elements&quot;:[&quot;wall:wall_n&quot;,&quot;wall:wall_e&quot;,&quot;wall:wall_s&quot;,&quot;wall:wall_w&quot;,&quot;wall:wall_n:right:frame&quot;,&quot;wall:wall_n:right:wall_n_board&quot;,&quot;wall:wall_e:right:frame&quot;,&quot;wall:wall_e:right:wall_e_board&quot;,&quot;wall:wall_s:right:frame&quot;,&quot;wall:wall_s:right:wall_s_board&quot;,&quot;wall:wall_w:right:frame&quot;,&quot;wall:wall_w:right:wall_w_board&quot;,&quot;opening:window_n&quot;,&quot;opening:door_s&quot;,&quot;room:bathroom&quot;,&quot;room:bathroom:substrate&quot;]}</metadata>
+<rect width="420" height="297" fill="#fff"/>
+<rect x="5" y="5" width="410" height="287" fill="none" stroke="#000" stroke-width="0.5"/>
+<rect x="12" y="12" width="248" height="268" fill="none" stroke="#999" stroke-width="0.2"/>
+<text x="136" y="146" font-size="3" text-anchor="middle" fill="#888" data-element="room:bathroom">BATHROOM</text>
+<polygon points="196,68.25 76,68.25 76,63.25 196,63.25" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_n"/>
+<polygon points="191,228.75 191,63.25 196,63.25 196,228.75" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_e"/>
+<polygon points="76,223.75 196,223.75 196,228.75 76,228.75" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_s"/>
+<polygon points="81,63.25 81,228.75 76,228.75 76,63.25" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_w"/>
+<polygon points="80.75,68.25 191.25,68.25 191.25,68.55 80.75,68.55" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_n:right:wall_n_board"/>
+<line x1="80.75" y1="68.25" x2="191.25" y2="68.25" stroke="#8a5a1c" stroke-width="0.25" stroke-dasharray="0.6 0.6" data-element="wall:wall_n:right:frame"/>
+<polygon points="191,68 191,224 190.7,224 190.7,68" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_e:right:wall_e_board"/>
+<line x1="191" y1="68" x2="191" y2="224" stroke="#8a5a1c" stroke-width="0.25" stroke-dasharray="0.6 0.6" data-element="wall:wall_e:right:frame"/>
+<polygon points="191.25,223.75 80.75,223.75 80.75,223.45 191.25,223.45" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_s:right:wall_s_board"/>
+<line x1="191.25" y1="223.75" x2="80.75" y2="223.75" stroke="#8a5a1c" stroke-width="0.25" stroke-dasharray="0.6 0.6" data-element="wall:wall_s:right:frame"/>
+<polygon points="81,224 81,68 81.3,68 81.3,224" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_w:right:wall_w_board"/>
+<line x1="81" y1="224" x2="81" y2="68" stroke="#8a5a1c" stroke-width="0.25" stroke-dasharray="0.6 0.6" data-element="wall:wall_w:right:frame"/>
+<polygon points="90.75,63.25 181.25,63.25 181.25,68.25 90.75,68.25" fill="#fff" stroke="#222" stroke-width="0.25" data-element="opening:window_n"/>
+<text x="136" y="62.55" font-size="2.2" text-anchor="middle">W 1810 ?</text>
+<text x="136" y="70.35" font-size="1.9" text-anchor="middle" fill="#444">c/l 1105 ENT from A</text>
+<polygon points="129.25,228.75 89.25,228.75 89.25,223.75 129.25,223.75" fill="#fff" stroke="#222" stroke-width="0.25" data-element="opening:door_s"/>
+<text x="109.25" y="223.05" font-size="2.2" text-anchor="middle">D 800 ?</text>
+<text x="109.25" y="230.85" font-size="1.9" text-anchor="middle" fill="#444">c/l 1640 ENT from A</text>
+<line x1="80.75" y1="54" x2="191.25" y2="54" stroke="#000" stroke-width="0.18"/>
+<line x1="79.75" y1="53" x2="81.75" y2="55" stroke="#000" stroke-width="0.3"/>
+<line x1="190.25" y1="53" x2="192.25" y2="55" stroke="#000" stroke-width="0.3"/>
+<text x="136" y="52.2" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(0 136 52.2)" data-dim="wall_n">2210 ENT · n A→B (drawn line)</text>
+<line x1="205.25" y1="68" x2="205.25" y2="224" stroke="#000" stroke-width="0.18"/>
+<line x1="204.25" y1="67" x2="206.25" y2="69" stroke="#000" stroke-width="0.3"/>
+<line x1="204.25" y1="223" x2="206.25" y2="225" stroke="#000" stroke-width="0.3"/>
+<text x="207.05" y="146" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(90 207.05 146)" data-dim="wall_e">3120 ENT · e A→B (drawn line)</text>
+<line x1="191.25" y1="238" x2="80.75" y2="238" stroke="#000" stroke-width="0.18"/>
+<line x1="190.25" y1="237" x2="192.25" y2="239" stroke="#000" stroke-width="0.3"/>
+<line x1="79.75" y1="237" x2="81.75" y2="239" stroke="#000" stroke-width="0.3"/>
+<text x="136" y="239.8" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(360 136 239.8)" data-dim="wall_s">2210 ENT · s A→B (drawn line)</text>
+<line x1="66.75" y1="224" x2="66.75" y2="68" stroke="#000" stroke-width="0.18"/>
+<line x1="65.75" y1="223" x2="67.75" y2="225" stroke="#000" stroke-width="0.3"/>
+<line x1="65.75" y1="67" x2="67.75" y2="69" stroke="#000" stroke-width="0.3"/>
+<text x="64.95" y="146" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 64.95 146)" data-dim="wall_w">3120 ENT · w A→B (drawn line)</text>
+<rect x="18" y="274" width="25" height="1.5" fill="#000" stroke="#000" stroke-width="0.2"/>
+<rect x="43" y="274" width="25" height="1.5" fill="#fff" stroke="#000" stroke-width="0.2"/>
+<text x="18" y="273" font-size="2" >0</text>
+<text x="68" y="273" font-size="2" >1 m</text>
+<text x="18" y="278.5" font-size="2" >Scale 1:20 at A3. Orientation not recorded. Dimensions in mm.</text>
+<text x="266" y="14" font-size="2.8" font-weight="bold">Stage: 2. Frame prep: board lined to the frame</text>
+<text x="266" y="18" font-size="2.1" >Shows 16 element(s) of the one project model; everything else is hidden, not removed.</text>
+<text x="266" y="21.1" font-size="2.1" >Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ?</text>
+<text x="269" y="24.2" font-size="2.1" >unknown</text>
+<text x="266" y="27.3" font-size="1.9" fill="#666">Not modelled, never drawn: pipe and cable runs between service points.</text>
+<text x="266" y="32.2" font-size="2.8" font-weight="bold">Wall faces and layers (mm from drawn line)</text>
+<text x="266" y="36.2" font-size="2.1" data-element="wall:wall_n:right:frame">Wall n right: frame face: frame face position 5 E</text>
+<text x="266" y="39.3" font-size="2.1" data-element="wall:wall_n:right:wall_n_board">Wall n right: Villaboard 6 mm: thickness 6 P · outer face position 11 E</text>
+<text x="266" y="42.4" font-size="2.1" data-element="wall:wall_e:right:frame">Wall e right: frame face: frame face position 5 E</text>
+<text x="266" y="45.5" font-size="2.1" data-element="wall:wall_e:right:wall_e_board">Wall e right: Villaboard 6 mm: thickness 6 P · outer face position 11 E</text>
+<text x="266" y="48.6" font-size="2.1" data-element="wall:wall_s:right:frame">Wall s right: frame face: frame face position 5 E</text>
+<text x="266" y="51.7" font-size="2.1" data-element="wall:wall_s:right:wall_s_board">Wall s right: Villaboard 6 mm: thickness 6 P · outer face position 11 E</text>
+<text x="266" y="54.8" font-size="2.1" data-element="wall:wall_w:right:frame">Wall w right: frame face: frame face position 5 E</text>
+<text x="266" y="57.9" font-size="2.1" data-element="wall:wall_w:right:wall_w_board">Wall w right: Villaboard 6 mm: thickness 6 P · outer face position 11 E</text>
+<text x="266" y="63" font-size="2.8" font-weight="bold">Floor (mm above datum)</text>
+<text x="266" y="67" font-size="2.1" data-element="room:bathroom:substrate">Bathroom floor: substrate: substrate concrete slab, framed in place (house on piers) ENT · substrate top level -120 E · finished</text>
+<text x="269" y="70.1" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Waterproofing on the slab + Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the</text>
+<text x="269" y="73.2" font-size="2.1" data-element="room:bathroom:substrate">target 110 E</text>
+<text x="266" y="78.3" font-size="2.8" font-weight="bold">Unresolved in this view (0)</text>
+<rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
+<text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
+<text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>
+<text x="266" y="251.4" font-size="2.4" >Stage diagram: 2. Frame prep: board lined to the frame</text>
+<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-06 · not a revision of A-01</text>
+<text x="266" y="261.8" font-size="2.2" >Prepared by: ? · Plan: Bathroom Concept</text>
+<text x="266" y="267" font-size="2.1" ></text>
+<rect x="264" y="268.8" width="146" height="7" fill="#b00020"/>
+<text x="337" y="273.4" font-size="2.1" text-anchor="middle" fill="#fff" font-weight="bold">PROPOSED · FOR TRADE REVIEW · NOT AS-BUILT · NOT A COMPLIANCE CERTIFICATE</text>
+</svg>

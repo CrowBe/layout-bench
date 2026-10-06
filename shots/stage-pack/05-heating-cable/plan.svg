@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" font-family="Helvetica, Arial, sans-serif" data-sheet="stage-view" data-scale="20">
+<metadata id="stage-view">{&quot;label&quot;:&quot;5. Heating cable on the membrane&quot;,&quot;elements&quot;:[&quot;wall:wall_n&quot;,&quot;wall:wall_e&quot;,&quot;wall:wall_s&quot;,&quot;wall:wall_w&quot;,&quot;wall:wall_n:right:wall_n_board&quot;,&quot;wall:wall_e:right:wall_e_board&quot;,&quot;wall:wall_s:right:wall_s_board&quot;,&quot;wall:wall_w:right:wall_w_board&quot;,&quot;opening:window_n&quot;,&quot;opening:door_s&quot;,&quot;room:bathroom&quot;,&quot;room:bathroom:substrate&quot;,&quot;room:bathroom:floor:floor_membrane&quot;,&quot;room:bathroom:heating&quot;,&quot;room:bathroom:waste:linear_drain&quot;,&quot;room:bathroom:waste:square_waste&quot;]}</metadata>
+<rect width="420" height="297" fill="#fff"/>
+<rect x="5" y="5" width="410" height="287" fill="none" stroke="#000" stroke-width="0.5"/>
+<rect x="12" y="12" width="248" height="268" fill="none" stroke="#999" stroke-width="0.2"/>
+<text x="136" y="146" font-size="3" text-anchor="middle" fill="#888" data-element="room:bathroom">BATHROOM</text>
+<line x1="85.75" y1="75.5" x2="85.75" y2="125.5" stroke="#7a5230" stroke-width="1.2" data-element="room:bathroom:waste:linear_drain"/>
+<text x="85.75" y="103.7" font-size="1.9" text-anchor="middle" fill="#7a5230">Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN FL ?</text>
+<circle cx="136" cy="176" r="1.4" fill="none" stroke="#7a5230" stroke-width="0.4" data-element="room:bathroom:waste:square_waste"/>
+<text x="136" y="179.2" font-size="1.9" text-anchor="middle" fill="#7a5230">Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet FL ?</text>
+<polygon points="196,68.25 76,68.25 76,63.25 196,63.25" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_n"/>
+<polygon points="191,228.75 191,63.25 196,63.25 196,228.75" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_e"/>
+<polygon points="76,223.75 196,223.75 196,228.75 76,228.75" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_s"/>
+<polygon points="81,63.25 81,228.75 76,228.75 76,63.25" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_w"/>
+<polygon points="80.75,68.25 191.25,68.25 191.25,68.55 80.75,68.55" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_n:right:wall_n_board"/>
+<polygon points="191,68 191,224 190.7,224 190.7,68" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_e:right:wall_e_board"/>
+<polygon points="191.25,223.75 80.75,223.75 80.75,223.45 191.25,223.45" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_s:right:wall_s_board"/>
+<polygon points="81,224 81,68 81.3,68 81.3,224" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_w:right:wall_w_board"/>
+<polyline points="90.75,215.5 90.75,78.5 95.75,78.5 95.75,215.5 100.75,215.5 100.75,78.5 105.75,78.5 105.75,215.5 110.75,215.5 110.75,78.5 115.75,78.5 115.75,215.5 120.75,215.5 120.75,78.5 125.75,78.5 125.75,215.5 130.75,215.5 130.75,78.5 135.75,78.5 135.75,215.5 140.75,215.5 140.75,78.5 145.75,78.5 145.75,215.5 150.75,215.5 150.75,78.5 155.75,78.5 155.75,215.5 160.75,215.5 160.75,78.5" fill="none" stroke="#c64c19" stroke-width="0.5" data-element="room:bathroom:heating"/>
+<text x="91.75" y="214.5" font-size="1.8" fill="#c64c19">1</text>
+<text x="91.75" y="77.5" font-size="1.8" fill="#c64c19">2</text>
+<text x="96.75" y="77.5" font-size="1.8" fill="#c64c19">3</text>
+<text x="96.75" y="214.5" font-size="1.8" fill="#c64c19">4</text>
+<text x="101.75" y="214.5" font-size="1.8" fill="#c64c19">5</text>
+<text x="101.75" y="77.5" font-size="1.8" fill="#c64c19">6</text>
+<text x="106.75" y="77.5" font-size="1.8" fill="#c64c19">7</text>
+<text x="106.75" y="214.5" font-size="1.8" fill="#c64c19">8</text>
+<text x="111.75" y="214.5" font-size="1.8" fill="#c64c19">9</text>
+<text x="111.75" y="77.5" font-size="1.8" fill="#c64c19">10</text>
+<text x="116.75" y="77.5" font-size="1.8" fill="#c64c19">11</text>
+<text x="116.75" y="214.5" font-size="1.8" fill="#c64c19">12</text>
+<text x="121.75" y="214.5" font-size="1.8" fill="#c64c19">13</text>
+<text x="121.75" y="77.5" font-size="1.8" fill="#c64c19">14</text>
+<text x="126.75" y="77.5" font-size="1.8" fill="#c64c19">15</text>
+<text x="126.75" y="214.5" font-size="1.8" fill="#c64c19">16</text>
+<text x="131.75" y="214.5" font-size="1.8" fill="#c64c19">17</text>
+<text x="131.75" y="77.5" font-size="1.8" fill="#c64c19">18</text>
+<text x="136.75" y="77.5" font-size="1.8" fill="#c64c19">19</text>
+<text x="136.75" y="214.5" font-size="1.8" fill="#c64c19">20</text>
+<text x="141.75" y="214.5" font-size="1.8" fill="#c64c19">21</text>
+<text x="141.75" y="77.5" font-size="1.8" fill="#c64c19">22</text>
+<text x="146.75" y="77.5" font-size="1.8" fill="#c64c19">23</text>
+<text x="146.75" y="214.5" font-size="1.8" fill="#c64c19">24</text>
+<text x="151.75" y="214.5" font-size="1.8" fill="#c64c19">25</text>
+<text x="151.75" y="77.5" font-size="1.8" fill="#c64c19">26</text>
+<text x="156.75" y="77.5" font-size="1.8" fill="#c64c19">27</text>
+<text x="156.75" y="214.5" font-size="1.8" fill="#c64c19">28</text>
+<text x="161.75" y="214.5" font-size="1.8" fill="#c64c19">29</text>
+<text x="161.75" y="77.5" font-size="1.8" fill="#c64c19">30</text>
+<text x="90.75" y="211.5" font-size="1.8" fill="#c64c19">PROPOSED CABLE plan 42.5 m; spatial unknown (sampled); trade review pending</text>
+<polygon points="90.75,63.25 181.25,63.25 181.25,68.25 90.75,68.25" fill="#fff" stroke="#222" stroke-width="0.25" data-element="opening:window_n"/>
+<text x="136" y="62.55" font-size="2.2" text-anchor="middle">W 1810 ?</text>
+<text x="136" y="70.35" font-size="1.9" text-anchor="middle" fill="#444">c/l 1105 ENT from A</text>
+<polygon points="129.25,228.75 89.25,228.75 89.25,223.75 129.25,223.75" fill="#fff" stroke="#222" stroke-width="0.25" data-element="opening:door_s"/>
+<text x="109.25" y="223.05" font-size="2.2" text-anchor="middle">D 800 ?</text>
+<text x="109.25" y="230.85" font-size="1.9" text-anchor="middle" fill="#444">c/l 1640 ENT from A</text>
+<line x1="80.75" y1="54" x2="191.25" y2="54" stroke="#000" stroke-width="0.18"/>
+<line x1="79.75" y1="53" x2="81.75" y2="55" stroke="#000" stroke-width="0.3"/>
+<line x1="190.25" y1="53" x2="192.25" y2="55" stroke="#000" stroke-width="0.3"/>
+<text x="136" y="52.2" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(0 136 52.2)" data-dim="wall_n">2210 ENT · n A→B (drawn line)</text>
+<line x1="205.25" y1="68" x2="205.25" y2="224" stroke="#000" stroke-width="0.18"/>
+<line x1="204.25" y1="67" x2="206.25" y2="69" stroke="#000" stroke-width="0.3"/>
+<line x1="204.25" y1="223" x2="206.25" y2="225" stroke="#000" stroke-width="0.3"/>
+<text x="207.05" y="146" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(90 207.05 146)" data-dim="wall_e">3120 ENT · e A→B (drawn line)</text>
+<line x1="191.25" y1="238" x2="80.75" y2="238" stroke="#000" stroke-width="0.18"/>
+<line x1="190.25" y1="237" x2="192.25" y2="239" stroke="#000" stroke-width="0.3"/>
+<line x1="79.75" y1="237" x2="81.75" y2="239" stroke="#000" stroke-width="0.3"/>
+<text x="136" y="239.8" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(360 136 239.8)" data-dim="wall_s">2210 ENT · s A→B (drawn line)</text>
+<line x1="66.75" y1="224" x2="66.75" y2="68" stroke="#000" stroke-width="0.18"/>
+<line x1="65.75" y1="223" x2="67.75" y2="225" stroke="#000" stroke-width="0.3"/>
+<line x1="65.75" y1="67" x2="67.75" y2="69" stroke="#000" stroke-width="0.3"/>
+<text x="64.95" y="146" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 64.95 146)" data-dim="wall_w">3120 ENT · w A→B (drawn line)</text>
+<rect x="18" y="274" width="25" height="1.5" fill="#000" stroke="#000" stroke-width="0.2"/>
+<rect x="43" y="274" width="25" height="1.5" fill="#fff" stroke="#000" stroke-width="0.2"/>
+<text x="18" y="273" font-size="2" >0</text>
+<text x="68" y="273" font-size="2" >1 m</text>
+<text x="18" y="278.5" font-size="2" >Scale 1:20 at A3. Orientation not recorded. Dimensions in mm.</text>
+<text x="266" y="14" font-size="2.8" font-weight="bold">Stage: 5. Heating cable on the membrane</text>
+<text x="266" y="18" font-size="2.1" >Shows 16 element(s) of the one project model; everything else is hidden, not removed.</text>
+<text x="266" y="21.1" font-size="2.1" >Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ?</text>
+<text x="269" y="24.2" font-size="2.1" >unknown</text>
+<text x="266" y="27.3" font-size="1.9" fill="#666">Not modelled, never drawn: pipe and cable runs between service points.</text>
+<text x="266" y="32.2" font-size="2.8" font-weight="bold">Wall faces and layers (mm from drawn line)</text>
+<text x="266" y="36.2" font-size="2.1" data-element="wall:wall_n:right:wall_n_board">Wall n right: Villaboard 6 mm: thickness 6 P · outer face position 11 E</text>
+<text x="266" y="39.3" font-size="2.1" data-element="wall:wall_e:right:wall_e_board">Wall e right: Villaboard 6 mm: thickness 6 P · outer face position 11 E</text>
+<text x="266" y="42.4" font-size="2.1" data-element="wall:wall_s:right:wall_s_board">Wall s right: Villaboard 6 mm: thickness 6 P · outer face position 11 E</text>
+<text x="266" y="45.5" font-size="2.1" data-element="wall:wall_w:right:wall_w_board">Wall w right: Villaboard 6 mm: thickness 6 P · outer face position 11 E</text>
+<text x="266" y="50.6" font-size="2.8" font-weight="bold">Floor (mm above datum)</text>
+<text x="266" y="54.6" font-size="2.1" data-element="room:bathroom:substrate">Bathroom floor: substrate: substrate concrete slab, framed in place (house on piers) ENT · substrate top level -120 E · finished</text>
+<text x="269" y="57.7" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Waterproofing on the slab + Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the</text>
+<text x="269" y="60.8" font-size="2.1" data-element="room:bathroom:substrate">target 110 E</text>
+<text x="266" y="63.9" font-size="2.1" data-element="room:bathroom:floor:floor_membrane">Bathroom floor: Waterproofing on the slab: thickness ? · top level ?</text>
+<text x="266" y="69" font-size="2.8" font-weight="bold">Drainage / heating</text>
+<text x="266" y="73" font-size="2.1" data-element="room:bathroom:heating">Bathroom: proposed heating cable: manufacturer ? · model SCK0765L ENT · product length (m) 42.5 PUB · rated output (W) 765 PUB ·</text>
+<text x="269" y="76.1" font-size="2.1" data-element="room:bathroom:heating">derived spacing min 87.1 DER · derived spacing max 120 DER · plan route length (m) 42.5 MOD · spatial route length, sampled</text>
+<text x="269" y="79.2" font-size="2.1" data-element="room:bathroom:heating">profile (m) ?</text>
+<text x="266" y="82.3" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ?</text>
+<text x="266" y="85.4" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ?</text>
+<text x="266" y="90.5" font-size="2.8" font-weight="bold">Unresolved in this view (11)</text>
+<text x="266" y="94.5" font-size="2.1" fill="#7a3b00">• Bathroom floor: Waterproofing on the slab: thickness (mm) unknown; printed as &quot;?&quot; (missing thickness (mm)).</text>
+<text x="266" y="97.6" font-size="2.1" fill="#7a3b00">• Bathroom floor: Waterproofing on the slab: top level (mm) unknown; printed as &quot;?&quot; (missing Waterproofing on the slab thickness).</text>
+<text x="266" y="100.7" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: manufacturer unknown; printed as &quot;?&quot; (missing manufacturer).</text>
+<text x="266" y="103.8" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: minSpacing (mm) unknown; printed as &quot;?&quot; (missing minSpacing (mm)).</text>
+<text x="266" y="106.9" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: edgeClearance (mm) unknown; printed as &quot;?&quot; (missing edgeClearance (mm)).</text>
+<text x="266" y="110" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: depthFromBottom (mm) unknown; printed as &quot;?&quot; (missing depthFromBottom (mm)).</text>
+<text x="266" y="113.1" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: spatial route length, sampled profile (m) unknown; printed as &quot;?&quot; (missing Sampled cable</text>
+<text x="269" y="116.2" font-size="2.1" fill="#7a3b00">profile. Modelled; unknown until screed levels and cable height resolve. Not published cable length.).</text>
+<text x="266" y="119.3" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: remaining confirmed product length (m) unknown; printed as &quot;?&quot; (missing Balance stays unknown</text>
+<text x="269" y="122.4" font-size="2.1" fill="#7a3b00">until confirmed product length and the whole spatial profile are both numeric.).</text>
+<text x="266" y="125.5" font-size="2" fill="#666">… 3 more: see the specification sheet</text>
+<rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
+<text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
+<text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>
+<text x="266" y="251.4" font-size="2.4" >Stage diagram: 5. Heating cable on the membrane</text>
+<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-06 · not a revision of A-01</text>
+<text x="266" y="261.8" font-size="2.2" >Prepared by: ? · Plan: Bathroom Concept</text>
+<text x="266" y="267" font-size="2.1" ></text>
+<rect x="264" y="268.8" width="146" height="7" fill="#b00020"/>
+<text x="337" y="273.4" font-size="2.1" text-anchor="middle" fill="#fff" font-weight="bold">PROPOSED · FOR TRADE REVIEW · NOT AS-BUILT · NOT A COMPLIANCE CERTIFICATE</text>
+</svg>

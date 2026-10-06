@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" font-family="Helvetica, Arial, sans-serif" data-sheet="stage-elevation" data-wall="wall_n" data-side="right" data-scale="20">
+<metadata id="stage-view">{&quot;label&quot;:&quot;9. Fit-out: fixtures without services (stopgap)&quot;,&quot;surface&quot;:&quot;wall_n:right&quot;,&quot;elements&quot;:[&quot;wall:wall_n&quot;,&quot;wall:wall_e&quot;,&quot;wall:wall_s&quot;,&quot;wall:wall_w&quot;,&quot;wall:wall_n:right:wall_n_tile&quot;,&quot;wall:wall_e:right:wall_e_tile&quot;,&quot;wall:wall_s:right:wall_s_tile&quot;,&quot;wall:wall_w:right:wall_w_tile&quot;,&quot;opening:window_n&quot;,&quot;opening:door_s&quot;,&quot;room:bathroom&quot;,&quot;room:bathroom:substrate&quot;,&quot;room:bathroom:floor:floor_tile&quot;,&quot;room:bathroom:waste:linear_drain&quot;,&quot;room:bathroom:waste:square_waste&quot;,&quot;item:bath&quot;,&quot;item:bath_mixer&quot;,&quot;item:bath_spout&quot;,&quot;item:bath_waste&quot;,&quot;item:basin_mixer&quot;,&quot;item:shower_system&quot;,&quot;item:towel_rail&quot;,&quot;item:towel_rail_2&quot;,&quot;item:vanity&quot;,&quot;item:shaving_cabinet&quot;,&quot;item:toilet&quot;,&quot;item:screen&quot;]}</metadata>
+<rect width="420" height="297" fill="#fff"/>
+<rect x="5" y="5" width="410" height="287" fill="none" stroke="#000" stroke-width="0.5"/>
+<rect x="12" y="12" width="262" height="268" fill="none" stroke="#999" stroke-width="0.2"/>
+<rect x="89" y="72.5" width="108" height="135" fill="#ffffff" stroke="#222" stroke-width="0.35" data-element="wall:wall_n:right:wall_n_tile"/>
+<rect x="85" y="72.5" width="4" height="135" fill="#bdbdbd" stroke="#222" stroke-width="0.25"/>
+<rect x="197" y="72.5" width="4" height="135" fill="#bdbdbd" stroke="#222" stroke-width="0.25"/>
+<text x="89" y="70" font-size="3" font-weight="bold" text-anchor="middle">A</text>
+<text x="197" y="70" font-size="3" font-weight="bold" text-anchor="middle">B</text>
+<rect x="89" y="177.3" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="89" y="147.1" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="89" y="116.9" width="8.75" height="30" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="97.75" y="131.5" width="6.25" height="15.4" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="89" y="86.7" width="8.75" height="30" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="97.75" y="86.7" width="6.25" height="14.8" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="104.2" y="177.3" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="104.2" y="147.1" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="104.2" y="131.5" width="15" height="15.4" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="104.2" y="86.7" width="15" height="14.8" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="119.4" y="177.3" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="119.4" y="147.1" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="119.4" y="131.5" width="15" height="15.4" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="119.4" y="86.7" width="15" height="14.8" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="134.6" y="177.3" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="134.6" y="147.1" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="134.6" y="131.5" width="15" height="15.4" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="134.6" y="86.7" width="15" height="14.8" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="149.8" y="177.3" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="149.8" y="147.1" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="149.8" y="131.5" width="15" height="15.4" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="149.8" y="86.7" width="15" height="14.8" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="165" y="177.3" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="165" y="147.1" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="165" y="131.5" width="15" height="15.4" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="165" y="86.7" width="15" height="14.8" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="180.2" y="177.3" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="180.2" y="147.1" width="15" height="30" fill="#fff" stroke="#9a9a9a" stroke-width="0.12" data-piece="full"/>
+<rect x="188.25" y="116.9" width="6.95" height="30" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="180.2" y="131.5" width="8.05" height="15.4" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="188.25" y="86.7" width="6.95" height="30" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="180.2" y="86.7" width="8.05" height="14.8" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="195.4" y="177.3" width="1.6" height="30" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="195.4" y="147.1" width="1.6" height="30" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="195.4" y="116.9" width="1.6" height="30" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="195.4" y="86.7" width="1.6" height="30" fill="#f6e2cf" stroke="#9a9a9a" stroke-width="0.12" data-piece="cut"/>
+<rect x="97.75" y="101.5" width="90.5" height="30" fill="#dfe9f2" stroke="#2f78b7" stroke-width="0.35" data-element="opening:window_n"/>
+<text x="143" y="115.5" font-size="2" text-anchor="middle" fill="#2f78b7">WINDOW 1810 ? × 600 ?</text>
+<text x="143" y="118.9" font-size="1.8" text-anchor="middle" fill="#2f78b7">sill 1520 ? above existing floor surface (current tile top)</text>
+<text x="143" y="121.3" font-size="1.8" text-anchor="middle" fill="#2f78b7">jambs 175 / 1985 ? from finished face at A</text>
+<line x1="89" y1="213.5" x2="197" y2="213.5" stroke="#7a5230" stroke-width="0.3" data-element="room:bathroom:substrate"/>
+<text x="202" y="214.2" font-size="1.7" fill="#7a5230">substrate -120 E</text>
+<line x1="89" y1="207.5" x2="197" y2="207.5" stroke="#7a5230" stroke-width="0.3" data-element="room:bathroom:floor:floor_tile"/>
+<text x="202" y="208.2" font-size="1.7" fill="#7a5230">300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo) +0 P</text>
+<line x1="81" y1="207.5" x2="205" y2="207.5" stroke="#000" stroke-width="0.25" stroke-dasharray="2 1"/>
+<text x="80" y="208.2" font-size="1.7" text-anchor="end" fill="#444">0 = existing floor surface (current tile top)</text>
+<rect x="144.38" y="176" width="50.87" height="31.5" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath"/>
+<text x="169.82" y="178.6" font-size="2.2" text-anchor="middle" font-weight="bold">F1</text>
+<rect x="181.13" y="164.25" width="3.25" height="5.85" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath_mixer"/>
+<text x="182.75" y="166.85" font-size="2.2" text-anchor="middle" font-weight="bold">F2</text>
+<rect x="166.13" y="164.25" width="3.25" height="3.88" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath_spout"/>
+<text x="167.75" y="166.85" font-size="2.2" text-anchor="middle" font-weight="bold">F3</text>
+<rect x="175.12" y="177" width="3.5" height="1" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath_waste"/>
+<text x="176.87" y="179.6" font-size="2.2" text-anchor="middle" font-weight="bold">F4</text>
+<line x1="89" y1="219.5" x2="197" y2="219.5" stroke="#000" stroke-width="0.2"/>
+<line x1="89" y1="218" x2="89" y2="221" stroke="#000" stroke-width="0.3"/>
+<line x1="197" y1="218" x2="197" y2="221" stroke="#000" stroke-width="0.3"/>
+<text x="143" y="218.3" font-size="2.1" text-anchor="middle" data-dim="run">2160 between finished faces of the return walls (E)</text>
+<line x1="219" y1="207.5" x2="219" y2="72.5" stroke="#000" stroke-width="0.2"/>
+<text x="220.5" y="140" font-size="1.8" transform="rotate(-90 220.5 140)" text-anchor="middle">2700 ? wall height above existing floor surface (current tile top)</text>
+<rect x="18" y="273" width="25" height="1.5" fill="#000" stroke="#000" stroke-width="0.2"/>
+<rect x="43" y="273" width="25" height="1.5" fill="#fff" stroke="#000" stroke-width="0.2"/>
+<text x="18" y="272" font-size="2" >0</text>
+<text x="68" y="272" font-size="2" >1 m</text>
+<text x="18" y="277.5" font-size="2" >Scale 1:20 at A3. Elevation looking at the face from Bathroom; end A on the left. Dimensions in mm.</text>
+<text x="280" y="15" font-size="2.7" font-weight="bold">Stage: 9. Fit-out: fixtures without services (stopgap)</text>
+<text x="280" y="19.2" font-size="1.95" >Wall n, right side, facing Bathroom. Same visible set as the stage plan; everything else hidden, not removed.</text>
+<text x="280" y="22.05" font-size="1.8" fill="#444">Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ? unknown</text>
+<text x="280" y="26.25" font-size="2.7" font-weight="bold">This face</text>
+<text x="280" y="30.45" font-size="1.95" >Shown to: finished face (300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo)), 25</text>
+<text x="283" y="33.3" font-size="1.95" >from the drawn line E.</text>
+<text x="280" y="36.15" font-size="1.95" >300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo): 10 E. Extent on the face is not</text>
+<text x="283" y="39" font-size="1.95" >modelled; drawn over the full face.</text>
+<text x="280" y="41.85" font-size="1.95" >End A: Finished face of wall_w (right side) at 25 E along the drawn line.</text>
+<text x="280" y="44.7" font-size="1.95" >End B: Finished face of wall_e (right side) at 2185 E along the drawn line.</text>
+<text x="280" y="47.55" font-size="1.95" >Proposed tile set-out: 8 columns × 4 courses, 22 cut pieces (see the wall tiling sheet for cuts).</text>
+<text x="280" y="51.9" font-size="2.7" font-weight="bold">STOPGAP VIEW: not recorded</text>
+<text x="280" y="56.1" font-size="1.95" fill="#b00020">Waste service points: not recorded in the sample, so not drawn or listed.</text>
+<text x="280" y="58.95" font-size="1.95" fill="#b00020">Water service points: not recorded in the sample, so not drawn or listed.</text>
+<text x="280" y="61.8" font-size="1.95" fill="#b00020">Power service points: not recorded in the sample, so not drawn or listed.</text>
+<text x="280" y="66.15" font-size="2.7" font-weight="bold">Floor at this wall</text>
+<text x="280" y="70.35" font-size="1.95" >substrate top -120 E above existing floor surface (current tile top) (flat build-up level)</text>
+<text x="280" y="73.2" font-size="1.95" >300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo) top 0 P above existing floor</text>
+<text x="283" y="76.05" font-size="1.95" >surface (current tile top) (flat build-up level)</text>
+<text x="280" y="78.9" font-size="1.95" >Finished floor along this face follows the recorded falls (green); 41 of 41 samples have no plane level.</text>
+<text x="280" y="83.25" font-size="2.7" font-weight="bold">Fixtures against this face</text>
+<text x="280" y="87.45" font-size="1.95" data-element="item:bath">F1 Corner bath: 1107.7 from finished face at A to 2125 · 0–630 above existing floor surface (current tile top) P · stands on the</text>
+<text x="283" y="90.3" font-size="1.95" data-element="item:bath">finished floor; height 630 from the kind's envelope</text>
+<text x="280" y="93.15" font-size="1.95" data-element="item:bath_mixer">F2 Bath mixer: 1842.5 from finished face at A to 1907.5 · 748–865 above existing floor surface (current tile top) E · handle end</text>
+<text x="283" y="96" font-size="1.95" data-element="item:bath_mixer">(envelope bottom); plate underside is the 800 mm unsourced stand-in; envelope bottom 748 above the finished floor from the kind's</text>
+<text x="283" y="98.85" font-size="1.95" data-element="item:bath_mixer">data, not a set-out (dashed)</text>
+<text x="280" y="101.7" font-size="1.95" data-element="item:bath_spout">F3 Bath spout: 1542.5 from finished face at A to 1607.5 · 787.5–865 above existing floor surface (current tile top) E · outlet-face</text>
+<text x="283" y="104.55" font-size="1.95" data-element="item:bath_spout">centre (envelope bottom); plate underside is the 800 mm unsourced stand-in; envelope bottom 787.5 above the finished floor from the</text>
+<text x="283" y="107.4" font-size="1.95" data-element="item:bath_spout">kind's data, not a set-out (dashed)</text>
+<text x="280" y="110.25" font-size="1.95" data-element="item:bath_waste">F4 Bath waste: 1722.3 from finished face at A to 1792.3 · 590–610 above existing floor surface (current tile top) E · envelope</text>
+<text x="283" y="113.1" font-size="1.95" data-element="item:bath_waste">bottom 590 above the finished floor from the kind's data, not a set-out (dashed)</text>
+<text x="280" y="117.45" font-size="2.7" font-weight="bold">Unresolved on this face (40)</text>
+<text x="280" y="121.65" font-size="1.85" fill="#7a3b00">• Corner bath (bath): set-out unknown; printed as &quot;?&quot; (missing not set out from a wall face).</text>
+<text x="280" y="124.4" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteFromEnd unknown; printed as &quot;?&quot; (missing Sheet gives 520 mm from the right-angle corner along the bisector, not</text>
+<text x="283" y="127.15" font-size="1.85" fill="#7a3b00">from the end. Along each wall that is 520/√2 ≈ 367.7 mm; that conversion is derived in the host-frame check, not entered as published</text>
+<text x="283" y="129.9" font-size="1.85" fill="#7a3b00">wasteFromEnd.).</text>
+<text x="280" y="132.65" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteEnd unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="135.4" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteFromSide unknown; printed as &quot;?&quot; (missing Sheet gives 520 mm from the right-angle corner along the bisector, not</text>
+<text x="283" y="138.15" font-size="1.85" fill="#7a3b00">from the side. Along each wall that is 520/√2 ≈ 367.7 mm; that conversion is derived in the host-frame check, not entered as published</text>
+<text x="283" y="140.9" font-size="1.85" fill="#7a3b00">wasteFromSide.).</text>
+<text x="280" y="143.65" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteConnectionDiameter unknown; printed as &quot;?&quot; (missing The Enflair drawing names a Ø50 waste hole, not a pipe</text>
+<text x="283" y="146.4" font-size="1.85" fill="#7a3b00">connection or outlet size. No connection diameter is entered.).</text>
+<text x="280" y="149.15" font-size="1.85" fill="#7a3b00">• Corner bath (bath): surround unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="151.9" font-size="1.85" fill="#7a3b00">• Corner bath (bath): surroundDetail unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="154.65" font-size="1.85" fill="#7a3b00">• Bath mixer (bath_mixer): set-out unknown; printed as &quot;?&quot; (missing not set out from a wall face).</text>
+<text x="280" y="157.4" font-size="1.85" fill="#666">… 32 more: see the specification sheet</text>
+<rect x="278" y="238" width="132" height="51" fill="none" stroke="#000" stroke-width="0.35"/>
+<text x="280" y="243" font-size="2.5" font-weight="bold">Project: Bathroom Concept</text>
+<text x="280" y="248" font-size="2.2" >Site / room: Bathroom (no site address recorded)</text>
+<text x="280" y="253" font-size="2.2" >Stage elevation: 9. Fit-out: fixtures without services (stopgap) · wall wall_n, right side</text>
+<text x="280" y="258" font-size="2.2" >Scale 1:20 @ A3 · Exported 2026-10-06 · not a revision of A-01</text>
+<text x="280" y="263" font-size="2.1" >Prepared by: ? · Plan: Bathroom Concept</text>
+<text x="280" y="268" font-size="2" ></text>
+<rect x="278" y="269.6" width="132" height="7" fill="#b00020"/>
+<text x="344" y="274.2" font-size="1.75" text-anchor="middle" fill="#fff" font-weight="bold">PROPOSED · FOR TRADE REVIEW · NOT AS-BUILT · NOT A COMPLIANCE CERTIFICATE</text>
+</svg>

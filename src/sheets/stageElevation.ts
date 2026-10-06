@@ -22,7 +22,7 @@ import { installationReading } from "../model/installation";
 import { itemPolygon } from "../model/outline";
 import { roomBeside, runLimit, tilingLayout, type RunLimit } from "../model/tiling";
 import { PAPER, esc, f1, mm, tag } from "./floorPlan";
-import { dimStatus, type ViewElement } from "./stageView";
+import { dimStatus, notRecordedLines, stopgapDash, type Stopgap, type ViewElement } from "./stageView";
 
 const DRAW = { x: 12, y: 12, w: 262, h: 268 };
 const PANEL = { x: 280, w: 132 };
@@ -45,6 +45,7 @@ export interface ElevationOptions {
   date?: string;
   note?: string;
   products?: LibraryProduct[];
+  stopgap?: Stopgap;
 }
 
 /**
@@ -194,8 +195,9 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
     const mid = Y(o.sill + o.height / 2);
     text(cx, mid - 1, `${o.kind === "door" ? "DOOR" : "WINDOW"} ${mm(o.width)} ${tag(dimStatus(o.widthDefaulted))} × ${mm(o.height)} ${tag(dimStatus(o.heightDefaulted))}`, 2, `text-anchor="middle" fill="#2f78b7"`);
     if (o.kind === "window") text(cx, mid + 2.4, `sill ${mm(o.sill)} ${tag(dimStatus(o.sillDefaulted))} above ${datum}`, 1.8, `text-anchor="middle" fill="#2f78b7"`);
-    // a jamb is the centre ± half the width, read from the A-end face: no better than either
-    const jambTag = tag(weakestStatus([dimStatus(o.widthDefaulted), ...(limA?.resolved ? [limA.basis] : [])]));
+    // a jamb is the centre ± half the width, read from the A-end face: no better than the width, the
+    // centre's own status (entered, as the spec prints it) or the face
+    const jambTag = tag(weakestStatus([dimStatus(o.widthDefaulted), "entered", ...(limA?.resolved ? [limA.basis] : [])]));
     text(cx, mid + 4.8, `jambs ${limA?.resolved ? `${mm(a - s0)} / ${mm(b - s0)} ${jambTag} from ${face!.label} at A` : `${mm(a)} / ${mm(b)} ${jambTag} from end A`}`, 1.8, `text-anchor="middle" fill="#2f78b7"`);
   }
 
@@ -208,7 +210,7 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
       const layer = fb.layers.find((l) => l.id === lv.level);
       const name = layer ? floorLayerLabel(layer) : "substrate";
       if (!lv.resolved) { floorRows.push(`${name} top: ? (${lv.missing.join(", ")})`); continue; }
-      line(X(s0), Y(lv.top!), X(s1), Y(lv.top!), `stroke="#7a5230" stroke-width="0.3" ${layer ? de(`room:${room.id}:floor:${layer.id}`) : de(`room:${room.id}:substrate`)}`);
+      line(X(s0), Y(lv.top!), X(s1), Y(lv.top!), `stroke="#7a5230" stroke-width="0.3"${stopgapDash(opts.stopgap, (layer ? `floor-${layer.kind}` : "floor-substrate") as never)} ${layer ? de(`room:${room.id}:floor:${layer.id}`) : de(`room:${room.id}:substrate`)}`);
       text(Math.max(X(s0), X(s1)) + 5, Y(lv.top!) + 0.7, `${name} ${lv.top! >= 0 ? "+" : ""}${mm(lv.top!)} ${tag(lv.basis)}`, 1.7, `fill="#7a5230"`);
       floorRows.push(`${name} top ${mm(lv.top!)} ${tag(lv.basis)} above ${datum} (flat build-up level)`);
     }
@@ -268,7 +270,7 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
   placed.sort((a, b) => b.depth - a.depth);
   for (const p of placed) {
     if (p.z0 === undefined || p.z1 === undefined) continue; // height unknown: listed, never drawn
-    rect(X(p.s0), Y(p.z1), (p.s1 - p.s0) * k * (mirror ? -1 : 1), (p.z1 - p.z0) * k, `fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" ${p.dashed ? `stroke-dasharray="1.2 0.6"` : ""} ${de(`item:${p.item.id}`)}`);
+    rect(X(p.s0), Y(p.z1), (p.s1 - p.s0) * k * (mirror ? -1 : 1), (p.z1 - p.z0) * k, `fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" ${p.dashed ? `stroke-dasharray="1.2 0.6"` : stopgapDash(opts.stopgap, "fixtures").trim()} ${de(`item:${p.item.id}`)}`);
     const cx = (X(p.s0) + X(p.s1)) / 2;
     text(cx, Y(p.z1) + 2.6, p.no, 2.2, `text-anchor="middle" font-weight="bold"`);
   }
@@ -305,7 +307,7 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
   if (limA?.resolved && limB?.resolved) {
     line(X(s0), yDim, X(s1), yDim, `stroke="#000" stroke-width="0.2"`);
     for (const s of [s0, s1]) line(X(s), yDim - 1.5, X(s), yDim + 1.5, `stroke="#000" stroke-width="0.3"`);
-    text((X(s0) + X(s1)) / 2, yDim - 1.2, `${mm(s1 - s0)} between ${face!.label}s of the return walls (${tag(limA.basis)}/${tag(limB.basis)})`, 2.1, `text-anchor="middle" data-dim="run"`);
+    text((X(s0) + X(s1)) / 2, yDim - 1.2, `${mm(s1 - s0)} between ${face!.label}s of the return walls (${tag(weakestStatus([limA.basis, limB.basis]))})`, 2.1, `text-anchor="middle" data-dim="run"`);
   } else {
     text((X(0) + X(len)) / 2, yDim - 1.2, face ? `run between return faces: ? (${[...(limA?.missing ?? []), ...(limB?.missing ?? [])].slice(0, 2).join("; ")})` : `drawn length ${mm(len)} (no face of this side is shown)`, 2, `text-anchor="middle" fill="${face ? "#b00020" : "#000"}"`);
   }
@@ -347,10 +349,11 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
   else {
     row(`Shown to: ${face.label}${face.layer ? ` (${face.layer})` : ""}${faceRes?.resolved ? `, ${mm(faceRes.offset!)} from the drawn line ${tag(faceRes.basis)}` : " (position ?)"}.`);
     for (const l of spec?.layers ?? []) if (vis.has(`wall:${w.id}:${side}:${l.id}`)) row(`${layerLabel(l)}: ${l.thickness?.value !== undefined ? `${mm(l.thickness.value)} ${tag(l.thickness.status)}` : "thickness ?"}. Extent on the face is not modelled; drawn over the full face.`);
-    if (limA) row(`End A: ${limA.label}${limA.resolved ? ` at ${mm(limA.s!)} along the drawn line` : ": ?"}.`);
-    if (limB) row(`End B: ${limB.label}${limB.resolved ? ` at ${mm(limB.s!)} along the drawn line` : ": ?"}.`);
+    if (limA) row(`End A: ${limA.label}${limA.resolved ? ` at ${mm(limA.s!)} ${tag(limA.basis)} along the drawn line` : ": ?"}.`);
+    if (limB) row(`End B: ${limB.label}${limB.resolved ? ` at ${mm(limB.s!)} ${tag(limB.basis)} along the drawn line` : ": ?"}.`);
     if (tileNote) row(tileNote);
   }
+  if (opts.stopgap) { y += 1.5; heading("STOPGAP VIEW: not recorded"); notRecordedLines(opts.stopgap).forEach((l) => row(l, 1.95, `fill="#b00020"`)); }
   if (floorRows.length) { y += 1.5; heading("Floor at this wall"); floorRows.forEach((r) => row(r)); }
   if (placed.length) {
     y += 1.5;

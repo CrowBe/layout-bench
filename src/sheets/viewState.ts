@@ -96,7 +96,7 @@ export interface ComposedView {
 }
 
 /** Resolve a stored view against the model as it is now, with its scoped preflight findings. */
-export function composeView(model: PlanModel, view: DiagramView, products: LibraryProduct[] = []): ComposedView {
+export function composeView(model: PlanModel, view: DiagramView, products: LibraryProduct[] = [], compact = false): ComposedView {
   const resolution = resolveVisible(model, view.visible);
-  return { view, resolution, findings: viewFindings(model, resolution, products) };
+  return { view, resolution, findings: viewFindings(model, resolution, products, compact) };
 }
