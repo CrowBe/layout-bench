@@ -14,7 +14,7 @@ Specification: 28 row(s), 13 unknown. [spec.html](01-post-demolition/spec.html)
 
 Not modelled (never drawn):
 
-- pipe and cable runs between service points
+- pipe and cable runs between service points (only the points are modelled)
 
 ### Plan
 

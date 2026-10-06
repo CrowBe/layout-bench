@@ -166,8 +166,10 @@ export function summarizePhase(phase: Phase, outDir: string): Written | NotGener
 
   const planPath = join(dir, "plan.svg");
   const plan = existsSync(planPath) ? readFileSync(planPath, "utf8") : "";
-  const notModelledLine = /Not modelled, never drawn: ([^<]*?)\.<\/text>/.exec(plan)?.[1];
-  const notModelled = notModelledLine ? unescapeHtml(notModelledLine).split("; ") : [];
+  // the spec prints the full list on one line; the plan shortens each item and wraps long lines
+  const notModelledLine = /Not modelled, so never listed: ([^<]*?)\.<\/p>/.exec(spec)?.[1];
+  if (notModelledLine === undefined) throw new Error(`${phase.slug}: spec.html has no "Not modelled, so never listed" line; regenerate the phase.`);
+  const notModelled = unescapeHtml(notModelledLine).split("; ").filter(Boolean);
   // elevations in the plan's element order (the model's wall order when it was generated)
   const order = (() => { try { return (JSON.parse(unescapeHtml(/<metadata id="stage-view">([^<]*)<\/metadata>/.exec(plan)?.[1] ?? "{}")).elements ?? []) as string[]; } catch { return []; } })();
   const rank = (wallId: string) => { const i = order.indexOf(`wall:${wallId}`); return i < 0 ? order.length : i; };
@@ -199,15 +201,18 @@ export function selectPhases(only: string[], phases: Phase[] = PHASES): Phase[] 
  * into `outDir/<slug>` only after every output for that phase succeeds.
  */
 export async function writePhase(phase: Phase, input: WritePhaseInput): Promise<Written> {
-  const dest = join(input.outDir, phase.slug);
-  const tmp = join(input.outDir, `.${phase.slug}.tmp`);
-  mkdirSync(input.outDir, { recursive: true });
+  return writeRendered(phase, renderPhase(phase, input), input.outDir, input.previews);
+}
+
+async function writeRendered(phase: Phase, { outputs, written }: ReturnType<typeof renderPhase>, outDir: string, previews?: WritePhaseInput["previews"]): Promise<Written> {
+  const dest = join(outDir, phase.slug);
+  const tmp = join(outDir, `.${phase.slug}.tmp`);
+  mkdirSync(outDir, { recursive: true });
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
   try {
-    const { outputs, written } = renderPhase(phase, input);
     for (const o of outputs) writeFileSync(join(tmp, o.file.name), o.content);
-    if (input.previews) await input.previews(tmp, written.files);
+    if (previews) await previews(tmp, written.files);
     swapDir(tmp, dest);
     return written;
   } catch (err) {
@@ -292,6 +297,14 @@ export async function generatePack(opts: { outDir?: string; only?: string[]; dat
   const before = JSON.stringify(model);
   const products = productStore.getState().products;
 
+  // Compose and render every selected phase in memory first, and check that no view changed the
+  // model before any phase folder is replaced.
+  const rendered = selected.map((phase) => {
+    const { composed, acknowledged } = composePhase(pid, model, phase, products);
+    return { phase, elements: composed.resolution.elements.length, out: renderPhase(phase, { model, elements: composed.resolution.elements, findings: composed.findings, acknowledged, date, products }) };
+  });
+  if (JSON.stringify(store.getState().model) !== before) throw new Error("The model changed while composing views. Views must only change visibility. No phase folder was replaced.");
+
   const browser = opts.previews === false ? null : await (async () => {
     // @ts-expect-error: the shared e2e helper is plain JS
     const { launch } = await import("../tests/browser.mjs");
@@ -300,14 +313,10 @@ export async function generatePack(opts: { outDir?: string; only?: string[]; dat
   const page = browser ? await browser.newPage({ viewport: { width: 1680, height: 1188 }, deviceScaleFactor: 1 }) : null;
   const written: Written[] = [];
   try {
-    for (const phase of selected) {
-      const { composed, acknowledged } = composePhase(pid, model, phase, products);
-      const w = await writePhase(phase, {
-        model, elements: composed.resolution.elements, findings: composed.findings, acknowledged, date, products, outDir,
-        ...(page ? { previews: (dir: string, files: PhaseFile[]) => renderSvgPreviews(page, dir, files) } : {}),
-      });
+    for (const { phase, elements, out } of rendered) {
+      const w = await writeRendered(phase, out, outDir, page ? (dir, files) => renderSvgPreviews(page, dir, files) : undefined);
       written.push(w);
-      console.log(`${phase.slug}: ${composed.resolution.elements.length} element(s), ${w.files.filter((f) => f.name.endsWith(".svg")).length} drawing(s), ${w.rows} spec row(s)`);
+      console.log(`${phase.slug}: ${elements} element(s), ${w.files.filter((f) => f.name.endsWith(".svg")).length} drawing(s), ${w.rows} spec row(s)`);
     }
   } finally {
     await browser?.close();
@@ -316,7 +325,6 @@ export async function generatePack(opts: { outDir?: string; only?: string[]; dat
   // The index lists every phase, each read back from its folder on disk, so a filtered run and a full
   // run write the same README for the same files, and it never links a file that is not there.
   const index = phases.map((phase) => summarizePhase(phase, outDir));
-  if (JSON.stringify(store.getState().model) !== before) throw new Error("The model changed while composing views. Views must only change visibility.");
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "README.md"), indexMarkdown(index));
   console.log(`Wrote ${written.length} phase(s) to ${outDir}`);

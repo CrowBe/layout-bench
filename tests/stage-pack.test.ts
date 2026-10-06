@@ -216,3 +216,49 @@ describe("stage pack CLI gate", () => {
   });
 });
 
+describe("stage pack not-modelled list", () => {
+  let outDir: string;
+  afterEach(() => { if (outDir) rmSync(outDir, { recursive: true, force: true }); });
+  const notModelledOf = (md: string, label: string) => {
+    const section = md.slice(md.indexOf(`## ${label}`));
+    const block = section.slice(section.indexOf("Not modelled (never drawn):")).split("\n").slice(2);
+    const end = block.findIndex((l) => !l.startsWith("- "));
+    return block.slice(0, end < 0 ? undefined : end).map((l) => l.slice(2));
+  };
+  const specList = (spec: string) => /Not modelled, so never listed: ([^<]*?)\.<\/p>/.exec(spec)![1].split("; ");
+
+  it("prints the spec's full list in the README, qualifiers included", async () => {
+    outDir = mkdtempSync(join(tmpdir(), "stage-pack-notmodelled-"));
+    await generatePack({ outDir, previews: false, date: "2026-10-05" });
+    const spec = readFileSync(join(outDir, PHASES[0].slug, "spec.html"), "utf8");
+    const listed = notModelledOf(readFileSync(join(outDir, "README.md"), "utf8"), PHASES[0].label);
+    expect(listed).toEqual(specList(spec));
+    expect(listed.join("; ")).toContain("(only the points are modelled)");
+  });
+
+  it("keeps a long list whole even where the plan wraps it, and fails loudly when the spec has none", async () => {
+    outDir = mkdtempSync(join(tmpdir(), "stage-pack-longlist-"));
+    const two: Phase[] = [PHASES[0], { ...PHASES[0], slug: "02-second-look", label: "2. Second look at the frame" }];
+    await generatePack({ outDir, phases: two, previews: false, date: "2026-10-05" });
+    const dir = join(outDir, two[0].slug);
+    const long = [
+      "pipe and cable runs between service points (only the points are modelled)",
+      "in-screed heating cable route (no route recorded, and the cable cannot be shortened)",
+      "noggings and frame members behind the board (frame faces only, not studs)",
+    ];
+    expect(long.join("; ").length).toBeGreaterThan(129);
+    const spec = readFileSync(join(dir, "spec.html"), "utf8");
+    writeFileSync(join(dir, "spec.html"), spec.replace(/Not modelled, so never listed: [^<]*?\.<\/p>/, `Not modelled, so never listed: ${long.join("; ")}.</p>`));
+    // the plan line as it prints when it wraps: split over two text elements
+    const plan = readFileSync(join(dir, "plan.svg"), "utf8");
+    writeFileSync(join(dir, "plan.svg"), plan.replace(/Not modelled, never drawn: [^<]*<\/text>/, "Not modelled, never drawn: pipe and cable runs between service points; in-screed</text><text>heating cable route.</text>"));
+
+    await generatePack({ outDir, only: ["02"], phases: two, previews: false, date: "2026-10-05" });
+    const md = readFileSync(join(outDir, "README.md"), "utf8");
+    expect(notModelledOf(md, two[0].label)).toEqual(long);
+
+    writeFileSync(join(dir, "spec.html"), spec.replace(/Not modelled, so never listed: [^<]*?\.<\/p>/, "</p>"));
+    await expect(generatePack({ outDir, only: ["02"], phases: two, previews: false, date: "2026-10-05" })).rejects.toThrow(/no "Not modelled, so never listed" line/);
+  });
+});
+
