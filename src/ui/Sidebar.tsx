@@ -1,4 +1,10 @@
-/** Sidebar — Model / Check / Sheets / Catalog / Supplier / Notes / Tools tabs. */
+/**
+ * Sidebar — Model / Check / Sheets / Catalog / Supplier / Notes / Tools tabs.
+ *
+ * A drawer: the tab rail is always there, the panel opens only when a tab is picked and
+ * closes from its own close button. Notes and Tools talk to an agent, so they appear only
+ * while WebMCP tools are registered on the page.
+ */
 
 import { useState } from "react";
 import { useAppStore, actions, logActivity } from "../model/store";
@@ -13,25 +19,28 @@ import { thumbnailFor } from "../three/thumbnails";
 type Tab = "model" | "check" | "sheets" | "catalog" | "supplier" | "notes" | "tools";
 
 export function Sidebar() {
-  const [tab, setTab] = useState<Tab>("catalog");
+  const [tab, setTab] = useState<Tab | null>(null);
   const model = useAppStore((s) => s.model);
   const notes = useAppStore((s) => s.notes);
   const selectedWallId = useAppStore((s) => s.editor.selectedWallId);
   const requireApproval = useAppStore((s) => s.requireApproval);
   const supplierTools = useAppStore((s) => s.supplierTools);
   const catalogRev = useAppStore((s) => s.catalogRev);
+  const toolsLive = useAppStore((s) => s.webmcpStatus === "live");
   const [noteText, setNoteText] = useState("");
   const issues = checkModel(model);
 
-  const tabs: { id: Tab; label: string; badge?: number }[] = [
+  const tabs: { id: Tab; label: string; badge?: number; agent?: boolean }[] = [
     { id: "model", label: "Model" },
     { id: "check", label: "Check", badge: issues.length },
     { id: "sheets", label: "Sheets" },
     { id: "catalog", label: "Catalog" },
     { id: "supplier", label: "Supplier", badge: supplierTools.length || undefined },
-    { id: "notes", label: "Notes", badge: notes.length },
-    { id: "tools", label: "Tools" },
-  ];
+    { id: "notes", label: "Notes", badge: notes.length, agent: true },
+    { id: "tools", label: "Tools", agent: true },
+  ].filter((t) => toolsLive || !t.agent) as { id: Tab; label: string; badge?: number }[];
+  // tools withdrawn while an agent tab was open: close the drawer rather than show a dead panel
+  const open = tabs.some((t) => t.id === tab) ? tab : null;
 
   const onUploadBlueprint = (file: File) => {
     const img = new Image();
@@ -58,18 +67,22 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-tabs">
+    <aside className={`sidebar ${open ? "open" : ""}`}>
+      <div className="sidebar-tabs" aria-label="Plan panels">
         {tabs.map((t) => (
-          <button key={t.id} className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
+          <button key={t.id} aria-pressed={open === t.id} className={open === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
             {t.label}
             {t.badge ? <span className={`badge ${t.id === "check" ? "warn" : ""}`}>{t.badge}</span> : null}
           </button>
         ))}
       </div>
 
-      <div className="sidebar-body">
-        {tab === "model" && (
+      {open && <div className="sidebar-body" role="region" aria-label={tabs.find((t) => t.id === open)?.label}>
+        <div className="sidebar-head">
+          <strong>{tabs.find((t) => t.id === open)?.label}</strong>
+          <button className="sidebar-close" aria-label="Close panel" onClick={() => setTab(null)}>✕</button>
+        </div>
+        {open === "model" && (
           <div className="panel">
             <label className="field">
               Plan name
@@ -138,7 +151,7 @@ export function Sidebar() {
           </div>
         )}
 
-        {tab === "check" && (
+        {open === "check" && (
           <div className="panel">
             {issues.length === 0 ? (
               <p className="ok-msg">✓ 0 issues — the plan is clean. Every wall connects, every vano fits, nothing blocks a door.</p>
@@ -153,7 +166,7 @@ export function Sidebar() {
           </div>
         )}
 
-        {tab === "catalog" && (
+        {open === "catalog" && (
           <div className="panel catalog-grid" key={catalogRev}>
             {CATALOG.map((c) => {
               const thumb = thumbnailFor(c.kind);
@@ -161,7 +174,11 @@ export function Sidebar() {
                 <button
                   key={c.kind}
                   className="catalog-card"
-                  onClick={() => actions.setDrawMode("place", c.kind)}
+                  onClick={() => {
+                    actions.setDrawMode("place", c.kind);
+                    // on a phone the drawer covers the plan: get it out of the way so the next tap places
+                    if (window.matchMedia("(max-width: 767px)").matches) setTab(null);
+                  }}
                   title={`${c.w} × ${c.d} × ${c.h} m — click, then click on the plan`}
                 >
                   {thumb ? (
@@ -177,11 +194,11 @@ export function Sidebar() {
           </div>
         )}
 
-        {tab === "supplier" && <SupplierPanel />}
+        {open === "supplier" && <SupplierPanel />}
 
-        {tab === "sheets" && <SheetsPanel />}
+        {open === "sheets" && <SheetsPanel />}
 
-        {tab === "notes" && (
+        {open === "notes" && (
           <div className="panel">
             <div className="note-compose">
               <textarea
@@ -210,7 +227,7 @@ export function Sidebar() {
           </div>
         )}
 
-        {tab === "tools" && (
+        {open === "tools" && (
           <div className="panel">
             <p className="hint">
               These are the exact {TOOLS.length} tools your AI agent discovers via WebMCP, plus the dynamic
@@ -219,7 +236,7 @@ export function Sidebar() {
             <ToolRunner />
           </div>
         )}
-      </div>
+      </div>}
     </aside>
   );
 }

@@ -132,8 +132,9 @@ More stills in [`shots/showcase/`](shots/showcase/).
    - *"Add a 3 × 2.5 m study next to the bedroom, with a door and a window."*
    - *"The sofa placement feels off. Check the plan and fix any issues."*
    - *"Build the 3D and give me a walkthrough."*
-4. No WebMCP runtime? The app is still complete. Open the **Tools** tab and run the exact
-   same 60 tools manually; every call is logged in the activity feed at the bottom.
+4. No WebMCP runtime? Drawing, 3D, sheets and the product library all still work. The
+   agent-facing parts (the **Notes** and **Tools** tabs and the activity feed) appear only
+   while site tools are registered, so they stay out of the way when no agent can use them.
 
 ## Trace your own plan with the agent
 
@@ -422,8 +423,8 @@ A few design notes:
   runtime emit `toolchange`.
 - `get_issues` runs a geometry constraint engine (below). Agents call it after editing
   and fix their own mistakes, which is the self-repair loop.
-- Without a WebMCP runtime the app loses nothing. The built-in ToolRunner executes the
-  same tools manually.
+- Without a WebMCP runtime the editor is unchanged; the ToolRunner, Notes and activity
+  feed are hidden, since they only matter when an agent is attached.
 
 ## Tests
 

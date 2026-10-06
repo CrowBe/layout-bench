@@ -19,12 +19,12 @@ html, body, #root { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); }
 
 .app { display: flex; flex-direction: column; height: 100%; }
-.project-page { min-height: 100%; overflow: auto; padding: 5vh 20px; background: var(--bg); }
+.project-page { min-height: 100%; overflow: auto; padding: 5vh 16px; background: var(--bg); }
 .project-shell { max-width: 840px; margin: 0 auto; display: grid; gap: 20px; }
-.project-heading { display: flex; align-items: baseline; gap: 12px; }
+.project-heading { display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
 .project-heading strong { font-size: 20px; }
 .project-heading span:last-child { color: var(--ink-soft); }
-.project-shell h1 { margin: 0; font-size: 36px; }
+.project-shell h1 { margin: 0; font-size: clamp(28px, 7vw, 36px); }
 .project-shell > .hint { margin: 0; }
 .project-list { display: grid; gap: 10px; }
 .project-card, .project-create, .project-error { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); min-width: 0; }
@@ -36,18 +36,42 @@ body { background: var(--bg); color: var(--ink); }
 .project-error { border-color: var(--danger); color: var(--danger); }
 .save-banner { padding: 8px 14px; background: #fbeaea; color: #8c2f2f; font-size: 12px; }
 
-/* ---- header ---- */
+/* ---- header ----
+ * Mobile first: brand, primary action and a menu button on one row; the project/product nav
+ * opens under them; the view tools are one row that scrolls sideways. From 1024 px everything
+ * sits on one row and the menu button goes away. */
 .header {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 8px 14px; background: var(--panel);
+  display: grid; align-items: center; gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "brand primary toggle" "nav nav nav" "tools tools tools";
+  padding: 8px 12px; background: var(--panel);
   border-bottom: 1px solid var(--line); flex: 0 0 auto;
 }
-.brand { display: flex; align-items: baseline; gap: 8px; margin-right: 8px; }
+.brand { grid-area: brand; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .brand-mark { color: var(--accent); font-size: 18px; }
-.brand-name { font-weight: 800; font-size: 17px; letter-spacing: 0.02em; }
-.brand-plan { color: var(--ink-soft); font-size: 13px; }
-.header-group { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.header-group + .header-group { margin-left: 0; }
+.brand-name { display: none; font-weight: 800; font-size: 17px; letter-spacing: 0.02em; white-space: nowrap; }
+.brand-plan { color: var(--ink-soft); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-toggle { grid-area: toggle; width: 40px; height: 36px; padding: 0; font-size: 16px; line-height: 1; }
+.header-nav { grid-area: nav; display: none; flex-wrap: wrap; align-items: center; gap: 6px; }
+.header-nav.open { display: flex; }
+.header-group { display: flex; align-items: center; gap: 6px; }
+.header-tools {
+  grid-area: tools; overflow-x: auto; scrollbar-width: none; min-width: 0;
+  margin: 0 -12px; padding: 0 12px; white-space: nowrap;
+}
+.header-tools::-webkit-scrollbar { display: none; }
+.header-tools > * { flex: 0 0 auto; }
+.header-primary { grid-area: primary; }
+@media (min-width: 600px) {
+  .brand-name { display: inline; }
+}
+@media (min-width: 1024px) {
+  .header { display: flex; flex-wrap: wrap; gap: 16px; padding: 8px 14px; }
+  .brand { margin-right: 8px; }
+  .nav-toggle { display: none; }
+  .header-nav, .header-nav.open { display: flex; flex-wrap: nowrap; }
+  .header-tools { margin: 0 0 0 auto; padding: 0; overflow: visible; }
+}
 
 button {
   font: inherit; font-size: 13px; padding: 6px 12px;
@@ -69,28 +93,58 @@ button.danger:hover { border-color: var(--danger); }
 .pill.live { color: #1d6b34; border-color: #bfe3c8; background: #eefaf0; }
 
 /* ---- main ---- */
-.main { display: flex; flex: 1 1 auto; min-height: 0; }
-.canvas-area { flex: 1 1 auto; position: relative; min-width: 0; }
+.main { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; position: relative; }
+@media (min-width: 768px) { .main { flex-direction: row; } }
+.canvas-area { flex: 1 1 auto; position: relative; min-width: 0; min-height: 0; }
 .editor-svg { width: 100%; height: 100%; display: block; background: var(--bg); touch-action: none; }
 
-/* ---- sidebar ---- */
-.sidebar {
-  flex: 0 0 320px; display: flex; flex-direction: column;
-  background: var(--panel); border-left: 1px solid var(--line); min-height: 0;
-}
-.sidebar-tabs { display: flex; border-bottom: 1px solid var(--line); }
+/* ---- sidebar ----
+ * A drawer, closed by default. Phones: the tabs are a bottom bar and the open panel is a sheet
+ * above it. Tablets: the tabs are a rail on the right and the panel floats over the plan.
+ * Desktop (1200 px+): the open panel docks beside the plan. */
+.sidebar { flex: 0 0 auto; display: flex; flex-direction: column; background: var(--panel); border-top: 1px solid var(--line); min-height: 0; }
+.sidebar-tabs { display: flex; overflow-x: auto; scrollbar-width: none; height: 48px; flex: 0 0 auto; }
+.sidebar-tabs::-webkit-scrollbar { display: none; }
 .sidebar-tabs button {
-  flex: 1; border: none; border-radius: 0; background: none;
-  padding: 10px 4px; font-size: 12px; font-weight: 600; color: var(--ink-soft);
-  border-bottom: 2px solid transparent;
+  flex: 1 0 auto; border: none; border-radius: 0; background: none;
+  padding: 6px 10px; font-size: 12px; font-weight: 600; color: var(--ink-soft);
+  border-top: 2px solid transparent; white-space: nowrap;
 }
-.sidebar-tabs button.active { color: var(--accent-ink); border-bottom-color: var(--accent); }
+.sidebar-tabs button.active { color: var(--accent-ink); border-top-color: var(--accent); }
+.sidebar-body {
+  position: absolute; left: 0; right: 0; bottom: 48px; z-index: 5; max-height: 62%;
+  overflow-y: auto; padding: 0 12px 12px; background: var(--panel);
+  border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(46, 42, 36, 0.12);
+  border-radius: 14px 14px 0 0;
+}
+.sidebar-head {
+  position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0 8px; background: var(--panel); font-size: 13px;
+}
+.sidebar-close { width: 32px; height: 32px; padding: 0; line-height: 1; }
+@media (min-width: 768px) {
+  .sidebar { flex-direction: row-reverse; border-top: 0; border-left: 1px solid var(--line); }
+  .sidebar-tabs { flex-direction: column; height: auto; width: 76px; overflow: visible; }
+  .sidebar-tabs button {
+    flex: 0 0 auto; padding: 12px 4px; border-top: 0; border-right: 2px solid transparent;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .sidebar-tabs button.active { border-right-color: var(--accent); background: #f7f1e7; }
+  .sidebar-tabs .badge { margin-left: 0; }
+  .sidebar-body {
+    top: 0; bottom: 0; left: auto; right: 77px; width: 340px; max-height: none;
+    border-top: 0; border-left: 1px solid var(--line); border-radius: 0;
+    box-shadow: -8px 0 24px rgba(46, 42, 36, 0.12);
+  }
+}
+@media (min-width: 1200px) {
+  .sidebar-body { position: static; width: 320px; box-shadow: none; }
+}
 .badge {
   display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px;
   background: var(--ink); color: #fff; font-size: 10px;
 }
 .badge.warn { background: var(--danger); }
-.sidebar-body { flex: 1; overflow-y: auto; padding: 12px; }
 .panel { display: flex; flex-direction: column; gap: 10px; }
 
 .field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
@@ -143,14 +197,14 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 .scene3d-wrap { position: absolute; inset: 0; }
 .scene3d { width: 100%; height: 100%; }
 .placing-hint, .camera-hint {
-  position: absolute; left: 50%; transform: translateX(-50%);
+  position: absolute; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); text-align: center;
   background: #2e2a24d9; color: #f7f4ee; font-size: 12px;
   padding: 6px 14px; border-radius: 999px; pointer-events: none;
 }
 .placing-hint { top: 14px; }
 .camera-hint { bottom: 14px; opacity: 0.75; }
 .stage-toggle {
-  position: absolute; top: 14px; left: 14px; display: flex; align-items: center; gap: 6px;
+  position: absolute; top: 14px; left: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; max-width: calc(100% - 28px);
   background: #2e2a24d9; color: #f7f4ee; font-size: 12px; padding: 5px 6px 5px 12px; border-radius: 999px;
 }
 .stage-toggle button {
@@ -161,7 +215,7 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 
 /* ---- activity feed ---- */
 .activity-feed {
-  flex: 0 0 128px; overflow-y: auto; padding: 6px 14px;
+  flex: 0 0 88px; overflow-y: auto; padding: 6px 14px;
   background: var(--panel); border-top: 1px solid var(--line);
   font-size: 12px; display: flex; flex-direction: column; gap: 2px;
 }
@@ -177,6 +231,8 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 .activity-tool { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink); flex: 0 0 auto; }
 .activity-summary { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-time { margin-left: auto; color: #b8b0a0; font-size: 10px; flex: 0 0 auto; }
+.activity-summary { min-width: 0; }
+@media (min-width: 768px) { .activity-feed { flex-basis: 128px; } }
 
 /* ---------------------------------------------------------------- approval gate */
 .approval-bar {
@@ -187,6 +243,7 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 }
 .approval {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 9px 14px;
@@ -203,7 +260,7 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
   color: #fff;
   white-space: nowrap;
 }
-.approval-text { flex: 1; font-size: 13px; color: #4a3c28; }
+.approval-text { flex: 1 1 220px; font-size: 13px; color: #4a3c28; }
 .approval-tool {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
@@ -284,8 +341,9 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 }
 
 /* ---- inspector (exact values for the selection) ---- */
+/* Phones: a sheet across the bottom of the plan. Wider: a floating card bottom-left. */
 .inspector {
-  position: absolute; left: 12px; bottom: 12px; width: 230px; max-height: calc(100% - 24px); overflow: auto;
+  position: absolute; left: 8px; right: 8px; bottom: 8px; max-height: 55%; overflow: auto; z-index: 4;
   display: flex; flex-direction: column; gap: 8px; padding: 12px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   box-shadow: 0 6px 20px rgba(46, 42, 36, 0.08); font-size: 12px;
@@ -299,7 +357,9 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 .snap-select select { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
 
 /* ---- wall reference faces (#4) ---- */
-.inspector:has(.wall-faces) { width: 340px; }
+@media (min-width: 768px) {
+  .inspector { left: 12px; right: auto; bottom: 12px; width: 230px; max-height: calc(100% - 24px); }
+  .inspector:has(.wall-faces), }
 .wall-faces { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
 .wall-faces select, .wall-faces button, .face-layer > input { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
 .face-sides { display: flex; gap: 4px; }
@@ -327,9 +387,14 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 
 /* ---- product library (#30) ---- */
 .products-page { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; background: var(--bg, #f6f3ee); color: var(--ink); font-size: 13px; }
-.products-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.products-header { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .products-header button { margin-left: auto; }
-.products-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px; overflow: auto; }
+.products-header .hint { order: 3; flex-basis: 100%; margin: 0; }
+.products-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 16px; overflow: auto; }
+@media (min-width: 900px) {
+  .products-header .hint { order: 0; flex-basis: auto; }
+  .products-body { grid-template-columns: 320px minmax(0, 1fr); }
+}
 .products-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .products-card { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
 .products-card .field { display: flex; flex-direction: column; gap: 3px; }
@@ -357,7 +422,6 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12
 .products-page-text { white-space: pre-wrap; max-height: 220px; overflow: auto; margin: 2px 0 6px; padding: 6px; font-size: 12px; background: var(--bg); border-radius: 6px; }
 button.linklike { padding: 0; border: 0; background: none; color: var(--agent); text-decoration: underline; cursor: pointer; font: inherit; }
 .products-product summary { cursor: pointer; }
-@media (max-width: 760px) { .products-body { grid-template-columns: 1fr; } }
 .products-card > button { align-self: flex-start; }
 .product-review-summary { padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
 .product-review-summary details { margin: 10px 0; }
@@ -365,7 +429,6 @@ button.linklike { padding: 0; border: 0; background: none; color: var(--agent); 
 .product-review-summary p { margin: 8px 0; }
 
 /* ---- fixture set-out (#5) ---- */
-.inspector:has(.fixture-panel) { width: 340px; }
 .fixture-panel { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
 .fixture-anchor { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
 .fixture-anchor .field, .fixture-point-form .field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

@@ -1,5 +1,9 @@
-/** App shell — header (view/camera/tools status), editor or 3D scene, sidebar, activity feed. */
+/**
+ * App shell — header (collapsible nav, view/camera tools, primary action), editor or 3D scene,
+ * sidebar drawer, and the agent activity feed (shown only while WebMCP tools are registered).
+ */
 
+import { useState } from "react";
 import { useAppStore, actions, logActivity, projects } from "../model/store";
 import { Editor } from "../editor/Editor";
 import { Scene3D } from "../three/Scene3D";
@@ -30,6 +34,9 @@ export function App() {
   const pendingApprovals = useAppStore((s) => s.approvals.length);
   const productsOpen = useProductStore((s) => s.open);
   const submittedProducts = useProductStore((s) => s.requests.filter((r) => r.status === "submitted").length);
+  /** Below desktop width the project/product links sit behind a menu button, closed by default. */
+  const [navOpen, setNavOpen] = useState(false);
+  const toolsLive = webmcpStatus === "live";
 
   if (chooserOpen || !activeProjectId) return <ProjectChooser />;
 
@@ -40,13 +47,29 @@ export function App() {
           <span className="brand-mark">▲</span>
           <span className="brand-name">Reno Layouts</span>
           <span className="brand-plan">{planName}</span>
+        </div>
+
+        <button
+          className="nav-toggle"
+          aria-label="Menu"
+          aria-expanded={navOpen}
+          aria-controls="app-nav"
+          onClick={() => setNavOpen((o) => !o)}
+        >
+          {navOpen ? "✕" : "☰"}
+        </button>
+
+        <nav id="app-nav" className={`header-nav ${navOpen ? "open" : ""}`} onClick={(e) => (e.target as HTMLElement).closest("button") && setNavOpen(false)}>
           <button onClick={() => projects.showChooser()} disabled={pendingApprovals > 0} title={pendingApprovals ? "Resolve the pending agent request before switching projects" : undefined}>Projects</button>
           <button onClick={() => products.show(true)} title="Research requests and accepted products, shared by every project">
             Products{submittedProducts ? ` (${submittedProducts} to review)` : ""}
           </button>
-        </div>
+          {toolsLive && (
+            <span className="pill live" title="WebMCP runtime detected — tools are live for your agent">● Site tools live</span>
+          )}
+        </nav>
 
-        <div className="header-group">
+        <div className="header-group header-tools">
           {view === "2d" ? (
             <>
               <button className={drawMode === "select" ? "active" : ""} onClick={() => actions.setDrawMode("select")}>
@@ -93,13 +116,10 @@ export function App() {
           )}
         </div>
 
-        <div className="header-group">
+        <div className="header-group header-primary">
           <button className="primary" onClick={() => (view === "2d" ? actions.build3d() : actions.setView("2d"))}>
             {view === "2d" ? "Build 3D ▲" : "Back to 2D"}
           </button>
-          <span className={`pill ${webmcpStatus}`} title={webmcpStatus === "live" ? "WebMCP runtime detected — tools are live for your agent" : "No WebMCP runtime — use the Tools tab to run tools manually"}>
-            {webmcpStatus === "live" ? "● Site tools live" : "○ Site tools off"}
-          </span>
         </div>
       </header>
       {saveError && <div className="save-banner" role="alert">{saveError} <button onClick={() => projects.showChooser()}>Export backup</button></div>}
@@ -115,7 +135,7 @@ export function App() {
       {productsOpen && <ProductsPage />}
       <SupplierBridge />
       <ApprovalBar />
-      <ActivityFeed />
+      {toolsLive && <ActivityFeed />}
     </div>
   );
 }

@@ -61,6 +61,19 @@ export function Editor() {
   const [roomStart, setRoomStart] = useState<{ x: number; y: number } | null>(null);
   const [panning, setPanning] = useState<{ px: number; py: number; vx: number; vy: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  /** Touch points currently down, for two-finger pinch zoom. */
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ dist: number; midX: number; midY: number; view: View } | null>(null);
+  // The viewBox is sized from the element, so redraw whenever the element changes size
+  // (window resize, rotating a phone, the sidebar drawer docking beside the plan).
+  const [, setSizeTick] = useState(0);
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setSizeTick((n) => n + 1));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   /** Pointer snap is a drawing aid only; the step is the human's choice and 0 turns it off. */
   const snap = (v: number) => snapTo(v, editor.snapStep);
 
@@ -160,7 +173,24 @@ export function Editor() {
   );
 
   // ---- pointer handlers ----
+  const pinchState = () => {
+    const [a, b] = [...touches.current.values()];
+    return { dist: Math.hypot(a.x - b.x, a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 };
+  };
+
   const onPointerMove = (e: React.PointerEvent) => {
+    if (touches.current.has(e.pointerId)) touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch.current && touches.current.size === 2) {
+      const start = pinch.current;
+      const now = pinchState();
+      const rect = svgRef.current!.getBoundingClientRect();
+      const scale = Math.min(600, Math.max(15, start.view.scale * (now.dist / Math.max(1, start.dist))));
+      // keep the world point under the fingers' starting midpoint under their current midpoint
+      const wx = start.view.x + (start.midX - rect.left) / start.view.scale;
+      const wy = start.view.y + (start.midY - rect.top) / start.view.scale;
+      setView({ scale, x: wx - (now.midX - rect.left) / scale, y: wy - (now.midY - rect.top) / scale });
+      return;
+    }
     const p = toWorld(e.clientX, e.clientY);
     setMouse({ x: snap(p.x), y: snap(p.y) });
     if (panning) {
@@ -177,6 +207,21 @@ export function Editor() {
     if (dragRoom) {
       const room = model.rooms.find((r) => r.id === dragRoom.id);
       if (room) actions.updateRoom(room.id, { x: snap(p.x - dragRoom.dx), y: snap(p.y - dragRoom.dy) });
+    }
+  };
+
+  /** Capture phase, so touches that land on walls, rooms or items count towards a pinch too. */
+  const onTouchDown = (e: React.PointerEvent) => {
+    if (e.pointerType !== "touch") return;
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.current.size === 2) {
+      // second finger: this is a pinch, not a pan, drag or draw
+      e.stopPropagation();
+      setPanning(null);
+      setDragItem(null);
+      setDragRoom(null);
+      setRoomStart(null);
+      pinch.current = { ...pinchState(), view };
     }
   };
 
@@ -223,6 +268,11 @@ export function Editor() {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    touches.current.delete(e.pointerId);
+    if (pinch.current) {
+      if (touches.current.size === 0) pinch.current = null;
+      return;
+    }
     if (panning) setPanning(null);
     if (dragItem) {
       const it = model.items.find((i) => i.id === dragItem.id);
@@ -336,8 +386,10 @@ export function Editor() {
       viewBox={`${view.x * S} ${view.y * S} ${(svgRef.current?.clientWidth ?? 1200)} ${(svgRef.current?.clientHeight ?? 800)}`}
       onWheel={onWheel}
       onPointerMove={onPointerMove}
+      onPointerDownCapture={onTouchDown}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
       onContextMenu={(e) => {
         e.preventDefault();
         actions.setDrawMode("select");

@@ -95,8 +95,9 @@ try {
   await page.locator(".editor-svg").click({ position: { x: 10, y: 10 } });
   await page.locator(`[data-id="${vanity}"] rect`).click({ timeout: 3000 });
   const panel = page.getByRole("region", { name: "Fixture set-out" });
-  const feed = await page.locator(".activity-feed").textContent();
-  assert.doesNotMatch(feed ?? "", /move_item\s*Moved Vanity/);
+  // the on-page feed shows only while WebMCP tools are registered; the log behind it is always kept
+  const feed = await page.evaluate(() => window.__alza.store.getState().activity.map((a) => `${a.tool} ${a.summary}`).join("\n"));
+  assert.doesNotMatch(feed, /move_item\s*Moved Vanity/);
   assert.match(await panel.locator(`tr[data-point="${vw.pointId}"]`).textContent(), /Wall waste.*21.*15.*0.*1500.*550/);
 
   // A 10 mm board: tile-face fixtures move 4 mm, readings from board and frame follow, entries stay
