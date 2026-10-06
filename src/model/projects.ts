@@ -7,6 +7,7 @@ import type { PartSpec } from "../three/furniture";
 import type { Note, PlanModel } from "./types";
 import { seedBathroom, bathroomKinds, bathroomNotes } from "./seed-bathroom";
 import { validHeating } from "./heating";
+import { validWasteProductLink } from "./wasteProduct";
 import { quantize } from "./geometry";
 import { outlineProblems, type Outline } from "./outline";
 
@@ -71,7 +72,7 @@ const floorBuildUp = (v: unknown) => v === undefined || (object(v) && typeof v.d
 
 /** Drainage (#7): wastes with plan coordinates, planes with rectangles, controls with positions and levels. */
 const drainage = (v: unknown) => v === undefined || (object(v) && Array.isArray(v.wastes) && Array.isArray(v.planes) &&
-  v.wastes.every((w) => point(w, ["ax", "ay", "bx", "by"]) && (w.kind === "point" || w.kind === "linear") && typeof w.label === "string" && quantity(w.level)) &&
+  v.wastes.every((w) => point(w, ["ax", "ay", "bx", "by"]) && (w.kind === "point" || w.kind === "linear") && typeof w.label === "string" && quantity(w.level) && quantity(w.outletAt) && validWasteProductLink(w.product)) &&
   v.planes.every((p) => point(p, ["x", "y", "w", "h"]) && typeof p.label === "string" && quantity(p.fall) &&
     (p.wasteId === undefined || typeof p.wasteId === "string") &&
     Array.isArray(p.controls) && (p.controls as Record<string, unknown>[]).every((c) => point(c, ["x", "y"]) && typeof c.label === "string" && quantity(c.level))));

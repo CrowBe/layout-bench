@@ -103,9 +103,10 @@ export const BATHROOM_PRODUCT_CATEGORIES: ProductCategory[] = [
   },
   {
     id: "drain", label: "Drain", envelope: box,
-    placement: unsupported("Recessed drain bodies, floor penetrations and installation depth below finished floor are not represented by the floor-based envelope."),
+    placement: unsupported("Recessed drain bodies, floor penetrations and installation depth below finished floor are not represented by the floor-based envelope. Link the product to a floor waste instead (set_room_drainage wastes[].product)."),
     fields: [
       ...envelope(),
+      { ...choice("grateType", "Grate type", ["slotted", "tile-insert", "other"], "Published grate kind. A tile-insert grate holds a piece of the floor tile, so the tiler cuts tile for the insert as well as around it."), required: false },
       length("grateLength", "Grate length", "Maximum grate length along its own end-to-end axis; metres.", "fixture-end", 0.001, 3),
       length("grateWidth", "Grate width", "Maximum grate width across its own centreline; metres.", "fixture-centreline", 0.001, 1),
       choice("outletDirection", "Outlet direction", ["vertical", "horizontal", "other"], "Published discharge direction; no project pipe route is proposed."),

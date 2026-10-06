@@ -13,6 +13,7 @@ import type { Drainage, FloorPlane, Opening, PlanModel, Room, ValueStatus, Waste
 import { input, known, weakest, type FaceInput } from "./faces";
 import { finishedLevel } from "./floor";
 import { pointSegDist, quantize, type Pt } from "./geometry";
+import { wasteProductProblems } from "./wasteProduct";
 
 /** Levels closer than this are the same level (1 mm). */
 export const LEVEL_TOL = 0.001;
@@ -183,6 +184,7 @@ export function drainageProblems(room: Room): DrainProblem[] {
 
   for (const w of d.wastes) {
     if (!onRoom(w.ax, w.ay) || !onRoom(w.bx, w.by)) add("error", "waste_outside_room", `Waste "${w.label}" lies outside the room.`);
+    out.push(...wasteProductProblems(w));
   }
   for (const p of d.planes) {
     if (p.x < room.x - EPS || p.y < room.y - EPS || p.x + p.w > rx1 + EPS || p.y + p.h > ry1 + EPS) {

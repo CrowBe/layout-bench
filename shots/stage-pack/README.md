@@ -96,12 +96,15 @@ Visible: `walls`, `wall-frame`, `rooms`, `doors`, `windows`, `floor-substrate`, 
 
 Stopgap view, not recorded: Waste service points; Water service points; Power service points. Drawn dashed as stand-ins: drainage-wastes.
 
-Specification: 32 row(s), 15 unknown. [spec.html](03-rough-in/spec.html)
+Specification: 45 row(s), 18 unknown. [spec.html](03-rough-in/spec.html)
 
 Open items:
 
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as "?" (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as "?" (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as "?" (missing outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).
 
 Not modelled (never drawn):
 
@@ -145,14 +148,17 @@ Visible: `walls`, `wall-frame`, `wall-board`, `rooms`, `doors`, `windows`, `floo
 
 Stopgap view, not recorded: Wall waterproofing membrane. Drawn dashed as stand-ins: floor-waterproofing.
 
-Specification: 47 row(s), 17 unknown. [spec.html](04-waterproofing/spec.html)
+Specification: 60 row(s), 20 unknown. [spec.html](04-waterproofing/spec.html)
 
 Open items:
 
 - Bathroom floor: Waterproofing on the slab: thickness (mm) unknown; printed as "?" (missing thickness (mm)).
 - Bathroom floor: Waterproofing on the slab: top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as "?" (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as "?" (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as "?" (missing outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).
 
 Not modelled (never drawn):
 
@@ -194,7 +200,7 @@ The proposed in-screed heating cable route, laid by the owner and tested by the 
 
 Visible: `walls`, `wall-board`, `rooms`, `doors`, `windows`, `floor-substrate`, `floor-waterproofing`, `floor-heating-cable`, `drainage-wastes`
 
-Specification: 76 row(s), 24 unknown. [spec.html](05-heating-cable/spec.html)
+Specification: 80 row(s), 24 unknown. [spec.html](05-heating-cable/spec.html)
 
 Open items:
 
@@ -258,7 +264,7 @@ The tiler's own screed (cable inside) and the floor falls to the two drains. The
 
 Visible: `walls`, `wall-board`, `rooms`, `doors`, `windows`, `floor-substrate`, `floor-waterproofing`, `floor-screed`, `drainage-wastes`, `drainage-planes`
 
-Specification: 49 row(s), 22 unknown. [spec.html](06-screed-falls/spec.html)
+Specification: 62 row(s), 25 unknown. [spec.html](06-screed-falls/spec.html)
 
 Open items:
 
@@ -267,7 +273,10 @@ Open items:
 - Bathroom floor: Tiler's screed (heating cable inside): thickness (mm) unknown; printed as "?" (missing thickness (mm)).
 - Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness, Tiler's screed (heating cable inside) thickness).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as "?" (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as "?" (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as "?" (missing outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).
 - Bathroom: Shower: fall (mm per m) unknown; printed as "?" (missing Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN level, fall or a control level).
 - Bathroom: Beside the shower (under the bath): fall (mm per m) unknown; printed as "?" (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level).
 - Bathroom: Dry area: fall (mm per m) unknown; printed as "?" (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level).
@@ -312,7 +321,7 @@ Tile adhesive on the screed and on the wall board, ahead of the tiles.
 
 Visible: `walls`, `wall-board`, `wall-adhesive`, `rooms`, `doors`, `windows`, `floor-substrate`, `floor-screed`, `floor-adhesive`, `drainage-wastes`, `drainage-planes`
 
-Specification: 61 row(s), 21 unknown. [spec.html](07-adhesive/spec.html)
+Specification: 74 row(s), 24 unknown. [spec.html](07-adhesive/spec.html)
 
 Open items:
 
@@ -320,7 +329,10 @@ Open items:
 - Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness, Tiler's screed (heating cable inside) thickness).
 - Bathroom floor: Tiler's adhesive: thickness (mm) unknown; printed as "?" (missing thickness (mm)).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as "?" (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as "?" (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as "?" (missing outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).
 - Bathroom: Shower: fall (mm per m) unknown; printed as "?" (missing Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN level, fall or a control level).
 - Bathroom: Beside the shower (under the bath): fall (mm per m) unknown; printed as "?" (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level).
 - Bathroom: Dry area: fall (mm per m) unknown; printed as "?" (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level).
@@ -365,7 +377,7 @@ Floor and wall tiles on the adhesive, with the proposed wall tile set-out and th
 
 Visible: `walls`, `wall-board`, `wall-adhesive`, `wall-tile`, `rooms`, `doors`, `windows`, `floor-substrate`, `floor-screed`, `floor-adhesive`, `floor-tile`, `drainage-wastes`, `drainage-planes`
 
-Specification: 76 row(s), 21 unknown. [spec.html](08-tiles/spec.html)
+Specification: 89 row(s), 24 unknown. [spec.html](08-tiles/spec.html)
 
 Open items:
 
@@ -373,7 +385,10 @@ Open items:
 - Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness, Tiler's screed (heating cable inside) thickness).
 - Bathroom floor: Tiler's adhesive: thickness (mm) unknown; printed as "?" (missing thickness (mm)).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as "?" (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as "?" (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as "?" (missing outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).
 - Bathroom: Shower: fall (mm per m) unknown; printed as "?" (missing Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN level, fall or a control level).
 - Bathroom: Beside the shower (under the bath): fall (mm per m) unknown; printed as "?" (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level).
 - Bathroom: Dry area: fall (mm per m) unknown; printed as "?" (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level).
@@ -420,12 +435,15 @@ Visible: `walls`, `wall-tile`, `rooms`, `doors`, `windows`, `floor-substrate`, `
 
 Stopgap view, not recorded: Waste service points; Water service points; Power service points. Drawn dashed as stand-ins: fixtures.
 
-Specification: 278 row(s), 148 unknown. [spec.html](09-fit-out/spec.html)
+Specification: 291 row(s), 151 unknown. [spec.html](09-fit-out/spec.html)
 
 Open items:
 
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as "?" (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as "?" (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).
+- Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as "?" (missing outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).
 - Corner bath (bath): set-out unknown; printed as "?" (missing not set out from a wall face).
 - Corner bath (bath): wasteFromEnd unknown; printed as "?" (missing Sheet gives 520 mm from the right-angle corner along the bisector, not from the end. Along each wall that is 520/√2 ≈ 367.7 mm; that conversion is derived in the host-frame check, not entered as published wasteFromEnd.).
 - Corner bath (bath): wasteEnd unknown; printed as "?" (missing Not entered from the cited source.).

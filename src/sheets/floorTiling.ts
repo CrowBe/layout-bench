@@ -71,6 +71,7 @@ export function floorTileDrawing(l: FloorTileLayout, room: Room): string {
         `data-waste="${esc(w.id)}" stroke="#7a5230" stroke-width="3"`,
       ),
       `<circle cx="${f1(X(w.a.x))}" cy="${f1(Y(w.a.y))}" r="3" fill="#7a5230"/>`,
+      ...(w.grate ? [`<polygon data-grate="${esc(w.id)}" points="${w.grate.map((p) => `${f1(X(p.x))},${f1(Y(p.y))}`).join(" ")}" fill="#7a5230" fill-opacity="0.3" stroke="#7a5230" stroke-width="1"/>`] : []),
       `<text x="${f1(X((w.a.x + w.b.x) / 2) + 5)}" y="${f1(Y((w.a.y + w.b.y) / 2) + 14)}" font-size="7" fill="#7a5230">W${index + 1} c/l</text>`,
     );
   parts.push("</g>");
@@ -135,7 +136,7 @@ export function renderFloorTilingSheet(model: PlanModel, room: Room): string {
     ),
     ...floorCutRows(l).map((c) => `${c.edge} cut: ${c.value} mm`),
     "Legend: orange cut · white full · red origin axes",
-    "Green dashed fall planes · brown waste c/l · blue doorway",
+    "Green dashed fall planes · brown waste c/l, shaded grate from its drain brief · blue doorway",
     "SC site-confirmed · M measured · PUB published · P proposed · E estimated · ? unknown",
     "Confirm perimeter / doorway joints, drain apertures and slope-break cuts.",
     ...(t?.note ? [`Field note: ${t.note}`] : []),

@@ -21,6 +21,7 @@ import { catalogForItem, catalogByKind } from "../model/catalog";
 import { FACE_NAMES, LAYER_KINDS, VALUE_STATUSES, distanceToFace, nearestFootprintPoint, roomOnSide, sideFaces, sideProblems } from "../model/faces";
 import type { WallSideName } from "../model/types";
 import { drainageProblems, heightAt, planeSurface, sectionAlong, surfaces, thresholds } from "../model/drainage";
+import { grateOutline, outletPosition, wasteProduct } from "../model/wasteProduct";
 import { heatingEvidence } from "../model/heating";
 import { renderHeatingReview } from "../sheets/heating";
 import { finishedLevel } from "../model/floor";
@@ -358,10 +359,12 @@ export const TOOLS: ToolDef[] = [
     name: "set_room_drainage",
     title: "Record proposed wastes and sloped floor planes",
     description:
-      "Record a room's proposed drainage: wastes (a point or a linear waste, in plan metres, with the finished floor level at the waste above the room's floor datum) and rectangular floor planes that fall toward a waste. A plane's heights derive from its waste level plus EITHER a fall (rise per metre run away from the waste: 0.0125 = 12.5 mm per m) OR one control level at a plan point (the fall is worked out), or from three control levels when it has no waste. Every level and fall needs a status (site-confirmed, measured, published, proposed, estimated); leave unknown ones out and the plane stays unresolved rather than getting a default slope. Drain positions and falls are usually unconfirmed: record them as proposed. Lists replace what is stored (send an id to keep an entry). Contradictions, gaps and overlaps are not rejected; read them with get_floor_heights or get_issues. This is a planning aid, not a drainage design or code-compliance verdict.",
+      "Record a room's proposed drainage: wastes (a point or a linear waste, in plan metres, with the finished floor level at the waste above the room's floor datum) and rectangular floor planes that fall toward a waste. A plane's heights derive from its waste level plus EITHER a fall (rise per metre run away from the waste: 0.0125 = 12.5 mm per m) OR one control level at a plan point (the fall is worked out), or from three control levels when it has no waste. Every level and fall needs a status (site-confirmed, measured, published, proposed, estimated); leave unknown ones out and the plane stays unresolved rather than getting a default slope. Drain positions and falls are usually unconfirmed: record them as proposed. Lists replace what is stored (send an id to keep an entry). A waste's product is the id of an accepted \"drain\" brief in the library: its grate length/width, outlet diameter and position offsets, and installation depth are then drawn and checked, each with the brief's status and source; unknown brief fields stay unresolved. Linking pins that brief; a re-sent waste with its id keeps its product unless product is null (unlink) or another id. A later accepted revision is reported and applied only with update_waste_product. outletAt (linear only) is where the outlet sits along the channel, metres from the first end, with a status: a project choice, not a product figure. Contradictions, gaps and overlaps are not rejected; read them with get_floor_heights or get_issues. This is a planning aid, not a drainage design or code-compliance verdict.",
     inputSchema: obj({
       room: str,
-      wastes: { type: "array", items: obj({ id: str, label: str, kind: { type: "string", enum: ["point", "linear"] }, x: num, y: num, x2: { type: "number", description: "linear only: second end x" }, y2: { type: "number", description: "linear only: second end y" }, level: quantitySchema }, ["kind", "x", "y"]) },
+      wastes: { type: "array", items: obj({ id: str, label: str, kind: { type: "string", enum: ["point", "linear"] }, x: num, y: num, x2: { type: "number", description: "linear only: second end x" }, y2: { type: "number", description: "linear only: second end y" }, level: quantitySchema,
+        outletAt: { ...quantitySchema, description: "linear only: outlet centre along the channel, metres from the first end (x, y)" },
+        product: { type: ["string", "null"], description: "accepted drain product id from the library; omit to keep, null to unlink" } }, ["kind", "x", "y"]) },
       planes: { type: "array", items: obj({
         id: str, label: str, x: num, y: num, w: num, h: num,
         waste: { type: ["string", "null"], description: "id or label of a waste in this room" },
@@ -370,6 +373,14 @@ export const TOOLS: ToolDef[] = [
       }, ["x", "y", "w", "h"]) },
     }, ["room"]),
     execute: (i) => actions.setRoomDrainage(i.room as string, i as DrainagePatch),
+  },
+  {
+    name: "update_waste_product",
+    title: "Move a floor waste to its drain product's latest accepted revision",
+    description:
+      "A floor waste keeps the drain brief it was linked with. When a later revision of that product is accepted and its evidence differs, get_issues and get_floor_heights report waste_product_update_available. After reviewing the new revision, call this to re-pin the waste to it; grate, outlet and depth checks then use the new figures. Refused when the waste has no product or is already on the latest revision.",
+    inputSchema: obj({ room: str, waste: { type: "string", description: "waste id or label in this room" } }, ["room", "waste"]),
+    execute: (i) => actions.updateWasteProduct(i.room as string, i.waste as string),
   },
   {
     name: "get_floor_heights",
@@ -403,7 +414,13 @@ export const TOOLS: ToolDef[] = [
       return {
         ok: true,
         summary: d ? `Room "${room.label}" drainage: ${d.wastes.length} wastes, ${planes.length} planes (${resolved} resolved), ${problems.filter((p) => p.severity === "error").length} errors, ${problems.filter((p) => p.severity === "warning").length} warnings.` : `Room "${room.label}" has no drainage recorded.`,
-        roomId: room.id, recorded: !!d, datum: room.floorBuildUp?.datum ?? DEFAULT_DATUM, wastes: d?.wastes ?? [], planes, problems,
+        roomId: room.id, recorded: !!d, datum: room.floorBuildUp?.datum ?? DEFAULT_DATUM,
+        wastes: (d?.wastes ?? []).map((w) => {
+          const { product: link, ...rest } = w;
+          const info = wasteProduct(w);
+          return { ...rest, ...(link ? { productId: link.productId } : {}), ...(info ? { product: info, grate: grateOutline(w, info) ?? null, outlet: outletPosition(w, info) } : {}) };
+        }),
+        planes, problems,
         buildUp: { finishedLevel: finished.resolved ? finished.top : null, resolved: finished.resolved, missing: finished.missing },
         thresholds: thresholds(model, room),
         ...(pts ? { points: pts } : {}), ...(section ? { section } : {}),

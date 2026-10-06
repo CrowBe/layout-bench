@@ -1,6 +1,7 @@
 /** Proposed floor set-out. Never substitutes room bounds for unresolved finished faces.
  * Rectangular zones are a room or an existing drainage plane; skew walls stay unresolved.
- * Waste centre lines are shown, without inventing drain aperture dimensions.
+ * Waste centre lines are shown; a waste linked to a sized drain brief also shows its grate
+ * outline (#82). Drain aperture dimensions are never invented.
  */
 import type { FloorTiling, PlanModel, Room, WallSideName } from "./types";
 import {
@@ -13,6 +14,7 @@ import {
 } from "./faces";
 import { edgeCut, MAX_PIECES, type EdgeCut } from "./tiling";
 import { drainageProblems, planeSurface } from "./drainage";
+import { grateOutline, wasteProduct } from "./wasteProduct";
 import { quantize, type Pt } from "./geometry";
 
 export interface FloorTilePiece {
@@ -41,7 +43,8 @@ export interface FloorTileLayout {
   joint?: number;
   cuts?: Record<"west" | "east" | "north" | "south", EdgeCut>;
   pieces: FloorTilePiece[];
-  wastes: { id: string; label: string; a: Pt; b: Pt; relation?: string }[];
+  /** grate: the linked brief's outline in plan (#82); absent when the brief has no grate size */
+  wastes: { id: string; label: string; a: Pt; b: Pt; grate?: Pt[]; tileInsert?: boolean; product?: string; relation?: string }[];
   planes: {
     id: string;
     label: string;
@@ -203,12 +206,19 @@ export function floorTileLayout(model: PlanModel, room: Room): FloorTileLayout {
     }
   }
   if (room.drainage) {
-    l.wastes = room.drainage.wastes.map((w) => ({
-      id: w.id,
-      label: w.label,
-      a: { x: w.ax, y: w.ay },
-      b: { x: w.bx, y: w.by },
-    }));
+    l.wastes = room.drainage.wastes.map((w) => {
+      const info = wasteProduct(w);
+      const grate = grateOutline(w, info);
+      return {
+        id: w.id,
+        label: w.label,
+        a: { x: w.ax, y: w.ay },
+        b: { x: w.bx, y: w.by },
+        ...(grate ? { grate } : {}),
+        ...(info?.grateType === "tile-insert" ? { tileInsert: true } : {}),
+        ...(info ? { product: info.name } : {}),
+      };
+    });
     l.planes = room.drainage.planes.map((p) => ({
       ...p,
       resolved: planeSurface(room.drainage!, p).resolved,
@@ -221,12 +231,16 @@ export function floorTileLayout(model: PlanModel, room: Room): FloorTileLayout {
   if (!l.wastes.length)
     l.missing.push("drain position not recorded; waste cuts unresolved");
   else {
-    l.missing.push(
-      "drain aperture sizes and edge joints not recorded; waste cuts unresolved",
-    );
+    for (const w of l.wastes)
+      if (!w.grate)
+        l.missing.push(
+          `${w.label}: drain aperture size not recorded${w.product ? ` in the ${w.product} brief` : " (no drain product linked)"}; waste cut unresolved`,
+        );
     warn(
       "floor_tiling_waste_cut",
-      "Waste centre lines show grid relationships only. Confirm aperture size, clearance and cut shape on site.",
+      l.wastes.every((w) => w.grate)
+        ? "Grate outlines come from the linked drain briefs. Confirm clearance, edge joints and cut shape on site."
+        : "Wastes without a sized drain product show centre lines only. Confirm aperture size, clearance and cut shape on site.",
     );
   }
   for (const q of [t.tileLength, t.tileWidth])
@@ -378,7 +392,18 @@ export function floorTileLayout(model: PlanModel, room: Room): FloorTileLayout {
     const describe = (p: Pt) =>
       `X ${axisRelation(p.x, ox, tx, px)}, Y ${axisRelation(p.y, oy, ty, py)}`;
     const linear = w.a.x !== w.b.x || w.a.y !== w.b.y;
-    w.relation = `centre ${linear ? "line start" : "point"}: ${describe(w.a)}${linear ? `; end: ${describe(w.b)}` : ""}; aperture cut unresolved`;
+    const centre = `centre ${linear ? "line start" : "point"}: ${describe(w.a)}${linear ? `; end: ${describe(w.b)}` : ""}`;
+    if (!w.grate) {
+      w.relation = `${centre}; aperture cut unresolved`;
+      continue;
+    }
+    const xs = w.grate.map((p) => p.x), ys = w.grate.map((p) => p.y);
+    const [gx0, gx1, gy0, gy1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const square = w.grate.every((p) => (p.x === gx0 || p.x === gx1) && (p.y === gy0 || p.y === gy1));
+    const edges = square
+      ? `grate ${Math.round((gx1 - gx0) * 1000)} × ${Math.round((gy1 - gy0) * 1000)} mm; west edge ${axisRelation(gx0, ox, tx, px)}, east edge ${axisRelation(gx1, ox, tx, px)}, north edge ${axisRelation(gy0, oy, ty, py)}, south edge ${axisRelation(gy1, oy, ty, py)}`
+      : "grate set at an angle to the tiles; edge relationships not worked out";
+    w.relation = `${centre}; ${edges}${w.tileInsert ? "; tile insert: cut a tile piece to fill the insert as well as the opening around it" : ""}`;
   }
   l.basis = weakest(inputs);
   l.resolved = l.missing.length === 0;
