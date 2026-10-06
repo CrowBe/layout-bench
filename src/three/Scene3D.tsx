@@ -163,9 +163,12 @@ export function Scene3D() {
     const walkPos = new THREE.Vector3();
 
     const applyCamera = (mode: string) => {
+      // a portrait viewport (a phone) has a narrow horizontal field of view: stand further
+      // back so the whole plan still fits across the screen
+      const back = Math.max(1, 1 / Math.max(0.1, mount.clientWidth / Math.max(1, mount.clientHeight)));
       if (mode === "top") {
         cam.up.set(0, 0, -1); // north up, east right — matches the 2D editor exactly
-        cam.position.set(center.x, radius * 1.6, center.z + 0.01);
+        cam.position.set(center.x, radius * 1.6 * back, center.z + 0.01);
         controls.target.set(center.x, 0, center.z);
         controls.maxPolarAngle = 0.15;
         controls.minDistance = 2;
@@ -180,7 +183,7 @@ export function Scene3D() {
         controls.maxDistance = 4;
       } else {
         cam.up.set(0, 1, 0);
-        cam.position.set(center.x + radius * 0.9, radius * 0.85, center.z + radius * 1.1);
+        cam.position.set(center.x + radius * 0.9 * back, radius * 0.85 * back, center.z + radius * 1.1 * back);
         controls.target.set(center.x, 0.8, center.z);
         controls.maxPolarAngle = Math.PI / 2 - 0.02;
         controls.minDistance = 1;
@@ -442,6 +445,8 @@ export function Scene3D() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, presentation, activeProjectId]);
 
+  const coarse = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+
   return (
     <div className="scene3d-wrap">
       <div ref={mountRef} className="scene3d" />
@@ -458,7 +463,7 @@ export function Scene3D() {
         </div>
       )}
       <div className="camera-hint">
-        {camera === "walk" ? "WASD / arrows to walk · drag to look · click a door to open it" : camera === "top" ? "Top view · drag to pan · click a door to open it" : "Drag to orbit · scroll to zoom · click a door to open it"}
+        {camera === "walk" ? "WASD / arrows to walk · drag to look · click a door to open it" : camera === "top" ? "Top view · drag to pan · click a door to open it" : `Drag to orbit · ${coarse ? "pinch" : "scroll"} to zoom · ${coarse ? "tap" : "click"} a door to open it`}
       </div>
     </div>
   );
