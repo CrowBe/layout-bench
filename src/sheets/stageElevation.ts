@@ -22,7 +22,7 @@ import { installationReading } from "../model/installation";
 import { itemPolygon } from "../model/outline";
 import { roomBeside, runLimit, tilingLayout, type RunLimit } from "../model/tiling";
 import { PAPER, esc, f1, mm, tag } from "./floorPlan";
-import { dimStatus, notRecordedLines, stopgapDash, type Stopgap, type ViewElement } from "./stageView";
+import { dimStatus, envelopeStatus, notRecordedLines, stopgapDash, type Stopgap, type ViewElement } from "./stageView";
 
 const DRAW = { x: 12, y: 12, w: 262, h: 268 };
 const PANEL = { x: 280, w: 132 };
@@ -104,7 +104,12 @@ interface Placed {
   depth: number;
   z0?: number;
   z1?: number;
+  /** status of the bottom level z0 */
   basis: string;
+  /** status of the top level z1 */
+  topBasis?: string;
+  /** status of the along-the-face positions s0 and s1; absent when the fixture has no set-out from this face */
+  spanBasis?: string;
   heightNote: string;
   /** Kind-elevation stopgap (no #60 installation): envelope bottom, not a set-out. */
   dashed?: boolean;
@@ -157,7 +162,9 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
   const limB: RunLimit | null = face ? runLimit(model, w, side, "b", face.name as never) : null;
   const s0 = limA?.resolved ? limA.s! : 0;
   const s1 = limB?.resolved ? limB.s! : len;
-  const fromA = (s: number) => (limA?.resolved ? `${mm(s - s0)} from ${face!.label} at A` : `${mm(s)} from end A (drawn line)`);
+  const fromA = (s: number, status: string) => (limA?.resolved ? `${mm(s - s0)} ${tag(status)} from ${face!.label} at A` : `${mm(s)} ${tag(status)} from end A (drawn line)`);
+  /** a position along the face is no better than its set-out, the fixture's size and the face it is read from */
+  const spanStatus = (it: Item) => weakestStatus([it.anchor!.status, envelopeStatus(it, ["w", "d"]), limA?.resolved ? limA.basis : "entered"]);
 
   // ---- the face itself ----
   const faceRes = face ? resolveFace(spec, face.layerId ?? face.name) : null;
@@ -253,10 +260,11 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
     const offs = pg.map((p) => offsetFromLine(w, side, p) - faceOff);
     const ss = pg.map(along);
     const anchored = it.anchor?.wallId === w.id && it.anchor.side === side;
+    const spanBasis = anchored ? spanStatus(it) : undefined;
     const near = Math.min(...offs) <= NEAR_FACE && Math.max(...offs) > -0.05 && Math.max(...ss) > 0 && Math.min(...ss) < len;
     if (!anchored && !near) continue;
     shownIds.add(it.id);
-    placed.push({ item: it, no: fixtureNo.get(it.id)!, label: catalogForItem(it)?.label ?? it.kind, s0: Math.max(Math.min(...ss), 0), s1: Math.min(Math.max(...ss), len), depth: Math.max(0, Math.min(...offs)), ...vertical(model, it, room, flatFinished) });
+    placed.push({ item: it, no: fixtureNo.get(it.id)!, label: catalogForItem(it)?.label ?? it.kind, s0: Math.max(Math.min(...ss), 0), s1: Math.min(Math.max(...ss), len), depth: Math.max(0, Math.min(...offs)), ...(spanBasis ? { spanBasis } : {}), ...vertical(model, it, room, flatFinished) });
   }
   // accessories fitted inside a fixture on this face go with it
   for (const it of model.items) {
@@ -265,7 +273,10 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
     if (!pg) continue;
     const ss = pg.map(along);
     shownIds.add(it.id);
-    placed.push({ item: it, no: fixtureNo.get(it.id)!, label: catalogForItem(it)?.label ?? it.kind, s0: Math.min(...ss), s1: Math.max(...ss), depth: -1, ...vertical(model, it, room, flatFinished) });
+    // fitted inside its host: placed by the proposal, and no better placed than the host
+    const host = placed.find((h) => h.item.id === it.fittedTo!.hostId);
+    const spanBasis = host?.spanBasis ? weakestStatus(["proposed", host.spanBasis]) : undefined;
+    placed.push({ item: it, no: fixtureNo.get(it.id)!, label: catalogForItem(it)?.label ?? it.kind, s0: Math.min(...ss), s1: Math.max(...ss), depth: -1, ...(spanBasis ? { spanBasis } : {}), ...vertical(model, it, room, flatFinished) });
   }
   placed.sort((a, b) => b.depth - a.depth);
   for (const p of placed) {
@@ -287,13 +298,14 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
       const floorAt = localFinished(model, room, r.x, r.y, flatFinished);
       const z = r.level ?? (r.up !== undefined && floorAt.level !== undefined ? floorAt.level + r.up : undefined);
       const colour = r.service === "waste" ? "#7a5230" : r.service === "water" ? "#2f78b7" : "#c0392b";
-      const alongText = r.alongFromA !== undefined ? fromA(r.alongFromA) : "along ?";
-      const upText = r.up !== undefined ? `${mm(r.up)} above finished floor` : "up ?";
-      spRows.push({ s: `${no} ${r.service} · ${r.label}: ${alongText} · ${upText} · ${tag(r.status)}${r.entered.out !== undefined ? ` · ${mm(r.entered.out)}${r.entered.outMax !== undefined ? `–${mm(r.entered.outMax)}` : ""} out from ${r.entered.face} face` : ""}`, extra: `fill="${colour}" ${de(id)}` });
+      const alongText = r.alongFromA !== undefined ? fromA(r.alongFromA, r.status) : "along ?";
+      const upText = r.up !== undefined ? `${mm(r.up)} ${tag(r.status)} above finished floor` : "up ?";
+      const outText = r.entered.out !== undefined ? ` · ${mm(r.entered.out)}${r.entered.outMax !== undefined ? `–${mm(r.entered.outMax)}` : ""} ${tag(r.status)} out from ${r.entered.face} face` : "";
+      spRows.push({ s: `${no} ${r.service} · ${r.label}: ${alongText} · ${upText}${outText}`, extra: `fill="${colour}" ${de(id)}` });
       if (r.alongFromA === undefined || z === undefined) return; // listed with "?"; never placed where it is not known
       const px = X(r.alongFromA), py = Y(z);
       parts.push(`<circle cx="${f1(px)}" cy="${f1(py)}" r="1.1" fill="${colour}" ${de(id)}/>`);
-      const tagText = `${no} ${r.up !== undefined ? mm(r.up) : "?"} AFF`;
+      const tagText = `${no} ${r.up !== undefined ? `${mm(r.up)} ${tag(r.status)}` : "?"} AFF`;
       const box = { x: px + 1.6, y: py - 1.2, w: tagText.length * 0.95 };
       while (labels.some((b) => Math.abs(b.y - box.y) < 2.1 && box.x < b.x + b.w && b.x < box.x + box.w)) box.y -= 2.3;
       labels.push(box);
@@ -359,7 +371,9 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
     y += 1.5;
     heading("Fixtures against this face");
     for (const p of placed) {
-      row(`${p.no} ${p.label}: ${fromA(p.s0)} to ${limA?.resolved ? mm(p.s1 - s0) : mm(p.s1)} · ${p.z0 === undefined ? "height ?" : `${mm(p.z0)}–${mm(p.z1!)} above ${datum} ${p.basis === "unknown" ? "?" : tag(p.basis)}`} · ${p.heightNote}`, 1.95, de(`item:${p.item.id}`));
+      const along = p.spanBasis ? `${fromA(p.s0, p.spanBasis)} to ${limA?.resolved ? mm(p.s1 - s0) : mm(p.s1)} ${tag(p.spanBasis)}` : "position along the face ? (no wall set-out recorded)";
+      const up = p.z0 === undefined || p.z1 === undefined ? "height ?" : `${mm(p.z0)} ${tag(p.basis)} to ${mm(p.z1)} ${tag(p.topBasis ?? p.basis)} above ${datum}`;
+      row(`${p.no} ${p.label}: ${along} · ${up} · ${p.heightNote}`, 1.95, de(`item:${p.item.id}`));
     }
   }
   if (spRows.length) { y += 1.5; heading("Service points (AFF = above finished floor)"); spRows.forEach((r) => row(r.s, 1.95, r.extra)); }
@@ -404,21 +418,39 @@ function localFinished(model: PlanModel, room: ReturnType<typeof roomBeside>, x:
   return flat.resolved ? { level: flat.top, basis: flat.basis } : { basis: "unknown" };
 }
 
-/** Bottom and top of a fixture above the room datum, and where that comes from. Unknown stays unknown. */
-function vertical(model: PlanModel, it: Item, room: ReturnType<typeof roomBeside>, flat: ReturnType<typeof finishedLevel>): Pick<Placed, "z0" | "z1" | "basis" | "heightNote" | "dashed"> {
+/**
+ * Bottom and top of a fixture above the room datum, and where each comes from. Unknown stays
+ * unknown: a mounted piece's bottom is its recorded elevation, with that record's own status, and a
+ * piece whose elevation is unrecorded is listed with "?" and not drawn, never placed from a
+ * catalogue stand-in. A top is the bottom plus the envelope height, no stronger than either.
+ */
+function vertical(model: PlanModel, it: Item, room: ReturnType<typeof roomBeside>, flat: ReturnType<typeof finishedLevel>): Pick<Placed, "z0" | "z1" | "basis" | "topBasis" | "heightNote" | "dashed"> {
   const cat = catalogForItem(it);
   if (!cat) return { basis: "unknown", heightNote: `kind ${it.kind} unknown` };
   if (it.installation) {
     const r = installationReading(model, it);
     if (r.bottom === undefined) return { basis: "unknown", heightNote: `installation height unresolved (${r.missing.join(", ")})` };
-    return { z0: r.bottom, z1: r.top ?? r.bottom + cat.h, basis: r.basis, heightNote: "installation height above the named floor datum" };
+    return { z0: r.bottom, z1: r.top ?? r.bottom + cat.h, basis: r.basis, topBasis: r.top !== undefined ? r.topBasis : weakestStatus([r.basis, envelopeStatus(it, ["h"])]), heightNote: "installation height above the named floor datum" };
   }
   const floor = localFinished(model, room, it.x, it.y, flat);
   if (floor.level === undefined) return { basis: "unknown", heightNote: "finished floor level unknown here" };
-  const z0 = floor.level + (cat.elevation ?? 0);
   const on = floor.datumOnly ? "the existing floor (no floor build-up recorded)" : "the finished floor";
   const dashed = Boolean(cat.elevation || cat.stopgap);
-  return cat.elevation
-    ? { z0, z1: z0 + cat.h, basis: "estimated", dashed: true, heightNote: `${cat.elevationNote ? `${cat.elevationNote}; ` : ""}envelope bottom ${mm(cat.elevation)} above ${on} from the kind's data, not a set-out (dashed)` }
-    : { z0, z1: z0 + cat.h, basis: floor.basis, ...(dashed ? { dashed: true } : {}), heightNote: `stands on ${on}; height ${mm(cat.h)} from the kind's envelope${dashed ? " (dashed)" : ""}` };
+  const heightStatus = envelopeStatus(it, ["h"]);
+  let lift = 0;
+  let liftStatus = floor.basis;
+  if (cat.elevation) {
+    // an elevation on the item's own record carries that record's status. A kind with no product
+    // evidence attached is the owner's own entry. Where the item has product evidence and no
+    // recorded elevation, the kind's figure is a stand-in nobody sourced: unknown, not drawn.
+    const recorded = it.productSpecification?.fields.elevation;
+    if (typeof recorded?.value === "number") { lift = recorded.value; liftStatus = weakestStatus([floor.basis, recorded.status ?? "unknown"]); }
+    else if (!it.productSpecification && !it.productIdentity && !it.productId) { lift = cat.elevation; liftStatus = weakestStatus([floor.basis, "entered"]); }
+    else return { basis: "unknown", heightNote: `elevation above ${on} is not recorded; the kind's catalogue stand-in is not used, so it is not drawn` };
+  }
+  const z0 = floor.level + lift;
+  return {
+    z0, z1: z0 + cat.h, basis: liftStatus, topBasis: weakestStatus([liftStatus, heightStatus]), ...(dashed ? { dashed: true } : {}),
+    heightNote: cat.elevation ? `bottom at its recorded or entered elevation above ${on}; height from the kind's envelope${dashed ? " (dashed)" : ""}` : `stands on ${on}; height from the kind's envelope${dashed ? " (dashed)" : ""}`,
+  };
 }

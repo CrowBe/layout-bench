@@ -38,14 +38,8 @@
 <text x="224.75" y="208.2" font-size="1.7" fill="#7a5230">300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo) +0 P</text>
 <line x1="58.25" y1="207.5" x2="227.75" y2="207.5" stroke="#000" stroke-width="0.25" stroke-dasharray="2 1"/>
 <text x="57.25" y="208.2" font-size="1.7" text-anchor="end" fill="#444">0 = existing floor surface (current tile top)</text>
-<rect x="182.25" y="138.45" width="12.5" height="49.05" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:shower_system"/>
-<text x="188.5" y="141.05" font-size="2.2" text-anchor="middle" font-weight="bold">F6</text>
 <rect x="158.25" y="107.5" width="0.5" height="100" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:screen"/>
 <text x="158.5" y="110.1" font-size="2.2" text-anchor="middle" font-weight="bold">F12</text>
-<rect x="123.7" y="125" width="7.1" height="45" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:towel_rail"/>
-<text x="127.25" y="127.6" font-size="2.2" text-anchor="middle" font-weight="bold">F7</text>
-<rect x="136.2" y="125" width="7.1" height="45" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:towel_rail_2"/>
-<text x="139.75" y="127.6" font-size="2.2" text-anchor="middle" font-weight="bold">F8</text>
 <line x1="66.25" y1="219.5" x2="219.75" y2="219.5" stroke="#000" stroke-width="0.2"/>
 <line x1="66.25" y1="218" x2="66.25" y2="221" stroke="#000" stroke-width="0.3"/>
 <line x1="219.75" y1="218" x2="219.75" y2="221" stroke="#000" stroke-width="0.3"/>
@@ -78,14 +72,14 @@
 <text x="283" y="76.05" font-size="1.95" >surface (current tile top) (flat build-up level)</text>
 <text x="280" y="78.9" font-size="1.95" >Finished floor along this face follows the recorded falls (green); 41 of 41 samples have no plane level.</text>
 <text x="280" y="83.25" font-size="2.7" font-weight="bold">Fixtures against this face</text>
-<text x="280" y="87.45" font-size="1.95" data-element="item:shower_system">F6 Shower system: 2320 from finished face at A to 2570 · 400–1381 above existing floor surface (current tile top) E · envelope</text>
-<text x="283" y="90.3" font-size="1.95" data-element="item:shower_system">bottom 400 above the finished floor from the kind's data, not a set-out (dashed)</text>
-<text x="280" y="93.15" font-size="1.95" data-element="item:screen">F12 Fixed glass screen: 1840 from finished face at A to 1850 · 0–2000 above existing floor surface (current tile top) P · stands on</text>
-<text x="283" y="96" font-size="1.95" data-element="item:screen">the finished floor; height 2000 from the kind's envelope</text>
-<text x="280" y="98.85" font-size="1.95" data-element="item:towel_rail">F7 Towel rail: 1149 from finished face at A to 1291 · 750–1650 above existing floor surface (current tile top) E · envelope bottom</text>
-<text x="283" y="101.7" font-size="1.95" data-element="item:towel_rail">750 above the finished floor from the kind's data, not a set-out (dashed)</text>
-<text x="280" y="104.55" font-size="1.95" data-element="item:towel_rail_2">F8 Towel rail: 1399 from finished face at A to 1541 · 750–1650 above existing floor surface (current tile top) E · envelope bottom</text>
-<text x="283" y="107.4" font-size="1.95" data-element="item:towel_rail_2">750 above the finished floor from the kind's data, not a set-out (dashed)</text>
+<text x="280" y="87.45" font-size="1.95" data-element="item:shower_system">F6 Shower system: position along the face ? (no wall set-out recorded) · height ? · elevation above the finished floor is not</text>
+<text x="283" y="90.3" font-size="1.95" data-element="item:shower_system">recorded; the kind's catalogue stand-in is not used, so it is not drawn</text>
+<text x="280" y="93.15" font-size="1.95" data-element="item:screen">F12 Fixed glass screen: position along the face ? (no wall set-out recorded) · 0 P to 2000 P above existing floor surface (current</text>
+<text x="283" y="96" font-size="1.95" data-element="item:screen">tile top) · stands on the finished floor; height from the kind's envelope</text>
+<text x="280" y="98.85" font-size="1.95" data-element="item:towel_rail">F7 Towel rail: position along the face ? (no wall set-out recorded) · height ? · elevation above the finished floor is not recorded;</text>
+<text x="283" y="101.7" font-size="1.95" data-element="item:towel_rail">the kind's catalogue stand-in is not used, so it is not drawn</text>
+<text x="280" y="104.55" font-size="1.95" data-element="item:towel_rail_2">F8 Towel rail: position along the face ? (no wall set-out recorded) · height ? · elevation above the finished floor is not recorded;</text>
+<text x="283" y="107.4" font-size="1.95" data-element="item:towel_rail_2">the kind's catalogue stand-in is not used, so it is not drawn</text>
 <text x="280" y="111.75" font-size="2.7" font-weight="bold">Unresolved on this face (22)</text>
 <text x="280" y="115.95" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): set-out unknown; printed as &quot;?&quot; (missing not set out from a wall face).</text>
 <text x="280" y="118.7" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): pressureMin unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>

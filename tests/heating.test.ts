@@ -361,7 +361,7 @@ describe("proposed heating (#8), synthetic evidence only", () => {
       label: "Cable only",
       findings: [],
     });
-    expect(diagram).toContain("PROPOSED CABLE plan 3.4 m; spatial 3.4 m");
+    expect(diagram).toContain("PROPOSED CABLE: route length along the drawn path in plan (XY projection) 3.4 m MOD; along the sampled cable profile 3.4 m MOD");
     expect(diagram).not.toContain("Not modelled, never drawn: in-screed heating cable");
     expect(renderStageSpec(store.getState().model, [cable], {
       label: "Cable only", findings: [],

@@ -200,6 +200,14 @@ Open items:
 
 - Bathroom floor: Waterproofing on the slab: thickness (mm) unknown; printed as "?" (missing thickness (mm)).
 - Bathroom floor: Waterproofing on the slab: top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness).
+- Bathroom: proposed heating cable: heating_signoff: Proposed route only: manufacturer and licensed electrician must review cable identity, length, output, bend radius, spacing, exclusions, cover, sensor, cold tails, waterproofing and electrical installation. No compliance approval. No electrical approval is implied.
+- Bathroom: proposed heating cable: heating_product_unresolved: sample-sck0765l-carton is not an accepted heating-cable in this library. Checks use the travelling snapshot only when its productId is that id or in its series.
+- Bathroom: proposed heating cable: heating_product_unresolved: sample-mwd5-1999-cbp3 is not an accepted thermostat in this library. Checks use the travelling snapshot only when its productId is that id or in its series.
+- Bathroom: proposed heating cable: heating_metadata_unknown: Unknown cable/product information: manufacturer, minSpacing, edgeClearance, depthFromBottom.
+- Bathroom: proposed heating cable: heating_route_length_unknown: Spatial cable length and confirmed product-length balance remain unknown until the whole route has resolved screed levels and cable height; the plan projection is modelled, not cable length.
+- Bathroom: proposed heating cable: heating_coverage_range: Zone area excluding entered keep-outs 6.3722 m² (availableArea, same resolver as evidence; not a laid-cable heat-coverage model) is outside the brief coverage range 3.7–5.1 m² (published, project-snapshot (unresolved), carton label — SCK0765L in-screed heating cable carton: coverage 3.7–5.1 m², minimum).
+- Bathroom: proposed heating cable: heating_ip_location: Thermostat printed IP21 (published, carton label — Photographed MWD5-1999-CBP3 carton label: housing IP21) vs planned location outside a wet room (Hallway wall outside the bathroom, next to the light switch (right as you look into the bathroom), about 850 mm off the floor. Not drawn on this plan.; Owner, 5 Oct 2026). This check does not decide zone suitability; the electrician decides. No compliance approval.
+- Bathroom: proposed heating cable: heating_depth_unknown: Cable section remains unresolved until screed layer, floor levels and cable height (bottom face of the selected screed layer (top of the layer below / subfloor stack); not the underside of the tile unless that face is the screed top) are entered.
 - Bathroom: proposed heating cable: manufacturer unknown; printed as "?" (missing manufacturer).
 - Bathroom: proposed heating cable: minSpacing (mm) unknown; printed as "?" (missing minSpacing (mm)).
 - Bathroom: proposed heating cable: edgeClearance (mm) unknown; printed as "?" (missing edgeClearance (mm)).

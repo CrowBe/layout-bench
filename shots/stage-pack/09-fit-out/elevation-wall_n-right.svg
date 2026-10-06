@@ -56,12 +56,6 @@
 <text x="80" y="208.2" font-size="1.7" text-anchor="end" fill="#444">0 = existing floor surface (current tile top)</text>
 <rect x="144.38" y="176" width="50.87" height="31.5" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath"/>
 <text x="169.82" y="178.6" font-size="2.2" text-anchor="middle" font-weight="bold">F1</text>
-<rect x="181.13" y="164.25" width="3.25" height="5.85" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath_mixer"/>
-<text x="182.75" y="166.85" font-size="2.2" text-anchor="middle" font-weight="bold">F2</text>
-<rect x="166.13" y="164.25" width="3.25" height="3.88" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath_spout"/>
-<text x="167.75" y="166.85" font-size="2.2" text-anchor="middle" font-weight="bold">F3</text>
-<rect x="175.12" y="177" width="3.5" height="1" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath_waste"/>
-<text x="176.87" y="179.6" font-size="2.2" text-anchor="middle" font-weight="bold">F4</text>
 <line x1="89" y1="219.5" x2="197" y2="219.5" stroke="#000" stroke-width="0.2"/>
 <line x1="89" y1="218" x2="89" y2="221" stroke="#000" stroke-width="0.3"/>
 <line x1="197" y1="218" x2="197" y2="221" stroke="#000" stroke-width="0.3"/>
@@ -94,31 +88,29 @@
 <text x="283" y="76.05" font-size="1.95" >surface (current tile top) (flat build-up level)</text>
 <text x="280" y="78.9" font-size="1.95" >Finished floor along this face follows the recorded falls (green); 41 of 41 samples have no plane level.</text>
 <text x="280" y="83.25" font-size="2.7" font-weight="bold">Fixtures against this face</text>
-<text x="280" y="87.45" font-size="1.95" data-element="item:bath">F1 Corner bath: 1107.7 from finished face at A to 2125 · 0–630 above existing floor surface (current tile top) P · stands on the</text>
-<text x="283" y="90.3" font-size="1.95" data-element="item:bath">finished floor; height 630 from the kind's envelope</text>
-<text x="280" y="93.15" font-size="1.95" data-element="item:bath_mixer">F2 Bath mixer: 1842.5 from finished face at A to 1907.5 · 748–865 above existing floor surface (current tile top) E · handle end</text>
-<text x="283" y="96" font-size="1.95" data-element="item:bath_mixer">(envelope bottom); plate underside is the 800 mm unsourced stand-in; envelope bottom 748 above the finished floor from the kind's</text>
-<text x="283" y="98.85" font-size="1.95" data-element="item:bath_mixer">data, not a set-out (dashed)</text>
-<text x="280" y="101.7" font-size="1.95" data-element="item:bath_spout">F3 Bath spout: 1542.5 from finished face at A to 1607.5 · 787.5–865 above existing floor surface (current tile top) E · outlet-face</text>
-<text x="283" y="104.55" font-size="1.95" data-element="item:bath_spout">centre (envelope bottom); plate underside is the 800 mm unsourced stand-in; envelope bottom 787.5 above the finished floor from the</text>
-<text x="283" y="107.4" font-size="1.95" data-element="item:bath_spout">kind's data, not a set-out (dashed)</text>
-<text x="280" y="110.25" font-size="1.95" data-element="item:bath_waste">F4 Bath waste: 1722.3 from finished face at A to 1792.3 · 590–610 above existing floor surface (current tile top) E · envelope</text>
-<text x="283" y="113.1" font-size="1.95" data-element="item:bath_waste">bottom 590 above the finished floor from the kind's data, not a set-out (dashed)</text>
-<text x="280" y="117.45" font-size="2.7" font-weight="bold">Unresolved on this face (40)</text>
-<text x="280" y="121.65" font-size="1.85" fill="#7a3b00">• Corner bath (bath): set-out unknown; printed as &quot;?&quot; (missing not set out from a wall face).</text>
-<text x="280" y="124.4" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteFromEnd unknown; printed as &quot;?&quot; (missing Sheet gives 520 mm from the right-angle corner along the bisector, not</text>
-<text x="283" y="127.15" font-size="1.85" fill="#7a3b00">from the end. Along each wall that is 520/√2 ≈ 367.7 mm; that conversion is derived in the host-frame check, not entered as published</text>
-<text x="283" y="129.9" font-size="1.85" fill="#7a3b00">wasteFromEnd.).</text>
-<text x="280" y="132.65" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteEnd unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="280" y="135.4" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteFromSide unknown; printed as &quot;?&quot; (missing Sheet gives 520 mm from the right-angle corner along the bisector, not</text>
-<text x="283" y="138.15" font-size="1.85" fill="#7a3b00">from the side. Along each wall that is 520/√2 ≈ 367.7 mm; that conversion is derived in the host-frame check, not entered as published</text>
-<text x="283" y="140.9" font-size="1.85" fill="#7a3b00">wasteFromSide.).</text>
-<text x="280" y="143.65" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteConnectionDiameter unknown; printed as &quot;?&quot; (missing The Enflair drawing names a Ø50 waste hole, not a pipe</text>
-<text x="283" y="146.4" font-size="1.85" fill="#7a3b00">connection or outlet size. No connection diameter is entered.).</text>
-<text x="280" y="149.15" font-size="1.85" fill="#7a3b00">• Corner bath (bath): surround unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="280" y="151.9" font-size="1.85" fill="#7a3b00">• Corner bath (bath): surroundDetail unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="280" y="154.65" font-size="1.85" fill="#7a3b00">• Bath mixer (bath_mixer): set-out unknown; printed as &quot;?&quot; (missing not set out from a wall face).</text>
-<text x="280" y="157.4" font-size="1.85" fill="#666">… 32 more: see the specification sheet</text>
+<text x="280" y="87.45" font-size="1.95" data-element="item:bath">F1 Corner bath: position along the face ? (no wall set-out recorded) · 0 P to 630 P above existing floor surface (current tile top)</text>
+<text x="283" y="90.3" font-size="1.95" data-element="item:bath">· stands on the finished floor; height from the kind's envelope</text>
+<text x="280" y="93.15" font-size="1.95" data-element="item:bath_mixer">F2 Bath mixer: position along the face ? (no wall set-out recorded) · height ? · elevation above the finished floor is not recorded;</text>
+<text x="283" y="96" font-size="1.95" data-element="item:bath_mixer">the kind's catalogue stand-in is not used, so it is not drawn</text>
+<text x="280" y="98.85" font-size="1.95" data-element="item:bath_spout">F3 Bath spout: position along the face ? (no wall set-out recorded) · height ? · elevation above the finished floor is not recorded;</text>
+<text x="283" y="101.7" font-size="1.95" data-element="item:bath_spout">the kind's catalogue stand-in is not used, so it is not drawn</text>
+<text x="280" y="104.55" font-size="1.95" data-element="item:bath_waste">F4 Bath waste: position along the face ? (no wall set-out recorded) · height ? · elevation above the finished floor is not recorded;</text>
+<text x="283" y="107.4" font-size="1.95" data-element="item:bath_waste">the kind's catalogue stand-in is not used, so it is not drawn</text>
+<text x="280" y="111.75" font-size="2.7" font-weight="bold">Unresolved on this face (40)</text>
+<text x="280" y="115.95" font-size="1.85" fill="#7a3b00">• Corner bath (bath): set-out unknown; printed as &quot;?&quot; (missing not set out from a wall face).</text>
+<text x="280" y="118.7" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteFromEnd unknown; printed as &quot;?&quot; (missing Sheet gives 520 mm from the right-angle corner along the bisector, not</text>
+<text x="283" y="121.45" font-size="1.85" fill="#7a3b00">from the end. Along each wall that is 520/√2 ≈ 367.7 mm; that conversion is derived in the host-frame check, not entered as published</text>
+<text x="283" y="124.2" font-size="1.85" fill="#7a3b00">wasteFromEnd.).</text>
+<text x="280" y="126.95" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteEnd unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="129.7" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteFromSide unknown; printed as &quot;?&quot; (missing Sheet gives 520 mm from the right-angle corner along the bisector, not</text>
+<text x="283" y="132.45" font-size="1.85" fill="#7a3b00">from the side. Along each wall that is 520/√2 ≈ 367.7 mm; that conversion is derived in the host-frame check, not entered as published</text>
+<text x="283" y="135.2" font-size="1.85" fill="#7a3b00">wasteFromSide.).</text>
+<text x="280" y="137.95" font-size="1.85" fill="#7a3b00">• Corner bath (bath): wasteConnectionDiameter unknown; printed as &quot;?&quot; (missing The Enflair drawing names a Ø50 waste hole, not a pipe</text>
+<text x="283" y="140.7" font-size="1.85" fill="#7a3b00">connection or outlet size. No connection diameter is entered.).</text>
+<text x="280" y="143.45" font-size="1.85" fill="#7a3b00">• Corner bath (bath): surround unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="146.2" font-size="1.85" fill="#7a3b00">• Corner bath (bath): surroundDetail unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="148.95" font-size="1.85" fill="#7a3b00">• Bath mixer (bath_mixer): set-out unknown; printed as &quot;?&quot; (missing not set out from a wall face).</text>
+<text x="280" y="151.7" font-size="1.85" fill="#666">… 32 more: see the specification sheet</text>
 <rect x="278" y="238" width="132" height="51" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="280" y="243" font-size="2.5" font-weight="bold">Project: Bathroom Concept</text>
 <text x="280" y="248" font-size="2.2" >Site / room: Bathroom (no site address recorded)</text>

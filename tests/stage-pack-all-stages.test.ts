@@ -240,3 +240,159 @@ describe("round-5 tags on the elevation", () => {
     expect(svg).not.toMatch(/jambs [^<]*(ENT\/SC|SC\/ENT|ENT SC|SC ENT)/);
   });
 });
+
+// ---------------------------------------------------------------------------------- fix round 1
+
+/** a sheet's text as one line, so a label wrapped over panel rows still reads as one */
+const flat = (svg: string) => svg.replace(/<[^>]+>/g, " ").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ");
+const TAG = "(?:SC|M|PUB|P|E|DER|MOD|ENT|DEF|NAM|\\?)";
+const specCells = (html: string, element: string, property: string) => {
+  const tr = [...html.matchAll(/<tr data-element="([^"]*)"[^>]*>([\s\S]*?)<\/tr>/g)].find((m) => m[1] === element && new RegExp(`<td>${property.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}</td>`).test(m[2]));
+  return tr ? [...tr[2].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((c) => c[1]) : undefined;
+};
+
+describe("stage 05 spec fits one printed A4 landscape page (whole sheet)", () => {
+  it("prints the whole 05 spec sheet on one page, with every reference and unresolved item still present", async () => {
+    // @ts-expect-error: the shared e2e helper is plain JS
+    const { launch } = await import("./browser.mjs");
+    const browser = await launch();
+    try {
+      const page = await browser.newPage();
+      await page.goto(`file://${join(outDir, slugOf("05"), "spec.html")}`);
+      const pdf: Buffer = await page.pdf({ preferCSSPageSize: true });
+      // the page count of the printed PDF, independent of the renderer: one /Type /Page object
+      expect((pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length).toBe(1);
+    } finally {
+      await browser.close();
+    }
+  }, 60000);
+
+  it("keeps every fact: each [n] reference resolves, and the cable's long sources are in the reference list", () => {
+    const html = read(slugOf("05"), "spec.html");
+    const refs = [...html.matchAll(/<td>\[(\d+)\]<\/td>/g)].map((m) => Number(m[1]));
+    const list = [...(/<ol class="notes">([\s\S]*?)<\/ol>/.exec(html)?.[1] ?? "").matchAll(/<li>/g)].length;
+    expect(refs.length).toBeGreaterThan(0);
+    expect(Math.max(...refs)).toBe(list);
+    expect(html).toContain("heated length 42.5 m"); // the carton text, whole, in the reference list
+    expect(html).toContain("coverage 3.7–5.1 m²");
+  });
+});
+
+describe("compact heating keeps the problem messages (stage 05)", () => {
+  it("prints the coverage warning with its figures, in the spec's Unresolved list and in the index", () => {
+    // independent figure: the room is 2.11 m × 3.02 m with no keep-outs in the sample
+    const room = SAMPLE.rooms.find((r) => r.heating)!;
+    const area = Math.round(room.w * room.h * 1e4) / 1e4;
+    expect(area).toBe(6.3722);
+    const unresolved = /<h2>Unresolved in this view[\s\S]*$/.exec(read(slugOf("05"), "spec.html"))![0];
+    expect(unresolved).toMatch(/heating_coverage_range: Zone area excluding entered keep-outs 6\.3722 m²/);
+    expect(unresolved).toContain("3.7–5.1 m²");
+    const md = readFileSync(join(outDir, "README.md"), "utf8");
+    const section = md.slice(md.indexOf(`## ${PHASES.find((p) => p.slug === slugOf("05"))!.label}`), md.indexOf(`## ${PHASES.find((p) => p.slug === slugOf("06"))!.label}`));
+    expect(section).toMatch(/heating_coverage_range: Zone area excluding entered keep-outs 6\.3722 m²/);
+    // every problem code on the compact row has its message listed
+    const html = read(slugOf("05"), "spec.html");
+    const cell = specCells(html, "room:bathroom:heating", "open item codes (see Unresolved)")![1];
+    // a long cell prints as [n]: resolve it through the reference list
+    const ref = /^\[(\d+)\]$/.exec(cell);
+    const value = ref ? [...(/<ol class="notes">([\s\S]*?)<\/ol>/.exec(html)![1]).matchAll(/<li>([\s\S]*?)<\/li>/g)][Number(ref[1]) - 1][1] : cell;
+    const codes = value.split(", ");
+    expect(codes.length).toBeGreaterThan(0);
+    for (const c of new Set(codes)) expect(unresolved, c).toContain(`heating cable: ${c}:`);
+  });
+});
+
+describe("plan cable annotation agrees with the spec (stage 05)", () => {
+  it("prints the plan route length with its MOD tag and names the datum, as the spec does", () => {
+    const room = SAMPLE.rooms.find((r) => r.heating)!;
+    const path = room.heating!.path;
+    // independent: the XY length of the recorded 30-point route
+    const length = path.slice(1).reduce((n, p, i) => n + Math.hypot(p.x - path[i].x, p.y - path[i].y), 0);
+    expect(length).toBeCloseTo(42.5, 3);
+    const plan = flat(read(slugOf("05"), "plan.svg"));
+    expect(plan).toMatch(/PROPOSED CABLE: route length along the drawn path in plan \(XY projection\) 42\.5 m MOD; along the sampled cable profile \? ;? ?trade review pending|PROPOSED CABLE: route length along the drawn path in plan \(XY projection\) 42\.5 m MOD; along the sampled cable profile \?; trade review pending/);
+    const row = specCells(read(slugOf("05"), "spec.html"), "room:bathroom:heating", "plan route length (m)")!;
+    expect(row[1]).toBe("42.5");
+    expect(row[2]).toBe("MOD modelled");
+  });
+});
+
+describe("fit-out elevations print no stand-in heights and no unsupported set-out (stage 09)", () => {
+  // sample items whose kind carries a catalogue elevation stand-in and whose record has no elevation
+  const standIns = ["bath_mixer", "bath_spout", "bath_waste", "basin_mixer", "shower_system", "towel_rail", "towel_rail_2", "shaving_cabinet"];
+  const svgs = () => ["wall_n", "wall_e", "wall_s", "wall_w"].map((w) => read(slugOf("09"), `elevation-${w}-right.svg`));
+
+  it("draws none of them, and lists each with '?' for its height", () => {
+    expect(SAMPLE.items.filter((i) => standIns.includes(i.id)).every((i) => !i.productSpecification?.fields.elevation || i.productSpecification.fields.elevation.value === null)).toBe(true);
+    for (const svg of svgs()) for (const id of standIns) expect(svg, id).not.toMatch(new RegExp(`<rect[^>]*data-element="item:${id}"`));
+    const north = flat(read(slugOf("09"), "elevation-wall_n-right.svg"));
+    for (const label of ["Bath mixer", "Bath spout", "Bath waste"]) expect(north).toMatch(new RegExp(`${label}: position along the face \\? \\(no wall set-out recorded\\) · height \\? · elevation above the finished floor is not recorded`));
+    // the old catalogue stand-ins (mixer 800 plate / 865 envelope, waste 590) are not printed anywhere
+    for (const svg of svgs()) expect(flat(svg)).not.toMatch(/\b(748|865|590–|590 [A-Z?]|1200 [A-Z?] to)/);
+  });
+
+  it("agrees with the spec: no sample fixture has a wall anchor, so none prints a set-out from end A", () => {
+    expect(SAMPLE.items.some((i) => i.anchor)).toBe(false);
+    const spec = read(slugOf("09"), "spec.html");
+    for (const it of SAMPLE.items) expect(specCells(spec, `item:${it.id}`, "set-out")?.[1], it.id).toBe("?");
+    for (const svg of svgs()) {
+      const text = flat(svg);
+      expect(text).not.toMatch(/\d from finished face at A/); // no number "from <face> at A" for an unanchored fixture
+      const rows = text.match(/F\d+ [A-Z][^:]*: position along the face[^·]*/g) ?? [];
+      for (const r of rows) expect(r).toContain("? (no wall set-out recorded)");
+    }
+    expect(flat(read(slugOf("09"), "plan.svg"))).not.toMatch(/\d+ \w+ from [A-B] · \d+/);
+  });
+
+  it("keeps the floor-standing fixtures it can place, with the weakest status of the floor and the envelope", () => {
+    // the vanity stands on the proposed finished floor (tile 0 P) and its measured 850 height: the top is no stronger than P
+    const east = flat(read(slugOf("09"), "elevation-wall_e-right.svg"));
+    expect(east).toMatch(/F9 Vanity: position along the face \? \(no wall set-out recorded\) · 0 P to 850 P above existing floor surface/);
+    expect(SAMPLE.items.find((i) => i.id === "vanity")!.productIdentity).toBeDefined();
+  });
+});
+
+describe("a recorded elevation is drawn with its own status (real elevation path)", () => {
+  it("draws the sample's bath mixer once its record carries a proposed elevation, tagged P, and never from the kind", () => {
+    const model = structuredClone(SAMPLE);
+    const mixer = model.items.find((i) => i.id === "bath_mixer")!;
+    mixer.productSpecification!.fields.elevation = { value: 0.9, status: "proposed", note: "owner" };
+    const els = resolveVisible(model, ["walls", "rooms", "floor-substrate", "floor-tile", "fixtures"]).elements;
+    const svg = renderStageElevation(model, els, "wall_n", "right", { label: "t", findings: [] });
+    expect(svg).toMatch(/<rect[^>]*stroke-dasharray="1.2 0.6"[^>]*data-element="item:bath_mixer"/);
+    // floor top P (tile 0) + recorded 900 = 900, no stronger than P; top adds the published envelope height
+    expect(flat(svg)).toMatch(/F2 Bath mixer: position along the face \? \(no wall set-out recorded\) · 900 P to \d+(\.\d)? P above/);
+  });
+});
+
+describe("every number on the stage-pack plan and elevation labels carries one status tag", () => {
+  const stages = PHASES.map((p) => p.slug);
+  /** label families the sheets print for a dimension; wrapped panel rows are checked through the flattened text */
+  const untagged = (t: string) => {
+    const s = t.replace(/(-?\d+(?:\.\d+)?) \/ (-?\d+(?:\.\d+)?)/g, "$2").replace(/(-?\d+(?:\.\d+)?)–(-?\d+(?:\.\d+)?)/g, "$2");
+    return [...s.matchAll(new RegExp(`(-?\\d+(?:\\.\\d+)?)(?![\\d.])(?! ?(?:m |mm )?${TAG}(?![A-Za-z]))`, "g"))].map((m) => m[1]);
+  };
+  it("plan labels: wall run, opening width, centre line, fixture set-out, waste level, fall, cable length", () => {
+    for (const slug of stages) {
+      const texts = [...read(slug, "plan.svg").matchAll(/<text [^>]*>([^<]*)<\/text>/g)].map((m) => flat(m[1]));
+      for (const t of texts.filter((x) => !x.startsWith("•") && /^(W|D) \d|^c\/l |A→B|FL |: fall |BOTTOM |from [A-B] ·|PROPOSED CABLE/.test(x) || /^\d+ (ENT|E) · /.test(x))) {
+        const bare = untagged(t.replace(/^.* (?=FL )/, "").replace(/^PROPOSED CABLE: .*?\(XY projection\)/, "PROPOSED CABLE:").replace(/ENT · [a-z]+ A→B \(.*\)$/, "ENT").replace(/[A-Za-z]+ \d{2,}[ -][^,]*,/g, ""));
+        expect(bare, `${slug}: ${t}`).toEqual([]);
+      }
+    }
+  });
+  it("elevation labels: openings, jambs, sill, floor levels, wall height, run, fixture positions and heights, service heights", () => {
+    for (const slug of stages) for (const w of ["wall_n", "wall_e", "wall_s", "wall_w"]) {
+      const svg = read(slug, `elevation-${w}-right.svg`);
+      const texts = [...svg.matchAll(/<text [^>]*>([^<]*)<\/text>/g)].map((m) => flat(m[1]));
+      for (const t of texts.filter((x) => /^(DOOR|WINDOW) |^sill |^jambs |wall height above|between .* of the return walls| AFF$/.test(x) || /^[^:]+ [+-]?\d+ (SC|M|PUB|P|E|ENT|DER|\?)$/.test(x))) {
+        expect(untagged(t.replace(/^(DOOR|WINDOW) /, "").replace(/^.* (?=[+-]\d+ \S+$)/, "").replace(/^(\d+) between .* \((\S+)\)$/, "$1 $2")), `${slug}/${w}: ${t}`).toEqual([]);
+      }
+      // fixture rows in the panel: the 'F<n> <name>: <span> · <heights> · note' text, with the note and its words excluded
+      for (const m of flat(svg).matchAll(/F\d+ [A-Z][A-Za-z ]+: ([^·]+) · ([^·]+?) above /g)) {
+        expect(untagged(m[1]), `${slug}/${w}: ${m[0]}`).toEqual([]);
+        expect(untagged(m[2]), `${slug}/${w}: ${m[0]}`).toEqual([]);
+      }
+    }
+  });
+});

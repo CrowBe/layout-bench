@@ -47,7 +47,7 @@
 <text x="156.75" y="214.5" font-size="1.8" fill="#c64c19">28</text>
 <text x="161.75" y="214.5" font-size="1.8" fill="#c64c19">29</text>
 <text x="161.75" y="77.5" font-size="1.8" fill="#c64c19">30</text>
-<text x="90.75" y="211.5" font-size="1.8" fill="#c64c19">PROPOSED CABLE plan 42.5 m; spatial unknown (sampled); trade review pending</text>
+<text x="90.75" y="211.5" font-size="1.8" fill="#c64c19">PROPOSED CABLE: route length along the drawn path in plan (XY projection) 42.5 m MOD; along the sampled cable profile ?; trade review pending</text>
 <polygon points="90.75,63.25 181.25,63.25 181.25,68.25 90.75,68.25" fill="#fff" stroke="#222" stroke-width="0.25" data-element="opening:window_n"/>
 <text x="136" y="62.55" font-size="2.2" text-anchor="middle">W 1810 ?</text>
 <text x="136" y="70.35" font-size="1.9" text-anchor="middle" fill="#444">c/l 1105 ENT from A</text>
@@ -96,18 +96,24 @@
 <text x="269" y="79.2" font-size="2.1" data-element="room:bathroom:heating">profile (m) ?</text>
 <text x="266" y="82.3" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ?</text>
 <text x="266" y="85.4" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ?</text>
-<text x="266" y="90.5" font-size="2.8" font-weight="bold">Unresolved in this view (11)</text>
+<text x="266" y="90.5" font-size="2.8" font-weight="bold">Unresolved in this view (19)</text>
 <text x="266" y="94.5" font-size="2.1" fill="#7a3b00">• Bathroom floor: Waterproofing on the slab: thickness (mm) unknown; printed as &quot;?&quot; (missing thickness (mm)).</text>
 <text x="266" y="97.6" font-size="2.1" fill="#7a3b00">• Bathroom floor: Waterproofing on the slab: top level (mm) unknown; printed as &quot;?&quot; (missing Waterproofing on the slab thickness).</text>
-<text x="266" y="100.7" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: manufacturer unknown; printed as &quot;?&quot; (missing manufacturer).</text>
-<text x="266" y="103.8" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: minSpacing (mm) unknown; printed as &quot;?&quot; (missing minSpacing (mm)).</text>
-<text x="266" y="106.9" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: edgeClearance (mm) unknown; printed as &quot;?&quot; (missing edgeClearance (mm)).</text>
-<text x="266" y="110" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: depthFromBottom (mm) unknown; printed as &quot;?&quot; (missing depthFromBottom (mm)).</text>
-<text x="266" y="113.1" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: spatial route length, sampled profile (m) unknown; printed as &quot;?&quot; (missing Sampled cable</text>
-<text x="269" y="116.2" font-size="2.1" fill="#7a3b00">profile. Modelled; unknown until screed levels and cable height resolve. Not published cable length.).</text>
-<text x="266" y="119.3" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: remaining confirmed product length (m) unknown; printed as &quot;?&quot; (missing Balance stays unknown</text>
-<text x="269" y="122.4" font-size="2.1" fill="#7a3b00">until confirmed product length and the whole spatial profile are both numeric.).</text>
-<text x="266" y="125.5" font-size="2" fill="#666">… 3 more: see the specification sheet</text>
+<text x="266" y="100.7" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_signoff: Proposed route only: manufacturer and licensed electrician must review cable</text>
+<text x="269" y="103.8" font-size="2.1" fill="#7a3b00">identity, length, output, bend radius, spacing, exclusions, cover, sensor, cold tails, waterproofing and electrical installation.</text>
+<text x="269" y="106.9" font-size="2.1" fill="#7a3b00">No compliance approval. No electrical approval is implied.</text>
+<text x="266" y="110" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_product_unresolved: sample-sck0765l-carton is not an accepted heating-cable in this</text>
+<text x="269" y="113.1" font-size="2.1" fill="#7a3b00">library. Checks use the travelling snapshot only when its productId is that id or in its series.</text>
+<text x="266" y="116.2" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_product_unresolved: sample-mwd5-1999-cbp3 is not an accepted thermostat in this</text>
+<text x="269" y="119.3" font-size="2.1" fill="#7a3b00">library. Checks use the travelling snapshot only when its productId is that id or in its series.</text>
+<text x="266" y="122.4" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_metadata_unknown: Unknown cable/product information: manufacturer, minSpacing,</text>
+<text x="269" y="125.5" font-size="2.1" fill="#7a3b00">edgeClearance, depthFromBottom.</text>
+<text x="266" y="128.6" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_route_length_unknown: Spatial cable length and confirmed product-length balance remain</text>
+<text x="269" y="131.7" font-size="2.1" fill="#7a3b00">unknown until the whole route has resolved screed levels and cable height; the plan projection is modelled, not cable length.</text>
+<text x="266" y="134.8" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_coverage_range: Zone area excluding entered keep-outs 6.3722 m² (availableArea, same</text>
+<text x="269" y="137.9" font-size="2.1" fill="#7a3b00">resolver as evidence; not a laid-cable heat-coverage model) is outside the brief coverage range 3.7–5.1 m² (published,</text>
+<text x="269" y="141" font-size="2.1" fill="#7a3b00">project-snapshot (unresolved), carton label — SCK0765L in-screed heating cable carton: coverage 3.7–5.1 m², minimum).</text>
+<text x="266" y="144.1" font-size="2" fill="#666">… 11 more: see the specification sheet</text>
 <rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
 <text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>

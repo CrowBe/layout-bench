@@ -46,6 +46,8 @@ function bathroom() {
   return { walls, win, vanity, rail };
 }
 
+/** the sheet's text as one line, so a figure wrapped over two panel rows still matches */
+const flat = (svg: string) => svg.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 const ids = (visible: string[]) => resolveVisible(model(), visible).elements;
 const opts = { label: "Fit-out", findings: [] };
 
@@ -66,7 +68,9 @@ describe("stage wall elevations", () => {
     expect(east).toContain(`data-element="item:${vanity}"`);
     expect(east).not.toContain(`data-element="item:${rail}"`);
     expect(east).toContain(`data-element="item:${vanity}:sp:vw"`);
-    expect(east).toContain("500 AFF");
+    expect(east).toContain("500 P AFF");
+    // an anchored fixture's span carries the weakest of its set-out (P), its size (ENT) and the face (P): P, on both ends
+    expect(flat(east)).toMatch(/Vanity: \d+(\.\d)? P from finished face at A to \d+(\.\d)? P · /);
     // the GPO has no height: it is listed with "?" and never placed
     expect(east).not.toMatch(new RegExp(`<circle[^>]*item:${vanity}:sp:gpo`));
     expect(east).toMatch(/GPO: .*up \?/);
@@ -74,7 +78,8 @@ describe("stage wall elevations", () => {
     expect(east).toMatch(/3018 between finished faces of the return walls/);
     const west = renderStageElevation(model(), els, walls[3], "right", opts);
     expect(west).toContain(`data-element="item:${rail}"`);
-    expect(west).toMatch(/envelope bottom 500/);
+    expect(flat(west)).toMatch(/bottom at its recorded or entered elevation/);
+    expect(flat(west)).toMatch(/520 P to 1420 P above/);
     const north = renderStageElevation(model(), els, walls[0], "right", opts);
     expect(north).toContain(`data-element="opening:${win}"`);
     expect(north).toMatch(/jambs 176\.5 \/ 1931\.5 P from finished face at A/);
@@ -134,7 +139,7 @@ describe("stage wall elevations", () => {
     const cab = actions.placeItem("cab_e", 0.5, -0.2).id as string;
     const svg = renderStageElevation(model(), ids(["walls", "fixtures"]), w, "left", opts);
     expect(svg).toContain(`data-element="item:${cab}"`);
-    expect(svg).toMatch(/0–800 above existing floor surface E · stands on the existing floor \(no floor/);
+    expect(flat(svg)).toMatch(/0 E to 800 E above existing floor surface · stands on the existing floor \(no floor/);
   });
 
   it("resolves a layer kind as the outer face of the last layer of that kind", () => {

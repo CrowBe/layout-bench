@@ -246,7 +246,7 @@ export function summarizePhase(phase: Phase, outDir: string): Written | NotGener
   // spec columns, from the end: value, status, measured from, source, missing (the element label cell only starts a group)
   const rows = [...spec.matchAll(/<tr data-element="[^"]*"[^>]*>([\s\S]*?)<\/tr>/g)].map((m) => cells(m[1]));
   const unknown = rows.filter((c) => c.at(-5) === "?" || / unknown$/.test(c.at(-4) ?? "")).length;
-  const unresolved = /<h2>Unresolved in this view \(\d+\)<\/h2><ul>([\s\S]*?)<\/ul>/.exec(spec)?.[1] ?? "";
+  const unresolved = /<h2>Unresolved in this view \(\d+\)<\/h2><ul[^>]*>([\s\S]*?)<\/ul>/.exec(spec)?.[1] ?? "";
   const advisory = [...unresolved.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => unescapeHtml(m[1]));
 
   const planPath = join(dir, "plan.svg");
