@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "node tests/run-e2e.mjs",
+    "stage-pack": "vite-node --script scripts/stage-pack.ts",
     "partner": "vite --port 5200 --strictPort",
     "deploy:studio": "wrangler pages deploy dist --project-name alza-dev --branch main",
     "deploy:partner": "npx netlify deploy --prod --dir dist"
@@ -24,6 +25,7 @@
     "zustand": "^5.0.6"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/three": "^0.178.0",
@@ -31,6 +33,7 @@
     "playwright": "^1.62.1",
     "typescript": "^5.8.3",
     "vite": "^7.0.0",
+    "vite-node": "3.2.4",
     "vitest": "^3.2.0"
   }
 }
