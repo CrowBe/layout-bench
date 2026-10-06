@@ -8,7 +8,7 @@
  *
  * Run with the studio dev server up:  ALZA_BASE_URL=http://127.0.0.1:5199/ node tests/wall-tiling.e2e.mjs
  */
-import { launch } from "./browser.mjs";
+import { launch, shot } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 
 const browser = await launch({ headless: true });
@@ -83,7 +83,7 @@ try {
   assert.ok(await panel.locator('[data-piece="cut"]').count() > 0);
   assert.match(await panel.locator('tr[data-cut="b"]').textContent(), /284/);
   await panel.locator(".tile-elevation").scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "shots/wall-tiling.png" });
+  await page.screenshot({ path: shot("wall-tiling.png") });
   const sheetBefore = (await run("export_wall_tiling", { wallId: ids.north, side: "right" })).svg;
 
   // move the origin 10 mm toward B with the nudge button
@@ -119,7 +119,7 @@ try {
   // 3D: the proposed pieces are built on the tiled face
   await page.getByRole("button", { name: /Build 3D/ }).click();
   await page.waitForSelector(".scene3d canvas", { timeout: 15000 });
-  await page.screenshot({ path: "shots/wall-tiling-3d.png" });
+  await page.screenshot({ path: shot("wall-tiling-3d.png") });
 
   // a board thickness change on a return wall moves the run end; the origin is measured from
   // that face, so it moves too and the 3 mm comes off the end B cut
