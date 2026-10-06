@@ -10,7 +10,7 @@
 <text x="198" y="70" font-size="3" font-weight="bold" text-anchor="middle">B</text>
 <rect x="149.75" y="112.5" width="40" height="95" fill="#dfe9f2" stroke="#2f78b7" stroke-width="0.35" data-element="opening:door_s"/>
 <text x="169.75" y="159" font-size="2" text-anchor="middle" fill="#2f78b7">DOOR 800 ? × 1900 ?</text>
-<text x="169.75" y="164.8" font-size="1.8" text-anchor="middle" fill="#2f78b7">jambs 1235 / 2035 from frame face at A</text>
+<text x="169.75" y="164.8" font-size="1.8" text-anchor="middle" fill="#2f78b7">jambs 1235 / 2035 ? from frame face at A</text>
 <line x1="88" y1="213.5" x2="198" y2="213.5" stroke="#7a5230" stroke-width="0.3" data-element="room:bathroom:substrate"/>
 <text x="203" y="214.2" font-size="1.7" fill="#7a5230">substrate -120 E</text>
 <line x1="80" y1="207.5" x2="206" y2="207.5" stroke="#000" stroke-width="0.25" stroke-dasharray="2 1"/>
@@ -28,7 +28,7 @@
 <text x="18" y="277.5" font-size="2" >Scale 1:20 at A3. Elevation looking at the face from Bathroom; end A on the left. Dimensions in mm.</text>
 <text x="280" y="15" font-size="2.7" font-weight="bold">Stage: 1. Post-demolition: frame and slab</text>
 <text x="280" y="19.2" font-size="1.95" >Wall s, right side, facing Bathroom. Same visible set as the stage plan; everything else hidden, not removed.</text>
-<text x="280" y="22.05" font-size="1.8" fill="#444">Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · ENT entered · DEF default · ? unknown</text>
+<text x="280" y="22.05" font-size="1.8" fill="#444">Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ? unknown</text>
 <text x="280" y="26.25" font-size="2.7" font-weight="bold">This face</text>
 <text x="280" y="30.45" font-size="1.95" >Shown to: frame face, 5 from the drawn line E.</text>
 <text x="280" y="33.3" font-size="1.95" >End A: Frame face of wall_e (right side) at 5 along the drawn line.</text>

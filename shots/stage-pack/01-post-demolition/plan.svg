@@ -41,18 +41,19 @@
 <text x="18" y="278.5" font-size="2" >Scale 1:20 at A3. Orientation not recorded. Dimensions in mm.</text>
 <text x="266" y="14" font-size="2.8" font-weight="bold">Stage: 1. Post-demolition: frame and slab</text>
 <text x="266" y="18" font-size="2.1" >Shows 12 element(s) of the one project model; everything else is hidden, not removed.</text>
-<text x="266" y="21.1" font-size="2.1" >Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · ENT entered · DEF default · ? unknown</text>
-<text x="266" y="24.2" font-size="1.9" fill="#666">Not modelled, never drawn: pipe and cable runs between service points.</text>
-<text x="266" y="29.1" font-size="2.8" font-weight="bold">Wall faces and layers (mm from drawn line)</text>
-<text x="266" y="33.1" font-size="2.1" data-element="wall:wall_n:right:frame">Wall n right: frame face: frame face position 5 E</text>
-<text x="266" y="36.2" font-size="2.1" data-element="wall:wall_e:right:frame">Wall e right: frame face: frame face position 5 E</text>
-<text x="266" y="39.3" font-size="2.1" data-element="wall:wall_s:right:frame">Wall s right: frame face: frame face position 5 E</text>
-<text x="266" y="42.4" font-size="2.1" data-element="wall:wall_w:right:frame">Wall w right: frame face: frame face position 5 E</text>
-<text x="266" y="47.5" font-size="2.8" font-weight="bold">Floor (mm above datum)</text>
-<text x="266" y="51.5" font-size="2.1" data-element="room:bathroom:substrate">Bathroom floor: substrate: substrate concrete slab, framed in place (house on piers) ENT · substrate top level -120 E · finished</text>
-<text x="269" y="54.6" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Waterproofing on the slab + Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the</text>
-<text x="269" y="57.7" font-size="2.1" data-element="room:bathroom:substrate">target 110 E</text>
-<text x="266" y="62.8" font-size="2.8" font-weight="bold">Unresolved in this view (0)</text>
+<text x="266" y="21.1" font-size="2.1" >Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ?</text>
+<text x="269" y="24.2" font-size="2.1" >unknown</text>
+<text x="266" y="27.3" font-size="1.9" fill="#666">Not modelled, never drawn: pipe and cable runs between service points.</text>
+<text x="266" y="32.2" font-size="2.8" font-weight="bold">Wall faces and layers (mm from drawn line)</text>
+<text x="266" y="36.2" font-size="2.1" data-element="wall:wall_n:right:frame">Wall n right: frame face: frame face position 5 E</text>
+<text x="266" y="39.3" font-size="2.1" data-element="wall:wall_e:right:frame">Wall e right: frame face: frame face position 5 E</text>
+<text x="266" y="42.4" font-size="2.1" data-element="wall:wall_s:right:frame">Wall s right: frame face: frame face position 5 E</text>
+<text x="266" y="45.5" font-size="2.1" data-element="wall:wall_w:right:frame">Wall w right: frame face: frame face position 5 E</text>
+<text x="266" y="50.6" font-size="2.8" font-weight="bold">Floor (mm above datum)</text>
+<text x="266" y="54.6" font-size="2.1" data-element="room:bathroom:substrate">Bathroom floor: substrate: substrate concrete slab, framed in place (house on piers) ENT · substrate top level -120 E · finished</text>
+<text x="269" y="57.7" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Waterproofing on the slab + Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the</text>
+<text x="269" y="60.8" font-size="2.1" data-element="room:bathroom:substrate">target 110 E</text>
+<text x="266" y="65.9" font-size="2.8" font-weight="bold">Unresolved in this view (0)</text>
 <rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
 <text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>

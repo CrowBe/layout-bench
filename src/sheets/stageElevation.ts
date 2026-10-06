@@ -14,7 +14,7 @@ import type { LibraryProduct } from "../model/productLibrary";
 import { catalogForItem } from "../model/catalog";
 import { segLen, type Pt } from "../model/geometry";
 import { openingSpan } from "../model/issues";
-import { layerLabel, offsetFromLine, resolveFace, sideFaces, wallBody } from "../model/faces";
+import { layerLabel, offsetFromLine, resolveFace, sideFaces, wallBody, weakest } from "../model/faces";
 import { DEFAULT_DATUM, floorLayerLabel, floorLevels, finishedLevel } from "../model/floor";
 import { heightAt, surfaces } from "../model/drainage";
 import { roughIn } from "../model/fixtures";
@@ -46,6 +46,14 @@ export interface ElevationOptions {
   note?: string;
   products?: LibraryProduct[];
 }
+
+/** Weakest of entry statuses (unknown, defaulted, entered) and value statuses: unknown beats defaulted beats any value status beats entered. */
+const weakestStatus = (statuses: string[]): string => {
+  if (statuses.includes("unknown")) return "unknown";
+  if (statuses.includes("defaulted")) return "defaulted";
+  const values = statuses.filter((s) => s !== "entered");
+  return values.length ? weakest(values.map((status) => ({ field: "", value: 0, status: status as never }))) : "entered";
+};
 
 const surfaceId = (w: Wall, side: WallSideName) => `${w.id}:${side}`;
 
@@ -180,7 +188,9 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
     const mid = Y(o.sill + o.height / 2);
     text(cx, mid - 1, `${o.kind === "door" ? "DOOR" : "WINDOW"} ${mm(o.width)} ${tag(dimStatus(o.widthDefaulted))} × ${mm(o.height)} ${tag(dimStatus(o.heightDefaulted))}`, 2, `text-anchor="middle" fill="#2f78b7"`);
     if (o.kind === "window") text(cx, mid + 2.4, `sill ${mm(o.sill)} ${tag(dimStatus(o.sillDefaulted))} above ${datum}`, 1.8, `text-anchor="middle" fill="#2f78b7"`);
-    text(cx, mid + 4.8, `jambs ${limA?.resolved ? `${mm(a - s0)} / ${mm(b - s0)} from ${face!.label} at A` : `${mm(a)} / ${mm(b)} from end A`}`, 1.8, `text-anchor="middle" fill="#2f78b7"`);
+    // a jamb is the centre ± half the width, read from the A-end face: no better than either
+    const jambTag = tag(weakestStatus([dimStatus(o.widthDefaulted), ...(limA?.resolved ? [limA.basis] : [])]));
+    text(cx, mid + 4.8, `jambs ${limA?.resolved ? `${mm(a - s0)} / ${mm(b - s0)} ${jambTag} from ${face!.label} at A` : `${mm(a)} / ${mm(b)} ${jambTag} from end A`}`, 1.8, `text-anchor="middle" fill="#2f78b7"`);
   }
 
   // ---- floor levels where they meet the wall ----

@@ -77,7 +77,7 @@ describe("stage wall elevations", () => {
     expect(west).toMatch(/envelope bottom 500/);
     const north = renderStageElevation(model(), els, walls[0], "right", opts);
     expect(north).toContain(`data-element="opening:${win}"`);
-    expect(north).toMatch(/jambs 176\.5 \/ 1931\.5 from finished face at A/);
+    expect(north).toMatch(/jambs 176\.5 \/ 1931\.5 P from finished face at A/);
     // the tile grid appears only once a set-out is recorded for the face
     expect(north).not.toContain("data-piece");
     expect(north).toMatch(/no tile set-out recorded/);
@@ -183,5 +183,26 @@ describe("stage wall elevations", () => {
     expect([doorW.status, doorH.status]).toEqual(["unknown", "unknown"]);
     expect(south).toContain(`DOOR ${doorW.value} ${tag(doorW.status)} × ${doorH.value} ${tag(doorH.status)}`);
     expect(plan).toContain(`D ${doorW.value} ${tag(doorW.status)}`);
+  });
+
+  it("tags jamb positions with the weakest of the opening width and the face they are read from", () => {
+    // the sample: width unknown, frame face estimated, so the jambs are unknown
+    const sample = demoProject().model;
+    const els = resolveVisible(sample, ["walls", "wall-frame", "rooms", "doors", "windows", "floor-substrate"]).elements;
+    const north = renderStageElevation(sample, els, "wall_n", "right", opts);
+    expect(north).toMatch(/jambs [\d.]+ \/ [\d.]+ \? from [^<]+ at A/);
+    expect(north).not.toMatch(/jambs [\d.]+ \/ [\d.]+ from/);
+
+    // entered width against a site-confirmed frame face: the face is the weaker input
+    const { walls } = bathroom();
+    const vis = resolveVisible(model(), ["walls", "wall-frame", "windows", "rooms"]).elements;
+    const svg = renderStageElevation(model(), vis, walls[0], "right", opts);
+    const win = model().openings.find((o) => o.wallId === walls[0])!;
+    expect(dimStatus(win.widthDefaulted)).toBe("entered");
+    expect(svg).toMatch(/jambs [\d.]+ \/ [\d.]+ SC from [^<]+ at A/);
+
+    // the frame hidden: read from end A, so only the entered width counts
+    const bare = renderStageElevation(model(), resolveVisible(model(), ["walls", "windows", "rooms"]).elements, walls[0], "right", opts);
+    expect(bare).toMatch(/jambs [\d.]+ \/ [\d.]+ ENT from end A/);
   });
 });
