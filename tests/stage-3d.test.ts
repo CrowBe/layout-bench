@@ -377,3 +377,53 @@ describe("review round 3: stage ids set where meshes are built", () => {
     }
   });
 });
+
+describe("review round 4: the drains stay visible through the floor tiles", () => {
+  /** Rendered: the object and every ancestor visible. */
+  const rendered = (o: THREE.Object3D) => { for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible) return false; return true; };
+
+  it("draws the linear drain's grate above the tile set-out in the stages that show both, its level and aperture unchanged", () => {
+    const { model, group } = sample();
+    const room = model.rooms.find((r) => r.id === "bathroom")!;
+    const waste = room.drainage!.wastes.find((w) => w.id === "linear_drain")!;
+    expect(waste.level).toBeUndefined(); // still unrecorded: nothing here sets a level
+    // the stage pack's layers (stage-shots.mjs): 4. waterproofing, 5. screed and tiles, 6. fit-out
+    const visibleIds = (ids: string[]) => new Set(resolveVisible(model, ids).elements.map((e) => e.id));
+    const waterproofing = ["walls", "floor-substrate", "doors", "drainage-wastes", "wall-board", "windows", "floor-waterproofing", "wall-waterproofing"];
+    const tiles = [...waterproofing, "floor-screed", "floor-adhesive", "floor-tile", "wall-adhesive", "wall-tile"];
+    const fitOut = [...tiles, "fixtures"];
+
+    const tileMeshes = byName(group, "bathroom:floor-tiling:full").concat(byName(group, "bathroom:floor-tiling:cut"));
+    const tileTop = Math.max(...tileMeshes.map((m) => box(m).max.y));
+    const face = byName(group, "bathroom:floor-tiling:grate:linear_drain")[0];
+    expect(face).toBeDefined();
+    const fb = box(face);
+    expect(fb.min.y).toBeGreaterThan(tileTop); // drawn above the tiles, not under them
+    // the same sourced 1000 × 100 mm grate plan drawn in the falls; no new size
+    const body = box(byName(group, "bathroom:waste:linear_drain")[0]);
+    expect(fb.max.x - fb.min.x).toBeCloseTo(body.max.x - body.min.x, 6);
+    expect(fb.max.z - fb.min.z).toBeCloseTo(body.max.z - body.min.z, 6);
+    expect(body.max.y).toBeCloseTo(0, 6); // the waste itself stays on the flat finished floor
+    expect(face.userData.aperture).toMatch(/not recorded/);
+    expect(face.userData.stopgap).toBe(true); // level unrecorded, as on the waste
+    // the layout still lists the waste cuts as missing
+    expect(byName(group, "bathroom:floor-tiling:full")[0].parent!.userData.unresolved)
+      .toContain("drain aperture sizes and edge joints not recorded; waste cuts unresolved");
+
+    for (const ids of [tiles, fitOut]) {
+      applyStageVisibility(group, visibleIds(ids));
+      expect(tileMeshes.every(rendered)).toBe(true);
+      expect(rendered(face)).toBe(true);
+    }
+    applyStageVisibility(group, null);
+    expect(rendered(face)).toBe(true);
+
+    // tiles hidden: the waste shows on its own; the lifted face does not float above it
+    applyStageVisibility(group, visibleIds(waterproofing));
+    expect(rendered(byName(group, "bathroom:waste:linear_drain")[0])).toBe(true);
+    expect(rendered(face)).toBe(false);
+    // waste hidden, tiles shown: no drain drawn
+    applyStageVisibility(group, visibleIds(tiles.filter((id) => id !== "drainage-wastes")));
+    expect(rendered(face)).toBe(false);
+  });
+});

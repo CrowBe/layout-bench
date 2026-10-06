@@ -673,7 +673,7 @@ function buildFloorTiling(model: PlanModel, room: Room): THREE.Group | null {
   g.userData.pieces = layout.pieces.length;
   g.userData.provenance = { status: room.floorTiling.tileLength?.status ?? "proposed", datum: room.floorBuildUp.datum };
   if (layout.missing.length) g.userData.unresolved = [...layout.missing];
-  const y = top + 0.0015;
+  const y = top + TILE_LIFT;
   for (const cut of [false, true]) {
     const pieces = layout.pieces.filter((p) => p.cut === cut);
     if (!pieces.length) continue;
@@ -692,7 +692,61 @@ function buildFloorTiling(model: PlanModel, room: Room): THREE.Group | null {
     m.receiveShadow = true;
     g.add(m);
   }
+  const grates = buildGratesThroughTiles(room, y);
+  if (grates) g.add(grates);
   return staged(g, finishStage(room));
+}
+
+/** Height of the floor set-out quads above the flat finished level, so they don't z-fight it. */
+const TILE_LIFT = 0.0015;
+
+/**
+ * Each waste's grate face drawn again just above the floor set-out, so a drain the set-out would
+ * otherwise cover stays visible where the tiles are shown. Only a drawing lift: the waste keeps
+ * its own level (recorded, or unknown and drawn on the flat finished floor) in buildFalls, and
+ * its footprint is the same sourced grate plan (or film marker) drawn there. No aperture or cut
+ * is drawn in the tiles: those stay listed as missing on the layout. The face draws the waste's
+ * stage element inside a group that carries the floor set-out's, so it renders only when both
+ * the waste and the tiles are shown.
+ */
+function buildGratesThroughTiles(room: Room, tileY: number): THREE.Group | null {
+  const wastes = room.drainage?.wastes ?? [];
+  if (!wastes.length) return null;
+  const g = new THREE.Group();
+  g.name = `${room.id}:floor-tiling:grates`;
+  g.userData.stage = finishStage(room);
+  const y = tileY + TILE_LIFT;
+  for (const w of wastes) {
+    const len = Math.hypot(w.bx - w.ax, w.by - w.ay);
+    let along: number, across: number;
+    let stopgap = w.level?.value === undefined;
+    if (w.kind === "linear") {
+      const body = sampleLinearWasteBody(w);
+      along = len;
+      across = body?.width ?? FILM;
+      stopgap ||= !body;
+    } else {
+      const grate = samplePointWasteGrate(w);
+      along = grate?.w ?? FILM;
+      across = grate?.d ?? FILM;
+      stopgap = true; // point-waste body depth is never recorded; as drawn in buildFalls
+    }
+    const face = new THREE.Mesh(
+      new THREE.PlaneGeometry(along, across).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }),
+    );
+    face.position.set((w.ax + w.bx) / 2, y, (w.ay + w.by) / 2);
+    face.rotation.y = -Math.atan2(w.by - w.ay, w.bx - w.ax);
+    face.name = `${room.id}:floor-tiling:grate:${w.id}`;
+    face.userData.stage = `room:${room.id}:waste:${w.id}`;
+    face.userData.level = w.level?.value !== undefined
+      ? "waste level as recorded (drawn in the falls); this face is lifted just above the tile set-out to stay visible"
+      : "waste level not recorded; this face is lifted just above the tile set-out to stay visible";
+    face.userData.aperture = "not recorded; waste cuts unresolved";
+    if (stopgap) applyStopgapVisual(face);
+    g.add(face);
+  }
+  return g;
 }
 
 /** The weakest of two level bases, for a slab drawn between them. */
