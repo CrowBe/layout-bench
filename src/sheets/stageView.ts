@@ -80,6 +80,16 @@ export interface ViewElement {
   sub?: string;
 }
 
+/**
+ * A stopgap stage view: the sample lacks a layer the stage is about, so the view shows the nearest
+ * recorded content instead. `dashed` names the layers drawn dashed as stand-ins; `notRecorded` names
+ * each missing layer, printed as "not recorded" and never drawn. Set by the phase, never read from text.
+ */
+export interface Stopgap {
+  dashed: LayerId[];
+  notRecorded: { layer: LayerId; label: string }[];
+}
+
 export interface Catalogue {
   layers: { id: LayerId; label: string; elements: string[] }[];
   /** known layer kinds with nothing recorded in this model yet */
@@ -181,8 +191,20 @@ export interface SpecRow {
 export const dimStatus = (defaulted: boolean | undefined): RowStatus => (defaulted === undefined ? "unknown" : defaulted ? "defaulted" : "entered");
 const qRow = (q: Quantity | undefined) => (known(q) ? { value: mm(q.value), status: q.status as RowStatus, ...(q.source ? { source: q.source } : {}) } : { value: "?", status: "unknown" as RowStatus, ...(q?.source ? { source: q.source } : {}) });
 
+/**
+ * The status of a fixture's envelope size on the named axes: the weakest evidence behind them when
+ * a product specification is attached, else where the catalogue figure comes from. One helper for
+ * the specification row, the plan and the elevations.
+ */
+export function envelopeStatus(it: PlanModel["items"][number], axes: ("w" | "d" | "h")[]): RowStatus {
+  const envelope = it.productSpecification ? categoryById(it.productSpecification.category)?.envelope : undefined;
+  const evidence = envelope ? evidenceStatus(axes.map((a) => it.productSpecification!.fields[envelope[a]])) : undefined;
+  if (evidence) return evidence as RowStatus;
+  return it.productId ? "published" : isBuiltInKind(it.kind) ? "defaulted" : "entered";
+}
+
 /** The specification rows for one element: every property with its status and source. */
-export function specRows(model: PlanModel, el: ViewElement, products?: LibraryProduct[]): SpecRow[] {
+export function specRows(model: PlanModel, el: ViewElement, products?: LibraryProduct[], compact = false): SpecRow[] {
   const rows: SpecRow[] = [];
   const library = products ?? [];
   const row = (property: string, r: Omit<SpecRow, "element" | "layer" | "label" | "property">) =>
@@ -260,7 +282,9 @@ export function specRows(model: PlanModel, el: ViewElement, products?: LibraryPr
     const r = room(), h = r.heating!, e = heatingEvidence(r, products);
     const fig = (f: (typeof e.cable)["length"], asMm = false) => {
       const status = (TAGS[f.kind] ? f.kind : "unknown") as RowStatus;
-      const source = [f.formula, f.source, f.note].filter(Boolean).join(" · ") || undefined;
+      // the carton line repeats the figure's own note: print the longer text once
+      const parts = [f.formula, f.source, f.note].filter((x): x is string => Boolean(x));
+      const source = parts.filter((p, i) => !parts.some((q, j) => j !== i && (q.length > p.length || (q.length === p.length && j < i)) && q.includes(p))).join(" · ") || undefined;
       if (f.value === undefined) return { value: "?", status: "unknown" as RowStatus, ...(source ? { source } : {}), ...(f.datum ? { datum: f.datum } : {}), missing: [f.note ?? f.quantity] };
       return { value: asMm ? mm(f.value) : String(f.value), status, ...(source ? { source } : {}), ...(f.datum ? { datum: f.datum } : {}) };
     };
@@ -295,10 +319,25 @@ export function specRows(model: PlanModel, el: ViewElement, products?: LibraryPr
     row("available zone area (m²), not heat coverage", { value: String(e.availableArea), status: "proposed" });
     row("minimum non-adjacent spacing (mm)", { value: e.minimumNonAdjacentSpacing === undefined ? "?" : mm(e.minimumNonAdjacentSpacing), status: e.minimumNonAdjacentSpacing === undefined ? "unknown" : "modelled" });
     row("installation approval", { value: "Pending manufacturer / electrician review. No electrical or compliance approval.", status: "proposed" });
-    for (const [i, p] of h.path.entries()) row(`point ${i + 1} x / y (mm)`, { value: `${mm(p.x)} / ${mm(p.y)}`, status: "proposed", datum: "plan origin" });
-    for (const p of e.section) row(`cable level at ${p.s} m along plan route (mm)`, p.level === undefined ? { value: "?", status: "unknown", missing: p.missing } : { value: mm(p.level), status: p.basis as RowStatus, datum: r.floorBuildUp?.datum || DEFAULT_DATUM });
+    if (compact) {
+      // print-sized: the route points and the sampled cable levels each on one row, every number tagged
+      row(`route points 1–${h.path.length} x / y (mm)`, { value: h.path.map((p, i) => `${i + 1}: ${mm(p.x)} / ${mm(p.y)} ${tag("proposed")}`).join("; ") || "?", status: h.path.length ? "proposed" : "unknown", datum: "plan origin" });
+      const datum = r.floorBuildUp?.datum || DEFAULT_DATUM;
+      const levels = e.section.map((p) => ({ s: p.s, level: p.level, basis: p.basis as RowStatus, missing: p.missing }));
+      const unresolved = levels.filter((l) => l.level === undefined);
+      const missing = [...new Set(unresolved.flatMap((l) => l.missing ?? []))];
+      const resolvedAll = levels.length > 0 && !unresolved.length;
+      row(`cable level at ${levels.length} sampled points along plan route (mm)`, !levels.length || unresolved.length === levels.length
+        ? { value: "?", status: "unknown", datum, missing: missing.length ? missing : ["no plan route sampled"] }
+        : { value: levels.map((l) => `${l.s} m: ${l.level === undefined ? "?" : `${mm(l.level)} ${tag(l.basis)}`}`).join("; "), status: resolvedAll ? weakest(levels.map((l) => ({ field: String(l.s), value: l.level!, status: l.basis as ValueStatus }))) as RowStatus : "unknown", datum, ...(missing.length ? { missing } : {}) });
+    } else {
+      for (const [i, p] of h.path.entries()) row(`point ${i + 1} x / y (mm)`, { value: `${mm(p.x)} / ${mm(p.y)}`, status: "proposed", datum: "plan origin" });
+      for (const p of e.section) row(`cable level at ${p.s} m along plan route (mm)`, p.level === undefined ? { value: "?", status: "unknown", missing: p.missing } : { value: mm(p.level), status: p.basis as RowStatus, datum: r.floorBuildUp?.datum || DEFAULT_DATUM });
+    }
     for (const k of h.keepouts) row(`keep-out ${k.label} x / y / w / h (mm)`, { value: [k.x, k.y, k.w, k.h].map(mm).join(" / "), status: "entered", source: k.source });
-    for (const p of e.problems) row(p.code, { value: p.message, status: "proposed" });
+    // compact: the problem codes on one row; each message is already an item under "Unresolved in this view"
+    if (compact) { if (e.problems.length) row("open item codes (see Unresolved)", { value: e.problems.map((p) => p.code).join(", "), status: "proposed" }); }
+    else for (const p of e.problems) row(p.code, { value: p.message, status: "proposed" });
     return rows;
   }
   if (el.type === "floor-plane") {
@@ -316,9 +355,7 @@ export function specRows(model: PlanModel, el: ViewElement, products?: LibraryPr
   const it = model.items.find((x) => x.id === el.ref)!;
   if (el.type === "fixture") {
     const cat = catalogForItem(it);
-    const envelope = it.productSpecification ? categoryById(it.productSpecification.category)?.envelope : undefined;
-    const footprintStatus = envelope ? evidenceStatus([it.productSpecification!.fields[envelope.w], it.productSpecification!.fields[envelope.d]]) : undefined;
-    row("footprint w × d (mm)", cat ? { value: `${mm(cat.w)} × ${mm(cat.d)}`, status: footprintStatus ?? (it.productId ? "published" : isBuiltInKind(it.kind) ? "defaulted" : "entered") } : { value: "?", status: "unknown", missing: [`kind ${it.kind}`] });
+    row("footprint w × d (mm)", cat ? { value: `${mm(cat.w)} × ${mm(cat.d)}`, status: envelopeStatus(it, ["w", "d"]) } : { value: "?", status: "unknown", missing: [`kind ${it.kind}`] });
     if (it.anchor) {
       const pose = anchorPose(model, it);
       row("set-out", {
@@ -436,7 +473,7 @@ export function specRows(model: PlanModel, el: ViewElement, products?: LibraryPr
  * kept for the entities this view shows, plus the view's own checks. Nothing is relaxed: a
  * defaulted width on a visible door blocks here as it does on A-01.
  */
-export function viewFindings(model: PlanModel, res: Resolution, products: LibraryProduct[] = []): SheetFinding[] {
+export function viewFindings(model: PlanModel, res: Resolution, products: LibraryProduct[] = [], compact = false): SheetFinding[] {
   const out: SheetFinding[] = [];
   if (res.unknown.length) {
     out.push({ code: "view_stale_ids", severity: "blocking", ref: res.unknown.join(","), message: `This view names ${res.unknown.length} id(s) the model no longer has: ${res.unknown.join(", ")}. Compose it again.`, fix: { tool: "set_diagram_view", args: { label: "<stage>", visible: "<ids from list_diagram_content>" }, hint: "Re-apply the view with current ids." } });
@@ -455,7 +492,12 @@ export function viewFindings(model: PlanModel, res: Resolution, products: Librar
     out.push(f);
   }
   for (const el of res.elements) {
-    for (const r of specRows(model, el, products)) {
+    // compact heating rows carry only the problem codes: the messages are kept here, in full
+    if (compact && el.type === "heating") {
+      const room = model.rooms.find((x) => x.id === el.ref)!;
+      for (const p of heatingEvidence(room, products).problems) out.push({ code: p.code, severity: "advisory", ref: el.id, message: `${el.label}: ${p.code}: ${p.message}` });
+    }
+    for (const r of specRows(model, el, products, compact)) {
       if (r.value === "?" || r.missing?.length) {
         out.push({ code: "unresolved_in_view", severity: "advisory", ref: el.id, message: `${el.label}: ${r.property} ${r.value === "?" ? "unknown; printed as \"?\"" : "unresolved"}${r.missing?.length ? ` (missing ${r.missing.join(", ")})` : ""}.` });
       } else if (r.status === "defaulted") {
@@ -481,7 +523,17 @@ export interface StageRenderOptions {
   date?: string;
   note?: string;
   products?: LibraryProduct[];
+  /** the sample lacks a layer this stage is about: dashed stand-ins and a "not recorded" list */
+  stopgap?: Stopgap;
+  /** one-page heating-cable rows (see specRows) */
+  compact?: boolean;
 }
+
+/** SVG dash for content that stands in for a layer the sample does not record. */
+export const stopgapDash = (stopgap: Stopgap | undefined, layer: LayerId) => (stopgap?.dashed.includes(layer) ? ` stroke-dasharray="1.2 0.6"` : "");
+
+/** The "not recorded" lines a stopgap view prints on every sheet. */
+export const notRecordedLines = (stopgap: Stopgap | undefined) => (stopgap?.notRecorded ?? []).map((n) => `${n.label}: not recorded in the sample, so not drawn or listed.`);
 
 /** The body extent (frame or existing face, else the drawn thickness), without any build-up. */
 const bodyExtent = (w: Wall) => { const b = wallBody(w); return { zMin: b.z - b.depth / 2, zMax: b.z + b.depth / 2 }; };
@@ -541,8 +593,9 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
       if (!vis.has(id)) continue;
       const a = P({ x: wst.ax, y: wst.ay });
       const b = P({ x: wst.bx, y: wst.by });
-      if (wst.kind === "linear") line(a, b, `stroke="#7a5230" stroke-width="1.2" ${de(id)}`);
-      else parts.push(`<circle cx="${f1(a.x)}" cy="${f1(a.y)}" r="1.4" fill="none" stroke="#7a5230" stroke-width="0.4" ${de(id)}/>`);
+      const dash = stopgapDash(opts.stopgap, "drainage-wastes");
+      if (wst.kind === "linear") line(a, b, `stroke="#7a5230" stroke-width="1.2"${dash} ${de(id)}`);
+      else parts.push(`<circle cx="${f1(a.x)}" cy="${f1(a.y)}" r="1.4" fill="none" stroke="#7a5230" stroke-width="0.4"${dash} ${de(id)}/>`);
       text((a.x + b.x) / 2, (a.y + b.y) / 2 + 3.2, `${wst.label} FL ${known(wst.level) ? `${mm(wst.level.value)} ${tag(wst.level.status)}` : "?"}`, 1.9, `text-anchor="middle" fill="#7a5230"`);
     }
   }
@@ -596,7 +649,8 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     parts.push(`<polyline points="${points.map((p) => `${f1(p.x)},${f1(p.y)}`).join(" ")}" fill="none" stroke="#c64c19" stroke-width="0.5" ${de(id)}/>`);
     points.forEach((p, i) => text(p.x+1, p.y-1, String(i+1), 1.8, `fill="#c64c19"`));
     const evidence = heatingEvidence(r, opts.products);
-    if (points.length) text(points[0].x, points[0].y-4, `PROPOSED CABLE plan ${evidence.planRouteLength} m; spatial ${evidence.routeLength === undefined ? "unknown" : `${evidence.routeLength} m`} (sampled); trade review pending`, 1.8, `fill="#c64c19"`);
+    const figure = (f: typeof evidence.figures.planRouteLength) => (f.value === undefined ? "?" : `${f.value} m ${tag(f.kind)}`);
+    if (points.length) text(points[0].x, points[0].y-4, `PROPOSED CABLE: route length along the drawn path in plan (XY projection) ${figure(evidence.figures.planRouteLength)}; along the sampled cable profile ${figure(evidence.figures.spatialRouteLength)}; trade review pending`, 1.8, `fill="#c64c19"`);
   }
 
   // ---- openings ----
@@ -613,7 +667,7 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     const c = P(at((t0 + t1) / 2, (ext.zMin + ext.zMax) / 2));
     const len = segLen(w.ax, w.ay, w.bx, w.by);
     text(c.x, c.y - 3.2, `${o.kind === "door" ? "D" : "W"} ${mm(o.width)} ${tag(dimStatus(o.widthDefaulted))}`, 2.2, `text-anchor="middle"`);
-    text(c.x, c.y + 4.6, `c/l ${mm(o.t * len)} from A`, 1.9, `text-anchor="middle" fill="#444"`);
+    text(c.x, c.y + 4.6, `c/l ${mm(o.t * len)} ${tag("entered")} from A`, 1.9, `text-anchor="middle" fill="#444"`);
   }
 
   // ---- wall length dimensions ----
@@ -642,7 +696,7 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     const pg = itemPolygon(it);
     if (!pg) continue;
     const cat = catalogForItem(it);
-    poly(pg.map(P), `fill="#fff" stroke="#444" stroke-width="0.3"${cat?.stopgap ? ` stroke-dasharray="1.2 0.6"` : ""} ${de(`item:${it.id}`)}`);
+    poly(pg.map(P), `fill="#fff" stroke="#444" stroke-width="0.3"${cat?.stopgap ? ` stroke-dasharray="1.2 0.6"` : stopgapDash(opts.stopgap, "fixtures")} ${de(`item:${it.id}`)}`);
     if(it.installationGeometry){
       for(const r of clearanceRegions(model,it))if(r.resolved)poly(r.polygon.map(P),`fill="none" stroke="#8c6496" stroke-dasharray="1 1" stroke-width="0.2" data-access="${esc(r.id)}"`);
       for(const p of it.installationGeometry.fixings??[]){const r=localPointReading(model,it,p);if(r.x!==undefined && r.y!==undefined){const xy=P({x:r.x,y:r.y});parts.push(`<circle cx="${f1(xy.x)}" cy="${f1(xy.y)}" r="0.7" fill="#8c6496" data-fixing="${esc(p.id)}"/>`);}}
@@ -651,7 +705,7 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     const c = P({ x: it.x, y: it.y });
     if(it.installation){const lv=installationReading(model,it);text(c.x,c.y-4,lv.bottom===undefined?"INSTALLATION LEVEL ?":`BOTTOM ${mm(lv.bottom)} ${tag(lv.basis as RowStatus)}`,1.7,`text-anchor="middle"`);}
     text(c.x, c.y, fixtureNo.get(it.id)!, 2.6, `text-anchor="middle" dominant-baseline="middle" font-weight="bold"`);
-    if (it.anchor && anchorPose(model, it).resolved) text(c.x, c.y + 3.4, `${mm(it.anchor.distance)} from ${it.anchor.from.toUpperCase()} · ${mm(it.anchor.gap)} off ${it.anchor.face} ${tag(it.anchor.status)}`, 1.8, `text-anchor="middle" fill="#444"`);
+    if (it.anchor && anchorPose(model, it).resolved) text(c.x, c.y + 3.4, `${mm(it.anchor.distance)} ${tag(it.anchor.status)} from ${it.anchor.from.toUpperCase()} · ${mm(it.anchor.gap)} ${tag(it.anchor.status)} off ${it.anchor.face}`, 1.8, `text-anchor="middle" fill="#444"`);
   }
   for (const it of model.items) {
     roughIn(model, it).forEach((r, i) => {
@@ -701,11 +755,18 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
   row(`Shows ${elements.length} element(s) of the one project model; everything else is hidden, not removed.`);
   row("Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ? unknown");
   row(`Not modelled, never drawn: ${catalogue(model).notModelled.map((s) => s.split(" (")[0]).join("; ")}.`, 1.9, `fill="#666"`);
+  if (opts.stopgap) {
+    heading("STOPGAP VIEW: not recorded");
+    for (const line of notRecordedLines(opts.stopgap)) row(line, 2.1, `fill="#b00020"`);
+    row(`Drawn dashed as stand-ins: ${opts.stopgap.dashed.map((l) => LAYERS.find((x) => x.id === l)?.label ?? l).join("; ") || "none"}.`, 1.9, `fill="#666"`);
+  }
   y += 2;
 
   const byType = (...types: ElementType[]) => elements.filter((e) => types.includes(e.type));
   const rowsFor = (els: ViewElement[]) => els.map((el) => {
-    const rs = specRows(model, el, opts.products).filter((r) => !["kind", "service"].includes(r.property));
+    // compact heating on the plan: the headline figures only; every row is on the specification sheet
+    const headline = ["manufacturer", "model", "product length (m)", "rated output (W)", "derived spacing min (mm)", "derived spacing max (mm)", "plan route length (m)", "spatial route length, sampled profile (m)"];
+    const rs = specRows(model, el, opts.products, opts.compact).filter((r) => !["kind", "service"].includes(r.property) && !(opts.compact && el.type === "heating" && !headline.includes(r.property)));
     return { s: `${el.label}: ${rs.map((r) => `${r.property.replace(/ \(mm\)$/, "")} ${r.value === "?" ? "?" : `${r.value} ${tag(r.status)}`}`).join(" · ")}`, extra: de(el.id) };
   });
   const fixtureElements = byType("fixture");
@@ -772,20 +833,28 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
 
 /** The specification sheet for the same view: one table row per property, grouped by layer. */
 export function renderStageSpec(model: PlanModel, elements: ViewElement[], opts: StageRenderOptions): { html: string; rows: SpecRow[] } {
-  const rows = elements.flatMap((el) => specRows(model, el, opts.products));
+  const rows = elements.flatMap((el) => specRows(model, el, opts.products, opts.compact));
   const tb = model.sheetSet?.titleBlock ?? {};
-  const td = (s: string | undefined) => `<td>${esc(s ?? "")}</td>`;
+  // compact: a long cell prints as a short numbered reference, its full text kept once in the list below the table
+  const notes: string[] = [];
+  const cell = (s: string | undefined, limit: number) => {
+    const t = s ?? "";
+    if (!opts.compact || t.length <= limit) return `<td>${esc(t)}</td>`;
+    let i = notes.indexOf(t);
+    if (i < 0) i = notes.push(t) - 1;
+    return `<td>[${i + 1}]</td>`;
+  };
   const groups = LAYERS.filter((l) => elements.some((e) => e.layer === l.id));
   const body = groups.map((g) => {
     const tr = elements.filter((e) => e.layer === g.id).map((el) => rows.filter((r) => r.element === el.id).map((r, i) =>
-      `<tr data-element="${esc(el.id)}"${r.value === "?" ? ' class="unknown"' : ""}>${i === 0 ? `<td rowspan="${rows.filter((x) => x.element === el.id).length}">${esc(el.label)}</td>` : ""}${td(r.property)}${td(r.value)}${td(`${TAGS[r.status] ?? "?"} ${r.status}`)}${td(r.datum)}${td(r.source)}${td(r.missing?.join(", "))}</tr>`).join("")).join("");
-    return `<tbody><tr class="group"><th colspan="7">${esc(g.label)}</th></tr>${tr}</tbody>`;
+      `${i === 0 && opts.compact ? `<tr class="el"><th colspan="6">${esc(el.label)}</th></tr>` : ""}<tr data-element="${esc(el.id)}"${r.value === "?" ? ' class="unknown"' : ""}>${i === 0 && !opts.compact ? `<td rowspan="${rows.filter((x) => x.element === el.id).length}">${esc(el.label)}</td>` : ""}${cell(r.property, 44)}${cell(r.value, 40)}<td>${esc(`${TAGS[r.status] ?? "?"} ${r.status}`)}</td>${cell(r.datum, 24)}${cell(r.source, 14)}${cell(r.missing?.join(", "), 14)}</tr>`).join("")).join("");
+    return `<tbody><tr class="group"><th colspan="${opts.compact ? 6 : 7}">${esc(g.label)}</th></tr>${tr}</tbody>`;
   }).join("");
   const unresolved = opts.findings.filter((f) => f.severity === "advisory");
   const acks = opts.acknowledged ?? [];
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>${esc(`${model.name}: ${opts.label} specification`)}</title>
-<style>body{font:12px Helvetica,Arial,sans-serif;margin:16px;color:#111}h1{font-size:16px;margin:0 0 4px}table{border-collapse:collapse;width:100%;margin-top:8px}td,th{border:1px solid #bbb;padding:3px 5px;text-align:left;vertical-align:top}tr.group th{background:#eee}tr.unknown td{background:#fff3e0}.banner{background:#b00020;color:#fff;font-weight:bold;padding:4px 6px;margin:6px 0}.muted{color:#555}</style>
+<style>body{font:12px Helvetica,Arial,sans-serif;margin:16px;color:#111}h1{font-size:16px;margin:0 0 4px}table{border-collapse:collapse;width:100%;margin-top:8px}td,th{border:1px solid #bbb;padding:3px 5px;text-align:left;vertical-align:top}tr.group th{background:#eee}tr.unknown td{background:#fff3e0}.banner{background:#b00020;color:#fff;font-weight:bold;padding:4px 6px;margin:6px 0}.muted{color:#555}${opts.compact ? "@page{size:A4 landscape;margin:6mm}body{font-size:7px;margin:0;line-height:1.15}h1{font-size:11px}h2{font-size:8px;margin:3px 0 1px}p{margin:2px 0}td,th{padding:0 2px;font-size:7px}td:nth-child(3){white-space:nowrap}tr.el th{background:#f7f7f7;font-weight:bold;padding-top:1px}table{margin-top:3px}.cols{column-count:3;column-gap:4mm}.cols table{margin-top:0}ol,ul{margin:0;padding-left:14px}ol.notes,ul.items{column-count:4;column-gap:4mm;font-size:6px;line-height:1.1}ol.notes{column-count:5}.banner{padding:1px 4px;margin:2px 0}" : ""}</style>
 </head><body data-sheet="stage-spec">
 <script type="application/json" id="stage-view">${JSON.stringify({ label: opts.label, elements: elements.map((e) => e.id) }).replace(/</g, "\\u003c")}</script>
 <h1>Specification: ${esc(opts.label)}</h1>
@@ -793,8 +862,8 @@ export function renderStageSpec(model: PlanModel, elements: ViewElement[], opts:
 <div>${opts.date ? `Exported ${esc(opts.date)} · not a revision of A-01` : "PREVIEW, not exported"}${opts.note ? ` · Note: ${esc(opts.note)}` : ""}</div>
 <div class="banner">PROPOSED · FOR TRADE REVIEW · NOT AS-BUILT · NOT A COMPLIANCE CERTIFICATE</div>
 <p class="muted">Lists exactly the ${elements.length} element(s) visible in this stage view of the one project model. Lengths in mm. Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived (converted, not published) · ENT entered (not site-confirmed) · DEF default placeholder · ? unknown. A "?" value is not known and must not be read as a measurement. Not modelled, so never listed: ${esc(catalogue(model).notModelled.join("; "))}.</p>
-<table><thead><tr><th>Element</th><th>Property</th><th>Value</th><th>Status</th><th>Measured from</th><th>Source</th><th>Missing</th></tr></thead>${body}</table>
-<h2>Unresolved in this view (${unresolved.length})</h2><ul>${unresolved.map((f) => `<li>${esc(f.message)}</li>`).join("")}</ul>
+${opts.compact ? '<div class="cols">' : ""}<table><thead><tr>${opts.compact ? "" : "<th>Element</th>"}<th>Property</th><th>Value</th><th>Status</th><th>Measured from</th><th>Source</th><th>Missing</th></tr></thead>${body}</table>${opts.compact ? "</div>" : ""}${notes.length ? `<h2>References (${notes.length}): full text of the cells printed as [n] above</h2><ol class="notes">${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ol>` : ""}${opts.stopgap ? `<h2>Not recorded in this stopgap view (${opts.stopgap.notRecorded.length})</h2><ul>${notRecordedLines(opts.stopgap).map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
+<h2>Unresolved in this view (${unresolved.length})</h2><ul${opts.compact ? ' class="items"' : ""}>${unresolved.map((f) => `<li>${esc(f.message)}</li>`).join("")}</ul>
 ${acks.length ? `<h2>Exported past ${acks.length} blocking finding(s)</h2><ul>${acks.map((a) => `<li>${esc(`${a.code} (${a.ref}), ${a.by}: ${a.reason}`)}</li>`).join("")}</ul>` : ""}
 </body></html>`;
   return { html, rows };

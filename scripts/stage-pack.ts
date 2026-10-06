@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import type { Acknowledgement, PlanModel } from "../src/model/types";
 import type { LibraryProduct } from "../src/model/productLibrary";
 import { applyView, composeView, currentView } from "../src/sheets/viewState";
-import { catalogue, renderStageDiagram, renderStageSpec } from "../src/sheets/stageView";
+import { catalogue, renderStageDiagram, renderStageSpec, type LayerId, type Stopgap } from "../src/sheets/stageView";
 import { elevationSurfaces, renderStageElevation } from "../src/sheets/stageElevation";
 import { reconcile } from "../src/sheets/check";
 
@@ -33,7 +33,22 @@ export interface Phase {
   summary: string;
   /** layer and element ids from list_diagram_content */
   visible: string[];
+  /**
+   * Set where the sample lacks a layer this stage is about: the view shows the nearest recorded
+   * content dashed and prints each missing layer as not recorded. A flag on the phase, checked
+   * against the model, never read from note text.
+   */
+  stopgap?: Stopgap;
+  /** one-page heating-cable rows instead of one row per route point and level sample */
+  compact?: boolean;
 }
+
+/** Every service layer: the sample records no waste, water or power points. */
+const SERVICES_NOT_RECORDED: Stopgap["notRecorded"] = [
+  { layer: "services-waste", label: "Waste service points" },
+  { layer: "services-water", label: "Water service points" },
+  { layer: "services-power", label: "Power service points" },
+];
 
 /**
  * The phases, in the sample's construction order (see its "Construction order" note). Add the next
@@ -47,7 +62,76 @@ export const PHASES: Phase[] = [
       "Walls stripped to the timber frame and the floor taken back to the concrete slab, about 120 mm below the current tile (estimated; confirm after demolition). The door and window openings stay as openings in the frame.",
     visible: ["walls", "wall-frame", "rooms", "doors", "windows", "floor-substrate"],
   },
+  {
+    slug: "02-frame-board",
+    label: "2. Frame prep: board lined to the frame",
+    summary:
+      "The 6 mm Villaboard lined to the frame wall by wall. Board thickness and the frame positions are as recorded; where either is unknown the drawing prints '?'.",
+    visible: ["walls", "wall-frame", "wall-board", "rooms", "doors", "windows", "floor-substrate"],
+  },
+  {
+    slug: "03-rough-in",
+    label: "3. Rough-in: frame and drains (stopgap)",
+    summary:
+      "Stopgap view. Plumbing and electrical rough-in is the stage, but the sample records no waste, water or power service points, so this shows the frame and the two floor drains (dashed) and prints the service points as not recorded. Pipe and cable runs are never drawn.",
+    visible: ["walls", "wall-frame", "rooms", "doors", "windows", "floor-substrate", "drainage-wastes"],
+    stopgap: { dashed: ["drainage-wastes"], notRecorded: SERVICES_NOT_RECORDED },
+  },
+  {
+    slug: "04-waterproofing",
+    label: "4. Waterproofing: floor membrane only (stopgap)",
+    summary:
+      "Stopgap view. The sample records the floor membrane but no wall waterproofing, so this shows the floor membrane (dashed level) over the substrate and prints the wall membrane as not recorded.",
+    visible: ["walls", "wall-frame", "wall-board", "rooms", "doors", "windows", "floor-substrate", "floor-waterproofing", "drainage-wastes"],
+    stopgap: { dashed: ["floor-waterproofing"], notRecorded: [{ layer: "wall-waterproofing", label: "Wall waterproofing membrane" }] },
+  },
+  {
+    slug: "05-heating-cable",
+    label: "5. Heating cable on the membrane",
+    summary:
+      "The proposed in-screed heating cable route, laid by the owner and tested by the electrician before the screed. The specification sheet is the compact one-page form: route points and cable levels on one row each. Proposed, pending manufacturer and electrician review.",
+    visible: ["walls", "wall-board", "rooms", "doors", "windows", "floor-substrate", "floor-waterproofing", "floor-heating-cable", "drainage-wastes"],
+    compact: true,
+  },
+  {
+    slug: "06-screed-falls",
+    label: "6. Screed and falls",
+    summary:
+      "The tiler's own screed (cable inside) and the floor falls to the two drains. The heating cable is inside the screed and is not drawn here.",
+    visible: ["walls", "wall-board", "rooms", "doors", "windows", "floor-substrate", "floor-waterproofing", "floor-screed", "drainage-wastes", "drainage-planes"],
+  },
+  {
+    slug: "07-adhesive",
+    label: "7. Tile adhesive, floor and walls",
+    summary: "Tile adhesive on the screed and on the wall board, ahead of the tiles.",
+    visible: ["walls", "wall-board", "wall-adhesive", "rooms", "doors", "windows", "floor-substrate", "floor-screed", "floor-adhesive", "drainage-wastes", "drainage-planes"],
+  },
+  {
+    slug: "08-tiles",
+    label: "8. Tiles laid, floor and walls",
+    summary: "Floor and wall tiles on the adhesive, with the proposed wall tile set-out and the finished floor falls.",
+    visible: ["walls", "wall-board", "wall-adhesive", "wall-tile", "rooms", "doors", "windows", "floor-substrate", "floor-screed", "floor-adhesive", "floor-tile", "drainage-wastes", "drainage-planes"],
+  },
+  {
+    slug: "09-fit-out",
+    label: "9. Fit-out: fixtures without services (stopgap)",
+    summary:
+      "Stopgap view. The reused vanity, bath, toilet, screen, towel rails and the shaving cabinet last, on the tiled room. The sample records no service points for them, so the fixtures (dashed) are shown without services and the points are printed as not recorded.",
+    visible: ["walls", "wall-tile", "rooms", "doors", "windows", "floor-substrate", "floor-tile", "drainage-wastes", "fixtures"],
+    stopgap: { dashed: ["fixtures"], notRecorded: SERVICES_NOT_RECORDED },
+  },
 ];
+
+/** A stopgap may only stand in for a layer the model really lacks; once it is recorded the flag is stale. */
+export function checkStopgap(model: PlanModel, phase: Phase) {
+  const cat = catalogue(model);
+  for (const n of phase.stopgap?.notRecorded ?? []) {
+    if (cat.layers.some((l) => l.id === n.layer)) throw new Error(`${phase.slug}: ${n.layer} is recorded in the model now; remove it from the stopgap and add it to the visible list.`);
+  }
+  for (const layer of phase.stopgap?.dashed ?? []) {
+    if (!phase.visible.includes(layer as LayerId)) throw new Error(`${phase.slug}: stopgap dashes ${layer}, which the phase does not show.`);
+  }
+}
 
 /** The local calendar day as YYYY-MM-DD, built from its parts so no locale data can change the format. */
 export function localDate(d = new Date()): string {
@@ -88,9 +172,10 @@ export function countUnknown(rows: { value: string; status: string }[]): number 
 }
 
 export function composePhase(projectId: string, model: PlanModel, phase: Phase, products: LibraryProduct[] = []) {
+  checkStopgap(model, phase);
   const applied = applyView(projectId, model, phase.label, phase.visible);
   if (!applied.ok) throw new Error(`${phase.slug}: ${applied.summary}`);
-  const composed = composeView(model, currentView(projectId)!, products);
+  const composed = composeView(model, currentView(projectId)!, products, phase.compact);
   const ack = reconcile(composed.findings, []);
   if (!ack.ok) throw new Error(`${phase.slug}: blocking findings, fix them in the model first:\n${JSON.stringify(ack.open, null, 2)}`);
   return { composed, acknowledged: ack.acknowledged };
@@ -128,7 +213,7 @@ export function swapDir(tmp: string, dest: string) {
 
 /** Render one phase's plan, elevations and spec in memory, with the index entry they make. */
 function renderPhase(phase: Phase, input: Omit<WritePhaseInput, "outDir" | "previews">) {
-  const opts = { label: phase.label, findings: input.findings, acknowledged: input.acknowledged, date: input.date, products: input.products };
+  const opts = { label: phase.label, findings: input.findings, acknowledged: input.acknowledged, date: input.date, products: input.products, stopgap: phase.stopgap, compact: phase.compact };
   const outputs: { file: PhaseFile; content: string }[] = [{ file: { name: "plan.svg", title: "Plan" }, content: renderStageDiagram(input.model, input.elements, opts) }];
   for (const s of elevationSurfaces(input.model, input.elements)) {
     outputs.push({ file: { name: `elevation-${s.wallId}-${s.side}.svg`, title: `Elevation ${s.wallId} (${s.side} side, from ${s.room})` }, content: renderStageElevation(input.model, input.elements, s.wallId, s.side, opts) });
@@ -161,7 +246,7 @@ export function summarizePhase(phase: Phase, outDir: string): Written | NotGener
   // spec columns, from the end: value, status, measured from, source, missing (the element label cell only starts a group)
   const rows = [...spec.matchAll(/<tr data-element="[^"]*"[^>]*>([\s\S]*?)<\/tr>/g)].map((m) => cells(m[1]));
   const unknown = rows.filter((c) => c.at(-5) === "?" || / unknown$/.test(c.at(-4) ?? "")).length;
-  const unresolved = /<h2>Unresolved in this view \(\d+\)<\/h2><ul>([\s\S]*?)<\/ul>/.exec(spec)?.[1] ?? "";
+  const unresolved = /<h2>Unresolved in this view \(\d+\)<\/h2><ul[^>]*>([\s\S]*?)<\/ul>/.exec(spec)?.[1] ?? "";
   const advisory = [...unresolved.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => unescapeHtml(m[1]));
 
   const planPath = join(dir, "plan.svg");
@@ -249,6 +334,7 @@ export function indexMarkdown(written: (Written | NotGenerated)[]): string {
       continue;
     }
     md.push(`## ${w.phase.label}`, "", w.phase.summary, "", `Visible: ${w.phase.visible.map((v) => `\`${v}\``).join(", ")}`, "");
+    if (w.phase.stopgap) md.push(`Stopgap view, not recorded: ${w.phase.stopgap.notRecorded.map((n) => n.label).join("; ")}. Drawn dashed as stand-ins: ${w.phase.stopgap.dashed.join(", ")}.`, "");
     md.push(`Specification: ${w.rows} row(s), ${w.unknown} unknown. [spec.html](${w.phase.slug}/spec.html)`, "");
     if (w.advisory.length) md.push("Open items:", "", ...w.advisory.map((a) => `- ${a}`), "");
     md.push("Not modelled (never drawn):", "", ...w.notModelled.map((n) => `- ${n}`), "");

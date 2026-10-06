@@ -114,7 +114,7 @@ try {
   const east = (o) => o.elevations.find((e) => e.surface === `${walls[1]}:right`).svg;
   assert.ok(east(outputs[2]).includes(`data-element="item:${vanity}:sp:vw"`));
   assert.ok(!east(outputs[2]).includes(`data-element="item:${vanity}"`));
-  assert.match(east(outputs[2]), /550 AFF/);
+  assert.match(east(outputs[2]), /550 \S+ AFF/);
   assert.match(east(outputs[2]), /between frame faces of the return walls/);
   assert.ok(east(outputs[8]).includes(`data-element="item:${vanity}"`));
   assert.match(outputs[0].elevations[0].svg, /WINDOW 1755/);

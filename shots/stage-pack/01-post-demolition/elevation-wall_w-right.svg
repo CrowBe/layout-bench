@@ -15,7 +15,7 @@
 <line x1="65.25" y1="219.5" x2="220.75" y2="219.5" stroke="#000" stroke-width="0.2"/>
 <line x1="65.25" y1="218" x2="65.25" y2="221" stroke="#000" stroke-width="0.3"/>
 <line x1="220.75" y1="218" x2="220.75" y2="221" stroke="#000" stroke-width="0.3"/>
-<text x="143" y="218.3" font-size="2.1" text-anchor="middle" data-dim="run">3110 between frame faces of the return walls (E/E)</text>
+<text x="143" y="218.3" font-size="2.1" text-anchor="middle" data-dim="run">3110 between frame faces of the return walls (E)</text>
 <line x1="242.75" y1="207.5" x2="242.75" y2="72.5" stroke="#000" stroke-width="0.2"/>
 <text x="244.25" y="140" font-size="1.8" transform="rotate(-90 244.25 140)" text-anchor="middle">2700 ? wall height above existing floor surface (current tile top)</text>
 <rect x="18" y="273" width="25" height="1.5" fill="#000" stroke="#000" stroke-width="0.2"/>
@@ -28,8 +28,8 @@
 <text x="280" y="22.05" font-size="1.8" fill="#444">Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ? unknown</text>
 <text x="280" y="26.25" font-size="2.7" font-weight="bold">This face</text>
 <text x="280" y="30.45" font-size="1.95" >Shown to: frame face, 5 from the drawn line E.</text>
-<text x="280" y="33.3" font-size="1.95" >End A: Frame face of wall_s (right side) at 5 along the drawn line.</text>
-<text x="280" y="36.15" font-size="1.95" >End B: Frame face of wall_n (right side) at 3115 along the drawn line.</text>
+<text x="280" y="33.3" font-size="1.95" >End A: Frame face of wall_s (right side) at 5 E along the drawn line.</text>
+<text x="280" y="36.15" font-size="1.95" >End B: Frame face of wall_n (right side) at 3115 E along the drawn line.</text>
 <text x="280" y="40.5" font-size="2.7" font-weight="bold">Floor at this wall</text>
 <text x="280" y="44.7" font-size="1.95" >substrate top -120 E above existing floor surface (current tile top) (flat build-up level)</text>
 <rect x="278" y="238" width="132" height="51" fill="none" stroke="#000" stroke-width="0.35"/>
