@@ -193,13 +193,26 @@ describe("stage wall elevations", () => {
     expect(north).toMatch(/jambs [\d.]+ \/ [\d.]+ \? from [^<]+ at A/);
     expect(north).not.toMatch(/jambs [\d.]+ \/ [\d.]+ from/);
 
-    // entered width against a site-confirmed frame face: the face is the weaker input
+    // entered width against a site-confirmed frame face: ENT is not site-confirmed, so ENT is the weaker input
     const { walls } = bathroom();
     const vis = resolveVisible(model(), ["walls", "wall-frame", "windows", "rooms"]).elements;
     const svg = renderStageElevation(model(), vis, walls[0], "right", opts);
     const win = model().openings.find((o) => o.wallId === walls[0])!;
     expect(dimStatus(win.widthDefaulted)).toBe("entered");
-    expect(svg).toMatch(/jambs [\d.]+ \/ [\d.]+ SC from [^<]+ at A/);
+    expect(svg).toMatch(/jambs [\d.]+ \/ [\d.]+ ENT from [^<]+ at A/);
+    expect(svg).not.toMatch(/jambs [\d.]+ \/ [\d.]+ SC from/);
+
+    // ENT + M and ENT + PUB also print ENT: a jamb is never stronger than its entered width
+    for (const status of ["measured", "published"] as const) {
+      for (const w of walls) actions.setWallSide(w, "right", { existing: M(0), frame: { value: -0.015, status, source: "frame check" }, layers: [] });
+      const svgS = renderStageElevation(model(), resolveVisible(model(), ["walls", "wall-frame", "windows", "rooms"]).elements, walls[0], "right", opts);
+      expect(svgS, status).toMatch(/jambs [\d.]+ \/ [\d.]+ ENT from frame face at A/);
+    }
+
+    // an estimated frame face (the A end is read from the return wall's frame) stays weaker than the entered width
+    for (const w of walls) actions.setWallSide(w, "right", { existing: M(0), frame: { value: -0.015, status: "estimated", source: "guess before strip-out" }, layers: [] });
+    const est = renderStageElevation(model(), resolveVisible(model(), ["walls", "wall-frame", "windows", "rooms"]).elements, walls[0], "right", opts);
+    expect(est).toMatch(/jambs [\d.]+ \/ [\d.]+ E from [^<]+ at A/);
 
     // the frame hidden: read from end A, so only the entered width counts
     const bare = renderStageElevation(model(), resolveVisible(model(), ["walls", "windows", "rooms"]).elements, walls[0], "right", opts);

@@ -11,7 +11,7 @@ import { demoProject } from "../src/model/projects";
 import type { PlanModel } from "../src/model/types";
 import { renderStageSpec } from "../src/sheets/stageView";
 import { resetViews } from "../src/sheets/viewState";
-import { PHASES, composePhase, countUnknown, generatePack, indexMarkdown, selectPhases, swapDir, writePhase, type Phase } from "../scripts/stage-pack";
+import { PHASES, composePhase, countUnknown, generatePack, indexMarkdown, invokedAsCli, localDate, packDate, selectPhases, swapDir, writePhase, type Phase } from "../scripts/stage-pack";
 
 beforeEach(() => resetViews());
 
@@ -139,10 +139,12 @@ describe("stage pack phase filter and index", () => {
     expect(existsSync(join(outDir, "README.md"))).toBe(false);
   });
 
-  it("regenerates only the filtered phase and keeps every phase in the index", async () => {
+  it("regenerates only the filtered phase and keeps every phase in the index, read from disk", async () => {
     outDir = mkdtempSync(join(tmpdir(), "stage-pack-filter-"));
     const full = await generatePack({ outDir, phases, previews: false, date: "2026-10-05" });
     expect(full.map((w) => w.phase.slug)).toEqual(["01-post-demolition", "02-second-look"]);
+    const fullMd = readFileSync(join(outDir, "README.md"), "utf8");
+    expect(fullMd).toContain(`Specification: ${full[0].rows} row(s), ${full[0].unknown} unknown.`);
     writeFileSync(join(outDir, "01-post-demolition", "plan.png"), "png");
     writeFileSync(join(outDir, "01-post-demolition", "MARK"), "untouched");
 
@@ -150,11 +152,67 @@ describe("stage pack phase filter and index", () => {
     expect(filtered.map((w) => w.phase.slug)).toEqual(["02-second-look"]);
     expect(readFileSync(join(outDir, "01-post-demolition", "MARK"), "utf8")).toBe("untouched");
     const md = readFileSync(join(outDir, "README.md"), "utf8");
-    expect(md).toContain(`## ${phases[0].label}`);
-    expect(md).toContain(`## ${phases[1].label}`);
-    // the skipped phase keeps its existing preview in the index
-    expect(md).toContain("![Plan](01-post-demolition/plan.png)");
-    expect(md).toBe(indexMarkdown(full.map((w, i) => i === 0 ? { ...w, files: w.files.map((f) => f.name === "plan.svg" ? { ...f, png: "plan.png" } : f) } : w)));
+    // same files on disk, same index, plus the preview that now exists for the skipped phase
+    expect(md).toBe(fullMd.replace("[plan.svg](01-post-demolition/plan.svg)\n", "[plan.svg](01-post-demolition/plan.svg)\n\n![Plan](01-post-demolition/plan.png)\n"));
+  });
+
+  it("indexes a skipped phase from its committed sheets, not the current model, and lists a missing phase as not generated", async () => {
+    outDir = mkdtempSync(join(tmpdir(), "stage-pack-disk-"));
+    const three: Phase[] = [...phases, { ...PHASES[0], slug: "03-never-run", label: "3. Never generated" }];
+    await generatePack({ outDir, only: ["01", "02"], phases: three, previews: false, date: "2026-10-05" });
+
+    // the committed phase 01 sheets now differ from what the model would render: one row and one
+    // elevation fewer, and an extra open item
+    const dir = join(outDir, "01-post-demolition");
+    const spec = readFileSync(join(dir, "spec.html"), "utf8");
+    const rows = [...spec.matchAll(/<tr data-element="[^"]*"[^>]*>[\s\S]*?<\/tr>/g)];
+    const unknownBefore = rows.filter((r) => r[0].includes(' class="unknown"') || /<td>\? unknown<\/td>/.test(r[0])).length;
+    const dropped = rows.find((r) => /<td>\? unknown<\/td>/.test(r[0]) && !r[0].includes("rowspan"))![0];
+    writeFileSync(join(dir, "spec.html"), spec.replace(dropped, "").replace(/<h2>Unresolved in this view \(\d+\)<\/h2><ul>/, '<h2>Unresolved in this view (1)</h2><ul><li>Slab level &amp; falls to confirm</li>'));
+    rmSync(join(dir, "elevation-wall_w-right.svg"));
+
+    await generatePack({ outDir, only: ["02"], phases: three, previews: false, date: "2026-10-05" });
+    const md = readFileSync(join(outDir, "README.md"), "utf8");
+    const section = md.slice(md.indexOf(`## ${three[0].label}`), md.indexOf(`## ${three[1].label}`));
+    expect(section).toContain(`Specification: ${rows.length - 1} row(s), ${unknownBefore - 1} unknown.`);
+    expect(section).toContain("- Slab level & falls to confirm");
+    expect(section).not.toContain("elevation-wall_w-right.svg");
+    expect(section).toContain("elevation-wall_n-right.svg");
+    // the phase never written is listed, with nothing linked
+    const missing = md.slice(md.indexOf(`## ${three[2].label}`));
+    expect(missing).toContain("Not generated yet.");
+    expect(missing).not.toContain("03-never-run/");
+    expect(existsSync(join(outDir, "03-never-run"))).toBe(false);
+  });
+});
+
+describe("stage pack date", () => {
+  it("builds the local date from its parts", () => {
+    expect(localDate(new Date(2026, 0, 5, 7, 30))).toBe("2026-01-05");
+    expect(localDate(new Date(2026, 9, 6, 0, 1))).toBe("2026-10-06");
+  });
+
+  it("uses a valid STAGE_PACK_DATE, ignores an empty one and rejects a malformed one", () => {
+    const now = new Date(2026, 9, 6, 8, 0);
+    expect(packDate("2026-10-05", now)).toBe("2026-10-05");
+    expect(packDate("", now)).toBe("2026-10-06");
+    expect(packDate("   ", now)).toBe("2026-10-06");
+    expect(packDate(undefined, now)).toBe("2026-10-06");
+    for (const bad of ["10/5/2026", "2026-13-01", "2026-02-30", "2026-1-5"]) expect(() => packDate(bad, now)).toThrow(/YYYY-MM-DD/);
+  });
+});
+
+describe("stage pack CLI gate", () => {
+  it("runs the script through vite-node --script, which sets argv[1] to it", () => {
+    const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf8"));
+    expect(pkg.scripts["stage-pack"]).toBe("vite-node --script scripts/stage-pack.ts");
+  });
+
+  it("generates only when argv[1] is this script", () => {
+    expect(invokedAsCli(join(__dirname, "..", "scripts", "stage-pack.ts"))).toBe(true);
+    // what argv[1] is without --script: the vite-node binary, so the pack would silently not run
+    expect(invokedAsCli(join(__dirname, "..", "node_modules", "vite-node", "vite-node.mjs"))).toBe(false);
+    expect(invokedAsCli(undefined)).toBe(false);
   });
 });
 

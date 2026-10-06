@@ -14,7 +14,7 @@ import type { LibraryProduct } from "../model/productLibrary";
 import { catalogForItem } from "../model/catalog";
 import { segLen, type Pt } from "../model/geometry";
 import { openingSpan } from "../model/issues";
-import { layerLabel, offsetFromLine, resolveFace, sideFaces, wallBody, weakest } from "../model/faces";
+import { layerLabel, offsetFromLine, resolveFace, sideFaces, wallBody } from "../model/faces";
 import { DEFAULT_DATUM, floorLayerLabel, floorLevels, finishedLevel } from "../model/floor";
 import { heightAt, surfaces } from "../model/drainage";
 import { roughIn } from "../model/fixtures";
@@ -47,12 +47,18 @@ export interface ElevationOptions {
   products?: LibraryProduct[];
 }
 
-/** Weakest of entry statuses (unknown, defaulted, entered) and value statuses: unknown beats defaulted beats any value status beats entered. */
+/**
+ * Strongest to weakest. ENT is "entered (not site-confirmed)", so it ranks below the confirmed,
+ * measured and published statuses and above proposals and estimates; a default and an unknown
+ * are weaker than any value.
+ */
+const STATUS_LADDER = ["site-confirmed", "measured", "published", "entered", "proposed", "estimated", "defaulted", "unknown"];
+
+/** The weakest of the inputs: a derived value never prints a status stronger than any of them. Unrecognised statuses count as unknown. */
 const weakestStatus = (statuses: string[]): string => {
-  if (statuses.includes("unknown")) return "unknown";
-  if (statuses.includes("defaulted")) return "defaulted";
-  const values = statuses.filter((s) => s !== "entered");
-  return values.length ? weakest(values.map((status) => ({ field: "", value: 0, status: status as never }))) : "entered";
+  if (!statuses.length) return "unknown";
+  const rank = Math.max(...statuses.map((s) => { const i = STATUS_LADDER.indexOf(s); return i < 0 ? STATUS_LADDER.length - 1 : i; }));
+  return STATUS_LADDER[rank];
 };
 
 const surfaceId = (w: Wall, side: WallSideName) => `${w.id}:${side}`;

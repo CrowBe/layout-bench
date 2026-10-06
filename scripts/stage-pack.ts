@@ -15,7 +15,7 @@
  * Output: shots/stage-pack/<phase>/ and shots/stage-pack/README.md
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Acknowledgement, PlanModel } from "../src/model/types";
@@ -49,11 +49,30 @@ export const PHASES: Phase[] = [
   },
 ];
 
-/** The sheet date: the local calendar day (YYYY-MM-DD), so a Sydney morning prints today, not UTC's yesterday. */
-export const DATE = process.env.STAGE_PACK_DATE ?? new Date().toLocaleDateString("en-CA");
+/** The local calendar day as YYYY-MM-DD, built from its parts so no locale data can change the format. */
+export function localDate(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * The sheet date: STAGE_PACK_DATE when it is a YYYY-MM-DD date, else today's local date (so a Sydney
+ * morning prints today, not UTC's yesterday). An empty override is ignored; a malformed one is an error.
+ */
+export function packDate(override = process.env.STAGE_PACK_DATE, now = new Date()): string {
+  const v = override?.trim();
+  if (!v) return localDate(now);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+  if (!m || !d || localDate(d) !== v) throw new Error(`STAGE_PACK_DATE must be a YYYY-MM-DD date, got "${v}".`);
+  return v;
+}
+
+export const DATE = packDate();
 export const OUT = resolve("shots/stage-pack");
 
 export interface PhaseFile { name: string; title: string; png?: string }
+/** A phase in the index that has no folder on disk yet. */
+export interface NotGenerated { phase: Phase; notGenerated: true }
 export interface Written {
   phase: Phase;
   files: PhaseFile[];
@@ -125,17 +144,47 @@ function renderPhase(phase: Phase, input: Omit<WritePhaseInput, "outDir" | "prev
   return { outputs, written };
 }
 
+const unescapeHtml = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+const cells = (tr: string) => [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => unescapeHtml(m[1]));
+
 /**
- * The index entry for a phase this run does not regenerate: rendered in memory, nothing written.
- * Previews are listed where the phase folder already has them.
+ * The index entry for a phase this run does not regenerate, read from what is on disk: counts and
+ * open items from its spec.html, drawings from the files that exist, so the README agrees with the
+ * committed sheets even if the model has changed since. A phase with no folder or no spec is
+ * reported as not generated, and nothing is linked for it.
  */
-export function summarizePhase(phase: Phase, input: Omit<WritePhaseInput, "previews">): Written {
-  const { written } = renderPhase(phase, input);
-  for (const f of written.files.filter((x) => x.name.endsWith(".svg"))) {
+export function summarizePhase(phase: Phase, outDir: string): Written | NotGenerated {
+  const dir = join(outDir, phase.slug);
+  const specPath = join(dir, "spec.html");
+  if (!existsSync(specPath)) return { phase, notGenerated: true };
+  const spec = readFileSync(specPath, "utf8");
+  // spec columns, from the end: value, status, measured from, source, missing (the element label cell only starts a group)
+  const rows = [...spec.matchAll(/<tr data-element="[^"]*"[^>]*>([\s\S]*?)<\/tr>/g)].map((m) => cells(m[1]));
+  const unknown = rows.filter((c) => c.at(-5) === "?" || / unknown$/.test(c.at(-4) ?? "")).length;
+  const unresolved = /<h2>Unresolved in this view \(\d+\)<\/h2><ul>([\s\S]*?)<\/ul>/.exec(spec)?.[1] ?? "";
+  const advisory = [...unresolved.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => unescapeHtml(m[1]));
+
+  const planPath = join(dir, "plan.svg");
+  const plan = existsSync(planPath) ? readFileSync(planPath, "utf8") : "";
+  const notModelledLine = /Not modelled, never drawn: ([^<]*?)\.<\/text>/.exec(plan)?.[1];
+  const notModelled = notModelledLine ? unescapeHtml(notModelledLine).split("; ") : [];
+  // elevations in the plan's element order (the model's wall order when it was generated)
+  const order = (() => { try { return (JSON.parse(unescapeHtml(/<metadata id="stage-view">([^<]*)<\/metadata>/.exec(plan)?.[1] ?? "{}")).elements ?? []) as string[]; } catch { return []; } })();
+  const rank = (wallId: string) => { const i = order.indexOf(`wall:${wallId}`); return i < 0 ? order.length : i; };
+  const elevations = readdirSync(dir).filter((n) => /^elevation-.+\.svg$/.test(n)).map((name) => {
+    const svg = readFileSync(join(dir, name), "utf8");
+    const wallId = /data-wall="([^"]*)"/.exec(svg)?.[1] ?? name;
+    const side = /data-side="([^"]*)"/.exec(svg)?.[1] ?? "";
+    const room = /facing ([^<.]+)\./.exec(svg)?.[1];
+    return { wallId, file: { name, title: `Elevation ${wallId} (${side} side${room ? `, from ${unescapeHtml(room)}` : ""})` } as PhaseFile };
+  }).sort((a, b) => rank(a.wallId) - rank(b.wallId) || a.file.name.localeCompare(b.file.name)).map((e) => e.file);
+
+  const files: PhaseFile[] = [...(plan ? [{ name: "plan.svg", title: "Plan" }] : []), ...elevations, { name: "spec.html", title: "Specification sheet" }];
+  for (const f of files.filter((x) => x.name.endsWith(".svg"))) {
     const png = f.name.replace(/\.svg$/, ".png");
-    if (existsSync(join(input.outDir, phase.slug, png))) f.png = png;
+    if (existsSync(join(dir, png))) f.png = png;
   }
-  return written;
+  return { phase, files, rows: rows.length, unknown, advisory, notModelled };
 }
 
 /** The phases a CLI filter selects; a filter that matches no phase is an error, not an empty pack. */
@@ -180,7 +229,7 @@ export async function renderSvgPreviews(
   }
 }
 
-export function indexMarkdown(written: Written[]): string {
+export function indexMarkdown(written: (Written | NotGenerated)[]): string {
   const md: string[] = [
     "# Stage diagram pack: Bathroom Concept",
     "",
@@ -190,11 +239,18 @@ export function indexMarkdown(written: Written[]): string {
     "",
   ];
   for (const w of written) {
+    if ("notGenerated" in w) {
+      md.push(`## ${w.phase.label}`, "", w.phase.summary, "", `Not generated yet. Run \`npm run stage-pack -- ${w.phase.slug.split("-")[0]}\`.`, "");
+      continue;
+    }
     md.push(`## ${w.phase.label}`, "", w.phase.summary, "", `Visible: ${w.phase.visible.map((v) => `\`${v}\``).join(", ")}`, "");
     md.push(`Specification: ${w.rows} row(s), ${w.unknown} unknown. [spec.html](${w.phase.slug}/spec.html)`, "");
     if (w.advisory.length) md.push("Open items:", "", ...w.advisory.map((a) => `- ${a}`), "");
     md.push("Not modelled (never drawn):", "", ...w.notModelled.map((n) => `- ${n}`), "");
-    for (const f of w.files.filter((x) => x.png)) md.push(`### ${f.title}`, "", `[${f.name}](${w.phase.slug}/${f.name})`, "", `![${f.title}](${w.phase.slug}/${f.png})`, "");
+    for (const f of w.files.filter((x) => x.name.endsWith(".svg"))) {
+      md.push(`### ${f.title}`, "", `[${f.name}](${w.phase.slug}/${f.name})`, "");
+      if (f.png) md.push(`![${f.title}](${w.phase.slug}/${f.png})`, "");
+    }
   }
   return md.join("\n");
 }
@@ -257,22 +313,18 @@ export async function generatePack(opts: { outDir?: string; only?: string[]; dat
     await browser?.close();
   }
 
+  // The index lists every phase, each read back from its folder on disk, so a filtered run and a full
+  // run write the same README for the same files, and it never links a file that is not there.
+  const index = phases.map((phase) => summarizePhase(phase, outDir));
   if (JSON.stringify(store.getState().model) !== before) throw new Error("The model changed while composing views. Views must only change visibility.");
-
-  // The index always lists every phase: ones this run skipped are summarised from the same model,
-  // with the previews their folders already hold.
-  const index = phases.map((phase) => written.find((w) => w.phase === phase) ?? (() => {
-    const { composed, acknowledged } = composePhase(pid, model, phase, products);
-    return summarizePhase(phase, { model, elements: composed.resolution.elements, findings: composed.findings, acknowledged, date, products, outDir });
-  })());
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "README.md"), indexMarkdown(index));
   console.log(`Wrote ${written.length} phase(s) to ${outDir}`);
   return written;
 }
 
-function invokedAsCli(): boolean {
-  const arg = process.argv[1];
+/** True when this file is the script being run: vite-node sets argv[1] to it only with --script. */
+export function invokedAsCli(arg = process.argv[1]): boolean {
   if (!arg) return false;
   try {
     return resolve(arg) === fileURLToPath(import.meta.url);
