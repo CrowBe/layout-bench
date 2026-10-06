@@ -5,7 +5,7 @@
  *
  * Run with the studio dev server up:  ALZA_BASE_URL=http://127.0.0.1:5199/ node tests/drainage.e2e.mjs
  */
-import { launch } from "./browser.mjs";
+import { launch, shot } from "./browser.mjs";
 import { strict as assert } from "node:assert";
 
 const browser = await launch({ headless: true });
@@ -42,7 +42,7 @@ try {
   const overlay = page.locator('[data-role="drainage"]');
   await overlay.first().waitFor({ state: "attached" });
   assert.equal(await page.locator('[data-plane="main"][data-resolved="true"]').count() > 0, true);
-  await page.screenshot({ path: "shots/drainage-plan.png" });
+  await page.screenshot({ path: shot("drainage-plan.png") });
 
   // move the waste to mid-room: heights near the old position rise, the new line is the low point
   const moved = await run("set_room_drainage", {

@@ -6,6 +6,7 @@
  *   ALZA_BASE_URL=http://127.0.0.1:5250/ npm run test:e2e   use a server that is already running
  *   E2E_JOBS=1 npm run test:e2e           one suite at a time
  *   CHROMIUM_PATH=/path/to/chrome ...     a browser other than Playwright's own
+ *   UPDATE_SHOTS=1 npm run test:e2e       save screenshots over the tracked ones in shots/
  *
  * A suite that prints a line starting "SKIP:" and exits 0 is reported as skipped with that
  * reason; any other non-zero exit is a failure and its output tail is shown.
