@@ -178,7 +178,7 @@ export interface SpecRow {
   missing?: string[];
 }
 
-const dimStatus = (defaulted: boolean | undefined): RowStatus => (defaulted === undefined ? "unknown" : defaulted ? "defaulted" : "entered");
+export const dimStatus = (defaulted: boolean | undefined): RowStatus => (defaulted === undefined ? "unknown" : defaulted ? "defaulted" : "entered");
 const qRow = (q: Quantity | undefined) => (known(q) ? { value: mm(q.value), status: q.status as RowStatus, ...(q.source ? { source: q.source } : {}) } : { value: "?", status: "unknown" as RowStatus, ...(q?.source ? { source: q.source } : {}) });
 
 /** The specification rows for one element: every property with its status and source. */
