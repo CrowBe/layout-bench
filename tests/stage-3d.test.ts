@@ -17,11 +17,11 @@ const sample = () => {
   for (const k of doc.kinds) actions.defineItemKind({ ...k.entry, parts: k.parts });
   const model = store.getState().model;
   const { group } = buildPlan(model, "planning");
+  // exactly as Scene3D does: fixtures added after buildPlan, with no further tagging pass
   for (const it of model.items) {
     const fg = buildFixture(model, it);
     if (fg) group.add(fg);
   }
-  tagStages(model, group);
   return { model, group };
 };
 const meshes = (root: THREE.Object3D) => {
@@ -348,5 +348,32 @@ describe("review round 1: sizes tied to products, per-wall foot, stage-safe fill
     const under = byName(group, "a_s").filter((m) => box(m).max.y <= 0.001);
     expect(under.length).toBeGreaterThan(0);
     for (const m of under) expect(m.userData.stopgap).toBe(true);
+  });
+});
+
+describe("review round 3: stage ids set where meshes are built", () => {
+  it("keeps model ids containing ':' whole: each element shows exactly in the stages that list it", () => {
+    const doc = demoProject();
+    const renamed = JSON.parse(JSON.stringify(doc.model)
+      .replaceAll('"wall_w"', '"bath:west"')
+      .replaceAll('"bathroom"', '"bath:room"')
+      .replaceAll('"wall_n_board"', '"wall_n:board"')) as PlanModel;
+    store.setState({ model: renamed, kinds: doc.kinds, notes: doc.notes, undoStack: [] });
+    for (const k of doc.kinds) actions.defineItemKind({ ...k.entry, parts: k.parts });
+    const model = store.getState().model;
+    const { group } = buildPlan(model, "planning");
+    for (const it of model.items) { const fg = buildFixture(model, it); if (fg) group.add(fg); }
+    const all = catalogue(model).elements.map((e) => e.id);
+    const targets = ["wall:bath:west", "room:bath:room:substrate", "room:bath:room:waste:linear_drain", "wall:wall_n:right:wall_n:board"];
+    for (const id of targets) {
+      expect(all, id).toContain(id);
+      const drawn = meshes(group).filter((m) => stagesOf(m).includes(id));
+      expect(drawn.length, id).toBeGreaterThan(0);
+      applyStageVisibility(group, new Set([id]));
+      expect(drawn.every((m) => m.visible), `${id} shown when listed`).toBe(true);
+      expect(meshes(group).filter((m) => m.visible && stagesOf(m).length).every((m) => stagesOf(m).includes(id)), `only ${id} shown`).toBe(true);
+      applyStageVisibility(group, new Set(all.filter((x) => x !== id)));
+      expect(drawn.every((m) => !m.visible), `${id} hidden when not listed`).toBe(true);
+    }
   });
 });

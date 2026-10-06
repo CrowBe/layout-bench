@@ -226,17 +226,35 @@ export function buildFixture(model: PlanModel,it: Item): THREE.Group | null {
   fg.position.set(it.x,lv.bottom ?? .04,it.y);fg.rotation.y=it.rotation*Math.PI/180;
   if(it.installation?.mirror)fg.scale.x=-1;
   fg.userData={fixtureId:it.id,installation:lv};nameMeshes(fg,it.id);
-  fg.traverse((o)=>{
-    if(((o as THREE.Mesh).isMesh || (o as THREE.LineSegments).isLineSegments) && !o.userData.stage)o.userData.stage=`item:${it.id}`;
-  });
   for(const p of it.installationGeometry?.fixings??[]){const r=localPointReading(model,it,p);if(r.x===undefined || r.y===undefined || r.level===undefined)continue;
     const marker=new THREE.Mesh(new THREE.SphereGeometry(.007,8,6),frameMaterial);marker.position.set(p.x! ,p.z!,p.y!-catalogForItem(it)!.d/2);marker.name=`${it.id}:fixing:${p.id}`;fg.add(marker);}
+  // tagged last, so the fixing markers hide and show with their fixture
+  fg.traverse((o)=>{if(((o as THREE.Mesh).isMesh || (o as THREE.LineSegments).isLineSegments) && !o.userData.stage)o.userData.stage=`item:${it.id}`;});
   return fg;
 }
 
 const named = <T extends THREE.Object3D>(o: T, name: string): T => {
   o.name = name;
   return o;
+};
+
+/**
+ * Give a drawn object, and every mesh or line under it that has none yet, the stage-view
+ * element it draws (see sheets/stageView.ts). Set where the builders create the geometry,
+ * from the model's own ids, so an id containing ":" or any other character is kept whole.
+ */
+const staged = <T extends THREE.Object3D>(o: T, id: string): T => {
+  o.traverse((c) => {
+    if (c.userData.stage || c.userData.stages) return;
+    if ((c as THREE.Mesh).isMesh || (c as THREE.LineSegments).isLineSegments) c.userData.stage = id;
+  });
+  return o;
+};
+/** The element a room's finished floor surface stands for: its tile layer (or top layer), else the room. */
+const finishStage = (room: Room): string => {
+  const layers = room.floorBuildUp?.layers ?? [];
+  const finish = [...layers].reverse().find((l) => l.kind === "tile") ?? layers.at(-1);
+  return finish ? `room:${room.id}:floor:${finish.id}` : `room:${room.id}`;
 };
 
 function box(
@@ -343,6 +361,7 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
     // sill below windows
     if (o.sill > 0.005) addSeg(x0, x1, base, o.sill);
     nameMeshes(g, wall.id); // everything so far is wall; what follows belongs to the opening
+    staged(g, `wall:${wall.id}`);
     const openingStart = g.children.length;
     // glass pane for windows
     if (o.kind === "window") {
@@ -409,7 +428,10 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
         g.add(named(box(bw, bh, wall.thickness + 0.02, frameMaterial, px, py, 0, 0, false), `${o.id}:frame`));
       }
     }
-    for (const part of g.children.slice(openingStart)) nameMeshes(part, `${o.id}:part`);
+    for (const part of g.children.slice(openingStart)) {
+      nameMeshes(part, `${o.id}:part`);
+      staged(part, `opening:${o.id}`);
+    }
     cursor = x1;
   }
   addSeg(cursor, total, base, wall.height);
@@ -420,6 +442,7 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
   cap.castShadow = true;
   g.add(cap);
   nameMeshes(g, wall.id);
+  staged(g, `wall:${wall.id}`);
 
   // proposed build-up (#4): one slab per resolved layer, over the wall's own length, open at
   // each opening. Unresolved layers have no position and are not drawn.
@@ -432,7 +455,7 @@ function buildWall(wall: Wall, openings: Opening[], walls: Wall[], curtained: Se
     const foot = slab.layer.kind === "board" || slab.layer.kind === "waterproofing" ? base : 0;
     const seg = (x0: number, x1: number, y0: number, y1: number) => {
       if (x1 - x0 < 0.005 || y1 - y0 < 0.005) return;
-      g.add(named(box(x1 - x0, y1 - y0, depth, mat, (x0 + x1) / 2 - total / 2, (y0 + y1) / 2, z, 0, false), `${wall.id}:${slab.side}:${slab.layer.id}`));
+      g.add(staged(named(box(x1 - x0, y1 - y0, depth, mat, (x0 + x1) / 2 - total / 2, (y0 + y1) / 2, z, 0, false), `${wall.id}:${slab.side}:${slab.layer.id}`), `wall:${wall.id}:${slab.side}:${slab.layer.id}`));
     };
     let at = extA;
     for (const { o, span } of spans) {
@@ -500,6 +523,7 @@ function buildFalls(room: Room, material: THREE.Material, flatTop?: number): THR
     geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, material);
     m.name = `${room.id}:fall:${p.id}`;
+    m.userData.stage = `room:${room.id}:plane:${p.id}`;
     m.receiveShadow = true;
     g.add(m);
   }
@@ -545,6 +569,7 @@ function buildFalls(room: Room, material: THREE.Material, flatTop?: number): THR
       stopgap = true;
     }
     mesh.name = `${room.id}:waste:${w.id}`;
+    staged(mesh, `room:${room.id}:waste:${w.id}`);
     if (w.level?.value === undefined) {
       mesh.userData.level = "unknown; drawn on the flat finished floor";
       mesh.userData.stopgapReason = "level not recorded; drawn on the flat finished-level target";
@@ -626,7 +651,8 @@ function buildTiling(model: PlanModel, wall: Wall, side: "left" | "right"): THRE
     m.receiveShadow = true;
     g.add(m);
   }
-  return g;
+  const tile = [...(wall.sides?.[side]?.layers ?? [])].reverse().find((l) => l.kind === "tile");
+  return staged(g, tile ? `wall:${wall.id}:${side}:${tile.id}` : `wall:${wall.id}`);
 }
 
 /**
@@ -666,7 +692,7 @@ function buildFloorTiling(model: PlanModel, room: Room): THREE.Group | null {
     m.receiveShadow = true;
     g.add(m);
   }
-  return g;
+  return staged(g, finishStage(room));
 }
 
 /** The weakest of two level bases, for a slab drawn between them. */
@@ -702,7 +728,7 @@ function buildFloorBuildUp(room: Room): THREE.Group | null {
   const g = new THREE.Group();
   const cx = room.x + room.w / 2;
   const cz = room.y + room.h / 2;
-  const slab = (y0: number, y1: number, mat: THREE.Material, name: string, extra: Record<string, unknown> = {}) => {
+  const slab = (y0: number, y1: number, mat: THREE.Material, name: string, stage: string, extra: Record<string, unknown> = {}) => {
     if (y1 - y0 < 0.0005) return;
     const m = new THREE.Mesh(new THREE.BoxGeometry(room.w, y1 - y0, room.h), mat);
     m.position.set(cx, (y0 + y1) / 2, cz);
@@ -710,10 +736,10 @@ function buildFloorBuildUp(room: Room): THREE.Group | null {
     m.name = name;
     Object.assign(m.userData, extra);
     if (extra.stopgap) applyStopgapVisual(m);
-    g.add(m);
+    g.add(m.userData.stages ? m : staged(m, stage));
   };
   const sub = levels[0]!;
-  slab(sub - SUBSTRATE_DRAWN, sub, substrateMaterial, `${room.id}:substrate`, {
+  slab(sub - SUBSTRATE_DRAWN, sub, substrateMaterial, `${room.id}:substrate`, `room:${room.id}:substrate`, {
     drawnThickness: "not recorded; drawn 100 mm",
     stopgap: true,
     provenance: { status: fb.substrateTop.status ?? allLevels[0].basis, ...(fb.substrateTop.source ? { source: fb.substrateTop.source } : {}), datum: fb.datum },
@@ -729,7 +755,7 @@ function buildFloorBuildUp(room: Room): THREE.Group | null {
     const lo = levels[i];
     const hi = levels[i + 1];
     if (lo !== undefined && hi !== undefined) {
-      slab(lo, hi, floorLayerMaterials[below[i].kind], `${room.id}:floor:${below[i].id}`, { provenance: between(i, i + 1) });
+      slab(lo, hi, floorLayerMaterials[below[i].kind], `${room.id}:floor:${below[i].id}`, `room:${room.id}:floor:${below[i].id}`, { provenance: between(i, i + 1) });
       i++;
       continue;
     }
@@ -742,8 +768,8 @@ function buildFloorBuildUp(room: Room): THREE.Group | null {
     if (bottom !== undefined && top !== undefined && top - bottom > 2 * FILM) {
       const first = run[0];
       const last = run.length > 1 ? run[run.length - 1] : undefined;
-      slab(bottom, bottom + FILM, floorLayerMaterials[first.kind], `${room.id}:floor:${first.id}`, { drawnThickness: "unknown; drawn as a film", stopgap: true });
-      if (last) slab(top - FILM, top, floorLayerMaterials[last.kind], `${room.id}:floor:${last.id}`, { drawnThickness: "unknown; drawn as a film", stopgap: true });
+      slab(bottom, bottom + FILM, floorLayerMaterials[first.kind], `${room.id}:floor:${first.id}`, `room:${room.id}:floor:${first.id}`, { drawnThickness: "unknown; drawn as a film", stopgap: true });
+      if (last) slab(top - FILM, top, floorLayerMaterials[last.kind], `${room.id}:floor:${last.id}`, `room:${room.id}:floor:${last.id}`, { drawnThickness: "unknown; drawn as a film", stopgap: true });
       const middle = run.slice(1, last ? -1 : undefined);
       // with no layer between the two films, the gap is shown with the upper layer only, so an
       // earlier layer's stage never shows it as if the later layer were already laid
@@ -751,7 +777,7 @@ function buildFloorBuildUp(room: Room): THREE.Group | null {
       const fillMat = (floorLayerMaterials[fill[0].kind] as THREE.MeshStandardMaterial).clone();
       fillMat.transparent = true;
       fillMat.opacity = 0.55;
-      slab(bottom + FILM, top - (last ? FILM : 0), fillMat, `${room.id}:floor-fill`, {
+      slab(bottom + FILM, top - (last ? FILM : 0), fillMat, `${room.id}:floor-fill`, "", {
         stages: fill.map((l) => `room:${room.id}:floor:${l.id}`),
         provenance: { status: floorFill(fb)?.basis ?? between(i, i + run.length).status, datum: fb.datum },
         drawnThickness: `${run.map(floorLayerLabel).join(" + ")} fill ${Math.round((top - bottom) * 1000)} mm together; the split is unknown`,
@@ -820,6 +846,7 @@ function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh
     const { t, provenance } = finishPiece(room);
     const m = new THREE.Mesh(new THREE.BoxGeometry(room.w, t, room.h), new THREE.MeshStandardMaterial({ color: "#b8b8b3", roughness: 0.95 }));
     m.name = `${room.id}:planning-floor`;
+    m.userData.stage = finishStage(room);
     if (provenance) m.userData.provenance = provenance;
     m.position.set(room.x + room.w / 2, top - t / 2, room.y + room.h / 2);
     m.receiveShadow = true;
@@ -841,6 +868,7 @@ function buildFloor(room: Room, presentation: "planning" | "styled"): THREE.Mesh
   const geo = new THREE.BoxGeometry(room.w, t, room.h);
   const m = new THREE.Mesh(geo, mat);
   m.name = room.id;
+  m.userData.stage = finishStage(room);
   if (provenance) m.userData.provenance = provenance;
   m.position.set(room.x + room.w / 2, top - t / 2, room.y + room.h / 2);
   m.receiveShadow = true;
@@ -943,6 +971,7 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
   if (presentation === "styled") for (const r of model.rooms) {
     const pendant = buildPendant(r, ceiling);
     nameMeshes(pendant, `${r.id}:pendant`);
+    staged(pendant, `room:${r.id}`);
     group.add(named(pendant, `${r.id}:pendant`));
   }
 
@@ -954,7 +983,7 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
       const lines:number[]=[];const v=(i:number,z:number)=>[access.polygon[i].x,z,access.polygon[i].y];
       for(let i=0;i<4;i++){const j=(i+1)%4;for(const z of [access.bottom,access.top])lines.push(...v(i,z),...v(j,z));lines.push(...v(i,access.bottom),...v(i,access.top));}
       const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(lines,3));
-      const region=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:"#8c6496",transparent:true,opacity:.65}));region.name=`${it.id}:access:${access.id}`;region.userData={requirement:access};group.add(region);
+      const region=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:"#8c6496",transparent:true,opacity:.65}));region.name=`${it.id}:access:${access.id}`;region.userData={requirement:access,stage:`item:${it.id}`};group.add(region);
     }
     for (const r of roughIn(model, it)) {
       const vertical=r.level ?? r.up;
@@ -962,6 +991,7 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
       const marker = new THREE.Mesh(serviceMarkerGeometry, serviceMaterials[r.service]);
       marker.position.set(r.x, vertical, r.y);
       marker.userData.provenance = { status: r.status, ...(r.axisEvidence ? { axisEvidence: structuredClone(r.axisEvidence) } : {}) };
+      marker.userData.stage = `item:${it.id}:sp:${r.pointId}`;
       group.add(named(marker, `${it.id}:service:${r.pointId}`));
     }
   }
@@ -990,53 +1020,17 @@ export function buildPlan(model: PlanModel, presentation: "planning" | "styled" 
 }
 
 /**
- * Tag every mesh with the stage-view element it draws (see sheets/stageView.ts), so the 3D
- * view can show exactly a stage's visible set. Read from the names the builders give: wall
- * bodies, lining slabs and tile set-outs, openings, the floor and its build-up, falls and
- * wastes, fixtures and their service points. A mesh may stand for several elements
- * (`userData.stages`); untagged meshes (the ground) are always shown.
+ * Stage tags are set where the builders create each mesh (see `staged`), from the model's own
+ * ids. This only hands a tag down to a mesh added later under an already tagged object; it
+ * never reads one back out of a name. Untagged meshes (the ground) are always shown.
  */
-export function tagStages(model: PlanModel, root: THREE.Object3D): void {
-  const walls = new Map(model.walls.map((w) => [w.id, w]));
-  const openings = new Set(model.openings.map((o) => o.id));
-  const rooms = new Map(model.rooms.map((r) => [r.id, r]));
-  const items = new Set(model.items.map((i) => i.id));
-  const tileLayer = (layers: { id: string; kind: string }[] | undefined) => [...(layers ?? [])].reverse().find((l) => l.kind === "tile");
-  const stageOf = (name: string): string | undefined => {
-    const [head, a, b, c] = name.split(":");
-    if (walls.has(head)) {
-      if (a === undefined || a === "skirting") return `wall:${head}`;
-      if (a === "tiling") {
-        const t = tileLayer(walls.get(head)!.sides?.[b as WallSideName]?.layers);
-        return t ? `wall:${head}:${b}:${t.id}` : `wall:${head}`;
-      }
-      if (a === "left" || a === "right") return `wall:${head}:${a}:${b}`;
-    }
-    if (openings.has(head)) return `opening:${head}`;
-    if (rooms.has(head)) {
-      const r = rooms.get(head)!;
-      const finish = tileLayer(r.floorBuildUp?.layers) ?? r.floorBuildUp?.layers.at(-1);
-      if (a === undefined || a === "planning-floor" || a === "floor-tiling") return finish ? `room:${head}:floor:${finish.id}` : `room:${head}`;
-      if (a === "substrate") return `room:${head}:substrate`;
-      if (a === "floor") return `room:${head}:floor:${b}`;
-      if (a === "fall") return `room:${head}:plane:${b}`;
-      if (a === "waste") return `room:${head}:waste:${b}`;
-      if (a === "pendant") return `room:${head}`;
-    }
-    if (items.has(head)) return a === "service" ? `item:${head}:sp:${b}` : `item:${head}`;
-    void c;
-    return undefined;
-  };
+export function tagStages(_model: PlanModel, root: THREE.Object3D): void {
   root.traverse((o) => {
     if (o.userData.stages || o.userData.stage) return;
     if (!(o as THREE.Mesh).isMesh && !(o as THREE.LineSegments).isLineSegments) return;
-    let n: THREE.Object3D | null = o;
-    while (n && n !== root.parent) {
+    for (let n = o.parent; n && n !== root.parent; n = n.parent) {
       if (n.userData.stages) { o.userData.stages = n.userData.stages; return; }
       if (n.userData.stage) { o.userData.stage = n.userData.stage; return; }
-      const id = n.name ? stageOf(n.name) : undefined;
-      if (id) { o.userData.stage = id; return; }
-      n = n.parent;
     }
   });
 }

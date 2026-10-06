@@ -11,7 +11,7 @@ import { anchorPose, roughIn } from "../src/model/fixtures";
 import { itemPolygon, kindPolygon, toWorld } from "../src/model/outline";
 import { catalogue, specRows, renderStageDiagram } from "../src/sheets/stageView";
 import { demoProject, parseImport } from "../src/model/projects";
-import { buildFixture } from "../src/three/build";
+import { applyStageVisibility, buildFixture, buildPlan } from "../src/three/build";
 import * as THREE from "three";
 import { fittingCases, pub, powered } from "./bathroom-products-fixtures.mjs";
 const q = (value: number) => ({value,status:"proposed" as const,source:"Synthetic project set-out"});
@@ -222,4 +222,16 @@ it("keeps the named physical back midpoint at the declared wall-face gap and alo
   expect(anchorPose(model,item)).toMatchObject({backOffset:.01,alongFromA:1});
   expect(checkModel(model)).toEqual(expect.arrayContaining([expect.objectContaining({code:"item_through_wall",refs:expect.arrayContaining([it.id])})]));
   expect(installationReading(model,item).limitations).toEqual(expect.arrayContaining([expect.stringMatching(/physical back/i)]));
+});
+
+it("hides a fixture's fixing markers with the fixture in a stage, built the way Scene3D builds it",()=>{
+  const item=setup(),model=store.getState().model;
+  const {group}=buildPlan(model,"planning");const fg=buildFixture(model,item)!;group.add(fg); // no extra tagging pass
+  const markers:THREE.Object3D[]=[];fg.traverse(o=>{if(o.name.includes(":fixing:"))markers.push(o);});
+  expect(markers.length).toBe(1);
+  const ids=catalogue(model).elements.map(e=>e.id);
+  applyStageVisibility(group,new Set(ids.filter(id=>id!==`item:${item.id}`)));
+  expect(markers.every(m=>!m.visible)).toBe(true);
+  applyStageVisibility(group,new Set([`item:${item.id}`]));
+  expect(markers.every(m=>m.visible)).toBe(true);
 });
