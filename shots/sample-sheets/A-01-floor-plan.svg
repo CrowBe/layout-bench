@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" font-family="Helvetica, Arial, sans-serif" data-sheet="floor-plan" data-scale="20">
+<rect width="420" height="297" fill="#fff"/>
+<rect x="5" y="5" width="410" height="287" fill="none" stroke="#000" stroke-width="0.5"/>
+<rect x="12" y="12" width="248" height="268" fill="none" stroke="#999" stroke-width="0.2"/>
+<text x="136" y="146" font-size="3" text-anchor="middle" fill="#888">BATHROOM</text>
+<polygon points="196,69.25 76,69.25 76,63.25 196,63.25" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-wall="wall_n"/>
+<polygon points="190,228.75 190,63.25 196,63.25 196,228.75" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-wall="wall_e"/>
+<polygon points="76,222.75 196,222.75 196,228.75 76,228.75" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-wall="wall_s"/>
+<polygon points="82,63.25 82,228.75 76,228.75 76,63.25" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-wall="wall_w"/>
+<polygon points="90.75,63.25 181.25,63.25 181.25,69.25 90.75,69.25" fill="#fff" stroke="#222" stroke-width="0.25" data-opening="window_n"/>
+<text x="136" y="63.05" font-size="2.2" text-anchor="middle">W 1810 ?</text>
+<text x="136" y="70.85" font-size="1.9" text-anchor="middle" fill="#444">c/l 1105 from A</text>
+<polygon points="129.25,228.75 89.25,228.75 89.25,222.75 129.25,222.75" fill="#fff" stroke="#222" stroke-width="0.25" data-opening="door_s"/>
+<text x="109.25" y="222.55" font-size="2.2" text-anchor="middle">D 800 ?</text>
+<text x="109.25" y="230.35" font-size="1.9" text-anchor="middle" fill="#444">c/l 1640 from A</text>
+<line x1="80.75" y1="70.5" x2="191.25" y2="70.5" stroke="#2f78b7" stroke-width="0.25" stroke-dasharray="1.2 0.8" data-face="wall_n:right:existing"/>
+<line x1="80.75" y1="68.25" x2="191.25" y2="68.25" stroke="#8a5a1c" stroke-width="0.25" stroke-dasharray="0.6 0.6" data-face="wall_n:right:frame"/>
+<line x1="80.75" y1="69.25" x2="191.25" y2="69.25" stroke="#000" stroke-width="0.45" data-face="wall_n:right:finished"/>
+<line x1="188.75" y1="68" x2="188.75" y2="224" stroke="#2f78b7" stroke-width="0.25" stroke-dasharray="1.2 0.8" data-face="wall_e:right:existing"/>
+<line x1="191" y1="68" x2="191" y2="224" stroke="#8a5a1c" stroke-width="0.25" stroke-dasharray="0.6 0.6" data-face="wall_e:right:frame"/>
+<line x1="190" y1="68" x2="190" y2="224" stroke="#000" stroke-width="0.45" data-face="wall_e:right:finished"/>
+<line x1="191.25" y1="221.5" x2="80.75" y2="221.5" stroke="#2f78b7" stroke-width="0.25" stroke-dasharray="1.2 0.8" data-face="wall_s:right:existing"/>
+<line x1="191.25" y1="223.75" x2="80.75" y2="223.75" stroke="#8a5a1c" stroke-width="0.25" stroke-dasharray="0.6 0.6" data-face="wall_s:right:frame"/>
+<line x1="191.25" y1="222.75" x2="80.75" y2="222.75" stroke="#000" stroke-width="0.45" data-face="wall_s:right:finished"/>
+<line x1="83.25" y1="224" x2="83.25" y2="68" stroke="#2f78b7" stroke-width="0.25" stroke-dasharray="1.2 0.8" data-face="wall_w:right:existing"/>
+<line x1="81" y1="224" x2="81" y2="68" stroke="#8a5a1c" stroke-width="0.25" stroke-dasharray="0.6 0.6" data-face="wall_w:right:frame"/>
+<line x1="82" y1="224" x2="82" y2="68" stroke="#000" stroke-width="0.45" data-face="wall_w:right:finished"/>
+<line x1="80.75" y1="54" x2="191.25" y2="54" stroke="#000" stroke-width="0.18"/>
+<line x1="79.75" y1="53" x2="81.75" y2="55" stroke="#000" stroke-width="0.3"/>
+<line x1="190.25" y1="53" x2="192.25" y2="55" stroke="#000" stroke-width="0.3"/>
+<text x="136" y="52.2" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(0 136 52.2)" data-dim="wall_n">2210 ENT · n A→B (drawn line)</text>
+<line x1="205.25" y1="68" x2="205.25" y2="224" stroke="#000" stroke-width="0.18"/>
+<line x1="204.25" y1="67" x2="206.25" y2="69" stroke="#000" stroke-width="0.3"/>
+<line x1="204.25" y1="223" x2="206.25" y2="225" stroke="#000" stroke-width="0.3"/>
+<text x="207.05" y="146" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(90 207.05 146)" data-dim="wall_e">3120 ENT · e A→B (drawn line)</text>
+<line x1="191.25" y1="238" x2="80.75" y2="238" stroke="#000" stroke-width="0.18"/>
+<line x1="190.25" y1="237" x2="192.25" y2="239" stroke="#000" stroke-width="0.3"/>
+<line x1="79.75" y1="237" x2="81.75" y2="239" stroke="#000" stroke-width="0.3"/>
+<text x="136" y="239.8" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(360 136 239.8)" data-dim="wall_s">2210 ENT · s A→B (drawn line)</text>
+<line x1="66.75" y1="224" x2="66.75" y2="68" stroke="#000" stroke-width="0.18"/>
+<line x1="65.75" y1="223" x2="67.75" y2="225" stroke="#000" stroke-width="0.3"/>
+<line x1="65.75" y1="67" x2="67.75" y2="69" stroke="#000" stroke-width="0.3"/>
+<text x="64.95" y="146" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 64.95 146)" data-dim="wall_w">3120 ENT · w A→B (drawn line)</text>
+<polygon points="188.25,70.5 138.25,70.5 137.67,73.94 137.38,77.42 137.38,80.91 137.67,84.39 138.25,87.84 139.1,91.22 140.23,94.52 141.64,97.72 143.3,100.79 145.21,103.71 147.35,106.47 149.72,109.04 152.28,111.4 155.04,113.54 157.96,115.45 161.03,117.11 164.23,118.52 167.53,119.65 170.91,120.5 174.36,121.08 177.84,121.37 181.33,121.37 184.81,121.08 188.25,120.5" fill="#fff" stroke="#444" stroke-width="0.3" data-item="bath"/>
+<text x="162.8" y="95.95" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F1</text>
+<polygon points="188.75,90.5 188.75,100.5 180.65,100.5 180.65,90.5" fill="#fff" stroke="#444" stroke-width="0.3" data-item="bath_mixer"/>
+<text x="184.7" y="95.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F2</text>
+<polygon points="168.12,87.14 171.62,87.14 171.62,90.64 168.12,90.64" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-item="bath_waste"/>
+<text x="169.87" y="88.89" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F3</text>
+<polygon points="187.88,154.3 187.88,156.7 180.63,156.7 180.63,154.3" fill="#fff" stroke="#444" stroke-width="0.3" data-item="basin_mixer"/>
+<text x="184.25" y="155.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F4</text>
+<polygon points="83.25,106.75 83.25,94.25 110.85,94.25 110.85,106.75" fill="#fff" stroke="#444" stroke-width="0.3" data-item="shower_system"/>
+<text x="97.05" y="100.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F5</text>
+<polygon points="83.25,114.63 83.25,111.38 86.73,111.38 86.73,114.63" fill="#fff" stroke="#444" stroke-width="0.3" data-item="shower_mixer"/>
+<text x="84.99" y="113" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F6</text>
+<polygon points="83.25,165.3 83.25,158.2 88.25,158.2 88.25,165.3" fill="#fff" stroke="#444" stroke-width="0.3" data-item="towel_rail"/>
+<text x="85.75" y="161.75" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F7</text>
+<polygon points="83.25,152.8 83.25,145.7 88.25,145.7 88.25,152.8" fill="#fff" stroke="#444" stroke-width="0.3" data-item="towel_rail_2"/>
+<text x="85.75" y="149.25" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F8</text>
+<polygon points="187.38,132.75 187.38,178.25 164.13,178.25 164.13,132.75" fill="#fff" stroke="#444" stroke-width="0.3" data-item="vanity"/>
+<text x="175.75" y="155.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F9</text>
+<polygon points="187.25,136.75 187.25,174.25 179.25,174.25 179.25,136.75" fill="#fff" stroke="#444" stroke-width="0.3" data-item="shaving_cabinet"/>
+<text x="183.25" y="155.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F10</text>
+<polygon points="185.75,190.98 185.75,210.03 150.75,210.03 150.75,190.98" fill="#fff" stroke="#444" stroke-width="0.3" data-item="toilet"/>
+<text x="168.25" y="200.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F11</text>
+<polygon points="83.25,130.25 128.25,130.25 128.25,130.75 83.25,130.75" fill="#fff" stroke="#444" stroke-width="0.3" data-item="screen"/>
+<text x="105.75" y="130.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F12</text>
+<rect x="18" y="274" width="25" height="1.5" fill="#000" stroke="#000" stroke-width="0.2"/>
+<rect x="43" y="274" width="25" height="1.5" fill="#fff" stroke="#000" stroke-width="0.2"/>
+<text x="18" y="273" font-size="2" >0</text>
+<text x="68" y="273" font-size="2" >1 m</text>
+<text x="18" y="278.5" font-size="2" >Scale 1:20 at A3. Orientation not recorded. Dimensions in mm.</text>
+<text x="266" y="14" font-size="2.8" font-weight="bold">Legend</text>
+<text x="266" y="18" font-size="2.1" >Status: SC site-confirmed · M measured · PUB published · P proposed</text>
+<text x="266" y="21.1" font-size="2.1" >E estimated · DER derived (converted, not published) · ENT entered (not site-confirmed) · DEF default · ? unknown</text>
+<text x="266" y="24.2" font-size="2.1" >Faces: blue dashed existing · brown dotted frame · black finished</text>
+<text x="266" y="27.3" font-size="2.1" >Points: brown waste · blue water · red power. Grey = wall as built.</text>
+<text x="266" y="32.4" font-size="2.8" font-weight="bold">Wall build-up (mm from drawn line, toward the side)</text>
+<text x="266" y="36.4" font-size="2.1" >n right: existing 50 M · frame 5 E · Villaboard 6 mm 6 / Tile adhesive (tiler's) 4 / 300 × 600 sandy beige matte (Tile Wizards</text>
+<text x="269" y="39.5" font-size="2.1" >porcelain, colour 'Beige'; code not legible in the photo) 10</text>
+<text x="266" y="42.6" font-size="2.1" >e right: existing 50 M · frame 5 E · Villaboard 6 mm 6 / Tile adhesive (tiler's) 4 / 600 × 600 white gloss, a few light grey</text>
+<text x="269" y="45.7" font-size="2.1" >streaks (Tile Wizards 'Ice' TWJ-14, porcelain) 10</text>
+<text x="266" y="48.8" font-size="2.1" >s right: existing 50 M · frame 5 E · Villaboard 6 mm 6 / Tile adhesive (tiler's) 4 / 600 × 600 white gloss, a few light grey</text>
+<text x="269" y="51.9" font-size="2.1" >streaks (Tile Wizards 'Ice' TWJ-14, porcelain) 10</text>
+<text x="266" y="55" font-size="2.1" >w right: existing 50 M · frame 5 E · Villaboard 6 mm 6 / Tile adhesive (tiler's) 4 / 600 × 600 white gloss, a few light grey</text>
+<text x="269" y="58.1" font-size="2.1" >streaks (Tile Wizards 'Ice' TWJ-14, porcelain) 10</text>
+<text x="266" y="63.2" font-size="2.8" font-weight="bold">Rough-in (mm out from face · along from A · up from FFL)</text>
+<text x="266" y="67.2" font-size="2.1" >F1 Corner bath (not set out)</text>
+<text x="266" y="70.3" font-size="2.1" >F2 Bath mixer and spout (not set out)</text>
+<text x="266" y="73.4" font-size="2.1" >F3 Bath waste (not set out)</text>
+<text x="266" y="76.5" font-size="2.1" >F4 Basin mixer (not set out)</text>
+<text x="266" y="79.6" font-size="2.1" >F5 Shower system (not set out)</text>
+<text x="266" y="82.7" font-size="2.1" >F6 Shower mixer (not set out)</text>
+<text x="266" y="85.8" font-size="2.1" >F7 Towel rail (not set out)</text>
+<text x="266" y="88.9" font-size="2.1" >F8 Towel rail (not set out)</text>
+<text x="266" y="92" font-size="2.1" >F9 Vanity (not set out)</text>
+<text x="266" y="95.1" font-size="2.1" >F10 Shaving cabinet (not set out)</text>
+<text x="266" y="98.2" font-size="2.1" >F11 Toilet (not set out)</text>
+<text x="266" y="101.3" font-size="2.1" >F12 Fixed glass screen (not set out)</text>
+<text x="266" y="106.4" font-size="2.8" font-weight="bold">Unresolved (31)</text>
+<text x="266" y="110.4" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Plane &quot;Shower&quot; has no derived heights: unknown Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed</text>
+<text x="269" y="113.5" font-size="2.1" fill="#7a3b00">nickel, 50 mm outlet WO50-BN level, fall or a control level.</text>
+<text x="266" y="116.6" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Plane &quot;Beside the shower (under the bath)&quot; has no derived heights: unknown Kano 316 tile-insert waste 120</text>
+<text x="269" y="119.7" font-size="2.1" fill="#7a3b00">× 120, brushed nickel, 50 mm outlet level, fall or a control level.</text>
+<text x="266" y="122.8" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Plane &quot;Dry area&quot; has no derived heights: unknown Kano 316 tile-insert waste 120 × 120, brushed nickel, 50</text>
+<text x="269" y="125.9" font-size="2.1" fill="#7a3b00">mm outlet level, fall or a control level.</text>
+<text x="266" y="129" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Grate outlines come from the linked drain briefs. Confirm clearance, edge joints and cut shape on site.</text>
+<text x="266" y="132.1" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: east cut is 32 mm: narrow piece for tiler review.</text>
+<text x="266" y="135.2" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Tiles cross floor-plane boundaries. Confirm slope-break cuts and movement joints with the tiler.</text>
+<text x="266" y="138.3" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Review fields: door door_s transition: finished face or real clear width unresolved; fall plane Shower:</text>
+<text x="269" y="141.4" font-size="2.1" fill="#7a3b00">slope/levels unresolved; fall plane Beside the shower (under the bath): slope/levels unresolved; fall plane Dry area: slope/levels</text>
+<text x="269" y="144.5" font-size="2.1" fill="#7a3b00">unresolved.</text>
+<text x="266" y="147.6" font-size="2.1" fill="#7a3b00">• Room &quot;Bathroom&quot; floor: Unknown: Tiler's screed (heating cable inside) thickness. Read down from the finished-level target, only</text>
+<text x="269" y="150.7" font-size="2.1" fill="#7a3b00">tiler's screed (heating cable inside) top stay unresolved; Tiler's screed (heating cable inside) + Tiler's adhesive fill 108.5 mm</text>
+<text x="269" y="153.8" font-size="2.1" fill="#7a3b00">together.</text>
+<text x="266" y="156.9" font-size="2.1" fill="#7a3b00">• Room &quot;Bathroom&quot; drainage: Plane &quot;Shower&quot; has no derived heights: unknown Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed</text>
+<text x="269" y="160" font-size="2.1" fill="#7a3b00">nickel, 50 mm outlet WO50-BN level, fall or a control level.</text>
+<text x="266" y="163.1" font-size="2.1" fill="#7a3b00">• Room &quot;Bathroom&quot; drainage: Plane &quot;Beside the shower (under the bath)&quot; has no derived heights: unknown Kano 316 tile-insert waste</text>
+<text x="269" y="166.2" font-size="2.1" fill="#7a3b00">120 × 120, brushed nickel, 50 mm outlet level, fall or a control level.</text>
+<text x="266" y="169.3" font-size="2" fill="#666">… 21 more: see get_rough_in / check_sheets</text>
+<rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
+<text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
+<text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>
+<text x="266" y="251.4" font-size="2.4" >Sheet A-01: Floor plan, faces and rough-in</text>
+<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · PREVIEW, not issued</text>
+<text x="266" y="261.8" font-size="2.2" >Prepared by: ? · Plan: Bathroom Concept</text>
+<text x="266" y="267" font-size="2.1" ></text>
+<rect x="264" y="268.8" width="146" height="7" fill="#b00020"/>
+<text x="337" y="273.4" font-size="2.1" text-anchor="middle" fill="#fff" font-weight="bold">PROPOSED · FOR TRADE REVIEW · NOT AS-BUILT · NOT A COMPLIANCE CERTIFICATE</text>
+</svg>

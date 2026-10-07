@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:e2e": "node tests/run-e2e.mjs",
     "stage-pack": "vite-node --script scripts/stage-pack.ts",
+    "sample-sheets": "vite-node --script scripts/sample-sheets.ts",
     "partner": "vite --port 5200 --strictPort",
     "deploy:studio": "wrangler pages deploy dist --project-name alza-dev --branch main",
     "deploy:partner": "npx netlify deploy --prod --dir dist"

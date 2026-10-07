@@ -79,18 +79,18 @@
 <text x="266" y="40.4" font-size="2.1" fill="#b00020">Power service points: not recorded in the sample, so not drawn or listed.</text>
 <text x="266" y="43.5" font-size="1.9" fill="#666">Drawn dashed as stand-ins: Fixtures (bath, vanity, toilet, screen…).</text>
 <text x="266" y="48.4" font-size="2.8" font-weight="bold">Fixtures — exact selection</text>
-<text x="266" y="52.4" font-size="2.1" data-element="item:bath">F1: Angie Corner 1000mm Bath, GW · Product code unknown · Finish unknown · Size / configuration unknown · Handedness unknown ·</text>
-<text x="269" y="55.5" font-size="2.1" data-element="item:bath">selection purchased</text>
-<text x="266" y="58.6" font-size="2.1" data-element="item:bath_mixer">F2: Enflair Profile III 150mm basin/bath wall mixer set with rectangular plate · Product code unknown · Finish unknown · Size /</text>
-<text x="269" y="61.7" font-size="2.1" data-element="item:bath_mixer">configuration unknown · Handedness unknown · selection purchased</text>
-<text x="266" y="64.8" font-size="2.1" data-element="item:bath_waste">F3: Ahrok Dome Pop Short Bath Waste 40mm, with pull out basket · Product code unknown · Finish unknown · Size / configuration</text>
+<text x="266" y="52.4" font-size="2.1" data-element="item:bath">F1: Enflair Angie Corner 1000mm Bath, GW · Product code SB184-1000GW · Finish unknown · Size / configuration unknown · Handedness</text>
+<text x="269" y="55.5" font-size="2.1" data-element="item:bath">unknown · selection purchased</text>
+<text x="266" y="58.6" font-size="2.1" data-element="item:bath_mixer">F2: Enflair Profile III 150mm basin/bath wall mixer set with rectangular plate · Product code K1132-##-150+KDPP32 · Finish unknown</text>
+<text x="269" y="61.7" font-size="2.1" data-element="item:bath_mixer">· Size / configuration unknown · Handedness unknown · selection purchased</text>
+<text x="266" y="64.8" font-size="2.1" data-element="item:bath_waste">F3: Ahrok Dome Pop Short Bath Waste 40mm, with pull out basket · Product code SDP-40BN · Finish unknown · Size / configuration</text>
 <text x="269" y="67.9" font-size="2.1" data-element="item:bath_waste">unknown · Handedness unknown · selection purchased</text>
-<text x="266" y="71" font-size="2.1" data-element="item:basin_mixer">F4: Enflair Profile III petite basin mixer · Product code unknown · Finish unknown · Size / configuration unknown · Handedness</text>
+<text x="266" y="71" font-size="2.1" data-element="item:basin_mixer">F4: Enflair Profile III petite basin mixer · Product code K1110-31 · Finish unknown · Size / configuration unknown · Handedness</text>
 <text x="269" y="74.1" font-size="2.1" data-element="item:basin_mixer">unknown · selection purchased</text>
-<text x="266" y="77.2" font-size="2.1" data-element="item:shower_system">F5: Profile round twin shower system with adjustable rail · Product code unknown · Finish unknown · Size / configuration unknown ·</text>
-<text x="269" y="80.3" font-size="2.1" data-element="item:shower_system">Handedness unknown · selection purchased</text>
-<text x="266" y="83.4" font-size="2.1" data-element="item:shower_mixer">F6: Enflair Profile III shower/bath wall mixer · Product code unknown · Finish unknown · Size / configuration unknown · Handedness</text>
-<text x="269" y="86.5" font-size="2.1" data-element="item:shower_mixer">unknown · selection purchased</text>
+<text x="266" y="77.2" font-size="2.1" data-element="item:shower_system">F5: Profile round twin shower system with adjustable rail · Product code Y1173-31-11-250 · Finish unknown · Size / configuration</text>
+<text x="269" y="80.3" font-size="2.1" data-element="item:shower_system">unknown · Handedness unknown · selection purchased</text>
+<text x="266" y="83.4" font-size="2.1" data-element="item:shower_mixer">F6: Enflair Profile III shower/bath wall mixer · Product code K1130-31 · Finish unknown · Size / configuration unknown ·</text>
+<text x="269" y="86.5" font-size="2.1" data-element="item:shower_mixer">Handedness unknown · selection purchased</text>
 <text x="266" y="89.6" font-size="2" fill="#666">… 6 more: see the specification sheet</text>
 <text x="266" y="94.6" font-size="2.8" font-weight="bold">Wall faces and layers (mm from drawn line)</text>
 <text x="266" y="98.6" font-size="2.1" data-element="wall:wall_n:right:wall_n_tile">Wall n right: 300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo): thickness 10 E</text>

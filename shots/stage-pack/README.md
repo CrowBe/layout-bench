@@ -428,7 +428,7 @@ Visible: `walls`, `wall-tile`, `rooms`, `doors`, `windows`, `floor-substrate`, `
 
 Stopgap view, not recorded: Waste service points; Water service points; Power service points. Drawn dashed as stand-ins: fixtures.
 
-Specification: 290 row(s), 152 unknown. [spec.html](09-fit-out/spec.html)
+Specification: 290 row(s), 143 unknown. [spec.html](09-fit-out/spec.html)
 
 Open items:
 

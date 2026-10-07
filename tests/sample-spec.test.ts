@@ -10,6 +10,8 @@ import { floorTileLayout } from "../src/model/floorTiling";
 import { resolveFace } from "../src/model/faces";
 import { floorFill, floorLevels } from "../src/model/floor";
 import type { PlanModel } from "../src/model/types";
+import { checkSheet } from "../src/sheets/check";
+import { specRows } from "../src/sheets/stageView";
 
 const sample = () => demoProject().model;
 const wall = (m: PlanModel, id: string) => m.walls.find((w) => w.id === id)!;
@@ -105,5 +107,19 @@ describe("owner's construction spec in the sample", () => {
     // floor: full row at the doorway, full column along the left wall
     const floor = floorTileLayout(m, m.rooms[0]);
     expect(floor.cuts!.south.full && floor.cuts!.west.full).toBe(true);
+  });
+
+  it("ships a title block, so the plan sheet is not blocked on it", () => {
+    const m = sample();
+    expect(m.sheetSet?.titleBlock).toMatchObject({ project: "Bathroom Concept", site: expect.stringContaining("Bathroom") });
+    expect(checkSheet(m, "floor-plan").map((f) => f.code)).not.toContain("title_block_incomplete");
+  });
+
+  it("prints each purchased fitting's entered product code on the specification, tagged entered", () => {
+    const m = sample();
+    const bath = m.items.find((i) => i.id === "bath")!;
+    const rows = specRows(m, { id: "item:bath", type: "fixture", ref: "bath", label: "Corner bath" } as never);
+    expect(rows.find((r) => r.property === "Product code")).toMatchObject({ value: bath.productIdentity!.code, status: "entered" });
+    expect(rows.find((r) => r.property === "exact product")?.value).toContain("manufacturer Enflair");
   });
 });
