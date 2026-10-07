@@ -32,6 +32,22 @@ after confirmation. Browser storage does not sync between devices and may be cle
 with site data. If storage is full or saved data uses an unreadable version, the app
 shows an error and offers a backup download without overwriting that data.
 
+## Bathroom Concept: the full flow, saved in the repo
+
+The shipped sample is a real bathroom renovation, taken from modelling through to trade
+drawings. Everything it needs or produces is in this repository:
+
+| What | Where | Regenerate |
+|------|-------|------------|
+| Model: survey, build-ups, tiles, drains, falls planes, heating, fixtures and notes | [`src/model/seed-bathroom.ts`](src/model/seed-bathroom.ts), [`src/model/sampleWasteBodies.ts`](src/model/sampleWasteBodies.ts) | — |
+| Catalogue additions: the purchased and reused fittings, each with its 3D parts, product identity and sourced figures | `purchasedFittings` and `bathroomKinds` in [`seed-bathroom.ts`](src/model/seed-bathroom.ts) | — |
+| Per-stage plan, wall elevations and specification for all 9 stages | [`shots/stage-pack/`](shots/stage-pack/README.md) | `npm run stage-pack` |
+| A-01 floor plan, floor and wall tiling sheets, heating review | [`shots/sample-sheets/`](shots/sample-sheets/README.md) | `npm run sample-sheets` |
+| 3D: the finished room and each build stage | [`shots/renovation-3d/`](shots/renovation-3d/) | `node stage-shots.mjs` (dev server running) |
+
+Both generators open the sample exactly as the app does and fail if rendering changed the
+model, so a clean `git status` after running them means the saved exports match the model.
+
 ## Reno Layouts skills plugin
 
 The skills-only plugin in [`plugins/reno-layouts`](./plugins/reno-layouts) provides

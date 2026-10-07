@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" font-family="Helvetica, Arial, sans-serif" data-sheet="wall-tiling" data-wall="wall_n" data-side="right" data-scale="20" data-status="proposed">
+<rect width="420" height="297" fill="#fff"/>
+<rect x="5" y="5" width="410" height="287" fill="none" stroke="#000" stroke-width="0.5"/>
+<rect x="12" y="12" width="262" height="268" fill="none" stroke="#999" stroke-width="0.2"/>
+<rect x="87.75" y="78.5" width="110.5" height="135" fill="#f4f4f4" stroke="#888" stroke-width="0.25" data-role="wall"/>
+<line x1="79.75" y1="213.5" x2="206.25" y2="213.5" stroke="#000" stroke-width="0.3"/>
+<text x="207.25" y="214.3" font-size="1.9" fill="#444">0 = existing floor surface (current tile top)</text>
+<text x="87.75" y="76.5" font-size="3" font-weight="bold" text-anchor="middle">A</text>
+<text x="198.25" y="76.5" font-size="3" font-weight="bold" text-anchor="middle">B</text>
+<rect x="89" y="183.3" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="89" y="153.1" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="89" y="122.9" width="8.75" height="30" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="97.75" y="137.5" width="6.25" height="15.4" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="89" y="92.7" width="8.75" height="30" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="97.75" y="92.7" width="6.25" height="14.8" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="104.2" y="183.3" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="104.2" y="153.1" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="104.2" y="137.5" width="15" height="15.4" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="104.2" y="92.7" width="15" height="14.8" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="119.4" y="183.3" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="119.4" y="153.1" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="119.4" y="137.5" width="15" height="15.4" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="119.4" y="92.7" width="15" height="14.8" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="134.6" y="183.3" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="134.6" y="153.1" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="134.6" y="137.5" width="15" height="15.4" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="134.6" y="92.7" width="15" height="14.8" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="149.8" y="183.3" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="149.8" y="153.1" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="149.8" y="137.5" width="15" height="15.4" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="149.8" y="92.7" width="15" height="14.8" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="165" y="183.3" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="165" y="153.1" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="165" y="137.5" width="15" height="15.4" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="165" y="92.7" width="15" height="14.8" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="180.2" y="183.3" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="180.2" y="153.1" width="15" height="30" fill="#fff" stroke="#555" stroke-width="0.15" data-piece="full"/>
+<rect x="188.25" y="122.9" width="6.95" height="30" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="180.2" y="137.5" width="8.05" height="15.4" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="188.25" y="92.7" width="6.95" height="30" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="180.2" y="92.7" width="8.05" height="14.8" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="195.4" y="183.3" width="1.6" height="30" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="195.4" y="153.1" width="1.6" height="30" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="195.4" y="122.9" width="1.6" height="30" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="195.4" y="92.7" width="1.6" height="30" fill="#f3d2b3" stroke="#555" stroke-width="0.15" data-piece="cut"/>
+<rect x="97.75" y="107.5" width="90.5" height="30" fill="#dfe9f2" stroke="#2f78b7" stroke-width="0.3" data-opening="window_n"/>
+<text x="143" y="122.5" font-size="2.2" text-anchor="middle" fill="#2f78b7">WINDOW window_n</text>
+<text x="143" y="125.5" font-size="1.8" text-anchor="middle" fill="#2f78b7">1810 × 600, sill 1520 above datum</text>
+<text x="96.75" y="122.5" font-size="1.9" text-anchor="end" fill="#9a4d00" font-weight="bold" data-cut="window_n:jambA">175</text>
+<text x="189.25" y="122.5" font-size="1.9" text-anchor="start" fill="#9a4d00" font-weight="bold" data-cut="window_n:jambB">139</text>
+<text x="143" y="140.1" font-size="1.9" text-anchor="middle" fill="#9a4d00" font-weight="bold" data-cut="window_n:sill">308</text>
+<text x="143" y="106.5" font-size="1.9" text-anchor="middle" fill="#9a4d00" font-weight="bold" data-cut="window_n:head">296</text>
+<line x1="89" y1="72.5" x2="89" y2="217.5" stroke="#8a5a1c" stroke-width="0.35" stroke-dasharray="1.2 0.8" data-limit="a"/>
+<text x="90" y="71.5" font-size="1.7" text-anchor="start" fill="#8a5a1c">Finished face of wall_w (right side) (E)</text>
+<line x1="197" y1="72.5" x2="197" y2="217.5" stroke="#8a5a1c" stroke-width="0.35" stroke-dasharray="1.2 0.8" data-limit="b"/>
+<text x="196" y="71.5" font-size="1.7" text-anchor="end" fill="#8a5a1c">Finished face of wall_e (right side) (E)</text>
+<line x1="83.75" y1="213.5" x2="202.25" y2="213.5" stroke="#1a7f37" stroke-width="0.35" data-role="floor-reference"/>
+<text x="82.75" y="214.3" font-size="1.8" text-anchor="end" fill="#1a7f37">finished floor level +0 (P)</text>
+<line x1="83.75" y1="92.7" x2="202.25" y2="92.7" stroke="#1a7f37" stroke-width="0.35" stroke-dasharray="2 1"/>
+<text x="82.75" y="93.5" font-size="1.8" text-anchor="end" fill="#1a7f37">tiled height 2416 above finished floor level (E)</text>
+<rect x="89" y="183.3" width="15" height="30" fill="none" stroke="#b00020" stroke-width="0.5" data-role="origin-tile"/>
+<line x1="86" y1="213.3" x2="92" y2="213.3" stroke="#b00020" stroke-width="0.4"/>
+<line x1="89" y1="210.3" x2="89" y2="216.3" stroke="#b00020" stroke-width="0.4"/>
+<text x="90.2" y="212.1" font-size="1.9" fill="#b00020" font-weight="bold">ORIGIN</text>
+<line x1="89" y1="222.5" x2="197" y2="222.5" stroke="#000" stroke-width="0.2"/>
+<line x1="89" y1="221" x2="89" y2="224" stroke="#000" stroke-width="0.2"/>
+<line x1="89" y1="221" x2="89" y2="224" stroke="#000" stroke-width="0.2"/>
+<line x1="195.4" y1="221" x2="195.4" y2="224" stroke="#000" stroke-width="0.2"/>
+<line x1="197" y1="221" x2="197" y2="224" stroke="#000" stroke-width="0.2"/>
+<text x="89" y="220.5" font-size="2.1" font-weight="bold" fill="#9a4d00" data-cut="a">full</text>
+<text x="197" y="220.5" font-size="2.1" font-weight="bold" fill="#9a4d00" text-anchor="end" data-cut="b">32</text>
+<text x="143" y="226.5" font-size="2" text-anchor="middle">run 2160 between finished (tile) faces</text>
+<line x1="208.25" y1="213.5" x2="208.25" y2="92.7" stroke="#000" stroke-width="0.2"/>
+<text x="209.75" y="212.5" font-size="2.1" font-weight="bold" fill="#9a4d00" data-cut="bottom">full + 4 gap</text>
+<text x="209.75" y="95.7" font-size="2.1" font-weight="bold" fill="#9a4d00" data-cut="top">full</text>
+<text x="15" y="18" font-size="3.4" fill="#b00020" font-weight="bold" data-role="status">PROPOSED SET-OUT · NOT AS-BUILT</text>
+<text x="280" y="16" font-size="2.8" font-weight="bold">Tile set-out (proposed)</text>
+<text x="280" y="20.6" font-size="2.1" >Tile: 600 × 300 mm (P/P), portrait</text>
+<text x="280" y="24.1" font-size="2.1" >Grout joint: 4 (P)</text>
+<text x="280" y="27.6" font-size="2.1" >Cut to: finished (tile) face of each return wall</text>
+<text x="280" y="31.1" font-size="2.1" >This wall's Finished face: 25 from drawn line</text>
+<text x="280" y="34.6" font-size="2.1" >Floor reference: finished floor level = +0 above existing floor surface (current tile top)</text>
+<text x="280" y="38.1" font-size="2.1" >Origin: 0 (P) from end A finished face</text>
+<text x="280" y="41.6" font-size="2.1" >        4 (E) above finished floor level</text>
+<text x="280" y="45.1" font-size="2.1" >Tiled height: 2416 (E) above finished floor level</text>
+<text x="280" y="48.6" font-size="2.1" >8 columns × 4 courses, 22 cut pieces of 36</text>
+<text x="280" y="54.1" font-size="2.8" font-weight="bold">Cuts (mm)</text>
+<text x="280" y="58.7" font-size="2.1" >End A cut (to finished (tile) face of wall_w): full</text>
+<text x="280" y="62.2" font-size="2.1" >End B cut (to finished (tile) face of wall_e): 32</text>
+<text x="280" y="65.7" font-size="2.1" >Bottom course (from finished floor level): full + 4 gap</text>
+<text x="280" y="69.2" font-size="2.1" >Top course (at tiled height): full</text>
+<text x="280" y="72.7" font-size="2.1" >Window window_n jamb, A side: 175</text>
+<text x="280" y="76.2" font-size="2.1" >Window window_n jamb, B side: 139</text>
+<text x="280" y="79.7" font-size="2.1" >Window window_n under sill: 308</text>
+<text x="280" y="83.2" font-size="2.1" >Window window_n over head: 296</text>
+<text x="280" y="88.7" font-size="2.8" font-weight="bold">Legend</text>
+<text x="280" y="93.3" font-size="2.1" >Along-wall dimensions are to the face named; heights are from the floor reference.</text>
+<text x="280" y="96.8" font-size="2.1" >Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · ? unknown</text>
+<text x="280" y="100.3" font-size="2.1" >Tinted pieces are cut. Openings are cut to their entered clear size; reveals not modelled.</text>
+<rect x="278" y="244" width="132" height="45" fill="none" stroke="#000" stroke-width="0.35"/>
+<text x="280" y="249" font-size="2.6" font-weight="bold">Bathroom Concept</text>
+<text x="280" y="254" font-size="2.1" >Wall wall_n, right side (faces Bathroom) · elevation looking at the face</text>
+<text x="280" y="259" font-size="2.1" >Scale 1:20 @ A3 · basis: estimated</text>
+<text x="280" y="264" font-size="2.1" >Prepared by: ?</text>
+<rect x="278" y="278" width="132" height="7" fill="#b00020"/>
+<text x="344" y="282.6" font-size="1.8" text-anchor="middle" fill="#fff" font-weight="bold">PROPOSED SET-OUT FOR TILER REVIEW · NOT AS-BUILT · NOT A COMPLIANCE CERTIFICATE</text>
+</svg>
