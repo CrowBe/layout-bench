@@ -13,6 +13,8 @@ import { formatMm } from "../model/geometry";
 import { useAppStore } from "../model/store";
 import type { Room } from "../model/types";
 import { QuantityField, toInput } from "./WallFaces";
+import { useProductStore } from "../model/productLibrary";
+import { DRAIN_CATEGORY, outletPosition, wasteProduct } from "../model/wasteProduct";
 
 const run = (room: Room, patch: DrainagePatch) => {
   const r = actions.setRoomDrainage(room.id, patch);
@@ -45,7 +47,7 @@ function Mm({ label, value, onCommit }: { label: string; value: number; onCommit
 }
 
 const wasteInputs = (room: Room): WasteInput[] =>
-  (room.drainage?.wastes ?? []).map((w) => ({ id: w.id, label: w.label, kind: w.kind, x: w.ax, y: w.ay, ...(w.kind === "linear" ? { x2: w.bx, y2: w.by } : {}), level: toInput(w.level) }));
+  (room.drainage?.wastes ?? []).map((w) => ({ id: w.id, label: w.label, kind: w.kind, x: w.ax, y: w.ay, ...(w.kind === "linear" ? { x2: w.bx, y2: w.by, outletAt: toInput(w.outletAt) } : {}), level: toInput(w.level) }));
 const planeInputs = (room: Room): PlaneInput[] =>
   (room.drainage?.planes ?? []).map((p) => ({
     id: p.id, label: p.label, x: p.x, y: p.y, w: p.w, h: p.h, waste: p.wasteId ?? null, fall: toInput(p.fall),
@@ -80,8 +82,40 @@ function Section({ room }: { room: Room }) {
   );
 }
 
+/** The waste's drain brief: pick one, see what it gives, or move to a newer accepted revision. */
+function WasteProductRow({ room, index, drains, onLink }: { room: Room; index: number; drains: { id: string; manufacturer: string; model: string }[]; onLink: (product: string | null) => void }) {
+  const w = room.drainage!.wastes[index];
+  const info = wasteProduct(w);
+  const linkedInLibrary = !!info && drains.some((p) => p.id === info.productId);
+  const outlet = outletPosition(w, info);
+  const size = (f?: { value: number }) => (f ? `${formatMm(f.value)}` : "?");
+  return (
+    <div className="hint" data-role="waste-product">
+      <label className="field inspector-field">
+        Drain product
+        <select aria-label={`${w.label} drain product`} value={info?.productId ?? ""} onChange={(e) => onLink(e.target.value || null)}>
+          <option value="">— none —</option>
+          {info && !linkedInLibrary && <option value={info.productId} disabled>{info.name} (carried with the project)</option>}
+          {drains.map((p) => <option key={p.id} value={p.id}>{[p.manufacturer, p.model].filter(Boolean).join(" ") || p.id}</option>)}
+        </select>
+      </label>
+      {info ? (
+        <span data-role="waste-product-figures">
+          Grate {size(info.grateLength)} × {size(info.grateWidth)} mm{info.grateType ? ` (${info.grateType})` : ""} · outlet Ø {size(info.outletDiameter)} mm · body {size(info.installationDepth)} mm below the grate · outlet position {outlet.x !== undefined ? `${formatMm(outlet.x)}, ${formatMm(outlet.y!)} mm` : outlet.basis}
+        </span>
+      ) : <span>No drain product: grate, outlet and body depth unresolved.</span>}
+      {info?.update && (
+        <button type="button" onClick={() => { const r = actions.updateWasteProduct(room.id, w.id); logActivity("human", "update_waste_product", r.summary, r.ok); }}>
+          Use revision {info.update.revision}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function Drainage({ room }: { room: Room }) {
   const model = useAppStore((s) => s.model);
+  const drains = useProductStore((s) => s.products).filter((p) => p.category === DRAIN_CATEGORY);
   const d = room.drainage;
   const wastes = wasteInputs(room);
   const planes = planeInputs(room);
@@ -112,6 +146,8 @@ export function Drainage({ room }: { room: Room }) {
               <Mm label={`${w.label} y2 (mm)`} value={w.y2 ?? w.y} onCommit={(v) => patchWaste(i, { y2: v })} />
             </>}
             <QuantityField label={`${w.label} level (mm)`} q={d?.wastes[i].level} onCommit={(q) => patchWaste(i, { level: q })} />
+            {w.kind === "linear" && <QuantityField label={`${w.label} outlet from first end (mm)`} q={d?.wastes[i].outletAt} onCommit={(q) => patchWaste(i, { outletAt: q })} />}
+            <WasteProductRow room={room} index={i} drains={drains} onLink={(product) => patchWaste(i, { product })} />
           </div>
         ))}
         <div className="face-add">

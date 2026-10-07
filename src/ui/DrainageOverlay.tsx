@@ -1,12 +1,14 @@
 /**
  * Plan overlay for a room's drainage (#7): plane tints, downhill arrows, level annotations,
- * wastes and control points. Read-only; every number comes from model/drainage.ts, and an
+ * wastes and control points. A waste linked to a drain brief (#82) draws its grate at the
+ * brief's size and its outlet where that is resolved; otherwise a centre line or dot. Read-only; every number comes from model/drainage.ts, and an
  * unresolved plane is drawn hatched with "?" rather than a guessed level.
  */
 
 import { surfaces, type PlaneSurface } from "../model/drainage";
 import { formatMm } from "../model/geometry";
 import type { FloorPlane, Room } from "../model/types";
+import { grateOutline, outletPosition, wasteProduct } from "../model/wasteProduct";
 
 const lvl = (m: number) => `${m >= 0 ? "+" : "−"}${formatMm(Math.abs(m))}`;
 
@@ -75,16 +77,29 @@ export function DrainageOverlay({ room, S }: { room: Room; S: number }) {
           </g>
         );
       })}
-      {d.wastes.map((w) => (
-        <g key={w.id} data-waste={w.id}>
-          {w.kind === "linear"
-            ? <line x1={w.ax * S} y1={w.ay * S} x2={w.bx * S} y2={w.by * S} stroke="#1c1c1c" strokeWidth={5} strokeLinecap="round" opacity={0.75} />
-            : <circle cx={w.ax * S} cy={w.ay * S} r={7} fill="#1c1c1c" opacity={0.75} />}
+      {d.wastes.map((w) => {
+        const info = wasteProduct(w);
+        const grate = grateOutline(w, info);
+        const outlet = outletPosition(w, info);
+        return (
+        <g key={w.id} data-waste={w.id} data-product={info?.productId}>
+          {grate
+            ? <>
+                <polygon data-role="grate" points={grate.map((p) => `${p.x * S},${p.y * S}`).join(" ")} fill="#1c1c1c" fillOpacity={0.55} stroke="#1c1c1c" strokeWidth={1} />
+                {w.kind === "linear" && <line x1={w.ax * S} y1={w.ay * S} x2={w.bx * S} y2={w.by * S} stroke="#f5f1e8" strokeWidth={1} strokeDasharray="3 2" />}
+              </>
+            : w.kind === "linear"
+              ? <line x1={w.ax * S} y1={w.ay * S} x2={w.bx * S} y2={w.by * S} stroke="#1c1c1c" strokeWidth={5} strokeLinecap="round" opacity={0.75} />
+              : <circle cx={w.ax * S} cy={w.ay * S} r={7} fill="#1c1c1c" opacity={0.75} />}
+          {outlet.x !== undefined && outlet.y !== undefined && (
+            <circle data-role="outlet" cx={outlet.x * S} cy={outlet.y * S} r={Math.max(3, ((outlet.diameter ?? 0.05) / 2) * S)} fill="none" stroke="#c97a1e" strokeWidth={1.5} />
+          )}
           <text x={((w.ax + w.bx) / 2) * S + 6} y={((w.ay + w.by) / 2) * S - 8} fontSize={fs} fill="#1c1c1c">
             {w.label} {w.level?.value !== undefined ? `${lvl(w.level.value)} mm${w.level.status ? ` (${w.level.status})` : ""}` : "level ?"}
           </text>
         </g>
-      ))}
+        );
+      })}
     </g>
   );
 }

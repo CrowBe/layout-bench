@@ -257,6 +257,23 @@ export interface Waste {
   bx: number;
   by: number;
   level?: Quantity;
+  /**
+   * Linear wastes only: where the outlet sits along the channel, metres from end A along the
+   * centreline. A project choice (a channel outlet can go anywhere along its tray), so it is
+   * entered with a status, never read off the product.
+   */
+  outletAt?: Quantity;
+  /** The drain product this waste is (#82): an accepted library brief, pinned at link time. */
+  product?: WasteProductLink;
+}
+
+/**
+ * A waste's drain product. `specification` is the accepted brief as linked, and travels with
+ * the project; a later accepted revision is offered, never applied silently (#53).
+ */
+export interface WasteProductLink {
+  productId: string;
+  specification: ProductSpecification & { manufacturer?: string; model?: string; productId?: string; revision?: number };
 }
 
 /** A level entered at a plan position on a plane: metres above the datum. */

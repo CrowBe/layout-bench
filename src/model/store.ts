@@ -47,6 +47,7 @@ import { LAYER_KINDS, VALUE_STATUSES, layerLabel, sideFaces } from "./faces";
 import { fittedPose, placementLimitations, anchorPose, applyAnchors, faceChoices } from "./fixtures";
 import { hostWasteInHostFrame, productCornerSide, applyCornerHandChange, derivedServicePointMutation, isDerivedServicePoint } from "./fittedWaste";
 import { drainageProblems, planeSurface } from "./drainage";
+import { DRAIN_CATEGORY, wasteLinkFromProduct, wasteProduct } from "./wasteProduct";
 import { floorTileLayout } from "./floorTiling";
 import { TILE_FLOOR_REFERENCES, TILE_ORIENTATIONS, TILE_ORIGIN_FROM, TILE_REFERENCES, tilingLayout } from "./tiling";
 import { DEFAULT_DATUM, FLOOR_RANK, FLOOR_LAYER_KINDS, FLOOR_LAYER_LABELS, floorLevels, finishedLevel } from "./floor";
@@ -560,6 +561,13 @@ export interface WasteInput {
   y2?: number;
   /** Finished floor level at the waste, metres above the datum. */
   level?: QuantityInput | null;
+  /** Linear waste: outlet position along the channel, metres from the first end. */
+  outletAt?: QuantityInput | null;
+  /**
+   * Accepted "drain" library product id. Omitted keeps the waste's current product (matched by
+   * id); null unlinks it.
+   */
+  product?: string | null;
 }
 
 export interface ControlInput {
@@ -1381,8 +1389,22 @@ export const actions = {
         if (w.kind === "linear" && Math.hypot((bx as number) - (ax as number), (by as number) - (ay as number)) < 0.01) return fail(`Rejected: ${label} needs two different ends.`);
         const level = quantity(`${label} level`, w.level);
         if (typeof level === "string") return fail(`Rejected: ${level}`);
+        const outletAt = quantity(`${label} outlet position`, w.outletAt);
+        if (typeof outletAt === "string") return fail(`Rejected: ${outletAt}`);
+        if (w.kind !== "linear" && (outletAt.value !== undefined || outletAt.source)) return fail(`Rejected: ${label} is a point waste; outletAt is for linear wastes (a point waste's outlet comes from its product).`);
         const waste: Waste = { id: keepId(w.id, current.wastes, "waste"), label, kind: w.kind, ax: ax as number, ay: ay as number, bx: bx as number, by: by as number };
         if (level.value !== undefined || level.source) waste.level = level;
+        if (outletAt.value !== undefined || outletAt.source) waste.outletAt = outletAt;
+        const prior = w.id ? current.wastes.find((x2) => x2.id === w.id) : undefined;
+        if (w.product === undefined) {
+          if (prior?.product) waste.product = prior.product;
+        } else if (w.product !== null) {
+          const ref = String(w.product);
+          const product = productStore.getState().products.find((p) => p.id === ref);
+          if (!product) return fail(`Rejected: ${label} product "${ref}" is not an accepted product in this browser's library.`);
+          if (product.category !== DRAIN_CATEGORY) return fail(`Rejected: ${label} product "${ref}" is a ${product.category} brief, not a drain.`);
+          waste.product = prior?.product?.productId === product.id ? prior.product : wasteLinkFromProduct(product);
+        }
         if (w.id) sent.set(w.id, waste.id);
         wastes.push(waste);
       }
@@ -1439,6 +1461,27 @@ export const actions = {
       `Room "${room.label}" drainage: ${next.wastes.length} waste${next.wastes.length === 1 ? "" : "s"}, ${next.planes.length} plane${next.planes.length === 1 ? "" : "s"} (${resolved} resolved)${errors ? `; ${errors} error${errors === 1 ? "" : "s"} to fix, see get_floor_heights` : ""}.`,
       { id: room.id, wastes: next.wastes, planes: next.planes },
     );
+  },
+
+  /** Re-pin a waste's drain product to the latest accepted revision in its series (#82, #53). */
+  updateWasteProduct(roomRef: string, wasteRef: string): ActionResult {
+    const hit = resolveRoom(roomRef);
+    if (!hit.ok) return rejected(hit);
+    const room = hit.entity;
+    const ref = String(wasteRef).toLowerCase();
+    const wastes = room.drainage?.wastes ?? [];
+    const matches = wastes.filter((w) => w.id === wasteRef || w.label.toLowerCase() === ref);
+    if (matches.length !== 1) return fail(`Rejected: ${matches.length ? `"${wasteRef}" is ambiguous; use its id` : `no waste "${wasteRef}" in ${room.label}`}. Wastes: ${wastes.map((w) => `${w.id} (${w.label})`).join(", ") || "none"}.`);
+    const waste = matches[0];
+    const info = wasteProduct(waste);
+    if (!info) return fail(`Rejected: waste "${waste.label}" has no drain product linked.`);
+    if (!info.update) return fail(`Waste "${waste.label}" already uses the latest accepted revision of ${info.name}.`);
+    const product = productStore.getState().products.find((p) => p.id === info.update!.productId)!;
+    const next: Waste = { ...waste, product: wasteLinkFromProduct(product) };
+    const nextRoom: Room = { ...room, drainage: { ...room.drainage!, wastes: wastes.map((w) => (w.id === waste.id ? next : w)) } };
+    pushUndo();
+    setModel({ ...store.getState().model, rooms: store.getState().model.rooms.map((x) => (x.id === room.id ? nextRoom : x)) });
+    return { ok: true, summary: `Waste "${waste.label}" now uses ${info.name} revision ${info.update.revision} (was ${info.revision ?? "unnumbered"}).`, data: { id: waste.id, product: next.product } };
   },
 
   removeRoom(idOrLabel: string): ActionResult {

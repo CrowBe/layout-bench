@@ -16,9 +16,9 @@ import type { Item, LayerKind, Opening, PlanModel, Room, ValueStatus, Wall, Wall
 import { liningSlabs, resolveFace, sideNormal, wallBody, VALUE_STATUSES } from "../model/faces";
 import { roughIn } from "../model/fixtures";
 import { catalogForItem, catalogByKind } from "../model/catalog";
-import { segLen } from "../model/geometry";
+import { formatMm, segLen } from "../model/geometry";
 import { openingSpan } from "../model/issues";
-import { sampleLinearWasteBody, samplePointWasteGrate } from "../model/sampleWasteBodies";
+import { outletPosition, wasteProduct } from "../model/wasteProduct";
 
 export const wallMaterial = new THREE.MeshStandardMaterial({
   color: "#f2ede4",
@@ -535,38 +535,39 @@ function buildFalls(room: Room, material: THREE.Material, flatTop?: number): THR
     if (level === undefined) continue;
     let mesh: THREE.Mesh;
     let stopgap = false;
-    if (w.kind === "linear") {
-      const body = sampleLinearWasteBody(w);
-      // Packing-slip width across the channel and depth below the grate, when known.
-      // Never use the outlet size as the channel width. Unsourced bodies are a film marker.
-      const width = body?.width ?? FILM;
-      const height = body?.depthBelowGrate ?? FILM;
-      const y0 = body ? level - height : level;
-      mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(len, height, width),
-        new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }),
+    // Sizes come only from the linked drain brief (#82): grate length and width at their real
+    // size, body depth below the grate. Never use the outlet size as a grate size. A waste
+    // with no product, or a brief that leaves a size unknown, is a film marker.
+    const info = wasteProduct(w);
+    const along = info?.grateLength?.value ?? (w.kind === "linear" ? len : FILM);
+    const across = info?.grateWidth?.value ?? FILM;
+    const depth = info?.installationDepth?.value;
+    const height = depth ?? FILM;
+    const y0 = depth !== undefined ? level - depth : level;
+    mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(along, height, across),
+      new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }),
+    );
+    mesh.position.set((w.ax + w.bx) / 2, y0 + height / 2, (w.ay + w.by) / 2);
+    if (w.kind === "linear") mesh.rotation.y = -Math.atan2(w.by - w.ay, w.bx - w.ax);
+    const sized = !!info?.grateLength && !!info.grateWidth;
+    mesh.userData.body = !info
+      ? "location marker; no drain product linked"
+      : `${info.name}: grate ${sized ? "from the brief" : "size not in the brief"}, body depth below the grate ${depth !== undefined ? "from the brief" : "not in the brief, drawn as a film"}`;
+    stopgap = !sized || depth === undefined;
+    const outlet = outletPosition(w, info);
+    if (outlet.x !== undefined && outlet.y !== undefined && outlet.diameter !== undefined) {
+      const drop = info?.outletBelowGrate?.value ?? height;
+      const pipe = new THREE.Mesh(
+        new THREE.CylinderGeometry(outlet.diameter / 2, outlet.diameter / 2, Math.max(drop, FILM), 24),
+        new THREE.MeshStandardMaterial({ color: "#5a5a5a", metalness: 0.5, roughness: 0.5 }),
       );
-      mesh.position.set((w.ax + w.bx) / 2, y0 + height / 2, (w.ay + w.by) / 2);
-      mesh.rotation.y = -Math.atan2(w.by - w.ay, w.bx - w.ax);
-      mesh.userData.body = body
-        ? "channel body: width across the grate, depth below the grate"
-        : "location marker; product body not recorded";
-      stopgap = !body;
-    } else {
-      const grate = samplePointWasteGrate(w);
-      // Grate plan size when known. Never use the 50 mm outlet as the grate diameter.
-      // Body depth below the grate is not on the packing slip: a film on the finished floor.
-      const gw = grate?.w ?? FILM;
-      const gd = grate?.d ?? FILM;
-      mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(gw, FILM, gd),
-        new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }),
-      );
-      mesh.position.set((w.ax + w.bx) / 2, level + FILM / 2, (w.ay + w.by) / 2);
-      mesh.userData.body = grate
-        ? "grate plan; body depth below grate not recorded, drawn as a film"
-        : "location marker; product body not recorded";
-      stopgap = true;
+      pipe.position.set(outlet.x, level - Math.max(drop, FILM) / 2, outlet.y);
+      pipe.name = `${room.id}:waste:${w.id}:outlet`;
+      pipe.userData.outlet = outlet.basis;
+      staged(pipe, `room:${room.id}:waste:${w.id}`);
+      if (w.level?.value === undefined || info?.outletBelowGrate === undefined) applyStopgapVisual(pipe);
+      g.add(pipe);
     }
     mesh.name = `${room.id}:waste:${w.id}`;
     staged(mesh, `room:${room.id}:waste:${w.id}`);
@@ -718,31 +719,22 @@ function buildGratesThroughTiles(room: Room, tileY: number): THREE.Group | null 
   const y = tileY + TILE_LIFT;
   for (const w of wastes) {
     const len = Math.hypot(w.bx - w.ax, w.by - w.ay);
-    let along: number, across: number;
-    let stopgap = w.level?.value === undefined;
-    if (w.kind === "linear") {
-      const body = sampleLinearWasteBody(w);
-      along = len;
-      across = body?.width ?? FILM;
-      stopgap ||= !body;
-    } else {
-      const grate = samplePointWasteGrate(w);
-      along = grate?.w ?? FILM;
-      across = grate?.d ?? FILM;
-      stopgap = true; // point-waste body depth is never recorded; as drawn in buildFalls
-    }
+    const info = wasteProduct(w);
+    const along = info?.grateLength?.value ?? (w.kind === "linear" ? len : FILM);
+    const across = info?.grateWidth?.value ?? FILM;
+    const stopgap = w.level?.value === undefined || !info?.grateLength || !info.grateWidth;
     const face = new THREE.Mesh(
       new THREE.PlaneGeometry(along, across).rotateX(-Math.PI / 2),
       new THREE.MeshStandardMaterial({ color: "#2b2b2b", metalness: 0.6, roughness: 0.4 }),
     );
     face.position.set((w.ax + w.bx) / 2, y, (w.ay + w.by) / 2);
-    face.rotation.y = -Math.atan2(w.by - w.ay, w.bx - w.ax);
+    if (w.kind === "linear") face.rotation.y = -Math.atan2(w.by - w.ay, w.bx - w.ax);
     face.name = `${room.id}:floor-tiling:grate:${w.id}`;
     face.userData.stage = `room:${room.id}:waste:${w.id}`;
     face.userData.level = w.level?.value !== undefined
       ? "waste level as recorded (drawn in the falls); this face is lifted just above the tile set-out to stay visible"
       : "waste level not recorded; this face is lifted just above the tile set-out to stay visible";
-    face.userData.aperture = "not recorded; waste cuts unresolved";
+    face.userData.aperture = info?.grateLength && info.grateWidth ? `grate ${formatMm(info.grateLength.value)} × ${formatMm(info.grateWidth.value)} mm from ${info.name}; clearance and cut shape to confirm on site` : "not recorded; waste cuts unresolved";
     if (stopgap) applyStopgapVisual(face);
     g.add(face);
   }

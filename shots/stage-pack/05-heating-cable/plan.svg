@@ -4,9 +4,10 @@
 <rect x="5" y="5" width="410" height="287" fill="none" stroke="#000" stroke-width="0.5"/>
 <rect x="12" y="12" width="248" height="268" fill="none" stroke="#999" stroke-width="0.2"/>
 <text x="136" y="146" font-size="3" text-anchor="middle" fill="#888" data-element="room:bathroom">BATHROOM</text>
-<line x1="85.75" y1="75.5" x2="85.75" y2="125.5" stroke="#7a5230" stroke-width="1.2" data-element="room:bathroom:waste:linear_drain"/>
+<polygon points="88.25,75.5 88.25,125.5 83.25,125.5 83.25,75.5" fill="#7a5230" fill-opacity="0.35" stroke="#7a5230" stroke-width="0.3" data-grate="1" data-element="room:bathroom:waste:linear_drain"/>
 <text x="85.75" y="103.7" font-size="1.9" text-anchor="middle" fill="#7a5230">Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN FL ?</text>
-<circle cx="136" cy="176" r="1.4" fill="none" stroke="#7a5230" stroke-width="0.4" data-element="room:bathroom:waste:square_waste"/>
+<polygon points="133,173 139,173 139,179 133,179" fill="#7a5230" fill-opacity="0.35" stroke="#7a5230" stroke-width="0.3" data-grate="1" data-element="room:bathroom:waste:square_waste"/>
+<text x="136" y="174.2" font-size="1.5" text-anchor="middle" fill="#7a5230">tile insert</text>
 <text x="136" y="179.2" font-size="1.9" text-anchor="middle" fill="#7a5230">Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet FL ?</text>
 <polygon points="196,68.25 76,68.25 76,63.25 196,63.25" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_n"/>
 <polygon points="191,228.75 191,63.25 196,63.25 196,228.75" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_e"/>
@@ -94,26 +95,28 @@
 <text x="266" y="73" font-size="2.1" data-element="room:bathroom:heating">Bathroom: proposed heating cable: manufacturer ? · model SCK0765L ENT · product length (m) 42.5 PUB · rated output (W) 765 PUB ·</text>
 <text x="269" y="76.1" font-size="2.1" data-element="room:bathroom:heating">derived spacing min 87.1 DER · derived spacing max 120 DER · plan route length (m) 42.5 MOD · spatial route length, sampled</text>
 <text x="269" y="79.2" font-size="2.1" data-element="room:bathroom:heating">profile (m) ?</text>
-<text x="266" y="82.3" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ?</text>
-<text x="266" y="85.4" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ?</text>
-<text x="266" y="90.5" font-size="2.8" font-weight="bold">Unresolved in this view (19)</text>
-<text x="266" y="94.5" font-size="2.1" fill="#7a3b00">• Bathroom floor: Waterproofing on the slab: thickness (mm) unknown; printed as &quot;?&quot; (missing thickness (mm)).</text>
-<text x="266" y="97.6" font-size="2.1" fill="#7a3b00">• Bathroom floor: Waterproofing on the slab: top level (mm) unknown; printed as &quot;?&quot; (missing Waterproofing on the slab thickness).</text>
-<text x="266" y="100.7" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_signoff: Proposed route only: manufacturer and licensed electrician must review cable</text>
-<text x="269" y="103.8" font-size="2.1" fill="#7a3b00">identity, length, output, bend radius, spacing, exclusions, cover, sensor, cold tails, waterproofing and electrical installation.</text>
-<text x="269" y="106.9" font-size="2.1" fill="#7a3b00">No compliance approval. No electrical approval is implied.</text>
-<text x="266" y="110" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_product_unresolved: sample-sck0765l-carton is not an accepted heating-cable in this</text>
-<text x="269" y="113.1" font-size="2.1" fill="#7a3b00">library. Checks use the travelling snapshot only when its productId is that id or in its series.</text>
-<text x="266" y="116.2" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_product_unresolved: sample-mwd5-1999-cbp3 is not an accepted thermostat in this</text>
+<text x="266" y="82.3" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ? · drain</text>
+<text x="269" y="85.4" font-size="2.1" data-element="room:bathroom:waste:linear_drain">product Lauxes Next Gen 35 Custom 1000, brushed nickel NAM · grate 1000 × 100 M</text>
+<text x="266" y="88.5" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ? · drain product Kano 316</text>
+<text x="269" y="91.6" font-size="2.1" data-element="room:bathroom:waste:square_waste">Tile Insert Waste 120×120, brushed nickel NAM · grate 120 × 120 tile insert M</text>
+<text x="266" y="96.7" font-size="2.8" font-weight="bold">Unresolved in this view (19)</text>
+<text x="266" y="100.7" font-size="2.1" fill="#7a3b00">• Bathroom floor: Waterproofing on the slab: thickness (mm) unknown; printed as &quot;?&quot; (missing thickness (mm)).</text>
+<text x="266" y="103.8" font-size="2.1" fill="#7a3b00">• Bathroom floor: Waterproofing on the slab: top level (mm) unknown; printed as &quot;?&quot; (missing Waterproofing on the slab thickness).</text>
+<text x="266" y="106.9" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_signoff: Proposed route only: manufacturer and licensed electrician must review cable</text>
+<text x="269" y="110" font-size="2.1" fill="#7a3b00">identity, length, output, bend radius, spacing, exclusions, cover, sensor, cold tails, waterproofing and electrical installation.</text>
+<text x="269" y="113.1" font-size="2.1" fill="#7a3b00">No compliance approval. No electrical approval is implied.</text>
+<text x="266" y="116.2" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_product_unresolved: sample-sck0765l-carton is not an accepted heating-cable in this</text>
 <text x="269" y="119.3" font-size="2.1" fill="#7a3b00">library. Checks use the travelling snapshot only when its productId is that id or in its series.</text>
-<text x="266" y="122.4" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_metadata_unknown: Unknown cable/product information: manufacturer, minSpacing,</text>
-<text x="269" y="125.5" font-size="2.1" fill="#7a3b00">edgeClearance, depthFromBottom.</text>
-<text x="266" y="128.6" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_route_length_unknown: Spatial cable length and confirmed product-length balance remain</text>
-<text x="269" y="131.7" font-size="2.1" fill="#7a3b00">unknown until the whole route has resolved screed levels and cable height; the plan projection is modelled, not cable length.</text>
-<text x="266" y="134.8" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_coverage_range: Zone area excluding entered keep-outs 6.3722 m² (availableArea, same</text>
-<text x="269" y="137.9" font-size="2.1" fill="#7a3b00">resolver as evidence; not a laid-cable heat-coverage model) is outside the brief coverage range 3.7–5.1 m² (published,</text>
-<text x="269" y="141" font-size="2.1" fill="#7a3b00">project-snapshot (unresolved), carton label — SCK0765L in-screed heating cable carton: coverage 3.7–5.1 m², minimum).</text>
-<text x="266" y="144.1" font-size="2" fill="#666">… 11 more: see the specification sheet</text>
+<text x="266" y="122.4" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_product_unresolved: sample-mwd5-1999-cbp3 is not an accepted thermostat in this</text>
+<text x="269" y="125.5" font-size="2.1" fill="#7a3b00">library. Checks use the travelling snapshot only when its productId is that id or in its series.</text>
+<text x="266" y="128.6" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_metadata_unknown: Unknown cable/product information: manufacturer, minSpacing,</text>
+<text x="269" y="131.7" font-size="2.1" fill="#7a3b00">edgeClearance, depthFromBottom.</text>
+<text x="266" y="134.8" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_route_length_unknown: Spatial cable length and confirmed product-length balance remain</text>
+<text x="269" y="137.9" font-size="2.1" fill="#7a3b00">unknown until the whole route has resolved screed levels and cable height; the plan projection is modelled, not cable length.</text>
+<text x="266" y="141" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_coverage_range: Zone area excluding entered keep-outs 6.3722 m² (availableArea, same</text>
+<text x="269" y="144.1" font-size="2.1" fill="#7a3b00">resolver as evidence; not a laid-cable heat-coverage model) is outside the brief coverage range 3.7–5.1 m² (published,</text>
+<text x="269" y="147.2" font-size="2.1" fill="#7a3b00">project-snapshot (unresolved), carton label — SCK0765L in-screed heating cable carton: coverage 3.7–5.1 m², minimum).</text>
+<text x="266" y="150.3" font-size="2" fill="#666">… 11 more: see the specification sheet</text>
 <rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
 <text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>

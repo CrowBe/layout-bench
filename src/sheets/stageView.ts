@@ -20,6 +20,7 @@ import { DEFAULT_DATUM, floorFill, floorLayerLabel, floorLevels } from "../model
 import { heatingEvidence } from "../model/heating";
 import { heatingNameSource } from "../model/heatingProduct";
 import { planeSurface } from "../model/drainage";
+import { grateOutline, outletPosition, wasteProduct, type WasteFigure } from "../model/wasteProduct";
 import { placementLimitations, anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
 import { IDENTITY_FIELDS, identityOf, identityText, type IdentityKey } from "../model/productIdentity";
@@ -189,6 +190,12 @@ export interface SpecRow {
 }
 
 export const dimStatus = (defaulted: boolean | undefined): RowStatus => (defaulted === undefined ? "unknown" : defaulted ? "defaulted" : "entered");
+/** The weaker of two evidence statuses, for one printed row built from both. */
+const evidenceRowStatus = (a?: string, b?: string): RowStatus => {
+  const rank = ["estimated", "proposed", "published", "measured", "site-confirmed"];
+  if (!a || !b) return "unknown";
+  return (rank.indexOf(a) <= rank.indexOf(b) ? a : b) as RowStatus;
+};
 const qRow = (q: Quantity | undefined) => (known(q) ? { value: mm(q.value), status: q.status as RowStatus, ...(q.source ? { source: q.source } : {}) } : { value: "?", status: "unknown" as RowStatus, ...(q?.source ? { source: q.source } : {}) });
 
 /**
@@ -276,6 +283,25 @@ export function specRows(model: PlanModel, el: ViewElement, products?: LibraryPr
     const wst = r.drainage!.wastes.find((x) => x.id === el.sub)!;
     row("kind", { value: wst.kind, status: "entered" });
     row("finished level at waste (mm)", { ...qRow(wst.level), datum: r.floorBuildUp?.datum || DEFAULT_DATUM });
+    const info = wasteProduct(wst, library);
+    row("drain product", info ? { value: info.name, status: "named" } : { value: "?", status: "unknown", missing: ["drain product not linked"] });
+    if (info) {
+      const fig = (f: WasteFigure | undefined, what: string) =>
+        f ? { value: mm(f.value), status: (f.status ?? "unknown") as RowStatus, ...(f.source ? { source: f.source } : {}) } : { value: "?", status: "unknown" as RowStatus, missing: [`${what} not in the ${info.name} brief`] };
+      if (compact) {
+        // one line for a printed stage sheet: the grate the tiler and plumber set out to
+        const l = info.grateLength, w2 = info.grateWidth;
+        row("grate (mm)", l && w2 ? { value: `${mm(l.value)} × ${mm(w2.value)}${info.grateType === "tile-insert" ? " tile insert" : ""}`, status: evidenceRowStatus(l.status, w2.status) } : { value: "?", status: "unknown", missing: [`grate size not in the ${info.name} brief`] });
+        return rows;
+      }
+      if (info.grateType) row("grate type", { value: info.grateType, status: "named" });
+      row("grate length (mm)", fig(info.grateLength, "grate length"));
+      row("grate width (mm)", fig(info.grateWidth, "grate width"));
+      row("outlet diameter (mm)", fig(info.outletDiameter, "outlet diameter"));
+      row("body depth below grate (mm)", { ...fig(info.installationDepth, "installation depth"), datum: "grate top" });
+      const o = outletPosition(wst, info);
+      row("outlet position", o.x !== undefined ? { value: `x ${mm(o.x)}, y ${mm(o.y!)}`, status: "derived", source: o.basis } : { value: "?", status: "unknown", missing: [o.basis.replace(/^unresolved: /, "")] });
+    }
     return rows;
   }
   if (el.type === "heating") {
@@ -594,8 +620,18 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
       const a = P({ x: wst.ax, y: wst.ay });
       const b = P({ x: wst.bx, y: wst.by });
       const dash = stopgapDash(opts.stopgap, "drainage-wastes");
-      if (wst.kind === "linear") line(a, b, `stroke="#7a5230" stroke-width="1.2"${dash} ${de(id)}`);
+      const info = wasteProduct(wst, []);
+      const grate = grateOutline(wst, info);
+      if (grate) {
+        poly(grate.map(P), `fill="#7a5230" fill-opacity="0.35" stroke="#7a5230" stroke-width="0.3"${dash} data-grate="1" ${de(id)}`);
+        if (info?.grateType === "tile-insert") text((a.x + b.x) / 2, (a.y + b.y) / 2 - 1.8, "tile insert", 1.5, `text-anchor="middle" fill="#7a5230"`);
+      } else if (wst.kind === "linear") line(a, b, `stroke="#7a5230" stroke-width="1.2"${dash} ${de(id)}`);
       else parts.push(`<circle cx="${f1(a.x)}" cy="${f1(a.y)}" r="1.4" fill="none" stroke="#7a5230" stroke-width="0.4"${dash} ${de(id)}/>`);
+      const o = outletPosition(wst, info);
+      if (o.x !== undefined && o.y !== undefined) {
+        const c = P({ x: o.x, y: o.y });
+        parts.push(`<circle cx="${f1(c.x)}" cy="${f1(c.y)}" r="${f1(Math.max(0.6, ((o.diameter ?? 0.05) / 2) * k))}" fill="none" stroke="#c97a1e" stroke-width="0.3" data-outlet="1" ${de(id)}/>`);
+      }
       text((a.x + b.x) / 2, (a.y + b.y) / 2 + 3.2, `${wst.label} FL ${known(wst.level) ? `${mm(wst.level.value)} ${tag(wst.level.status)}` : "?"}`, 1.9, `text-anchor="middle" fill="#7a5230"`);
     }
   }

@@ -113,7 +113,7 @@ describe("sample bathroom in 3D: the finished room over its build-up", () => {
     // no recorded level: the flat finished-level target is a stand-in, so the drain is stopgap
     expect(linear.userData.stopgap).toBe(true);
     expect(linear.userData.stopgapReason).toMatch(/level not recorded; drawn on the flat finished-level target/);
-    expect(linear.userData.body).toMatch(/channel body/); // sourced body kept distinct from the marker
+    expect(linear.userData.body).toMatch(/grate from the brief, body depth below the grate from the brief/); // sourced body kept distinct from the marker
     const square = byName(group, "bathroom:waste:square_waste")[0];
     const squareBox = box(square);
     // packing slip: Kano 316 120 × 120 grate; 50 mm is the outlet, not the grate
@@ -260,7 +260,7 @@ describe("review round 1: sizes tied to products, per-wall foot, stage-safe fill
   const stripped: FloorAssembly = { datum: "existing floor", substrateTop: { value: -0.12, status: "estimated" }, finishedTarget: P(0), layers: [L("t", "tile", 0.01)] };
   const built = (model: PlanModel) => { const { group } = buildPlan(model, "planning"); tagStages(model, group); return group; };
 
-  it("gives a reused waste id with another product no sourced body; the sample keeps its packing-slip sizes", () => {
+  it("gives a waste with no drain product no sourced body, even under a sample id; the sample keeps its packing-slip sizes", () => {
     const model: PlanModel = {
       ...emptyModel(), walls: square("a", 0, 2, 2),
       rooms: [{ id: "r", x: 0, y: 0, w: 2, h: 2, label: "R", floor: "tile", drainage: { planes: [], wastes: [
@@ -272,7 +272,7 @@ describe("review round 1: sizes tied to products, per-wall foot, stage-safe fill
     for (const id of ["linear_drain", "square_waste"]) {
       const w = byName(group, `r:waste:${id}`)[0];
       expect(w.userData.stopgap, id).toBe(true);
-      expect(w.userData.body).toMatch(/not recorded/);
+      expect(w.userData.body).toMatch(/no drain product linked/);
       const b = box(w);
       expect(Math.min(b.max.x - b.min.x, b.max.z - b.min.z), id).toBeLessThan(0.01);
     }
@@ -404,11 +404,10 @@ describe("review round 4: the drains stay visible through the floor tiles", () =
     expect(fb.max.x - fb.min.x).toBeCloseTo(body.max.x - body.min.x, 6);
     expect(fb.max.z - fb.min.z).toBeCloseTo(body.max.z - body.min.z, 6);
     expect(body.max.y).toBeCloseTo(0, 6); // the waste itself stays on the flat finished floor
-    expect(face.userData.aperture).toMatch(/not recorded/);
+    expect(face.userData.aperture).toMatch(/grate 1000 × 100 mm from Lauxes/); // from the linked brief (#82)
     expect(face.userData.stopgap).toBe(true); // level unrecorded, as on the waste
-    // the layout still lists the waste cuts as missing
-    expect(byName(group, "bathroom:floor-tiling:full")[0].parent!.userData.unresolved)
-      .toContain("drain aperture sizes and edge joints not recorded; waste cuts unresolved");
+    // both sample drains have sized briefs, so the layout no longer lists their apertures as missing
+    expect((byName(group, "bathroom:floor-tiling:full")[0].parent!.userData.unresolved as string[]).filter((m) => /aperture/.test(m))).toEqual([]);
 
     for (const ids of [tiles, fitOut]) {
       applyStageVisibility(group, visibleIds(ids));

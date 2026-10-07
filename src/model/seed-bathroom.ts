@@ -8,7 +8,7 @@ import type { PartSpec } from "../three/furniture";
 import type { ProjectKind } from "./projects";
 import type { Item, Note, PlanModel, Quantity, ValueStatus, Wall, WallSide, WallTiling } from "./types";
 import { cornerBisectorToHostFrame } from "./fittedWaste";
-import { KANO_LABEL, LAUXES_LABEL, LAUXES_NEXT_GEN_35 } from "./sampleWasteBodies";
+import { KANO_LABEL, LAUXES_LABEL, LAUXES_NEXT_GEN_35, kano316Insert, lauxesNextGen35 } from "./sampleWasteBodies";
 
 /**
  * A rough bathroom concept sample. Geometry and placements are illustrative, not set-out.
@@ -805,8 +805,8 @@ export const seedBathroom = (): PlanModel => ({
     // Positions are proposals; falls and waste levels are not chosen, so the planes stay unresolved.
     drainage: {
       wastes: [
-        { id: "linear_drain", label: LAUXES_LABEL, kind: "linear", ax: 0.05, ay: 0.1, bx: 0.05, by: 0.1 + LAUXES_NEXT_GEN_35.length },
-        { id: "square_waste", label: KANO_LABEL, kind: "point", ax: 1.055, ay: 2.11, bx: 1.055, by: 2.11 },
+        { id: "linear_drain", label: LAUXES_LABEL, kind: "linear", ax: 0.05, ay: 0.1, bx: 0.05, by: 0.1 + LAUXES_NEXT_GEN_35.length, product: lauxesNextGen35() },
+        { id: "square_waste", label: KANO_LABEL, kind: "point", ax: 1.055, ay: 2.11, bx: 1.055, by: 2.11, product: kano316Insert() },
       ],
       planes: [
         { id: "shower", label: "Shower", x: 0, y: 0, w: 0.9, h: 1.2, wasteId: "linear_drain", controls: [] },
