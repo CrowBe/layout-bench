@@ -67,17 +67,17 @@ describe("heating cable compact spec (stage 05)", () => {
   it("cuts the sample's heating rows from one-per-point to a printable handful, keeping every number tagged", () => {
     const full = specRows(SAMPLE, heating);
     const compact = specRows(SAMPLE, heating, undefined, true);
-    // the sample's recorded route has 30 points; the full view prints each point and each level sample
-    expect(SAMPLE.rooms[0].heating!.path).toHaveLength(30);
+    // the sample's recorded route has 56 points; the full view prints each point and each level sample
+    expect(SAMPLE.rooms[0].heating!.path).toHaveLength(56);
     expect(full.length).toBeGreaterThan(100);
     expect(compact.length).toBeLessThanOrEqual(40);
     const spec = read(slugOf("05"), "spec.html");
     expect(spec.match(/data-element="room:bathroom:heating"/g)!.length).toBe(compact.length);
-    // first recorded point is (0.15, 2.9) m from the plan origin; second (0.15, 0.16)
+    // first recorded point is (0.15, 2.855) m from the plan origin; the first run goes east to 2.01
     const points = compact.find((r) => r.property.startsWith("route points"))!;
-    expect(points.property).toBe("route points 1–30 x / y (mm)");
-    expect(points.value).toMatch(/^1: 150 \/ 2900 P; 2: 150 \/ 160 P; /);
-    expect(points.value.split("; ")).toHaveLength(30);
+    expect(points.property).toBe("route points 1–56 x / y (mm)");
+    expect(points.value).toMatch(/^1: 150 \/ 2855 P; 2: 2010 \/ 2855 P; /);
+    expect(points.value.split("; ")).toHaveLength(56);
     expect(points.datum).toBe("plan origin");
     // every point in the compact value carries a tag
     for (const part of points.value.split("; ")) expect(part).toMatch(/ P$/);
@@ -143,12 +143,13 @@ describe("stopgap views", () => {
     }
   });
 
-  it("04 shows the floor membrane only; its thickness is unrecorded so its level prints '?', never a line", () => {
+  it("04 shows the floor membrane only, its top from the estimated slab plus the owner's ~1.5 mm, tagged E", () => {
     const svg = read(slugOf("04"), "elevation-wall_n-right.svg");
-    expect(svg).toContain("Waterproofing on the slab top: ?");
-    expect(svg).not.toContain('data-element="room:bathroom:floor:floor_membrane"');
-    expect(dataElements(svg).some((e) => e.includes("_waterproofing"))).toBe(false);
-    expect(read(slugOf("04"), "spec.html")).toMatch(/Waterproofing on the slab<\/td>[\s\S]*?<td>top level \(mm\)<\/td><td>\?<\/td>/);
+    // owner, 7 Oct 2026: liquid polyurethane about 1.5 mm (E) on the slab at −120 (E): top −118.5 E
+    expect(flat(svg)).toContain("Membrane (Bastion liquid polyurethane) top -118.5 E above existing floor surface");
+    expect(svg).toContain('data-element="room:bathroom:floor:floor_membrane"');
+    expect(dataElements(svg).some((e) => e.includes("_waterproofing"))).toBe(false); // no wall membrane layer: its extent is a note (#88)
+    expect(read(slugOf("04"), "spec.html")).toMatch(/Membrane \(Bastion liquid polyurethane\)<\/td>[\s\S]*?<td>top level \(mm\)<\/td><td>-118\.5<\/td><td>E estimated/);
   });
 
   it("09 draws the fixtures dashed, with no services", () => {
@@ -280,16 +281,16 @@ describe("stage 05 spec fits one printed A4 landscape page (whole sheet)", () =>
 
 describe("compact heating keeps the problem messages (stage 05)", () => {
   it("prints the coverage warning with its figures, in the spec's Unresolved list and in the index", () => {
-    // independent figure: the room is 2.11 m × 3.02 m with no keep-outs in the sample
+    // independent figure: the room is 2.11 m × 3.02 m less the bath keep-out (1.028 × 1.018 m)
     const room = SAMPLE.rooms.find((r) => r.heating)!;
-    const area = Math.round(room.w * room.h * 1e4) / 1e4;
-    expect(area).toBe(6.3722);
+    const area = Math.round((room.w * room.h - 1.028 * 1.018) * 1e4) / 1e4;
+    expect(area).toBe(5.3257);
     const unresolved = /<h2>Unresolved in this view[\s\S]*$/.exec(read(slugOf("05"), "spec.html"))![0];
-    expect(unresolved).toMatch(/heating_coverage_range: Zone area excluding entered keep-outs 6\.3722 m²/);
+    expect(unresolved).toMatch(/heating_coverage_range: Zone area excluding entered keep-outs 5\.3257 m²/);
     expect(unresolved).toContain("3.7–5.1 m²");
     const md = readFileSync(join(outDir, "README.md"), "utf8");
     const section = md.slice(md.indexOf(`## ${PHASES.find((p) => p.slug === slugOf("05"))!.label}`), md.indexOf(`## ${PHASES.find((p) => p.slug === slugOf("06"))!.label}`));
-    expect(section).toMatch(/heating_coverage_range: Zone area excluding entered keep-outs 6\.3722 m²/);
+    expect(section).toMatch(/heating_coverage_range: Zone area excluding entered keep-outs 5\.3257 m²/);
     // every problem code on the compact row has its message listed
     const html = read(slugOf("05"), "spec.html");
     const cell = specCells(html, "room:bathroom:heating", "open item codes (see Unresolved)")![1];
@@ -319,14 +320,18 @@ describe("plan cable annotation agrees with the spec (stage 05)", () => {
 
 describe("fit-out elevations print no stand-in heights and no unsupported set-out (stage 09)", () => {
   // sample items whose kind carries a catalogue elevation stand-in and whose record has no elevation
-  const standIns = ["bath_mixer", "bath_spout", "bath_waste", "basin_mixer", "shower_system", "towel_rail", "towel_rail_2", "shaving_cabinet"];
+  const standIns = ["bath_mixer", "bath_waste", "basin_mixer", "shower_system", "shower_mixer", "towel_rail", "towel_rail_2", "shaving_cabinet"];
   const svgs = () => ["wall_n", "wall_e", "wall_s", "wall_w"].map((w) => read(slugOf("09"), `elevation-${w}-right.svg`));
 
   it("draws none of them, and lists each with '?' for its height", () => {
     expect(SAMPLE.items.filter((i) => standIns.includes(i.id)).every((i) => !i.productSpecification?.fields.elevation || i.productSpecification.fields.elevation.value === null)).toBe(true);
     for (const svg of svgs()) for (const id of standIns) expect(svg, id).not.toMatch(new RegExp(`<rect[^>]*data-element="item:${id}"`));
     const north = flat(read(slugOf("09"), "elevation-wall_n-right.svg"));
-    for (const label of ["Bath mixer", "Bath spout", "Bath waste"]) expect(north).toMatch(new RegExp(`${label}: position along the face \\? \\(no wall set-out recorded\\) · height \\? · elevation above the finished floor is not recorded`));
+    const east = flat(read(slugOf("09"), "elevation-wall_e-right.svg"));
+    // owner, 7 Oct 2026: the bath set moved to the right wall, so no fitting is on the window wall
+    expect(north).not.toMatch(/Bath mixer/);
+    expect(east).toMatch(/Bath mixer and spout: position along the face \? \(no wall set-out recorded\) · height \? · elevation above the finished floor is not recorded/);
+    for (const label of ["Bath waste"]) expect(north).toMatch(new RegExp(`${label}: position along the face \\? \\(no wall set-out recorded\\) · height \\? · elevation above the finished floor is not recorded`));
     // the old catalogue stand-ins (mixer 800 plate / 865 envelope, waste 590) are not printed anywhere
     for (const svg of svgs()) expect(flat(svg)).not.toMatch(/\b(748|865|590–|590 [A-Z?]|1200 [A-Z?] to)/);
   });
@@ -358,10 +363,10 @@ describe("a recorded elevation is drawn with its own status (real elevation path
     const mixer = model.items.find((i) => i.id === "bath_mixer")!;
     mixer.productSpecification!.fields.elevation = { value: 0.9, status: "proposed", note: "owner" };
     const els = resolveVisible(model, ["walls", "rooms", "floor-substrate", "floor-tile", "fixtures"]).elements;
-    const svg = renderStageElevation(model, els, "wall_n", "right", { label: "t", findings: [] });
+    const svg = renderStageElevation(model, els, "wall_e", "right", { label: "t", findings: [] });
     expect(svg).toMatch(/<rect[^>]*stroke-dasharray="1.2 0.6"[^>]*data-element="item:bath_mixer"/);
     // floor top P (tile 0) + recorded 900 = 900, no stronger than P; top adds the published envelope height
-    expect(flat(svg)).toMatch(/F2 Bath mixer: position along the face \? \(no wall set-out recorded\) · 900 P to \d+(\.\d)? P above/);
+    expect(flat(svg)).toMatch(/F2 Bath mixer and spout: position along the face \? \(no wall set-out recorded\) · 900 P to \d+(\.\d)? P above/);
   });
 });
 

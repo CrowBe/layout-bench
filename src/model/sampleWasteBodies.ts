@@ -8,8 +8,13 @@
  * listing: 35 mm deep × 100 mm wide), not a height above the finished floor. 100 mm is width
  * across the channel. The 50 mm outlet (WO50-BN) is the outlet, never the channel width; where it
  * sits along the tray is a project choice and is not recorded.
- * Kano 316: 120 × 120 mm tile-insert grate with a 50 mm outlet. Body depth below the grate is not
- * on the slip.
+ * Kano 316: 120 × 120 mm tile-insert grate with a 50 mm outlet. Its dimension drawing (owner's
+ * copy, 7 Oct 2026) gives a 20 mm deep tray and a Ø90 spigot 10 mm below it: 30 mm from the grate
+ * top to the bottom of the spigot. That copy has no web link, so the depth is a note here and
+ * the brief's installation depth stays unresolved.
+ * Lauxes WO50 outlet (owner's tape, 7 Oct 2026): 35 mm from its rim to the bottom of the pipe. The
+ * rim fixes under the 35 mm tray, so the outlet's bottom is about 70 mm below the grate (derived);
+ * its centre below the grate is not recorded, so `outletBelowGrate` stays unknown.
  */
 import { unknownMeasurementFields, type MeasurementRecord } from "./productMeasurements";
 import { categoryById, type FieldValue } from "./products";

@@ -13,6 +13,8 @@
 <text x="169.75" y="164.8" font-size="1.8" text-anchor="middle" fill="#2f78b7">jambs 1229 / 2029 ? from board face at A</text>
 <line x1="88.3" y1="213.5" x2="197.7" y2="213.5" stroke="#7a5230" stroke-width="0.3" data-element="room:bathroom:substrate"/>
 <text x="202.7" y="214.2" font-size="1.7" fill="#7a5230">substrate -120 E</text>
+<line x1="88.3" y1="213.43" x2="197.7" y2="213.43" stroke="#7a5230" stroke-width="0.3" data-element="room:bathroom:floor:floor_membrane"/>
+<text x="202.7" y="214.13" font-size="1.7" fill="#7a5230">Membrane (Bastion liquid polyurethane) -118.5 E</text>
 <line x1="80.3" y1="207.5" x2="205.7" y2="207.5" stroke="#000" stroke-width="0.25" stroke-dasharray="2 1"/>
 <text x="79.3" y="208.2" font-size="1.7" text-anchor="end" fill="#444">0 = existing floor surface (current tile top)</text>
 <line x1="88.3" y1="219.5" x2="197.7" y2="219.5" stroke="#000" stroke-width="0.2"/>
@@ -36,13 +38,13 @@
 <text x="280" y="39" font-size="1.95" >End B: Board face (Villaboard 6 mm) of wall_w (right side) at 2199 E along the drawn line.</text>
 <text x="280" y="43.35" font-size="2.7" font-weight="bold">Floor at this wall</text>
 <text x="280" y="47.55" font-size="1.95" >substrate top -120 E above existing floor surface (current tile top) (flat build-up level)</text>
-<text x="280" y="50.4" font-size="1.95" >Waterproofing on the slab top: ? (Waterproofing on the slab thickness)</text>
-<text x="280" y="53.25" font-size="1.95" >Tiler's screed (heating cable inside) top: ? (Waterproofing on the slab thickness, Tiler's screed (heating cable inside) thickness)</text>
+<text x="280" y="50.4" font-size="1.95" >Membrane (Bastion liquid polyurethane) top -118.5 E above existing floor surface (current tile top) (flat build-up level)</text>
+<text x="280" y="53.25" font-size="1.95" >Tiler's screed (heating cable inside) top: ? (Tiler's screed (heating cable inside) thickness)</text>
 <rect x="278" y="238" width="132" height="51" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="280" y="243" font-size="2.5" font-weight="bold">Project: Bathroom Concept</text>
 <text x="280" y="248" font-size="2.2" >Site / room: Bathroom (no site address recorded)</text>
 <text x="280" y="253" font-size="2.2" >Stage elevation: 6. Screed and falls · wall wall_s, right side</text>
-<text x="280" y="258" font-size="2.2" >Scale 1:20 @ A3 · Exported 2026-10-06 · not a revision of A-01</text>
+<text x="280" y="258" font-size="2.2" >Scale 1:20 @ A3 · Exported 2026-10-07 · not a revision of A-01</text>
 <text x="280" y="263" font-size="2.1" >Prepared by: ? · Plan: Bathroom Concept</text>
 <text x="280" y="268" font-size="2" ></text>
 <rect x="278" y="269.6" width="132" height="7" fill="#b00020"/>

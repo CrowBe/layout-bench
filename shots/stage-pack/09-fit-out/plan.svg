@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" font-family="Helvetica, Arial, sans-serif" data-sheet="stage-view" data-scale="20">
-<metadata id="stage-view">{&quot;label&quot;:&quot;9. Fit-out: fixtures without services (stopgap)&quot;,&quot;elements&quot;:[&quot;wall:wall_n&quot;,&quot;wall:wall_e&quot;,&quot;wall:wall_s&quot;,&quot;wall:wall_w&quot;,&quot;wall:wall_n:right:wall_n_tile&quot;,&quot;wall:wall_e:right:wall_e_tile&quot;,&quot;wall:wall_s:right:wall_s_tile&quot;,&quot;wall:wall_w:right:wall_w_tile&quot;,&quot;opening:window_n&quot;,&quot;opening:door_s&quot;,&quot;room:bathroom&quot;,&quot;room:bathroom:substrate&quot;,&quot;room:bathroom:floor:floor_tile&quot;,&quot;room:bathroom:waste:linear_drain&quot;,&quot;room:bathroom:waste:square_waste&quot;,&quot;item:bath&quot;,&quot;item:bath_mixer&quot;,&quot;item:bath_spout&quot;,&quot;item:bath_waste&quot;,&quot;item:basin_mixer&quot;,&quot;item:shower_system&quot;,&quot;item:towel_rail&quot;,&quot;item:towel_rail_2&quot;,&quot;item:vanity&quot;,&quot;item:shaving_cabinet&quot;,&quot;item:toilet&quot;,&quot;item:screen&quot;]}</metadata>
+<metadata id="stage-view">{&quot;label&quot;:&quot;9. Fit-out: fixtures without services (stopgap)&quot;,&quot;elements&quot;:[&quot;wall:wall_n&quot;,&quot;wall:wall_e&quot;,&quot;wall:wall_s&quot;,&quot;wall:wall_w&quot;,&quot;wall:wall_n:right:wall_n_tile&quot;,&quot;wall:wall_e:right:wall_e_tile&quot;,&quot;wall:wall_s:right:wall_s_tile&quot;,&quot;wall:wall_w:right:wall_w_tile&quot;,&quot;opening:window_n&quot;,&quot;opening:door_s&quot;,&quot;room:bathroom&quot;,&quot;room:bathroom:substrate&quot;,&quot;room:bathroom:floor:floor_tile&quot;,&quot;room:bathroom:waste:linear_drain&quot;,&quot;room:bathroom:waste:square_waste&quot;,&quot;item:bath&quot;,&quot;item:bath_mixer&quot;,&quot;item:bath_waste&quot;,&quot;item:basin_mixer&quot;,&quot;item:shower_system&quot;,&quot;item:shower_mixer&quot;,&quot;item:towel_rail&quot;,&quot;item:towel_rail_2&quot;,&quot;item:vanity&quot;,&quot;item:shaving_cabinet&quot;,&quot;item:toilet&quot;,&quot;item:screen&quot;]}</metadata>
 <rect width="420" height="297" fill="#fff"/>
 <rect x="5" y="5" width="410" height="287" fill="none" stroke="#000" stroke-width="0.5"/>
 <rect x="12" y="12" width="248" height="268" fill="none" stroke="#999" stroke-width="0.2"/>
@@ -41,16 +41,16 @@
 <text x="64.95" y="146" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 64.95 146)" data-dim="wall_w">3120 ENT · w A→B (drawn line)</text>
 <polygon points="188.25,70.5 138.25,70.5 137.67,73.94 137.38,77.42 137.38,80.91 137.67,84.39 138.25,87.84 139.1,91.22 140.23,94.52 141.64,97.72 143.3,100.79 145.21,103.71 147.35,106.47 149.72,109.04 152.28,111.4 155.04,113.54 157.96,115.45 161.03,117.11 164.23,118.52 167.53,119.65 170.91,120.5 174.36,121.08 177.84,121.37 181.33,121.37 184.81,121.08 188.25,120.5" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath"/>
 <text x="162.8" y="95.95" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F1</text>
-<polygon points="174.13,70.5 177.38,70.5 177.38,73.55 174.13,73.55" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath_mixer"/>
-<text x="175.75" y="72.03" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F2</text>
-<polygon points="159.13,70.5 162.38,70.5 162.38,78.6 159.13,78.6" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath_spout"/>
-<text x="160.75" y="74.55" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F3</text>
+<polygon points="188.75,90.5 188.75,100.5 180.65,100.5 180.65,90.5" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath_mixer"/>
+<text x="184.7" y="95.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F2</text>
 <polygon points="168.12,87.14 171.62,87.14 171.62,90.64 168.12,90.64" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:bath_waste"/>
-<text x="169.87" y="88.89" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F4</text>
+<text x="169.87" y="88.89" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F3</text>
 <polygon points="187.88,154.3 187.88,156.7 180.63,156.7 180.63,154.3" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:basin_mixer"/>
-<text x="184.25" y="155.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F5</text>
+<text x="184.25" y="155.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F4</text>
 <polygon points="83.25,106.75 83.25,94.25 110.85,94.25 110.85,106.75" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:shower_system"/>
-<text x="97.05" y="100.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F6</text>
+<text x="97.05" y="100.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F5</text>
+<polygon points="83.25,114.63 83.25,111.38 86.73,111.38 86.73,114.63" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:shower_mixer"/>
+<text x="84.99" y="113" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F6</text>
 <polygon points="83.25,165.3 83.25,158.2 88.25,158.2 88.25,165.3" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:towel_rail"/>
 <text x="85.75" y="161.75" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F7</text>
 <polygon points="83.25,152.8 83.25,145.7 88.25,145.7 88.25,152.8" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:towel_rail_2"/>
@@ -59,7 +59,7 @@
 <text x="175.75" y="155.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F9</text>
 <polygon points="187.25,136.75 187.25,174.25 179.25,174.25 179.25,136.75" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:shaving_cabinet"/>
 <text x="183.25" y="155.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F10</text>
-<polygon points="185.75,188.5 185.75,212.5 150.75,212.5 150.75,188.5" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:toilet"/>
+<polygon points="185.75,190.98 185.75,210.03 150.75,210.03 150.75,190.98" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:toilet"/>
 <text x="168.25" y="200.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F11</text>
 <polygon points="83.25,130.25 128.25,130.25 128.25,130.75 83.25,130.75" fill="#fff" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:screen"/>
 <text x="105.75" y="130.5" font-size="2.6" text-anchor="middle" dominant-baseline="middle" font-weight="bold">F12</text>
@@ -81,16 +81,16 @@
 <text x="266" y="48.4" font-size="2.8" font-weight="bold">Fixtures — exact selection</text>
 <text x="266" y="52.4" font-size="2.1" data-element="item:bath">F1: Angie Corner 1000mm Bath, GW · Product code unknown · Finish unknown · Size / configuration unknown · Handedness unknown ·</text>
 <text x="269" y="55.5" font-size="2.1" data-element="item:bath">selection purchased</text>
-<text x="266" y="58.6" font-size="2.1" data-element="item:bath_mixer">F2: Enflair Profile III wall basin/bath mixer · Product code unknown · Finish unknown · Size / configuration unknown · Handedness</text>
-<text x="269" y="61.7" font-size="2.1" data-element="item:bath_mixer">unknown · selection purchased</text>
-<text x="266" y="64.8" font-size="2.1" data-element="item:bath_spout">F3: Enflair Profile III 150mm spout for basin/bath · Product code unknown · Finish unknown · Size / configuration unknown ·</text>
-<text x="269" y="67.9" font-size="2.1" data-element="item:bath_spout">Handedness unknown · selection purchased</text>
-<text x="266" y="71" font-size="2.1" data-element="item:bath_waste">F4: Ahrok Dome Pop Short Bath Waste 40mm, with pull out basket · Product code unknown · Finish unknown · Size / configuration</text>
-<text x="269" y="74.1" font-size="2.1" data-element="item:bath_waste">unknown · Handedness unknown · selection purchased</text>
-<text x="266" y="77.2" font-size="2.1" data-element="item:basin_mixer">F5: Enflair Profile III petite basin mixer · Product code unknown · Finish unknown · Size / configuration unknown · Handedness</text>
-<text x="269" y="80.3" font-size="2.1" data-element="item:basin_mixer">unknown · selection purchased</text>
-<text x="266" y="83.4" font-size="2.1" data-element="item:shower_system">F6: Profile round twin shower system with adjustable rail · Product code unknown · Finish unknown · Size / configuration unknown ·</text>
-<text x="269" y="86.5" font-size="2.1" data-element="item:shower_system">Handedness unknown · selection purchased</text>
+<text x="266" y="58.6" font-size="2.1" data-element="item:bath_mixer">F2: Enflair Profile III 150mm basin/bath wall mixer set with rectangular plate · Product code unknown · Finish unknown · Size /</text>
+<text x="269" y="61.7" font-size="2.1" data-element="item:bath_mixer">configuration unknown · Handedness unknown · selection purchased</text>
+<text x="266" y="64.8" font-size="2.1" data-element="item:bath_waste">F3: Ahrok Dome Pop Short Bath Waste 40mm, with pull out basket · Product code unknown · Finish unknown · Size / configuration</text>
+<text x="269" y="67.9" font-size="2.1" data-element="item:bath_waste">unknown · Handedness unknown · selection purchased</text>
+<text x="266" y="71" font-size="2.1" data-element="item:basin_mixer">F4: Enflair Profile III petite basin mixer · Product code unknown · Finish unknown · Size / configuration unknown · Handedness</text>
+<text x="269" y="74.1" font-size="2.1" data-element="item:basin_mixer">unknown · selection purchased</text>
+<text x="266" y="77.2" font-size="2.1" data-element="item:shower_system">F5: Profile round twin shower system with adjustable rail · Product code unknown · Finish unknown · Size / configuration unknown ·</text>
+<text x="269" y="80.3" font-size="2.1" data-element="item:shower_system">Handedness unknown · selection purchased</text>
+<text x="266" y="83.4" font-size="2.1" data-element="item:shower_mixer">F6: Enflair Profile III shower/bath wall mixer · Product code unknown · Finish unknown · Size / configuration unknown · Handedness</text>
+<text x="269" y="86.5" font-size="2.1" data-element="item:shower_mixer">unknown · selection purchased</text>
 <text x="266" y="89.6" font-size="2" fill="#666">… 6 more: see the specification sheet</text>
 <text x="266" y="94.6" font-size="2.8" font-weight="bold">Wall faces and layers (mm from drawn line)</text>
 <text x="266" y="98.6" font-size="2.1" data-element="wall:wall_n:right:wall_n_tile">Wall n right: 300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo): thickness 10 E</text>
@@ -103,39 +103,38 @@
 <text x="269" y="120.3" font-size="2.1" data-element="wall:wall_w:right:wall_w_tile">position 25 E</text>
 <text x="266" y="125.4" font-size="2.8" font-weight="bold">Floor (mm above datum)</text>
 <text x="266" y="129.4" font-size="2.1" data-element="room:bathroom:substrate">Bathroom floor: substrate: substrate concrete slab, framed in place (house on piers) ENT · substrate top level -120 E · finished</text>
-<text x="269" y="132.5" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Waterproofing on the slab + Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the</text>
-<text x="269" y="135.6" font-size="2.1" data-element="room:bathroom:substrate">target 110 E</text>
-<text x="266" y="138.7" font-size="2.1" data-element="room:bathroom:floor:floor_tile">Bathroom floor: 300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo): thickness 10</text>
-<text x="269" y="141.8" font-size="2.1" data-element="room:bathroom:floor:floor_tile">E · top level 0 P</text>
-<text x="266" y="146.9" font-size="2.8" font-weight="bold">Drainage</text>
-<text x="266" y="150.9" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ? · drain</text>
-<text x="269" y="154" font-size="2.1" data-element="room:bathroom:waste:linear_drain">product Lauxes Next Gen 35 Custom 1000, brushed nickel NAM · grate length 1000 M · grate width 100 M · outlet diameter 50 M · body</text>
-<text x="269" y="157.1" font-size="2.1" data-element="room:bathroom:waste:linear_drain">depth below grate 35 M · outlet position ?</text>
-<text x="266" y="160.2" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ? · drain product Kano 316</text>
-<text x="269" y="163.3" font-size="2.1" data-element="room:bathroom:waste:square_waste">Tile Insert Waste 120×120, brushed nickel NAM · grate type tile-insert NAM · grate length 120 M · grate width 120 M · outlet</text>
-<text x="269" y="166.4" font-size="2.1" data-element="room:bathroom:waste:square_waste">diameter 50 M · body depth below grate ? · outlet position ?</text>
-<text x="266" y="171.5" font-size="2.8" font-weight="bold">Unresolved in this view (81)</text>
-<text x="266" y="175.5" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm)</text>
-<text x="269" y="178.6" font-size="2.1" fill="#7a3b00">unknown; printed as &quot;?&quot; (missing finished level at waste (mm)).</text>
-<text x="266" y="181.7" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as</text>
-<text x="269" y="184.8" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).</text>
-<text x="266" y="187.9" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as</text>
-<text x="269" y="191" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing finished level at waste (mm)).</text>
-<text x="266" y="194.1" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as</text>
-<text x="269" y="197.2" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).</text>
-<text x="266" y="200.3" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as &quot;?&quot; (missing</text>
-<text x="269" y="203.4" font-size="2.1" fill="#7a3b00">outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).</text>
-<text x="266" y="206.5" font-size="2.1" fill="#7a3b00">• Corner bath (bath): set-out unknown; printed as &quot;?&quot; (missing not set out from a wall face).</text>
-<text x="266" y="209.6" font-size="2.1" fill="#7a3b00">• Corner bath (bath): wasteFromEnd unknown; printed as &quot;?&quot; (missing Sheet gives 520 mm from the right-angle corner along the</text>
-<text x="269" y="212.7" font-size="2.1" fill="#7a3b00">bisector, not from the end. Along each wall that is 520/√2 ≈ 367.7 mm; that conversion is derived in the host-frame check, not</text>
-<text x="269" y="215.8" font-size="2.1" fill="#7a3b00">entered as published wasteFromEnd.).</text>
-<text x="266" y="218.9" font-size="2.1" fill="#7a3b00">• Corner bath (bath): wasteEnd unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="266" y="222" font-size="2" fill="#666">… 73 more: see the specification sheet</text>
+<text x="269" y="132.5" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the target 108.5 E</text>
+<text x="266" y="135.6" font-size="2.1" data-element="room:bathroom:floor:floor_tile">Bathroom floor: 300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo): thickness 10</text>
+<text x="269" y="138.7" font-size="2.1" data-element="room:bathroom:floor:floor_tile">E · top level 0 P</text>
+<text x="266" y="143.8" font-size="2.8" font-weight="bold">Drainage</text>
+<text x="266" y="147.8" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ? · drain</text>
+<text x="269" y="150.9" font-size="2.1" data-element="room:bathroom:waste:linear_drain">product Lauxes Next Gen 35 Custom 1000, brushed nickel NAM · grate length 1000 M · grate width 100 M · outlet diameter 50 M · body</text>
+<text x="269" y="154" font-size="2.1" data-element="room:bathroom:waste:linear_drain">depth below grate 35 M · outlet position ?</text>
+<text x="266" y="157.1" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ? · drain product Kano 316</text>
+<text x="269" y="160.2" font-size="2.1" data-element="room:bathroom:waste:square_waste">Tile Insert Waste 120×120, brushed nickel NAM · grate type tile-insert NAM · grate length 120 M · grate width 120 M · outlet</text>
+<text x="269" y="163.3" font-size="2.1" data-element="room:bathroom:waste:square_waste">diameter 50 M · body depth below grate ? · outlet position ?</text>
+<text x="266" y="168.4" font-size="2.8" font-weight="bold">Unresolved in this view (83)</text>
+<text x="266" y="172.4" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm)</text>
+<text x="269" y="175.5" font-size="2.1" fill="#7a3b00">unknown; printed as &quot;?&quot; (missing finished level at waste (mm)).</text>
+<text x="266" y="178.6" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as</text>
+<text x="269" y="181.7" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).</text>
+<text x="266" y="184.8" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as</text>
+<text x="269" y="187.9" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing finished level at waste (mm)).</text>
+<text x="266" y="191" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as</text>
+<text x="269" y="194.1" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).</text>
+<text x="266" y="197.2" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as &quot;?&quot; (missing</text>
+<text x="269" y="200.3" font-size="2.1" fill="#7a3b00">outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).</text>
+<text x="266" y="203.4" font-size="2.1" fill="#7a3b00">• Corner bath (bath): set-out unknown; printed as &quot;?&quot; (missing not set out from a wall face).</text>
+<text x="266" y="206.5" font-size="2.1" fill="#7a3b00">• Corner bath (bath): wasteFromEnd unknown; printed as &quot;?&quot; (missing Sheet gives 520 mm from the right-angle corner along the</text>
+<text x="269" y="209.6" font-size="2.1" fill="#7a3b00">bisector, not from the end. Along each wall that is 520/√2 ≈ 367.7 mm; that conversion is derived in the host-frame check, not</text>
+<text x="269" y="212.7" font-size="2.1" fill="#7a3b00">entered as published wasteFromEnd.).</text>
+<text x="266" y="215.8" font-size="2.1" fill="#7a3b00">• Corner bath (bath): wasteEnd unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="266" y="218.9" font-size="2" fill="#666">… 75 more: see the specification sheet</text>
 <rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
 <text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>
 <text x="266" y="251.4" font-size="2.4" >Stage diagram: 9. Fit-out: fixtures without services (stopgap)</text>
-<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-06 · not a revision of A-01</text>
+<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-07 · not a revision of A-01</text>
 <text x="266" y="261.8" font-size="2.2" >Prepared by: ? · Plan: Bathroom Concept</text>
 <text x="266" y="267" font-size="2.1" ></text>
 <rect x="264" y="268.8" width="146" height="7" fill="#b00020"/>
