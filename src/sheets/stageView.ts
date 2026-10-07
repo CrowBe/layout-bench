@@ -23,7 +23,7 @@ import { planeSurface } from "../model/drainage";
 import { grateOutline, outletPosition, wasteProduct, type WasteFigure } from "../model/wasteProduct";
 import { placementLimitations, anchorPose, roughIn } from "../model/fixtures";
 import { itemPolygon } from "../model/outline";
-import { IDENTITY_FIELDS, identityOf, identityText, type IdentityKey } from "../model/productIdentity";
+import { IDENTITY_FIELDS, identityText, identityWithCode, type IdentityKey } from "../model/productIdentity";
 import { categoryById, conservativeLimit } from "../model/products";
 import { evidenceStatus, evidenceText } from "../model/productMeasurements";
 import { checkSheet, type SheetFinding } from "./check";
@@ -421,10 +421,10 @@ export function specRows(model: PlanModel, el: ViewElement, products?: LibraryPr
     const exact = it.productIdentity ?? product;
     if (exact) {
       row("exact product", { value: exact.physicalItem ? `${exact.physicalItem.label} · manufacturer ${exact.manufacturer || "unknown"} · model ${exact.model || "unknown"}` : `${exact.manufacturer} ${exact.model}`, status: exact.physicalItem ? "entered" : "published" });
-      const identity = identityOf(exact);
+      const { identity, entered } = identityWithCode(exact);
       for (const key of Object.keys(IDENTITY_FIELDS) as IdentityKey[]) {
         const v = identity[key];
-        row(IDENTITY_FIELDS[key], { value: identityText(v), status: v.state === "unknown" ? "unknown" : "published", ...(v.sources?.length ? { source: v.sources.map(s => `${s.url}${s.locator ? ` (${s.locator})` : ""}`).join("; ") } : {}) });
+        row(IDENTITY_FIELDS[key], { value: identityText(v), status: v.state === "unknown" ? "unknown" : entered.includes(key) ? "entered" : "published", ...(v.sources?.length ? { source: v.sources.map(s => `${s.url}${s.locator ? ` (${s.locator})` : ""}`).join("; ") } : {}) });
       }
       row("components", { value: exact.componentsStatus ?? "unknown", status: exact.componentsStatus && exact.componentsStatus !== "unknown" ? "published" : "unknown" });
       for (const [i, c] of (exact.components ?? []).entries()) {
@@ -811,8 +811,8 @@ export function renderStageDiagram(model: PlanModel, elements: ViewElement[], op
     limitRows(fixtureElements.map(el => {
       const it = model.items.find(i => i.id === el.ref)!;
       const exact = it.productIdentity ?? opts.products?.find(p => p.id === it.productId);
-      const identity = identityOf(exact ?? {});
-      const details = exact ? `${exact.manufacturer} ${exact.model} · ${Object.entries(IDENTITY_FIELDS).map(([key, label]) => `${label} ${identityText(identity[key as IdentityKey])}`).join(" · ")}` : el.label;
+      const { identity } = identityWithCode(exact ?? {});
+      const details = exact ? `${[exact.manufacturer, exact.model].filter(Boolean).join(" ")} · ${Object.entries(IDENTITY_FIELDS).map(([key, label]) => `${label} ${identityText(identity[key as IdentityKey])}`).join(" · ")}` : el.label;
       return { s: `${fixtureNo.get(it.id)}: ${details} · selection ${it.selectionStatus ?? "unknown"}`, extra: de(el.id) };
     }), 6);
     y += 2;

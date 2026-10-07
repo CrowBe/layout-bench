@@ -395,7 +395,7 @@ export const purchasedFittings: PurchasedFitting[] = [
   {
     kind: "bath_sb184_1000gw", label: "Corner bath", specCategory: "bath",
     product: fitting("Angie Corner 1000mm Bath, GW", "SB184-1000GW", "Angie Corner 1000mm Bath, GW (SB184-1000GW)",
-      "Carton label: 1 pc, 36 kg net, 46 kg gross, 1000 × 1000 × 630 mm. Enflair dimension drawing: 1000 mm sides, 1090 mm from the corner to the front of the curve, 630 mm high, 550 mm inside depth, 278 L, 36 kg net, Ø50 waste centred 520 mm from the corner, no overflow shown. The drawing notes slight variations; check the delivered bath. The drawing's 1178 and 920 widths are not used: their extension lines do not show which edges they measure."),
+      "Carton label: 1 pc, 36 kg net, 46 kg gross, 1000 × 1000 × 630 mm. Enflair dimension drawing: 1000 mm sides, 1090 mm from the corner to the front of the curve, 630 mm high, 550 mm inside depth, 278 L, 36 kg net, Ø50 waste centred 520 mm from the corner, no overflow shown. The drawing notes slight variations; check the delivered bath. The drawing's 1178 and 920 widths are not used: their extension lines do not show which edges they measure.", "Enflair"),
     size: { w: BATH_BOX, d: BATH_BOX, h: 0.63, printed: ["h"], caveat: "1000 mm sides; the box is the extent of a circular front 1090 mm from the corner" },
     measures: [
       published("side", BATH_LEG, sheet(ENFLAIR_BATH, "SB184-1000 dimension drawing: 1000 mm along each wall side"), "fixture-side", "From the right-angle corner along each wall"),
@@ -944,6 +944,9 @@ export const seedBathroom = (): PlanModel => ({
     { id: "screen", kind: "screen_proposed", x: 0.45, y: 1.2, rotation: 0 },
   ],
   underlay: null,
+  // Names the sheets so the plan can be issued and stage views exported straight from the sample.
+  // No site address is recorded, so the room stands in for the site.
+  sheetSet: { titleBlock: { project: "Bathroom Concept", site: "Bathroom (no site address recorded)" }, revisions: [] },
 });
 
 // ---- Drawn stand-ins for the reused toilet suite and the fixed screen -----------------------

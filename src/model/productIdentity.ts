@@ -33,6 +33,17 @@ export type SelectionStatus = "unknown" | "proposed" | "purchased" | "reused";
 export const SELECTION_STATUSES: SelectionStatus[] = ["unknown", "proposed", "purchased", "reused"];
 export const unknownIdentity = (): ProductIdentity => Object.fromEntries(Object.keys(IDENTITY_FIELDS).map(k => [k, { state: "unknown", value: null }])) as ProductIdentity;
 export const identityOf = (p: Pick<ExactProduct, "identity">): ProductIdentity => ({ ...unknownIdentity(), ...p.identity });
+/**
+ * Identity with the entered top-level `code` standing in for an unknown identity code, so a sheet
+ * prints the code written on the record (a carton or label code) instead of "unknown". `entered`
+ * names the keys taken that way: they are entered, not sourced.
+ */
+export const identityWithCode = (p: Pick<ExactProduct, "identity" | "code">): { identity: ProductIdentity; entered: IdentityKey[] } => {
+  const identity = identityOf(p);
+  const code = p.code?.trim();
+  if (identity.code.state !== "unknown" || !code) return { identity, entered: [] };
+  return { identity: { ...identity, code: { state: "known", value: code } }, entered: ["code"] };
+};
 export const identityText = (v: IdentityValue): string => v.state === "known" ? v.value ?? "unknown" : v.state;
 export const exactProductLabel = (p: ExactProduct): string => {
   const identity = identityOf(p);
