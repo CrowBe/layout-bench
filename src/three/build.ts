@@ -817,9 +817,11 @@ function buildFloorBuildUp(room: Room): THREE.Group | null {
       slab(bottom, bottom + FILM, floorLayerMaterials[first.kind], `${room.id}:floor:${first.id}`, `room:${room.id}:floor:${first.id}`, { drawnThickness: "unknown; drawn as a film", stopgap: true });
       if (last) slab(top - FILM, top, floorLayerMaterials[last.kind], `${room.id}:floor:${last.id}`, `room:${room.id}:floor:${last.id}`, { drawnThickness: "unknown; drawn as a film", stopgap: true });
       const middle = run.slice(1, last ? -1 : undefined);
-      // with no layer between the two films, the gap is shown with the upper layer only, so an
-      // earlier layer's stage never shows it as if the later layer were already laid
-      const fill = middle.length ? middle : last ? [last] : run;
+      // with no layer between the two films, the gap is shown with one layer only: a screed (or
+      // other bulk layer) when the run has one, else the upper layer, so an earlier film's stage
+      // never shows it as if the later layer were already laid
+      const bulk = run.find((l) => l.kind !== "waterproofing" && l.kind !== "adhesive");
+      const fill = middle.length ? middle : last ? [bulk ?? last] : run;
       const fillMat = (floorLayerMaterials[fill[0].kind] as THREE.MeshStandardMaterial).clone();
       fillMat.transparent = true;
       fillMat.opacity = 0.55;

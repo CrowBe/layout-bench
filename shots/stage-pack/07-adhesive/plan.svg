@@ -70,41 +70,40 @@
 <text x="266" y="57.9" font-size="2.1" data-element="wall:wall_w:right:wall_w_adhesive">Wall w right: Tile adhesive (tiler's): thickness 4 E · outer face position 15 E</text>
 <text x="266" y="63" font-size="2.8" font-weight="bold">Floor (mm above datum)</text>
 <text x="266" y="67" font-size="2.1" data-element="room:bathroom:substrate">Bathroom floor: substrate: substrate concrete slab, framed in place (house on piers) ENT · substrate top level -120 E · finished</text>
-<text x="269" y="70.1" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Waterproofing on the slab + Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the</text>
-<text x="269" y="73.2" font-size="2.1" data-element="room:bathroom:substrate">target 110 E</text>
-<text x="266" y="76.3" font-size="2.1" data-element="room:bathroom:floor:floor_screed">Bathroom floor: Tiler's screed (heating cable inside): thickness ? · top level ?</text>
-<text x="266" y="79.4" font-size="2.1" data-element="room:bathroom:floor:floor_adhesive">Bathroom floor: Tiler's adhesive: thickness ? · top level -10 E</text>
-<text x="266" y="84.5" font-size="2.8" font-weight="bold">Drainage</text>
-<text x="266" y="88.5" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ? · drain</text>
-<text x="269" y="91.6" font-size="2.1" data-element="room:bathroom:waste:linear_drain">product Lauxes Next Gen 35 Custom 1000, brushed nickel NAM · grate length 1000 M · grate width 100 M · outlet diameter 50 M · body</text>
-<text x="269" y="94.7" font-size="2.1" data-element="room:bathroom:waste:linear_drain">depth below grate 35 M · outlet position ?</text>
-<text x="266" y="97.8" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ? · drain product Kano 316</text>
-<text x="269" y="100.9" font-size="2.1" data-element="room:bathroom:waste:square_waste">Tile Insert Waste 120×120, brushed nickel NAM · grate type tile-insert NAM · grate length 120 M · grate width 120 M · outlet</text>
-<text x="269" y="104" font-size="2.1" data-element="room:bathroom:waste:square_waste">diameter 50 M · body depth below grate ? · outlet position ?</text>
-<text x="266" y="107.1" font-size="2.1" data-element="room:bathroom:plane:shower">Bathroom: Shower: fall (mm per m) ?</text>
-<text x="266" y="110.2" font-size="2.1" data-element="room:bathroom:plane:bath_side">Bathroom: Beside the shower (under the bath): fall (mm per m) ?</text>
-<text x="266" y="113.3" font-size="2" fill="#666">… 1 more: see the specification sheet</text>
-<text x="266" y="118.3" font-size="2.8" font-weight="bold">Unresolved in this view (11)</text>
-<text x="266" y="122.3" font-size="2.1" fill="#7a3b00">• Bathroom floor: Tiler's screed (heating cable inside): thickness (mm) unknown; printed as &quot;?&quot; (missing thickness (mm)).</text>
-<text x="266" y="125.4" font-size="2.1" fill="#7a3b00">• Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as &quot;?&quot; (missing Waterproofing on the slab</text>
-<text x="269" y="128.5" font-size="2.1" fill="#7a3b00">thickness, Tiler's screed (heating cable inside) thickness).</text>
-<text x="266" y="131.6" font-size="2.1" fill="#7a3b00">• Bathroom floor: Tiler's adhesive: thickness (mm) unknown; printed as &quot;?&quot; (missing thickness (mm)).</text>
-<text x="266" y="134.7" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm)</text>
-<text x="269" y="137.8" font-size="2.1" fill="#7a3b00">unknown; printed as &quot;?&quot; (missing finished level at waste (mm)).</text>
-<text x="266" y="140.9" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as</text>
-<text x="269" y="144" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).</text>
-<text x="266" y="147.1" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as</text>
-<text x="269" y="150.2" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing finished level at waste (mm)).</text>
-<text x="266" y="153.3" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as</text>
-<text x="269" y="156.4" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).</text>
-<text x="266" y="159.5" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as &quot;?&quot; (missing</text>
-<text x="269" y="162.6" font-size="2.1" fill="#7a3b00">outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).</text>
-<text x="266" y="165.7" font-size="2" fill="#666">… 3 more: see the specification sheet</text>
+<text x="269" y="70.1" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the target 108.5 E</text>
+<text x="266" y="73.2" font-size="2.1" data-element="room:bathroom:floor:floor_screed">Bathroom floor: Tiler's screed (heating cable inside): thickness ? · top level ?</text>
+<text x="266" y="76.3" font-size="2.1" data-element="room:bathroom:floor:floor_adhesive">Bathroom floor: Tiler's adhesive: thickness ? · top level -10 E</text>
+<text x="266" y="81.4" font-size="2.8" font-weight="bold">Drainage</text>
+<text x="266" y="85.4" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ? · drain</text>
+<text x="269" y="88.5" font-size="2.1" data-element="room:bathroom:waste:linear_drain">product Lauxes Next Gen 35 Custom 1000, brushed nickel NAM · grate length 1000 M · grate width 100 M · outlet diameter 50 M · body</text>
+<text x="269" y="91.6" font-size="2.1" data-element="room:bathroom:waste:linear_drain">depth below grate 35 M · outlet position ?</text>
+<text x="266" y="94.7" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ? · drain product Kano 316</text>
+<text x="269" y="97.8" font-size="2.1" data-element="room:bathroom:waste:square_waste">Tile Insert Waste 120×120, brushed nickel NAM · grate type tile-insert NAM · grate length 120 M · grate width 120 M · outlet</text>
+<text x="269" y="100.9" font-size="2.1" data-element="room:bathroom:waste:square_waste">diameter 50 M · body depth below grate ? · outlet position ?</text>
+<text x="266" y="104" font-size="2.1" data-element="room:bathroom:plane:shower">Bathroom: Shower: fall (mm per m) ?</text>
+<text x="266" y="107.1" font-size="2.1" data-element="room:bathroom:plane:bath_side">Bathroom: Beside the shower (under the bath): fall (mm per m) ?</text>
+<text x="266" y="110.2" font-size="2" fill="#666">… 1 more: see the specification sheet</text>
+<text x="266" y="115.2" font-size="2.8" font-weight="bold">Unresolved in this view (11)</text>
+<text x="266" y="119.2" font-size="2.1" fill="#7a3b00">• Bathroom floor: Tiler's screed (heating cable inside): thickness (mm) unknown; printed as &quot;?&quot; (missing thickness (mm)).</text>
+<text x="266" y="122.3" font-size="2.1" fill="#7a3b00">• Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as &quot;?&quot; (missing Tiler's screed (heating</text>
+<text x="269" y="125.4" font-size="2.1" fill="#7a3b00">cable inside) thickness).</text>
+<text x="266" y="128.5" font-size="2.1" fill="#7a3b00">• Bathroom floor: Tiler's adhesive: thickness (mm) unknown; printed as &quot;?&quot; (missing thickness (mm)).</text>
+<text x="266" y="131.6" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm)</text>
+<text x="269" y="134.7" font-size="2.1" fill="#7a3b00">unknown; printed as &quot;?&quot; (missing finished level at waste (mm)).</text>
+<text x="266" y="137.8" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as</text>
+<text x="269" y="140.9" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).</text>
+<text x="266" y="144" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as</text>
+<text x="269" y="147.1" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing finished level at waste (mm)).</text>
+<text x="266" y="150.2" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as</text>
+<text x="269" y="153.3" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).</text>
+<text x="266" y="156.4" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as &quot;?&quot; (missing</text>
+<text x="269" y="159.5" font-size="2.1" fill="#7a3b00">outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).</text>
+<text x="266" y="162.6" font-size="2" fill="#666">… 3 more: see the specification sheet</text>
 <rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
 <text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>
 <text x="266" y="251.4" font-size="2.4" >Stage diagram: 7. Tile adhesive, floor and walls</text>
-<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-06 · not a revision of A-01</text>
+<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-07 · not a revision of A-01</text>
 <text x="266" y="261.8" font-size="2.2" >Prepared by: ? · Plan: Bathroom Concept</text>
 <text x="266" y="267" font-size="2.1" ></text>
 <rect x="264" y="268.8" width="146" height="7" fill="#b00020"/>

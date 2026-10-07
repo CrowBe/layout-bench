@@ -32,13 +32,15 @@ describe("owner's construction spec in the sample", () => {
     expect(floor.substrateTop).toMatchObject({ value: -0.12, status: "estimated" });
     expect(floor.finishedTarget).toMatchObject({ value: 0, status: "proposed" });
     expect(floor.layers.map((l) => l.kind)).toEqual(["waterproofing", "screed", "adhesive", "tile"]);
-    // the tiler's screed and adhesive, and the membrane, stay unknown: only the target is set
-    expect(floor.layers.map((l) => l.thickness.value)).toEqual([undefined, undefined, undefined, 0.01]);
-    expect(floorFill(floor)).toMatchObject({ thickness: 0.11, layers: ["Waterproofing on the slab", "Tiler's screed (heating cable inside)", "Tiler's adhesive"] });
+    // the tiler's screed and adhesive stay unknown; the membrane is the owner's ~1.5 mm, estimated
+    expect(floor.layers.map((l) => l.thickness.value)).toEqual([0.0015, undefined, undefined, 0.01]);
+    expect(floor.layers[0].thickness).toMatchObject({ status: "estimated" });
+    expect(floorFill(floor)).toMatchObject({ thickness: 0.1085, layers: ["Tiler's screed (heating cable inside)", "Tiler's adhesive"] });
     const levels = floorLevels(floor);
     expect(levels.at(-1)).toMatchObject({ top: 0, fromTarget: true, resolved: true });
     expect(levels.at(-2)).toMatchObject({ top: -0.01, fromTarget: true }); // adhesive top = target − tile
-    expect(levels[1].resolved).toBe(false); // membrane top: neither way reaches it
+    expect(levels[1]).toMatchObject({ top: -0.1185, resolved: true, basis: "estimated" }); // membrane top: slab + 1.5 mm
+    expect(levels[2].resolved).toBe(false); // screed top: neither way reaches it
     // the bought drains: linear along the left wall in the shower, the square waste centred in the dry area
     const [linear, square] = m.rooms[0].drainage!.wastes;
     expect(linear).toMatchObject({ kind: "linear", ax: 0.05, bx: 0.05, ay: 0.1, by: 1.1 });
@@ -52,7 +54,10 @@ describe("owner's construction spec in the sample", () => {
     expect(m.rooms[0].heating!.thermostatProductId).toBe("sample-mwd5-1999-cbp3");
     expect(m.rooms[0].heating!.length).toBeUndefined();
     expect(m.rooms[0].heating!.ratedOutput).toBeUndefined();
-    expect(m.rooms[0].heating!.keepouts).toEqual([]);
+    // owner, 7 Oct 2026: no cable under the bath; 100 mm wall setback from the Coldbuster manual
+    expect(m.rooms[0].heating!.keepouts.map((k) => k.id)).toEqual(["keepout_bath"]);
+    expect(m.rooms[0].heating!.keepouts[0].source).toMatch(/Owner, 7 Oct 2026/);
+    expect(m.rooms[0].heating!.edgeClearance).toMatchObject({ value: 0.1, status: "published" });
     expect(m.rooms[0].heating!.cableSpecification?.fields.cableLength).toMatchObject({ value: 42.5, status: "published" });
     expect((m.rooms[0].heating!.cableSpecification as { productId?: string }).productId).toBe("sample-sck0765l-carton");
     expect((m.rooms[0].heating!.thermostatSpecification as { productId?: string }).productId).toBe("sample-mwd5-1999-cbp3");

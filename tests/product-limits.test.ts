@@ -73,9 +73,11 @@ describe("a set with a part that was not seen", () => {
     const doc = parseImport(JSON.stringify(demoProject()));
     const shower = doc.model.items.find((i) => i.id === "shower_system")!.productIdentity!;
     expect(shower.componentsStatus).toBe("documented");
-    const trim = shower.components!.find((c) => /outside part/.test(c.name))!;
-    expect(trim).toMatchObject({ provision: "unresolved", quantity: null, code: { state: "unknown", value: null } });
-    expect(shower.components!.map((c) => c.provision)).toEqual(["unresolved", "unresolved"]);
+    const inner = shower.components!.find((c) => /inner part/.test(c.name))!;
+    expect(inner).toMatchObject({ provision: "unresolved", quantity: null, code: { state: "unknown", value: null } });
+    expect(shower.components!.map((c) => c.provision)).toEqual(["unresolved"]);
+    // the K1130 trim is drawn from its own drawing now, as the shower mixer item
+    expect(doc.model.items.find((i) => i.id === "shower_mixer")!.productIdentity!.code).toBe("K1130-31");
     const mixer = doc.model.items.find((i) => i.id === "bath_mixer")!.productIdentity!;
     expect(mixer.components![0].name).toMatch(/K1132 inner part/);
   });

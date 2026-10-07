@@ -31,7 +31,9 @@ import type { FieldValue } from "../src/model/products";
 import {
   heatingCableSpecification,
   proposedSck0765lPath,
-  PROPOSED_CABLE_SPACING_M,
+  PROPOSED_CABLE_SPACING_DRY_M,
+  PROPOSED_CABLE_SPACING_WET_M,
+  SAMPLE_CABLE_EDGE_CLEARANCE_M,
   SAMPLE_CABLE_PRODUCT_ID,
   SAMPLE_THERMOSTAT_PRODUCT_ID,
   thermostatSpecificationOf,
@@ -1047,12 +1049,14 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(html).toContain(WALL_SETBACK_DATUM);
   });
 
-  it("records the sample SCK0765L loop at 42.5 m plan length from independent geometry, unconstrained at fixtures", () => {
+  it("records the sample SCK0765L loop at 42.5 m plan length, clear of the bath and 100 mm off the walls", () => {
     const sample = demoProject().model.rooms[0];
     const path = proposedSck0765lPath();
     expect(sample.heating?.path).toEqual(path);
-    expect(sample.heating?.keepouts).toEqual([]);
-    expect(sample.heating?.edgeClearance).toBeUndefined();
+    // owner, 7 Oct 2026: no cable under the bath; Coldbuster manual p. 6: 100 mm from the walls
+    expect(sample.heating?.keepouts).toEqual([expect.objectContaining({ id: "keepout_bath", x: 1.082, y: 0, w: 1.028, h: 1.018 })]);
+    expect(sample.heating?.edgeClearance).toMatchObject({ value: SAMPLE_CABLE_EDGE_CLEARANCE_M, status: "published" });
+    expect(sample.heating?.edgeClearance?.source).toMatch(/Coldbuster/);
     expect(sample.heating?.length).toBeUndefined();
     expect(sample.heating?.ratedOutput).toBeUndefined();
     expect(sample.heating?.model).toBeUndefined();
@@ -1063,7 +1067,6 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(heatingSnapshotProductId(sample.heating?.thermostatSpecification)).toBe(SAMPLE_THERMOSTAT_PRODUCT_ID);
     let plan = 0;
     for (let i = 1; i < path.length; i++) plan += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
-    expect(plan).toBeCloseTo(15 * 2.74 + 14 * PROPOSED_CABLE_SPACING_M, 6);
     expect(plan).toBeCloseTo(LABEL_LENGTH, 6);
     const e = heatingEvidence(sample);
     expect(e.planRouteLength).toBe(LABEL_LENGTH);
@@ -1077,11 +1080,13 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(e.cable.length.kind).toBe("published");
     expect(e.problems.map((p) => p.code)).toContain("heating_route_length_unknown");
     expect(e.problems.map((p) => p.code)).not.toContain("heating_length_exceeded");
+    // the route clears the bath keep-out by the 100 mm edge clearance, and the walls
+    for (const code of ["heating_keepout", "heating_clearance", "heating_outside_zone", "heating_overlap", "heating_spacing"]) expect(e.problems.map((p) => p.code)).not.toContain(code);
     expect(e.problems.map((p) => p.code)).toContain("heating_coverage_range");
     expect(e.problems.find((p) => p.code === "heating_coverage_range")?.message).toMatch(/availableArea/);
     expect(e.problems.find((p) => p.code === "heating_ip_location")?.message).toMatch(/IP21/);
     expect(e.problems.find((p) => p.code === "heating_ip_location")?.message).toMatch(/outside a wet room/);
-    expect(e.minimumNonAdjacentSpacing).toBeCloseTo(PROPOSED_CABLE_SPACING_M, 6);
+    expect(e.minimumNonAdjacentSpacing).toBeCloseTo(Math.min(PROPOSED_CABLE_SPACING_DRY_M, PROPOSED_CABLE_SPACING_WET_M), 6);
     expect(e.minimumNonAdjacentSpacing!).toBeGreaterThanOrEqual(LABEL_SPACING_MIN - 1e-8);
     expect(e.minimumNonAdjacentSpacing!).toBeLessThanOrEqual(LABEL_SPACING_MAX + 1e-8);
     const original = structuredClone(sample.heating);

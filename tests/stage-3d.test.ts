@@ -55,11 +55,12 @@ describe("sample bathroom in 3D: the finished room over its build-up", () => {
     const substrate = byName(group, "bathroom:substrate")[0];
     expect(box(substrate).max.y).toBeCloseTo(-0.12, 4);
     expect(substrate.userData.stopgap).toBe(true); // slab thickness is not recorded; 100 mm is a drawn stand-in
-    // membrane sits on the slab and the adhesive under the tile, each only as a film
+    // the membrane is the owner's ~1.5 mm (estimated) on the slab; the adhesive under the tile is a film
     const membrane = byName(group, "bathroom:floor:floor_membrane")[0];
     expect(box(membrane).min.y).toBeCloseTo(-0.12, 4);
-    expect(membrane.userData.drawnThickness).toMatch(/unknown/);
-    expect(membrane.userData.stopgap).toBe(true);
+    expect(box(membrane).max.y).toBeCloseTo(-0.1185, 4);
+    expect(membrane.userData.stopgap).toBeUndefined();
+    expect(membrane.userData.provenance).toMatchObject({ status: "estimated" });
     const adhesive = byName(group, "bathroom:floor:floor_adhesive")[0];
     expect(box(adhesive).max.y).toBeCloseTo(-0.01, 4);
     expect(adhesive.userData.stopgap).toBe(true);
@@ -68,7 +69,7 @@ describe("sample bathroom in 3D: the finished room over its build-up", () => {
     expect(fill.userData.stages).toEqual(["room:bathroom:floor:floor_screed"]);
     expect((fill.material as THREE.Material).transparent).toBe(true);
     expect(fill.userData.stopgap).toBeUndefined();
-    expect(fill.userData.drawnThickness).toMatch(/110 mm together; the split is unknown/);
+    expect(fill.userData.drawnThickness).toMatch(/10[89] mm together; the split is unknown/);
     // the finished floor is the 10 mm tile, top at the current tile level
     const floor = byName(group, "bathroom:planning-floor")[0];
     expect(box(floor).max.y).toBeCloseTo(0, 4);
@@ -154,17 +155,18 @@ describe("sample bathroom in 3D: the finished room over its build-up", () => {
     expect(group.getObjectByName("bathroom:floor-tiling")!.userData.provenance.datum).toBe(fb.datum);
   });
 
-  it("draws the screen as see-through 10 mm glass with a stopgap wall channel inside that envelope", () => {
+  it("draws the screen as see-through 10 mm glass with stopgap clips and blocks inside that envelope", () => {
     const { group } = sample();
     const parts = meshes(group).filter((m) => m.userData.stage === "item:screen");
-    expect(parts).toHaveLength(2);
+    // glass, two wall clips (200 and 1800 mm) and two rubber blocks (Future Glass guide)
+    expect(parts).toHaveLength(5);
     const glass = parts.find((m) => (m.material as THREE.Material).transparent);
-    const channel = parts.find((m) => m.userData.stopgap);
+    const fixings = parts.filter((m) => m.userData.stopgap);
     expect(glass).toBeDefined();
-    expect(channel).toBeDefined();
+    expect(fixings).toHaveLength(4);
     expect(glass!.userData.stopgap).toBeUndefined();
-    // owner + workbook: 10 mm glass; channel section is not recorded, so it stays inside 10 mm
-    expect(box(channel!).max.z - box(channel!).min.z).toBeLessThanOrEqual(0.01 + 1e-6);
+    // owner: 10 mm glass; clip and block sizes are not on the guide, so they stay inside 10 mm
+    for (const f of fixings) expect(box(f).max.z - box(f).min.z).toBeLessThanOrEqual(0.01 + 1e-6);
   });
 
   it("does not draw a 3D heating cable: the proposed path is a 2D stage-diagram layer", () => {
@@ -174,30 +176,33 @@ describe("sample bathroom in 3D: the finished room over its build-up", () => {
     expect(names.some((n) => /heating/i.test(n))).toBe(false);
   });
 
-  it("keeps toilet parts inside the owner's 480 × 700 mm plan envelope and the 800 mm placeholder height", () => {
+  it("keeps toilet parts inside the Cygnet Over-height's 381 × 700 × 857 mm envelope", () => {
     const kind = bathroomKinds.find((k) => k.entry.kind === "toilet_proxy")!;
-    // owner spec: seat about 480 wide, projection just under 700; 800 mm is the catalogue placeholder
-    expect(kind.entry).toMatchObject({ w: 0.48, d: 0.7, h: 0.8 });
+    // American Standard sheets: 700 deep, 857 overall, cistern 381 wide (the widest part)
+    expect(kind.entry).toMatchObject({ w: 0.381, d: 0.7, h: 0.857 });
     expect(kind.entry.stopgap).toBeUndefined();
-    expect(kind.parts!.every((p) => p.stopgap === true)).toBe(true);
-    const cistern = kind.parts!.find((p) => p.w === 0.385);
-    expect(cistern?.d).toBe(0.165); // owner spec: cistern 385 × 165
-    assertInside(kind.parts!, { w: 0.48, d: 0.7, h: 0.8 }, "toilet_proxy");
+    const cistern = kind.parts!.find((p) => p.w === 0.381)!;
+    expect(cistern).toMatchObject({ d: 0.166, h: 0.387, y: 0.47 }); // 381 × 166 × 387, top at 857
+    expect(cistern.stopgap).toBeUndefined();
+    expect(kind.parts!.filter((p) => p !== cistern).every((p) => p.stopgap === true)).toBe(true); // pan shape, seat, controls not on the sheets
+    assertInside(kind.parts!, { w: 0.381, d: 0.7, h: 0.857 }, "toilet_proxy");
   });
 
-  it("keeps the screen glass and channel inside the 900 × 10 × 2000 mm panel", () => {
+  it("keeps the screen glass and its fixings inside the 900 × 10 × 2000 mm panel", () => {
     const kind = bathroomKinds.find((k) => k.entry.kind === "screen_proposed")!;
-    // owner 5 Oct + workbook: 900 × 2000 × 10 mm clear toughened
+    // owner: Future Glass panel 900 × 2000, 10 mm glass
     expect(kind.entry).toMatchObject({ w: 0.9, d: 0.01, h: 2 });
     expect(kind.entry.stopgap).toBeUndefined();
     const glass = kind.parts!.find((p) => p.opacity !== undefined);
-    const channel = kind.parts!.find((p) => p.stopgap);
+    const clip = kind.parts!.find((p) => p.stopgap);
     expect(glass?.d).toBe(0.01);
     expect(glass?.h).toBe(2);
-    expect(glass?.w).toBe(0.9); // sourced 900 mm, not shrunk by the stopgap channel
+    expect(glass?.w).toBe(0.9); // sourced 900 mm, not shrunk by the stopgap fixings
     expect(glass?.stopgap).toBeUndefined();
-    expect(channel?.d).toBe(0.01); // channel section not recorded; stays inside the glass envelope
-    expect(channel?.stopgap).toBe(true);
+    expect(clip?.d).toBe(0.01); // clip size not on the guide; stays inside the glass envelope
+    expect(clip?.stopgap).toBe(true);
+    // wall clips centred 200 and 1800 mm up, at the wall end (local −x)
+    expect(kind.parts!.filter((p) => p.stopgap && p.h === 0.05).map((p) => p.y! + p.h! / 2)).toEqual([0.2, 1.8]);
     assertInside(kind.parts!, { w: 0.9, d: 0.01, h: 2 }, "screen_proposed");
   });
 });
@@ -317,6 +322,24 @@ describe("review round 1: sizes tied to products, per-wall foot, stage-safe fill
     applyStageVisibility(group, visible(["floor-substrate", "floor-waterproofing"]));
     expect(fill.visible).toBe(false);
     expect(byName(group, "r:floor:wp")[0].visible).toBe(true);
+    applyStageVisibility(group, visible(["floor-substrate", "floor-waterproofing", "floor-screed"]));
+    expect(fill.visible).toBe(true);
+  });
+
+  it("shows the gap as the screed when a known membrane leaves screed and adhesive with nothing between them", () => {
+    const model: PlanModel = {
+      ...emptyModel(), walls: square("a", 0, 2, 2),
+      rooms: [{ id: "r", x: 0.05, y: 0.05, w: 1.9, h: 1.9, label: "R", floor: "tile", floorBuildUp: {
+        datum: "existing floor", substrateTop: { value: -0.1, status: "measured" }, finishedTarget: P(0),
+        layers: [L("wp", "waterproofing", 0.0015), L("sc", "screed"), L("ad", "adhesive"), L("t", "tile", 0.01)],
+      } }],
+    };
+    const group = built(model);
+    const fill = byName(group, "r:floor-fill")[0];
+    expect(fill.userData.stages).toEqual(["room:r:floor:sc"]);
+    const visible = (ids: string[]) => new Set(resolveVisible(model, ids).elements.map((e) => e.id));
+    applyStageVisibility(group, visible(["floor-substrate", "floor-waterproofing"]));
+    expect(fill.visible).toBe(false);
     applyStageVisibility(group, visible(["floor-substrate", "floor-waterproofing", "floor-screed"]));
     expect(fill.visible).toBe(true);
   });

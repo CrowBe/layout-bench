@@ -17,38 +17,65 @@
 <polygon points="191,68 191,224 190.7,224 190.7,68" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_e:right:wall_e_board"/>
 <polygon points="191.25,223.75 80.75,223.75 80.75,223.45 191.25,223.45" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_s:right:wall_s_board"/>
 <polygon points="81,224 81,68 81.3,68 81.3,224" fill="#f3e3c3" stroke="#555" stroke-width="0.15" data-element="wall:wall_w:right:wall_w_board"/>
-<polyline points="90.75,215.5 90.75,78.5 95.75,78.5 95.75,215.5 100.75,215.5 100.75,78.5 105.75,78.5 105.75,215.5 110.75,215.5 110.75,78.5 115.75,78.5 115.75,215.5 120.75,215.5 120.75,78.5 125.75,78.5 125.75,215.5 130.75,215.5 130.75,78.5 135.75,78.5 135.75,215.5 140.75,215.5 140.75,78.5 145.75,78.5 145.75,215.5 150.75,215.5 150.75,78.5 155.75,78.5 155.75,215.5 160.75,215.5 160.75,78.5" fill="none" stroke="#c64c19" stroke-width="0.5" data-element="room:bathroom:heating"/>
-<text x="91.75" y="214.5" font-size="1.8" fill="#c64c19">1</text>
-<text x="91.75" y="77.5" font-size="1.8" fill="#c64c19">2</text>
-<text x="96.75" y="77.5" font-size="1.8" fill="#c64c19">3</text>
-<text x="96.75" y="214.5" font-size="1.8" fill="#c64c19">4</text>
-<text x="101.75" y="214.5" font-size="1.8" fill="#c64c19">5</text>
-<text x="101.75" y="77.5" font-size="1.8" fill="#c64c19">6</text>
-<text x="106.75" y="77.5" font-size="1.8" fill="#c64c19">7</text>
-<text x="106.75" y="214.5" font-size="1.8" fill="#c64c19">8</text>
-<text x="111.75" y="214.5" font-size="1.8" fill="#c64c19">9</text>
-<text x="111.75" y="77.5" font-size="1.8" fill="#c64c19">10</text>
-<text x="116.75" y="77.5" font-size="1.8" fill="#c64c19">11</text>
-<text x="116.75" y="214.5" font-size="1.8" fill="#c64c19">12</text>
-<text x="121.75" y="214.5" font-size="1.8" fill="#c64c19">13</text>
-<text x="121.75" y="77.5" font-size="1.8" fill="#c64c19">14</text>
-<text x="126.75" y="77.5" font-size="1.8" fill="#c64c19">15</text>
-<text x="126.75" y="214.5" font-size="1.8" fill="#c64c19">16</text>
-<text x="131.75" y="214.5" font-size="1.8" fill="#c64c19">17</text>
-<text x="131.75" y="77.5" font-size="1.8" fill="#c64c19">18</text>
-<text x="136.75" y="77.5" font-size="1.8" fill="#c64c19">19</text>
-<text x="136.75" y="214.5" font-size="1.8" fill="#c64c19">20</text>
-<text x="141.75" y="214.5" font-size="1.8" fill="#c64c19">21</text>
-<text x="141.75" y="77.5" font-size="1.8" fill="#c64c19">22</text>
-<text x="146.75" y="77.5" font-size="1.8" fill="#c64c19">23</text>
-<text x="146.75" y="214.5" font-size="1.8" fill="#c64c19">24</text>
-<text x="151.75" y="214.5" font-size="1.8" fill="#c64c19">25</text>
-<text x="151.75" y="77.5" font-size="1.8" fill="#c64c19">26</text>
-<text x="156.75" y="77.5" font-size="1.8" fill="#c64c19">27</text>
-<text x="156.75" y="214.5" font-size="1.8" fill="#c64c19">28</text>
-<text x="161.75" y="214.5" font-size="1.8" fill="#c64c19">29</text>
-<text x="161.75" y="77.5" font-size="1.8" fill="#c64c19">30</text>
-<text x="90.75" y="211.5" font-size="1.8" fill="#c64c19">PROPOSED CABLE: route length along the drawn path in plan (XY projection) 42.5 m MOD; along the sampled cable profile ?; trade review pending</text>
+<rect x="137.35" y="70.5" width="51.4" height="50.9" fill="#fee" stroke="#b00020" stroke-width="0.2" data-element="room:bathroom:heating"/>
+<polyline points="90.75,213.25 183.75,213.25 183.75,208 90.75,208 90.75,202.75 183.75,202.75 183.75,197.5 90.75,197.5 90.75,192.25 183.75,192.25 183.75,187 90.75,187 90.75,181.75 183.75,181.75 183.75,170.5 90.75,170.5 90.75,165.25 183.75,165.25 183.75,160 90.75,160 90.75,154.75 183.75,154.75 183.75,149.5 90.75,149.5 90.75,144.25 183.75,144.25 183.75,139 90.75,139 90.75,133.75 183.75,133.75 183.75,128.5 90.75,128.5 90.75,123.9 132.35,123.9 132.35,119.5 90.75,119.5 90.75,115.1 132.35,115.1 132.35,110.7 90.75,110.7 90.75,106.3 132.35,106.3 132.35,101.9 90.75,101.9 90.75,97.5 132.35,97.5 132.35,93.1 90.75,93.1 90.75,88.7 132.35,88.7 132.35,84.3 90.75,84.3 90.75,79.9 132.35,79.9 132.35,75.5 90.7,75.5" fill="none" stroke="#c64c19" stroke-width="0.5" data-element="room:bathroom:heating"/>
+<text x="91.75" y="212.25" font-size="1.8" fill="#c64c19">1</text>
+<text x="184.75" y="212.25" font-size="1.8" fill="#c64c19">2</text>
+<text x="184.75" y="207" font-size="1.8" fill="#c64c19">3</text>
+<text x="91.75" y="207" font-size="1.8" fill="#c64c19">4</text>
+<text x="91.75" y="201.75" font-size="1.8" fill="#c64c19">5</text>
+<text x="184.75" y="201.75" font-size="1.8" fill="#c64c19">6</text>
+<text x="184.75" y="196.5" font-size="1.8" fill="#c64c19">7</text>
+<text x="91.75" y="196.5" font-size="1.8" fill="#c64c19">8</text>
+<text x="91.75" y="191.25" font-size="1.8" fill="#c64c19">9</text>
+<text x="184.75" y="191.25" font-size="1.8" fill="#c64c19">10</text>
+<text x="184.75" y="186" font-size="1.8" fill="#c64c19">11</text>
+<text x="91.75" y="186" font-size="1.8" fill="#c64c19">12</text>
+<text x="91.75" y="180.75" font-size="1.8" fill="#c64c19">13</text>
+<text x="184.75" y="180.75" font-size="1.8" fill="#c64c19">14</text>
+<text x="184.75" y="169.5" font-size="1.8" fill="#c64c19">15</text>
+<text x="91.75" y="169.5" font-size="1.8" fill="#c64c19">16</text>
+<text x="91.75" y="164.25" font-size="1.8" fill="#c64c19">17</text>
+<text x="184.75" y="164.25" font-size="1.8" fill="#c64c19">18</text>
+<text x="184.75" y="159" font-size="1.8" fill="#c64c19">19</text>
+<text x="91.75" y="159" font-size="1.8" fill="#c64c19">20</text>
+<text x="91.75" y="153.75" font-size="1.8" fill="#c64c19">21</text>
+<text x="184.75" y="153.75" font-size="1.8" fill="#c64c19">22</text>
+<text x="184.75" y="148.5" font-size="1.8" fill="#c64c19">23</text>
+<text x="91.75" y="148.5" font-size="1.8" fill="#c64c19">24</text>
+<text x="91.75" y="143.25" font-size="1.8" fill="#c64c19">25</text>
+<text x="184.75" y="143.25" font-size="1.8" fill="#c64c19">26</text>
+<text x="184.75" y="138" font-size="1.8" fill="#c64c19">27</text>
+<text x="91.75" y="138" font-size="1.8" fill="#c64c19">28</text>
+<text x="91.75" y="132.75" font-size="1.8" fill="#c64c19">29</text>
+<text x="184.75" y="132.75" font-size="1.8" fill="#c64c19">30</text>
+<text x="184.75" y="127.5" font-size="1.8" fill="#c64c19">31</text>
+<text x="91.75" y="127.5" font-size="1.8" fill="#c64c19">32</text>
+<text x="91.75" y="122.9" font-size="1.8" fill="#c64c19">33</text>
+<text x="133.35" y="122.9" font-size="1.8" fill="#c64c19">34</text>
+<text x="133.35" y="118.5" font-size="1.8" fill="#c64c19">35</text>
+<text x="91.75" y="118.5" font-size="1.8" fill="#c64c19">36</text>
+<text x="91.75" y="114.1" font-size="1.8" fill="#c64c19">37</text>
+<text x="133.35" y="114.1" font-size="1.8" fill="#c64c19">38</text>
+<text x="133.35" y="109.7" font-size="1.8" fill="#c64c19">39</text>
+<text x="91.75" y="109.7" font-size="1.8" fill="#c64c19">40</text>
+<text x="91.75" y="105.3" font-size="1.8" fill="#c64c19">41</text>
+<text x="133.35" y="105.3" font-size="1.8" fill="#c64c19">42</text>
+<text x="133.35" y="100.9" font-size="1.8" fill="#c64c19">43</text>
+<text x="91.75" y="100.9" font-size="1.8" fill="#c64c19">44</text>
+<text x="91.75" y="96.5" font-size="1.8" fill="#c64c19">45</text>
+<text x="133.35" y="96.5" font-size="1.8" fill="#c64c19">46</text>
+<text x="133.35" y="92.1" font-size="1.8" fill="#c64c19">47</text>
+<text x="91.75" y="92.1" font-size="1.8" fill="#c64c19">48</text>
+<text x="91.75" y="87.7" font-size="1.8" fill="#c64c19">49</text>
+<text x="133.35" y="87.7" font-size="1.8" fill="#c64c19">50</text>
+<text x="133.35" y="83.3" font-size="1.8" fill="#c64c19">51</text>
+<text x="91.75" y="83.3" font-size="1.8" fill="#c64c19">52</text>
+<text x="91.75" y="78.9" font-size="1.8" fill="#c64c19">53</text>
+<text x="133.35" y="78.9" font-size="1.8" fill="#c64c19">54</text>
+<text x="133.35" y="74.5" font-size="1.8" fill="#c64c19">55</text>
+<text x="91.7" y="74.5" font-size="1.8" fill="#c64c19">56</text>
+<text x="90.75" y="209.25" font-size="1.8" fill="#c64c19">PROPOSED CABLE: route length along the drawn path in plan (XY projection) 42.5 m MOD; along the sampled cable profile ?; trade review pending</text>
 <polygon points="90.75,63.25 181.25,63.25 181.25,68.25 90.75,68.25" fill="#fff" stroke="#222" stroke-width="0.25" data-element="opening:window_n"/>
 <text x="136" y="62.55" font-size="2.2" text-anchor="middle">W 1810 ?</text>
 <text x="136" y="70.35" font-size="1.9" text-anchor="middle" fill="#444">c/l 1105 ENT from A</text>
@@ -88,40 +115,44 @@
 <text x="266" y="45.5" font-size="2.1" data-element="wall:wall_w:right:wall_w_board">Wall w right: Villaboard 6 mm: thickness 6 P · outer face position 11 E</text>
 <text x="266" y="50.6" font-size="2.8" font-weight="bold">Floor (mm above datum)</text>
 <text x="266" y="54.6" font-size="2.1" data-element="room:bathroom:substrate">Bathroom floor: substrate: substrate concrete slab, framed in place (house on piers) ENT · substrate top level -120 E · finished</text>
-<text x="269" y="57.7" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Waterproofing on the slab + Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the</text>
-<text x="269" y="60.8" font-size="2.1" data-element="room:bathroom:substrate">target 110 E</text>
-<text x="266" y="63.9" font-size="2.1" data-element="room:bathroom:floor:floor_membrane">Bathroom floor: Waterproofing on the slab: thickness ? · top level ?</text>
-<text x="266" y="69" font-size="2.8" font-weight="bold">Drainage / heating</text>
-<text x="266" y="73" font-size="2.1" data-element="room:bathroom:heating">Bathroom: proposed heating cable: manufacturer ? · model SCK0765L ENT · product length (m) 42.5 PUB · rated output (W) 765 PUB ·</text>
-<text x="269" y="76.1" font-size="2.1" data-element="room:bathroom:heating">derived spacing min 87.1 DER · derived spacing max 120 DER · plan route length (m) 42.5 MOD · spatial route length, sampled</text>
-<text x="269" y="79.2" font-size="2.1" data-element="room:bathroom:heating">profile (m) ?</text>
-<text x="266" y="82.3" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ? · drain</text>
-<text x="269" y="85.4" font-size="2.1" data-element="room:bathroom:waste:linear_drain">product Lauxes Next Gen 35 Custom 1000, brushed nickel NAM · grate 1000 × 100 M</text>
-<text x="266" y="88.5" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ? · drain product Kano 316</text>
-<text x="269" y="91.6" font-size="2.1" data-element="room:bathroom:waste:square_waste">Tile Insert Waste 120×120, brushed nickel NAM · grate 120 × 120 tile insert M</text>
-<text x="266" y="96.7" font-size="2.8" font-weight="bold">Unresolved in this view (19)</text>
-<text x="266" y="100.7" font-size="2.1" fill="#7a3b00">• Bathroom floor: Waterproofing on the slab: thickness (mm) unknown; printed as &quot;?&quot; (missing thickness (mm)).</text>
-<text x="266" y="103.8" font-size="2.1" fill="#7a3b00">• Bathroom floor: Waterproofing on the slab: top level (mm) unknown; printed as &quot;?&quot; (missing Waterproofing on the slab thickness).</text>
-<text x="266" y="106.9" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_signoff: Proposed route only: manufacturer and licensed electrician must review cable</text>
-<text x="269" y="110" font-size="2.1" fill="#7a3b00">identity, length, output, bend radius, spacing, exclusions, cover, sensor, cold tails, waterproofing and electrical installation.</text>
-<text x="269" y="113.1" font-size="2.1" fill="#7a3b00">No compliance approval. No electrical approval is implied.</text>
-<text x="266" y="116.2" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_product_unresolved: sample-sck0765l-carton is not an accepted heating-cable in this</text>
-<text x="269" y="119.3" font-size="2.1" fill="#7a3b00">library. Checks use the travelling snapshot only when its productId is that id or in its series.</text>
-<text x="266" y="122.4" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_product_unresolved: sample-mwd5-1999-cbp3 is not an accepted thermostat in this</text>
-<text x="269" y="125.5" font-size="2.1" fill="#7a3b00">library. Checks use the travelling snapshot only when its productId is that id or in its series.</text>
-<text x="266" y="128.6" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_metadata_unknown: Unknown cable/product information: manufacturer, minSpacing,</text>
-<text x="269" y="131.7" font-size="2.1" fill="#7a3b00">edgeClearance, depthFromBottom.</text>
-<text x="266" y="134.8" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_route_length_unknown: Spatial cable length and confirmed product-length balance remain</text>
-<text x="269" y="137.9" font-size="2.1" fill="#7a3b00">unknown until the whole route has resolved screed levels and cable height; the plan projection is modelled, not cable length.</text>
-<text x="266" y="141" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_coverage_range: Zone area excluding entered keep-outs 6.3722 m² (availableArea, same</text>
-<text x="269" y="144.1" font-size="2.1" fill="#7a3b00">resolver as evidence; not a laid-cable heat-coverage model) is outside the brief coverage range 3.7–5.1 m² (published,</text>
-<text x="269" y="147.2" font-size="2.1" fill="#7a3b00">project-snapshot (unresolved), carton label — SCK0765L in-screed heating cable carton: coverage 3.7–5.1 m², minimum).</text>
-<text x="266" y="150.3" font-size="2" fill="#666">… 11 more: see the specification sheet</text>
+<text x="269" y="57.7" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the target 108.5 E</text>
+<text x="266" y="60.8" font-size="2.1" data-element="room:bathroom:floor:floor_membrane">Bathroom floor: Membrane (Bastion liquid polyurethane): thickness 1.5 E · top level -118.5 E</text>
+<text x="266" y="65.9" font-size="2.8" font-weight="bold">Drainage / heating</text>
+<text x="266" y="69.9" font-size="2.1" data-element="room:bathroom:heating">Bathroom: proposed heating cable: manufacturer ? · model SCK0765L ENT · product length (m) 42.5 PUB · rated output (W) 765 PUB ·</text>
+<text x="269" y="73" font-size="2.1" data-element="room:bathroom:heating">derived spacing min 87.1 DER · derived spacing max 120 DER · plan route length (m) 42.5 MOD · spatial route length, sampled</text>
+<text x="269" y="76.1" font-size="2.1" data-element="room:bathroom:heating">profile (m) ?</text>
+<text x="266" y="79.2" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ? · drain</text>
+<text x="269" y="82.3" font-size="2.1" data-element="room:bathroom:waste:linear_drain">product Lauxes Next Gen 35 Custom 1000, brushed nickel NAM · grate 1000 × 100 M</text>
+<text x="266" y="85.4" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ? · drain product Kano 316</text>
+<text x="269" y="88.5" font-size="2.1" data-element="room:bathroom:waste:square_waste">Tile Insert Waste 120×120, brushed nickel NAM · grate 120 × 120 tile insert M</text>
+<text x="266" y="93.6" font-size="2.8" font-weight="bold">Unresolved in this view (16)</text>
+<text x="266" y="97.6" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_signoff: Proposed route only: manufacturer and licensed electrician must review cable</text>
+<text x="269" y="100.7" font-size="2.1" fill="#7a3b00">identity, length, output, bend radius, spacing, exclusions, cover, sensor, cold tails, waterproofing and electrical installation.</text>
+<text x="269" y="103.8" font-size="2.1" fill="#7a3b00">No compliance approval. No electrical approval is implied.</text>
+<text x="266" y="106.9" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_product_unresolved: sample-sck0765l-carton is not an accepted heating-cable in this</text>
+<text x="269" y="110" font-size="2.1" fill="#7a3b00">library. Checks use the travelling snapshot only when its productId is that id or in its series.</text>
+<text x="266" y="113.1" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_product_unresolved: sample-mwd5-1999-cbp3 is not an accepted thermostat in this</text>
+<text x="269" y="116.2" font-size="2.1" fill="#7a3b00">library. Checks use the travelling snapshot only when its productId is that id or in its series.</text>
+<text x="266" y="119.3" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_metadata_unknown: Unknown cable/product information: manufacturer, minSpacing,</text>
+<text x="269" y="122.4" font-size="2.1" fill="#7a3b00">depthFromBottom.</text>
+<text x="266" y="125.5" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_route_length_unknown: Spatial cable length and confirmed product-length balance remain</text>
+<text x="269" y="128.6" font-size="2.1" fill="#7a3b00">unknown until the whole route has resolved screed levels and cable height; the plan projection is modelled, not cable length.</text>
+<text x="266" y="131.7" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_coverage_range: Zone area excluding entered keep-outs 5.3257 m² (availableArea, same</text>
+<text x="269" y="134.8" font-size="2.1" fill="#7a3b00">resolver as evidence; not a laid-cable heat-coverage model) is outside the brief coverage range 3.7–5.1 m² (published,</text>
+<text x="269" y="137.9" font-size="2.1" fill="#7a3b00">project-snapshot (unresolved), carton label — SCK0765L in-screed heating cable carton: coverage 3.7–5.1 m², minimum).</text>
+<text x="266" y="141" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_ip_location: Thermostat printed IP21 (published, carton label — Photographed</text>
+<text x="269" y="144.1" font-size="2.1" fill="#7a3b00">MWD5-1999-CBP3 carton label: housing IP21) vs planned location outside a wet room (Hallway wall outside the bathroom, next to the</text>
+<text x="269" y="147.2" font-size="2.1" fill="#7a3b00">light switch (right as you look into the bathroom), 1000 mm off the floor. Not drawn on this plan.; Owner, 5 Oct 2026; height</text>
+<text x="269" y="150.3" font-size="2.1" fill="#7a3b00">raised to 1000 mm, 7 Oct 2026). This check does not decide zone suitability; the electrician decides. No compliance approval.</text>
+<text x="266" y="153.4" font-size="2.1" fill="#7a3b00">• Bathroom: proposed heating cable: heating_depth_unknown: Cable section remains unresolved until screed layer, floor levels and</text>
+<text x="269" y="156.5" font-size="2.1" fill="#7a3b00">cable height (bottom face of the selected screed layer (top of the layer below / subfloor stack); not the underside of the tile</text>
+<text x="269" y="159.6" font-size="2.1" fill="#7a3b00">unless that face is the screed top) are entered.</text>
+<text x="266" y="162.7" font-size="2" fill="#666">… 8 more: see the specification sheet</text>
 <rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
 <text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>
 <text x="266" y="251.4" font-size="2.4" >Stage diagram: 5. Heating cable on the membrane</text>
-<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-06 · not a revision of A-01</text>
+<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-07 · not a revision of A-01</text>
 <text x="266" y="261.8" font-size="2.2" >Prepared by: ? · Plan: Bathroom Concept</text>
 <text x="266" y="267" font-size="2.1" ></text>
 <rect x="264" y="268.8" width="146" height="7" fill="#b00020"/>

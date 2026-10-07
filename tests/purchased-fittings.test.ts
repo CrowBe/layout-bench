@@ -72,21 +72,23 @@ describe("purchased fittings in the sample project", () => {
 
   it("records manufacturer-sheet sizes with a source URL, and keeps unsourced figures labelled", () => {
     const byKind = Object.fromEntries(purchasedFittings.map((f) => [f.kind, f]));
-    expect(byKind.mixer_k1132_31.size.w).toBe(0.065);
-    expect(byKind.mixer_k1132_31.size.d).toBe(0.061);
-    expect(byKind.mixer_k1132_31.size.h).toBeCloseTo(0.117, 4);
-    expect(byKind.mixer_k1132_31.size.elevation).toBeCloseTo(0.748, 4);
-    expect(byKind.spout_k1150_31_0_150.size).toMatchObject({ w: 0.065, d: 0.162, h: 0.0775, elevation: 0.7875 });
+    // one 200 × 65 KDPP32 plate for mixer and spout; 162 = 150 + Ø24/2; 117 = plate top to lever end
+    expect(byKind.bath_set_k1132_150_kdpp32.size).toMatchObject({ w: 0.2, d: 0.162, h: 0.117 });
+    expect(byKind.bath_set_k1132_150_kdpp32.size.elevation).toBeCloseTo(0.75 + 0.0225 - 0.107, 6);
+    expect(byKind.mixer_k1132_31).toBeUndefined();
+    expect(byKind.spout_k1150_31_0_150).toBeUndefined();
+    expect(byKind.mixer_k1130_31.size).toMatchObject({ w: 0.065, d: 0.0695, h: 0.117 });
     expect(byKind.mixer_k1110_31.size).toMatchObject({ h: 0.148, elevation: 0.85 });
-    expect(byKind.shower_y1173_31_11_250.size).toMatchObject({ w: 0.25, d: 0.552, h: 0.981, elevation: 0.4 });
+    // lower bracket 1200 (owner, proposed); the rail foot is 70.3 mm below it (981 − 410.7 − 500)
+    expect(byKind.shower_y1173_31_11_250.size).toMatchObject({ w: 0.25, d: 0.552, h: 0.981, elevation: 1.1297 });
     expect(byKind.towel_rail_vs900hbn.size).toMatchObject({ w: 0.142, d: 0.1, h: 0.9, elevation: 0.75 });
     expect(byKind.thermostat_mwd5_1999_cbp3.size.caveat).toMatch(/stand-in/);
     expect(byKind.waste_sdp40bn.size.caveat).toMatch(/stand-in/);
     const wasteConnection = byKind.waste_sdp40bn.measures.find((m) => m.key === "connection")!;
     expect(wasteConnection).toMatchObject({ value: 0.04, status: "published", source: "carton label" });
     expect(wasteConnection.measurement).toBeUndefined();
-    const handle = byKind.mixer_k1132_31.measures.find((m) => m.key === "handleDrop")!;
-    expect(handle.note).toMatch(/top of the Ø42 hub/);
+    const handle = byKind.bath_set_k1132_150_kdpp32.measures.find((m) => m.key === "handleDrop")!;
+    expect(handle.note).toMatch(/top of the Ø45 hub/);
     expect(handle.note).not.toMatch(/plate centre down/);
     const arm = byKind.shower_y1173_31_11_250.measures.find((m) => m.key === "armReach")!;
     expect(arm).toMatchObject({ value: 0.427, reference: "fixture-side" });
@@ -97,13 +99,21 @@ describe("purchased fittings in the sample project", () => {
     expect(byKind.mixer_k1110_31.measures.find((m) => m.key === "elevation")).toMatchObject({ value: null });
     expect(byKind.mixer_k1110_31.measures.find((m) => m.key === "elevation")?.note).toMatch(/Unsourced/);
     expect(byKind.mixer_k1110_31.measures.find((m) => m.key === "elevation")?.status).toBeUndefined();
-    expect(byKind.mixer_k1132_31.measures.find((m) => m.key === "elevation")).toMatchObject({ value: null });
-    expect(byKind.mixer_k1132_31.measures.find((m) => m.key === "elevation")?.note).toMatch(/Unsourced/);
-    expect(byKind.mixer_k1132_31.measures.find((m) => m.key === "elevation")?.status).toBeUndefined();
+    expect(byKind.bath_set_k1132_150_kdpp32.measures.find((m) => m.key === "elevation")).toMatchObject({ value: 0.75, status: "proposed", reference: "finished-floor" });
+    expect(byKind.bath_set_k1132_150_kdpp32.measures.find((m) => m.key === "elevation")?.note).toMatch(/Owner, 7 Oct 2026: plate centre 750 mm/);
+    expect(byKind.shower_y1173_31_11_250.measures.find((m) => m.key === "elevation")).toMatchObject({ value: 1.2, status: "proposed" });
+    expect(byKind.shower_y1173_31_11_250.measures.find((m) => m.key === "inletHeight")).toMatchObject({ value: 1.7, status: "proposed" });
+    expect(byKind.mixer_k1130_31.measures.find((m) => m.key === "elevation")).toMatchObject({ value: 1, status: "proposed" });
+    expect(byKind.mixer_k1130_31.measures.find((m) => m.key === "fromWindowWall")).toMatchObject({ value: null });
+    expect(byKind.thermostat_mwd5_1999_cbp3.measures.find((m) => m.key === "elevation")).toMatchObject({ value: 1, status: "proposed" });
     expect(byKind.shower_y1173_31_11_250.measures.find((m) => m.key === "envelopeDepth")).toBeUndefined();
-    expect(byKind.mixer_k1132_31.measures.find((m) => m.key === "bodyProjection")?.note).toMatch(/wall-side face/);
-    expect(byKind.mixer_k1132_31.parts[1].z).toBeCloseTo(-0.061 / 2 + 0.05, 5);
-    expect(byKind.spout_k1150_31_0_150.specFields.waterConnection?.value).toMatch(/G1\/2/);
+    expect(byKind.bath_set_k1132_150_kdpp32.measures.find((m) => m.key === "bodyProjection")?.note).toMatch(/wall-side face/);
+    // lever centreline 50 mm from the plate's wall-side face, which sits at −162/2
+    expect(byKind.bath_set_k1132_150_kdpp32.parts[1].z).toBeCloseTo(-0.162 / 2 + 0.05, 5);
+    // spout toward the window wall (local −x), lever 120 mm away
+    expect(byKind.bath_set_k1132_150_kdpp32.parts[2].x! - byKind.bath_set_k1132_150_kdpp32.parts[1].x!).toBeCloseTo(-0.12, 6);
+    expect(byKind.bath_set_k1132_150_kdpp32.specFields.waterConnection?.value).toMatch(/G1\/2/);
+    expect(byKind.shower_y1173_31_11_250.specFields.waterConnection?.value).toMatch(/upper wall rose only/);
     expect(byKind.shower_y1173_31_11_250.specFields.fixingLayout?.value).toMatch(/500 mm/);
     expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).toMatch(/Ø32/);
     expect(byKind.towel_rail_vs900hbn.specFields.fixingLayout?.value).toMatch(/52 mm from the rail centreline/);
@@ -184,7 +194,7 @@ describe("purchased fittings in the sample project", () => {
     expect(basin.productSpecification?.fields.height).toMatchObject({ value: 0.148, status: "published" });
     const mixer = back.model.items.find((i) => i.id === "bath_mixer")!;
     expect(mixer.productSpecification?.fields.handleDrop).toBeUndefined();
-    expect(mixer.productSpecification?.fields.depth).toMatchObject({ value: 0.061 });
+    expect(mixer.productSpecification?.fields.depth).toMatchObject({ value: 0.162 });
     expect(mixer.productSpecification?.fields.height?.value).toBeCloseTo(0.117, 4);
     const captain = back.notes.find((n) => n.id === "note-captain")!;
     expect(captain.text).toMatch(/Still needs the captain's measurement/);
@@ -208,10 +218,10 @@ describe("purchased fittings in the sample project", () => {
       expect(it.anchor).toBeUndefined();
       expect(it.installation).toBeUndefined();
     }
-    expect(kinds.find((k) => k.entry.kind === "mixer_k1132_31")!.entry.elevation).toBe(0.748);
-    expect(kinds.find((k) => k.entry.kind === "mixer_k1132_31")!.entry.elevationNote).toMatch(/handle end/);
-    expect(kinds.find((k) => k.entry.kind === "spout_k1150_31_0_150")!.entry.elevation).toBe(0.7875);
-    expect(kinds.find((k) => k.entry.kind === "shower_y1173_31_11_250")!.entry.elevation).toBe(0.4);
+    expect(kinds.find((k) => k.entry.kind === "bath_set_k1132_150_kdpp32")!.entry.elevation).toBeCloseTo(0.6655, 6);
+    expect(kinds.find((k) => k.entry.kind === "bath_set_k1132_150_kdpp32")!.entry.elevationNote).toMatch(/lever end/);
+    expect(kinds.find((k) => k.entry.kind === "shower_y1173_31_11_250")!.entry.elevation).toBe(1.1297);
+    expect(kinds.find((k) => k.entry.kind === "mixer_k1130_31")!.entry.elevation).toBeCloseTo(0.9155, 6);
   });
 
   it("lists every remaining placeholder for the captain to measure", () => {
@@ -241,7 +251,7 @@ describe("purchased fittings in the sample project", () => {
   it("flags an overlap once heights meet", () => {
     load();
     // drop the bath mixer to bath-rim height: it now occupies the same volume as the bath
-    actions.defineItemKind({ ...catalogByKind("mixer_k1132_31")!, elevation: undefined, parts: undefined });
+    actions.defineItemKind({ ...catalogByKind("bath_set_k1132_150_kdpp32")!, elevation: undefined, parts: undefined });
     const codes = checkModel(store.getState().model).map((i) => i.code);
     expect(codes).toContain("items_overlap");
   });

@@ -148,12 +148,10 @@ Visible: `walls`, `wall-frame`, `wall-board`, `rooms`, `doors`, `windows`, `floo
 
 Stopgap view, not recorded: Wall waterproofing membrane. Drawn dashed as stand-ins: floor-waterproofing.
 
-Specification: 60 row(s), 20 unknown. [spec.html](04-waterproofing/spec.html)
+Specification: 60 row(s), 18 unknown. [spec.html](04-waterproofing/spec.html)
 
 Open items:
 
-- Bathroom floor: Waterproofing on the slab: thickness (mm) unknown; printed as "?" (missing thickness (mm)).
-- Bathroom floor: Waterproofing on the slab: top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as "?" (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
@@ -200,27 +198,24 @@ The proposed in-screed heating cable route, laid by the owner and tested by the 
 
 Visible: `walls`, `wall-board`, `rooms`, `doors`, `windows`, `floor-substrate`, `floor-waterproofing`, `floor-heating-cable`, `drainage-wastes`
 
-Specification: 80 row(s), 24 unknown. [spec.html](05-heating-cable/spec.html)
+Specification: 81 row(s), 21 unknown. [spec.html](05-heating-cable/spec.html)
 
 Open items:
 
-- Bathroom floor: Waterproofing on the slab: thickness (mm) unknown; printed as "?" (missing thickness (mm)).
-- Bathroom floor: Waterproofing on the slab: top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness).
 - Bathroom: proposed heating cable: heating_signoff: Proposed route only: manufacturer and licensed electrician must review cable identity, length, output, bend radius, spacing, exclusions, cover, sensor, cold tails, waterproofing and electrical installation. No compliance approval. No electrical approval is implied.
 - Bathroom: proposed heating cable: heating_product_unresolved: sample-sck0765l-carton is not an accepted heating-cable in this library. Checks use the travelling snapshot only when its productId is that id or in its series.
 - Bathroom: proposed heating cable: heating_product_unresolved: sample-mwd5-1999-cbp3 is not an accepted thermostat in this library. Checks use the travelling snapshot only when its productId is that id or in its series.
-- Bathroom: proposed heating cable: heating_metadata_unknown: Unknown cable/product information: manufacturer, minSpacing, edgeClearance, depthFromBottom.
+- Bathroom: proposed heating cable: heating_metadata_unknown: Unknown cable/product information: manufacturer, minSpacing, depthFromBottom.
 - Bathroom: proposed heating cable: heating_route_length_unknown: Spatial cable length and confirmed product-length balance remain unknown until the whole route has resolved screed levels and cable height; the plan projection is modelled, not cable length.
-- Bathroom: proposed heating cable: heating_coverage_range: Zone area excluding entered keep-outs 6.3722 m² (availableArea, same resolver as evidence; not a laid-cable heat-coverage model) is outside the brief coverage range 3.7–5.1 m² (published, project-snapshot (unresolved), carton label — SCK0765L in-screed heating cable carton: coverage 3.7–5.1 m², minimum).
-- Bathroom: proposed heating cable: heating_ip_location: Thermostat printed IP21 (published, carton label — Photographed MWD5-1999-CBP3 carton label: housing IP21) vs planned location outside a wet room (Hallway wall outside the bathroom, next to the light switch (right as you look into the bathroom), about 850 mm off the floor. Not drawn on this plan.; Owner, 5 Oct 2026). This check does not decide zone suitability; the electrician decides. No compliance approval.
+- Bathroom: proposed heating cable: heating_coverage_range: Zone area excluding entered keep-outs 5.3257 m² (availableArea, same resolver as evidence; not a laid-cable heat-coverage model) is outside the brief coverage range 3.7–5.1 m² (published, project-snapshot (unresolved), carton label — SCK0765L in-screed heating cable carton: coverage 3.7–5.1 m², minimum).
+- Bathroom: proposed heating cable: heating_ip_location: Thermostat printed IP21 (published, carton label — Photographed MWD5-1999-CBP3 carton label: housing IP21) vs planned location outside a wet room (Hallway wall outside the bathroom, next to the light switch (right as you look into the bathroom), 1000 mm off the floor. Not drawn on this plan.; Owner, 5 Oct 2026; height raised to 1000 mm, 7 Oct 2026). This check does not decide zone suitability; the electrician decides. No compliance approval.
 - Bathroom: proposed heating cable: heating_depth_unknown: Cable section remains unresolved until screed layer, floor levels and cable height (bottom face of the selected screed layer (top of the layer below / subfloor stack); not the underside of the tile unless that face is the screed top) are entered.
 - Bathroom: proposed heating cable: manufacturer unknown; printed as "?" (missing manufacturer).
 - Bathroom: proposed heating cable: minSpacing (mm) unknown; printed as "?" (missing minSpacing (mm)).
-- Bathroom: proposed heating cable: edgeClearance (mm) unknown; printed as "?" (missing edgeClearance (mm)).
 - Bathroom: proposed heating cable: depthFromBottom (mm) unknown; printed as "?" (missing depthFromBottom (mm)).
 - Bathroom: proposed heating cable: spatial route length, sampled profile (m) unknown; printed as "?" (missing Sampled cable profile. Modelled; unknown until screed levels and cable height resolve. Not published cable length.).
 - Bathroom: proposed heating cable: remaining confirmed product length (m) unknown; printed as "?" (missing Balance stays unknown until confirmed product length and the whole spatial profile are both numeric.).
-- Bathroom: proposed heating cable: cable level at 91 sampled points along plan route (mm) unknown; printed as "?" (missing plane "Dry area" is unresolved (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level), cable height above screed bottom, Tiler's screed (heating cable inside) thickness, Tiler's adhesive thickness, plane "Shower" is unresolved (missing Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN level, fall or a control level), plane "Beside the shower (under the bath)" is unresolved (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level)).
+- Bathroom: proposed heating cable: cable level at 169 sampled points along plan route (mm) unknown; printed as "?" (missing plane "Dry area" is unresolved (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level), cable height above screed bottom, Tiler's screed (heating cable inside) thickness, Tiler's adhesive thickness, plane "Beside the shower (under the bath)" is unresolved (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level), plane "Shower" is unresolved (missing Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN level, fall or a control level)).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
 
@@ -264,14 +259,12 @@ The tiler's own screed (cable inside) and the floor falls to the two drains. The
 
 Visible: `walls`, `wall-board`, `rooms`, `doors`, `windows`, `floor-substrate`, `floor-waterproofing`, `floor-screed`, `drainage-wastes`, `drainage-planes`
 
-Specification: 62 row(s), 25 unknown. [spec.html](06-screed-falls/spec.html)
+Specification: 62 row(s), 23 unknown. [spec.html](06-screed-falls/spec.html)
 
 Open items:
 
-- Bathroom floor: Waterproofing on the slab: thickness (mm) unknown; printed as "?" (missing thickness (mm)).
-- Bathroom floor: Waterproofing on the slab: top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness).
 - Bathroom floor: Tiler's screed (heating cable inside): thickness (mm) unknown; printed as "?" (missing thickness (mm)).
-- Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness, Tiler's screed (heating cable inside) thickness).
+- Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as "?" (missing Tiler's screed (heating cable inside) thickness).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as "?" (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
@@ -326,7 +319,7 @@ Specification: 74 row(s), 24 unknown. [spec.html](07-adhesive/spec.html)
 Open items:
 
 - Bathroom floor: Tiler's screed (heating cable inside): thickness (mm) unknown; printed as "?" (missing thickness (mm)).
-- Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness, Tiler's screed (heating cable inside) thickness).
+- Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as "?" (missing Tiler's screed (heating cable inside) thickness).
 - Bathroom floor: Tiler's adhesive: thickness (mm) unknown; printed as "?" (missing thickness (mm)).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as "?" (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).
@@ -382,7 +375,7 @@ Specification: 89 row(s), 24 unknown. [spec.html](08-tiles/spec.html)
 Open items:
 
 - Bathroom floor: Tiler's screed (heating cable inside): thickness (mm) unknown; printed as "?" (missing thickness (mm)).
-- Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as "?" (missing Waterproofing on the slab thickness, Tiler's screed (heating cable inside) thickness).
+- Bathroom floor: Tiler's screed (heating cable inside): top level (mm) unknown; printed as "?" (missing Tiler's screed (heating cable inside) thickness).
 - Bathroom floor: Tiler's adhesive: thickness (mm) unknown; printed as "?" (missing thickness (mm)).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as "?" (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).
@@ -435,7 +428,7 @@ Visible: `walls`, `wall-tile`, `rooms`, `doors`, `windows`, `floor-substrate`, `
 
 Stopgap view, not recorded: Waste service points; Water service points; Power service points. Drawn dashed as stand-ins: fixtures.
 
-Specification: 291 row(s), 151 unknown. [spec.html](09-fit-out/spec.html)
+Specification: 290 row(s), 152 unknown. [spec.html](09-fit-out/spec.html)
 
 Open items:
 
@@ -451,33 +444,18 @@ Open items:
 - Corner bath (bath): wasteConnectionDiameter unknown; printed as "?" (missing The Enflair drawing names a Ø50 waste hole, not a pipe connection or outlet size. No connection diameter is entered.).
 - Corner bath (bath): surround unknown; printed as "?" (missing Not entered from the cited source.).
 - Corner bath (bath): surroundDetail unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): set-out unknown; printed as "?" (missing not set out from a wall face).
-- Bath mixer (bath_mixer): tapHoles unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): holeLayout unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): fixingLayout unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): pressureMin unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): inletMode unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): inletSpacing unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): waterConnection unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): inletOffset unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): inletDepth unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): inletHeight unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): concealedDepthMin unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer (bath_mixer): concealedDepthMax unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): set-out unknown; printed as "?" (missing not set out from a wall face).
-- Bath spout (bath_spout): tapHoles unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): holeLayout unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): fixingLayout unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): pressureMin unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): pressureMax unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): temperatureMax unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): inletMode unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): inletSpacing unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): inletOffset unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): inletDepth unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): inletHeight unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): concealedDepthMin unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath spout (bath_spout): concealedDepthMax unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): set-out unknown; printed as "?" (missing not set out from a wall face).
+- Bath mixer and spout (bath_mixer): tapHoles unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): holeLayout unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): fixingLayout unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): pressureMin unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): inletMode unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): inletSpacing unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): inletOffset unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): inletDepth unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): inletHeight unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): concealedDepthMin unknown; printed as "?" (missing Not entered from the cited source.).
+- Bath mixer and spout (bath_mixer): concealedDepthMax unknown; printed as "?" (missing Not entered from the cited source.).
 - Bath waste (bath_waste): set-out unknown; printed as "?" (missing not set out from a wall face).
 - Bath waste (bath_waste): width unknown; printed as "?" (missing Not entered from the cited source.).
 - Bath waste (bath_waste): depth unknown; printed as "?" (missing Not entered from the cited source.).
@@ -504,6 +482,23 @@ Open items:
 - Shower system (shower_system): inletOffset unknown; printed as "?" (missing Not entered from the cited source.).
 - Shower system (shower_system): inletDepth unknown; printed as "?" (missing Not entered from the cited source.).
 - Shower system (shower_system): inletHeight unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): set-out unknown; printed as "?" (missing not set out from a wall face).
+- Shower mixer (shower_mixer): width unknown; printed as "?" (missing Owner's copy of the Enflair K1130 drawing gives plate Ø65; it has no web link, so it is not entered as a published brief figure (the figures are on the measures).).
+- Shower mixer (shower_mixer): depth unknown; printed as "?" (missing Owner's copy of the Enflair K1130 drawing gives 65.5 mm lever to plate plus the 4 mm plate; no web link, so not entered as a published brief figure.).
+- Shower mixer (shower_mixer): height unknown; printed as "?" (missing Derived from the owner's copy of the Enflair K1130 drawing (Ø65 plate, Ø45 hub, 107 mm lever); no web link, so not entered as a published brief figure.).
+- Shower mixer (shower_mixer): mounting unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): tapHoles unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): holeLayout unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): fixingLayout unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): pressureMin unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): inletMode unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): inletSpacing unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): waterConnection unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): inletOffset unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): inletDepth unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): inletHeight unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): concealedDepthMin unknown; printed as "?" (missing Not entered from the cited source.).
+- Shower mixer (shower_mixer): concealedDepthMax unknown; printed as "?" (missing Not entered from the cited source.).
 - Towel rail (towel_rail): set-out unknown; printed as "?" (missing not set out from a wall face).
 - Towel rail (towel_rail): fixingCentresWidth unknown; printed as "?" (missing Not entered from the cited source.).
 - Towel rail (towel_rail): powerOffset unknown; printed as "?" (missing Not entered from the cited source.).

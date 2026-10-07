@@ -51,14 +51,13 @@
 <text x="266" y="45.5" font-size="2.1" data-element="wall:wall_w:right:frame">Wall w right: frame face: frame face position 5 E</text>
 <text x="266" y="50.6" font-size="2.8" font-weight="bold">Floor (mm above datum)</text>
 <text x="266" y="54.6" font-size="2.1" data-element="room:bathroom:substrate">Bathroom floor: substrate: substrate concrete slab, framed in place (house on piers) ENT · substrate top level -120 E · finished</text>
-<text x="269" y="57.7" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Waterproofing on the slab + Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the</text>
-<text x="269" y="60.8" font-size="2.1" data-element="room:bathroom:substrate">target 110 E</text>
-<text x="266" y="65.9" font-size="2.8" font-weight="bold">Unresolved in this view (0)</text>
+<text x="269" y="57.7" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the target 108.5 E</text>
+<text x="266" y="62.8" font-size="2.8" font-weight="bold">Unresolved in this view (0)</text>
 <rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
 <text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>
 <text x="266" y="251.4" font-size="2.4" >Stage diagram: 1. Post-demolition: frame and slab</text>
-<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-06 · not a revision of A-01</text>
+<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-07 · not a revision of A-01</text>
 <text x="266" y="261.8" font-size="2.2" >Prepared by: ? · Plan: Bathroom Concept</text>
 <text x="266" y="267" font-size="2.1" ></text>
 <rect x="264" y="268.8" width="146" height="7" fill="#b00020"/>
