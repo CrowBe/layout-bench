@@ -64,7 +64,7 @@ import { renderFloorPlan } from "../sheets/floorPlan";
 import { SNAP, dist, formatMm, quantize, segLen, segPoint } from "./geometry";
 import { catalogForItem, catalogByKind, registerCatalogEntry, resetRuntimeCatalog, type CatalogEntry } from "./catalog";
 import { defineCustomKind, FURNITURE_BUILDERS, resetCustomKinds, type PartSpec } from "../three/furniture";
-import { DEMO_ID, DOCUMENT_VERSION, STORAGE_KEY, demoProject, emptyLibrary, parseImport, parseLibrary, type ProjectDocument, type ProjectKind } from "./projects";
+import { DEMO_ID, DOCUMENT_VERSION, STORAGE_KEY, demoProject, emptyLibrary, parseImport, parseLibrary, sampleStatus, type ProjectDocument, type ProjectKind } from "./projects";
 
 export interface RefCandidate {
   id: string;
@@ -176,8 +176,12 @@ export function initializeProjects(): void {
     const loaded = raw ? parseLibrary(raw) : emptyLibrary();
     // Keep every saved project intact. Older libraries used Sunset Loft as the reserved sample;
     // it now remains an ordinary user project while the bathroom concept is added once.
+    // An unedited copy of an older shipped sample is replaced by the current one, keeping its
+    // presentation; an edited copy stays until a person resets it from the chooser.
     const library = loaded.projects.some((project) => project.id === DEMO_ID)
-      ? loaded
+      ? { ...loaded, projects: loaded.projects.map((project) => project.id === DEMO_ID && sampleStatus(project) === "outdated"
+        ? { ...demoProject(), presentation: project.presentation }
+        : project) }
       : { ...loaded, projects: [demoProject(), ...loaded.projects] };
     // The chooser is deliberate on each page load; saved documents stay in place until selected.
     store.setState({ projects: library.projects, activeProjectId: null, chooserOpen: true,

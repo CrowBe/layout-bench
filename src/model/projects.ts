@@ -27,6 +27,8 @@ export interface ProjectDocument {
   presentation: "planning" | "styled";
   notes: Note[];
   kinds: ProjectKind[];
+  /** Bathroom Concept only: fingerprint of the shipped sample this copy was loaded from. */
+  sampleFingerprint?: string;
 }
 
 export interface ProjectLibrary {
@@ -35,9 +37,38 @@ export interface ProjectLibrary {
   projects: ProjectDocument[];
 }
 
-export const demoProject = (): ProjectDocument => ({
-  version: DOCUMENT_VERSION, id: DEMO_ID, model: seedBathroom(), presentation: "planning", notes: bathroomNotes(), kinds: structuredClone(bathroomKinds),
-});
+/**
+ * The shipped sample, in the form a saved copy takes after a save and reload, stamped with its
+ * fingerprint so a later load can tell an unedited copy of an older sample from an edited one.
+ */
+export const demoProject = (): ProjectDocument => {
+  const project = parseProject(JSON.parse(JSON.stringify({
+    version: DOCUMENT_VERSION, id: DEMO_ID, model: seedBathroom(), presentation: "planning", notes: bathroomNotes(), kinds: structuredClone(bathroomKinds),
+  })));
+  return { ...project, sampleFingerprint: sampleFingerprint(project) };
+};
+
+/** FNV-1a over the model, notes (without their creation times) and kinds. Presentation is a view setting. */
+export function sampleFingerprint(project: ProjectDocument): string {
+  const text = JSON.stringify([project.model, project.notes.map(({ at: _at, ...note }) => note), project.kinds]);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193);
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+let shippedFingerprint: string | null = null;
+
+/**
+ * How a saved Bathroom Concept compares with the sample this build ships: the same, an unedited
+ * copy of an older sample (safe to replace), or an edited or unidentifiable older copy (only a
+ * person may reset it).
+ */
+export function sampleStatus(project: ProjectDocument): "current" | "outdated" | "outdated-edited" {
+  shippedFingerprint ??= demoProject().sampleFingerprint!;
+  const content = sampleFingerprint(project);
+  if (content === shippedFingerprint) return "current";
+  return project.sampleFingerprint === content ? "outdated" : "outdated-edited";
+}
 export const emptyLibrary = (): ProjectLibrary => ({ version: DOCUMENT_VERSION, activeId: null, projects: [demoProject()] });
 
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
