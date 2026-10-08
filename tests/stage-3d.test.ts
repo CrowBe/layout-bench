@@ -8,7 +8,7 @@ import { bathroomKinds } from "../src/model/seed-bathroom";
 import { applyStageVisibility, buildFixture, buildPlan, tagStages } from "../src/three/build";
 import { floorFill } from "../src/model/floor";
 import { catalogue, resolveVisible } from "../src/sheets/stageView";
-import type { PartSpec } from "../src/three/furniture";
+import { buildFurniture, defineCustomKind, loftGeometry, type PartSpec } from "../src/three/furniture";
 
 /** The sample bathroom, its kinds registered, built the way Scene3D builds it. */
 const sample = () => {
@@ -36,6 +36,11 @@ const stagesOf = (m: THREE.Object3D): string[] => m.userData.stages ?? (m.userDa
 function assertInside(parts: PartSpec[], env: { w: number; d: number; h: number }, label: string) {
   const eps = 1e-6;
   for (const p of parts) {
+    if (p.shape === "loft") {
+      // a loft's bounds are its sections', offset by the part's position
+      for (const s of p.sections!) assertInside([{ shape: "box", x: p.x, y: (p.y ?? 0) + s.y, z: (p.z ?? 0) + (s.z ?? 0), w: s.w, h: 0, d: s.d }], env, label);
+      continue;
+    }
     const pw = p.w ?? 0.3, ph = p.h ?? 0.3, pd = p.d ?? 0.3;
     const x = p.x ?? 0, y = p.y ?? 0, z = p.z ?? 0;
     expect(x - pw / 2, `${label} x-`).toBeGreaterThanOrEqual(-env.w / 2 - eps);
@@ -182,10 +187,29 @@ describe("sample bathroom in 3D: the finished room over its build-up", () => {
     expect(kind.entry).toMatchObject({ w: 0.381, d: 0.7, h: 0.857 });
     expect(kind.entry.stopgap).toBeUndefined();
     const cistern = kind.parts!.find((p) => p.w === 0.381)!;
-    expect(cistern).toMatchObject({ d: 0.166, h: 0.387, y: 0.47 }); // 381 × 166 × 387, top at 857
+    expect(cistern).toMatchObject({ shape: "loft", d: 0.166, h: 0.387, y: 0.47 }); // 381 × 166 × 387, top at 857
     expect(cistern.stopgap).toBeUndefined();
-    expect(kind.parts!.filter((p) => p !== cistern).every((p) => p.stopgap === true)).toBe(true); // pan shape, seat, controls not on the sheets
+    // the pan: a loft from the 240 × 585 foot on the floor to the 365 × 700 rim at 450, back on the wall
+    const pan = kind.parts![0];
+    expect(pan.shape).toBe("loft");
+    const [foot, rim] = [pan.sections![0], pan.sections!.at(-1)!];
+    expect(foot).toMatchObject({ y: 0, w: 0.24, d: 0.585 });
+    expect(rim).toMatchObject({ y: 0.45, w: 0.365, d: 0.7 });
+    for (const s of pan.sections!) expect(s.z! - s.d / 2).toBeCloseTo(-0.35, 9);
+    expect(pan.stopgap).toBeUndefined();
+    // the SpaLet seat, its housing and the control panel have no dimensions on either sheet
+    const seat = kind.parts!.filter((p) => p.y === 0.45 && p !== kind.parts![1]);
+    expect(seat).toHaveLength(3);
+    expect(seat.every((p) => p.stopgap === true)).toBe(true);
+    expect(seat.at(-1)!.x).toBeLessThan(0); // controls on the left, facing the toilet (the power point's side)
     assertInside(kind.parts!, { w: 0.381, d: 0.7, h: 0.857 }, "toilet_proxy");
+    // the built pan is as wide and deep as the sheet at its rim and foot
+    defineCustomKind("toilet_proxy", kind.parts!);
+    const built = box(buildFurniture("toilet_proxy")!.children[0]);
+    expect(built.max.x - built.min.x).toBeCloseTo(0.365, 4);
+    expect(built.max.z - built.min.z).toBeCloseTo(0.7, 4);
+    expect(built.min.y).toBeCloseTo(0, 6);
+    expect(built.max.y).toBeCloseTo(0.45, 6);
   });
 
   it("keeps the screen glass and its fixings inside the 900 × 10 × 2000 mm panel", () => {
@@ -447,5 +471,48 @@ describe("review round 4: the drains stay visible through the floor tiles", () =
     // waste hidden, tiles shown: no drain drawn
     applyStageVisibility(group, visibleIds(tiles.filter((id) => id !== "drainage-wastes")));
     expect(rendered(face)).toBe(false);
+  });
+});
+
+describe("loft parts (define_item_kind shape \"loft\")", () => {
+  const sections = [
+    { y: 0, w: 0.24, d: 0.5, z: -0.05, frontRadius: 0.12, backRadius: 0.01 },
+    { y: 0.3, w: 0.36, d: 0.6, z: 0, frontRadius: 0.18, backRadius: 0.01 },
+  ];
+
+  it("skins its sections with outward-facing triangles and keeps their bounds", () => {
+    const geo = loftGeometry(sections).toNonIndexed();
+    const a = geo.getAttribute("position");
+    const v = (i: number) => new THREE.Vector3(a.getX(i), a.getY(i), a.getZ(i));
+    for (let i = 0; i < a.count; i += 3) {
+      const [p, q, r] = [v(i), v(i + 1), v(i + 2)];
+      const n = q.clone().sub(p).cross(r.clone().sub(p));
+      if (n.length() < 1e-12) continue; // a zero-radius corner leaves degenerate slivers
+      const c = p.clone().add(q).add(r).divideScalar(3);
+      // outward: away from the body's axis on the skin, down at the bottom, up at the top
+      const out = c.y < 1e-9 ? new THREE.Vector3(0, -1, 0) : c.y > 0.3 - 1e-9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(c.x, 0, c.z + 0.025);
+      expect(n.dot(out), `triangle ${i / 3}`).toBeGreaterThan(0);
+    }
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox!;
+    expect(bb.min.y).toBeCloseTo(0, 9);
+    expect(bb.max.y).toBeCloseTo(0.3, 6);
+    expect(bb.max.x - bb.min.x).toBeCloseTo(0.36, 6);
+    expect(bb.min.z).toBeCloseTo(-0.3, 6);
+    expect(bb.max.z).toBeCloseTo(0.3, 6);
+  });
+
+  it("is placed by the part's x, y, z like any other part", () => {
+    actions.defineItemKind({ kind: "lofted", label: "Lofted", w: 0.4, d: 0.7, h: 0.5, parts: [{ shape: "loft", x: 0.01, y: 0.1, z: 0.02, sections }] });
+    const built = box(buildFurniture("lofted")!.children[0]);
+    expect(built.min.y).toBeCloseTo(0.1, 6);
+    expect(built.max.y).toBeCloseTo(0.4, 6);
+    expect(built.max.z).toBeCloseTo(0.32, 6);
+  });
+
+  it("refuses a loft without two sized sections", () => {
+    const r = actions.defineItemKind({ kind: "flat_loft", label: "Flat", w: 0.4, d: 0.4, h: 0.4, parts: [{ shape: "loft", sections: [{ y: 0, w: 0.3, d: 0.3 }] }] });
+    expect(r.ok).toBe(false);
+    expect(r.summary).toMatch(/at least two sections/);
   });
 });

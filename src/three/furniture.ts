@@ -546,7 +546,7 @@ export const FURNITURE_BUILDERS: Record<string, Builder> = {
  * width along +x, depth along +z, y measured up from the floor, front facing +z.
  */
 export interface PartSpec {
-  shape?: "box" | "cylinder" | "sphere";
+  shape?: "box" | "cylinder" | "sphere" | "loft";
   x?: number;
   y?: number;
   z?: number;
@@ -562,6 +562,86 @@ export interface PartSpec {
   opacity?: number;
   /** Stand-in geometry; renders dashed. Driven by this flag, not by matching note text. */
   stopgap?: boolean;
+  /** A loft's plan sections, bottom to top (see LoftSection); w, h and d are then its bounds. */
+  sections?: LoftSection[];
+}
+
+/**
+ * One plan section of a loft: a rounded rectangle w wide and d deep, `y` above the part's bottom,
+ * centred `z` along the depth from the part's centre. Front corners (+z) take `frontRadius`, back
+ * corners `backRadius` (metres, clamped to fit; frontRadius = w/2 makes a D-shaped front).
+ * Neighbouring sections are joined by a smooth skin, and the bottom and top are capped flat.
+ */
+export interface LoftSection {
+  y: number;
+  w: number;
+  d: number;
+  z?: number;
+  frontRadius?: number;
+  backRadius?: number;
+}
+
+const LOFT_CORNER_STEPS = 8;
+
+/** A section as a ring of plan points (x, z), the same count for every section so rings join. */
+function loftRing(s: LoftSection): [number, number][] {
+  const w = Math.max(0.001, s.w), d = Math.max(0.001, s.d), zc = s.z ?? 0;
+  const half = Math.min(w, d) / 2;
+  const rf = Math.min(Math.max(0, s.frontRadius ?? 0), half);
+  const rb = Math.min(Math.max(0, s.backRadius ?? 0), half, d - rf);
+  const corners: [number, number, number, number][] = [
+    [w / 2 - rf, zc + d / 2 - rf, rf, 0], // front right
+    [-w / 2 + rf, zc + d / 2 - rf, rf, 90], // front left
+    [-w / 2 + rb, zc - d / 2 + rb, rb, 180], // back left
+    [w / 2 - rb, zc - d / 2 + rb, rb, 270], // back right
+  ];
+  const out: [number, number][] = [];
+  for (const [cx, cz, r, a0] of corners) {
+    for (let i = 0; i <= LOFT_CORNER_STEPS; i++) {
+      const a = ((a0 + (90 * i) / LOFT_CORNER_STEPS) * Math.PI) / 180;
+      out.push([cx + r * Math.cos(a), cz + r * Math.sin(a)]);
+    }
+  }
+  return out;
+}
+
+/** Sections skinned smoothly, capped flat top and bottom; outward-facing, y up from 0. */
+export function loftGeometry(sections: LoftSection[]): THREE.BufferGeometry {
+  const sorted = [...sections].sort((a, b) => a.y - b.y);
+  const rings = sorted.map(loftRing);
+  const n = rings[0].length;
+  const pos: number[] = [];
+  const idx: number[] = [];
+  // the skin: shared vertices, so its normals are smoothed along and between sections
+  rings.forEach((ring, k) => ring.forEach(([x, z]) => pos.push(x, sorted[k].y, z)));
+  for (let k = 0; k + 1 < rings.length; k++) {
+    for (let j = 0; j < n; j++) {
+      const a = k * n + j, b = k * n + ((j + 1) % n), c = b + n, d = a + n;
+      idx.push(a, c, b, a, d, c);
+    }
+  }
+  // the caps: their own vertices, so the edge between cap and skin stays crisp
+  const cap = (k: number, up: boolean) => {
+    const base = pos.length / 3;
+    const ring = rings[k];
+    const cx = ring.reduce((s, p) => s + p[0], 0) / n, cz = ring.reduce((s, p) => s + p[1], 0) / n;
+    pos.push(cx, sorted[k].y, cz);
+    ring.forEach(([x, z]) => pos.push(x, sorted[k].y, z));
+    for (let j = 0; j < n; j++) {
+      const p = base + 1 + j, q = base + 1 + ((j + 1) % n);
+      if (up) idx.push(base, q, p);
+      else idx.push(base, p, q);
+    }
+  };
+  if (rings.length) {
+    cap(0, false);
+    cap(rings.length - 1, true);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 /** Kinds an agent modelled at runtime with define_item_kind. */
@@ -579,11 +659,14 @@ export function hasCustomKind(kind: string): boolean {
   return CUSTOM_PARTS.has(kind);
 }
 
-/** Stand-in geometry: dashed edges, driven by this flag, not by matching note text. */
-export function applyStopgapVisual(mesh: THREE.Mesh): void {
+/**
+ * Stand-in geometry: dashed edges, driven by this flag, not by matching note text. A curved
+ * surface passes a larger crease angle so only its outline is dashed, not every facet.
+ */
+export function applyStopgapVisual(mesh: THREE.Mesh, creaseAngle = 1): void {
   mesh.userData.stopgap = true;
   const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(mesh.geometry),
+    new THREE.EdgesGeometry(mesh.geometry, creaseAngle),
     new THREE.LineDashedMaterial({ color: 0x555555, dashSize: 0.008, gapSize: 0.006 }),
   );
   edges.computeLineDistances();
@@ -604,6 +687,16 @@ function buildCustom(parts: PartSpec[], fallbackColor: string): THREE.Group {
       m.depthWrite = false;
     }
     let mesh: THREE.Mesh;
+    if (p.shape === "loft" && p.sections?.length) {
+      mesh = new THREE.Mesh(loftGeometry(p.sections), m);
+      mesh.position.set(p.x ?? 0, p.y ?? 0, p.z ?? 0);
+      mesh.rotation.y = ((p.rotation ?? 0) * Math.PI) / 180;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      if (p.stopgap) applyStopgapVisual(mesh, 40);
+      g.add(mesh);
+      continue;
+    }
     if (p.shape === "cylinder") {
       mesh = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, h, 24), m);
       mesh.scale.z = d / w; // an ellipse when depth differs from width
