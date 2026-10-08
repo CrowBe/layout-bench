@@ -44,6 +44,8 @@ drawings. Everything it needs or produces is in this repository:
 | Per-stage plan, wall elevations and specification for all 9 stages | [`shots/stage-pack/`](shots/stage-pack/README.md) | `npm run stage-pack` |
 | A-01 floor plan, floor and wall tiling sheets, heating review | [`shots/sample-sheets/`](shots/sample-sheets/README.md) | `npm run sample-sheets` |
 | 3D: the finished room and each build stage | [`shots/renovation-3d/`](shots/renovation-3d/) | `node stage-shots.mjs` (dev server running) |
+| Printable A3 trade set and wall set (PDF): cover, who needs what, fixture schedule, every drawing and specification | [`shots/printables/`](shots/printables/README.md) | `npm run printables` (after the two above) |
+| 3D print of the finished room at 1:20 (3MF for Bambu Studio, STL) | [`shots/print-3d/`](shots/print-3d/README.md) | `npm run print-3d` |
 
 Both generators open the sample exactly as the app does and fail if rendering changed the
 model, so a clean `git status` after running them means the saved exports match the model.
