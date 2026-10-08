@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent } from "react";
 import { projects, useAppStore } from "../model/store";
-import { DEMO_ID } from "../model/projects";
+import { DEMO_ID, sampleStatus } from "../model/projects";
 import { download } from "./download";
 
 
@@ -37,7 +37,10 @@ export function ProjectChooser() {
       </div>}
       <div className="project-list">
         {list.map((project) => <div className="project-card" key={project.id}>
-          <div><strong>{project.model.name}</strong><small>{project.id === DEMO_ID ? "Shipped sample" : "Saved locally"} · {project.model.walls.length} walls · {project.notes.length} notes</small></div>
+          <div><strong>{project.model.name}</strong><small>{project.id === DEMO_ID ? "Shipped sample" : "Saved locally"} · {project.model.walls.length} walls · {project.notes.length} notes</small>
+            {project.id === DEMO_ID && sampleStatus(project) !== "current" && <small className="sample-outdated" role="status">
+              A newer version of this sample is available. Reset sample loads it and replaces this copy, including any edits; Export JSON first to keep them.
+            </small>}</div>
           <div className="project-actions">
             <button className="primary" onClick={() => setMessage(projects.open(project.id).summary)}>Open</button>
             <button onClick={() => download(`${project.model.name.replace(/[^a-z0-9-_]+/gi, "-")}.json`, projects.export(project.id))}>Export JSON</button>

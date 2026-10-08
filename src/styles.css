@@ -31,6 +31,7 @@ body { background: var(--bg); color: var(--ink); }
 .project-card { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
 .project-card strong, .project-card small { display: block; }
 .project-card small { margin-top: 5px; color: var(--ink-soft); }
+.project-card small.sample-outdated { color: var(--danger); max-width: 46ch; }
 .project-actions { display: flex; gap: 7px; flex-wrap: wrap; }
 .project-create { display: grid; gap: 12px; }
 .project-error { border-color: var(--danger); color: var(--danger); }

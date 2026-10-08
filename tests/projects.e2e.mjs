@@ -235,8 +235,42 @@ try {
   await legacyPage.reload();
   assert.equal(await legacyPage.locator(".project-card").filter({ hasText: "Bathroom Concept" }).count(), 1,
     "reloading does not add a second sample");
+  const shippedSample = await legacyPage.evaluate(() => window.__alza.store.getState().projects.find((entry) => entry.id === "bathroom-concept"));
   await legacyContext.close();
-  console.log("PASS: UI wall, registered tool note, custom kind, underlay, 3D, sample isolation, reload, export/import, independent edits, deletion, old data protection, v1 migration without rewrite until save");
+
+  // An unedited copy of an older sample is replaced on load; an edited one is kept and flagged.
+  const fingerprint = (project) => {
+    const text = JSON.stringify([project.model, project.notes.map(({ at: _at, ...note }) => note), project.kinds]);
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193);
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  };
+  const olderSample = { ...shippedSample, presentation: "styled", model: { ...shippedSample.model, name: "Older Bathroom Concept" } };
+  for (const [edited, label] of [[false, "unedited"], [true, "edited"]]) {
+    const stored = { ...olderSample, sampleFingerprint: edited ? "00000000" : fingerprint(olderSample) };
+    const context = await browser.newContext();
+    await context.addInitScript((raw) => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("alza.projects.v1", raw); sessionStorage.setItem("seeded", "1"); } },
+      JSON.stringify({ version: 2, activeId: null, projects: [stored] }));
+    const freshness = await context.newPage();
+    await freshness.goto(baseUrl);
+    await freshness.getByRole("heading", { name: "Choose a plan" }).waitFor();
+    const card = freshness.locator(".project-card").first();
+    const sample = await freshness.evaluate(() => window.__alza.store.getState().projects.find((entry) => entry.id === "bathroom-concept"));
+    if (edited) {
+      assert.equal(sample.model.name, "Older Bathroom Concept", "an edited sample is never replaced");
+      assert.equal(await card.locator(".sample-outdated").count(), 1, "an edited older sample shows the reset banner");
+      freshness.once("dialog", (dialog) => dialog.accept());
+      await card.getByRole("button", { name: "Reset sample" }).click();
+      await freshness.waitForFunction(() => window.__alza.store.getState().projects.find((entry) => entry.id === "bathroom-concept").model.name === "Bathroom Concept");
+      assert.equal(await card.locator(".sample-outdated").count(), 0, "reset clears the banner");
+    } else {
+      assert.equal(sample.model.name, "Bathroom Concept", "an unedited older sample is replaced by the shipped one");
+      assert.equal(sample.presentation, "styled", "replacing the sample keeps its presentation");
+      assert.equal(await card.locator(".sample-outdated").count(), 0, `no banner for the ${label} sample once replaced`);
+    }
+    await context.close();
+  }
+  console.log("PASS: UI wall, registered tool note, custom kind, underlay, 3D, sample isolation, sample freshness, reload, export/import, independent edits, deletion, old data protection, v1 migration without rewrite until save");
 } finally {
   await browser.close();
 }

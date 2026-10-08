@@ -45,7 +45,9 @@ npm run partner    # optional: the demo furniture shop on a second origin, at ht
 ```
 
 The app opens on a project chooser. **Bathroom Concept** is the shipped sample. Create a blank
-project, or duplicate the sample as a starting point.
+project, or duplicate the sample as a starting point. When a newer version of the app ships a
+changed sample, a copy you have not edited updates itself; an edited copy says a newer version is
+available, and **Reset sample** loads it (export JSON first to keep your edits).
 
 ## Using it
 
