@@ -309,14 +309,17 @@ export function checkModel(model: PlanModel, lookup: CatalogLookup = catalogByKi
   // ---- Furniture ---------------------------------------------------------------
   // every piece is checked by its real footprint: its outline (#37) or its w × d rectangle,
   // built once per check rather than once per pair
+  // one warning per limitation, naming every fixture it applies to, rather than one per fixture
+  const limitations=new Map<string,string[]>();
   for(const it of items)if(it.installation){const lv=installationReading(model,it,lookup);if(!lv.resolved)issues.push({severity:"warning",code:"fixture_installation_unresolved",message:`${it.id}: installation unresolved: ${lv.missing.join(", ")}. No vertical geometry is inferred.`,refs:[it.id]});
-    for(const message of lv.limitations)issues.push({severity:"warning",code:"fixture_mounting_limitation",message:`${it.id}: ${message}`,refs:[it.id]});
+    for(const message of lv.limitations){const ids=limitations.get(message)??[];ids.push(it.id);limitations.set(message,ids);}
     for(const r of clearanceRegions(model,it,lookup)){
       if(!r.resolved){issues.push({severity:"warning",code:"fixture_access_unresolved",message:`${it.id} ${r.label}: required access remains unknown.`,refs:[it.id]});continue;}
       for(const other of items){if(other.id===it.id)continue;const ov=installationReading(model,other,lookup),poly=itemPolygon(other,lookup);if(poly && polygonsOverlap(r.polygon,poly,.001) && (ov.bottom===undefined || ov.top===undefined || r.bottom===undefined || r.top===undefined || Math.min(ov.top,r.top)-Math.max(ov.bottom,r.bottom)>.001))issues.push({severity:"warning",code:"fixture_access_obstructed",message:`${it.id} ${r.label} (${r.direction}) is obstructed by ${other.id}, separate from the physical footprint.`,refs:[it.id,other.id]});}
       for(const wall of walls)if(polygonsOverlap(r.polygon,rectCorners(wallOccupiedRect(wall)),.001) && (r.bottom??0)<wall.height && (r.top??0)>0)issues.push({severity:"warning",code:"fixture_access_obstructed",message:`${it.id} ${r.label} (${r.direction}) intersects wall ${wall.id}.`,refs:[it.id,wall.id]});
     }
   }
+  for(const [message,ids] of limitations)issues.push({severity:"warning",code:"fixture_mounting_limitation",message:`${ids.join(", ")}: ${message}`,refs:ids});
   const footprint = new Map(items.map((it) => [it.id, itemPolygon(it, lookup)]));
   for (const it of items) {
     if (!it.fittedTo) continue;
