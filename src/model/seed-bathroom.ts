@@ -4,7 +4,7 @@ import { formatMm, quantize } from "./geometry";
 import { outlineExtents, type Outline } from "./outline";
 import type { ExactProduct, ProductComponent } from "./productIdentity";
 import { unknownMeasurementFields, CARTON_LABEL_SOURCE, type MeasurementRecord, type ProductSpecification } from "./productMeasurements";
-import type { PartSpec } from "../three/furniture";
+import type { LoftSection, PartSpec } from "../three/furniture";
 import type { ProjectKind } from "./projects";
 import type { FixtureAnchor, Heating, Item, ServicePoint, Note, PlanModel, Quantity, ValueStatus, Wall, WallSide, WallTiling } from "./types";
 import type { FixtureInstallation } from "./installation";
@@ -1015,23 +1015,64 @@ const seedModel = (): PlanModel => ({
 
 // ---- Drawn stand-ins for the reused toilet suite and the fixed screen -----------------------
 /**
- * Toilet: Cygnet Over-height with SpaLet, from American Standard's sheets (M33158 Rev.03): 700
- * deep, 857 overall, cistern 381 × 166 × 387 on top of the pan at 470, pan 365 wide, rim 450.
- * The envelope is 381 wide (the cistern, the widest part). The pan's curved shape, the seat's
- * thickness and the control housing are not drawn on the sheets, so those parts are stopgap
- * (dashed). Back at −d/2, front at +d/2.
+ * Toilet: Cygnet Over-height with SpaLet, from American Standard's install sheet (M33158 Rev.03,
+ * Cygnet Hygiene Rim Over-height Square): 700 deep, 857 overall; pan 365 wide with its rim 450 up
+ * and 700 from the finished wall, narrowing to a foot 240 wide (front view) and 585 deep (side
+ * view) on the finished floor; cistern 381 × 166 × 387 sitting at 470. The envelope is 381 wide
+ * (the cistern, the widest part). Back at −d/2, front at +d/2, the seat's control side at −x
+ * (left, facing the toilet, the side the sheet puts the SpaLet power point).
+ *
+ * The pan and cistern are lofts: the dimensioned sections above are exact, the ones between are
+ * scaled off the same sheet's side and front views (derived, not dimensioned). The flush button
+ * is Ø50, 75 from the wall, from the spec sheet's top view (drawn for the standard-height pan with
+ * the same 381 × 166 cistern). The SpaLet seat, its rear housing and the control panel have no
+ * dimensions on either sheet, so those parts are stopgap (dashed).
  */
 const TOILET = { w: 0.381, d: 0.7, h: 0.857 };
 const CISTERN = { w: 0.381, d: 0.166, h: 0.387 };
-const PAN = { w: 0.365, rim: 0.45 };
-const SEAT_T = 0.02; // stand-in: seat thickness is not on the sheets
+const PAN = { w: 0.365, rim: 0.45, foot: { w: 0.24, d: 0.585 } };
 const toiletBack = -TOILET.d / 2;
 const STOPGAP = { stopgap: true as const };
+/** A plan section of a back-to-wall body: `depth` from the finished wall, front corners rounded. */
+const fromWall = (y: number, w: number, depth: number, frontRadius: number, backRadius = 0.01) =>
+  ({ y, w, d: depth, z: toiletBack + depth / 2, frontRadius, backRadius });
+/** w, h and d are the loft's overall bounds, which its sections set. */
+const loft = (y: number, w: number, h: number, d: number, sections: LoftSection[], style: Partial<PartSpec>): PartSpec =>
+  ({ shape: "loft", x: 0, y, z: 0, w, h, d, sections, ...style });
+// side and front views: depth from the wall and width at each height (mm, scaled off the sheet
+// between the dimensioned foot and rim)
+const PAN_SECTIONS = [
+  fromWall(0, PAN.foot.w, PAN.foot.d, 0.11), // foot: 240 wide, 585 deep (dimensioned)
+  fromWall(0.13, 0.256, 0.594, 0.118),
+  fromWall(0.225, 0.286, 0.612, 0.13),
+  fromWall(0.3, 0.322, 0.645, 0.145),
+  fromWall(0.37, 0.35, 0.68, 0.155),
+  fromWall(0.42, 0.362, 0.696, 0.16),
+  fromWall(PAN.rim, PAN.w, TOILET.d, 0.16), // rim: 365 wide, 700 deep, 450 up (dimensioned)
+];
+// front view: the cistern widens from about 362 at its base to 381 at the lid
+const CISTERN_SECTIONS = [
+  fromWall(0, 0.362, 0.162, 0.02, 0.006),
+  fromWall(CISTERN.h - 0.012, CISTERN.w, CISTERN.d, 0.025, 0.006),
+  fromWall(CISTERN.h, CISTERN.w - 0.008, CISTERN.d - 0.006, 0.022, 0.004), // the lid's rounded edge
+];
+const SEAT_FROM_WALL = 0.18; // stand-in: the sheet draws the seat starting just in front of the cistern
 const toilet: PartSpec[] = [
-  box(0, 0, 0, PAN.w, PAN.rim, TOILET.d, { ...GLAZE, ...STOPGAP }), // pan 365 wide, rim 450, 700 deep; drawn as a box, its curved shape is not drawn
-  { shape: "cylinder", x: 0, y: PAN.rim, z: toiletBack + CISTERN.d + (TOILET.d - CISTERN.d) / 2, w: PAN.w, d: TOILET.d - CISTERN.d, h: SEAT_T, ...GLOSS, ...STOPGAP }, // SpaLet seat on the rim; thickness is a stand-in
-  box(0, TOILET.h - CISTERN.h, toiletBack + CISTERN.d / 2, CISTERN.w, CISTERN.h, CISTERN.d, GLAZE), // cistern 381 × 166 × 387, top at 857
-  box(0.15, PAN.rim, toiletBack + CISTERN.d + 0.04, 0.06, 0.05, 0.08, { color: "#d9dbdc", roughness: 0.4, ...STOPGAP }), // seat control housing: size not recorded
+  loft(0, PAN.w, PAN.rim, TOILET.d, PAN_SECTIONS, GLAZE), // pan: 240 × 585 foot to 365 × 700 rim at 450
+  box(0, PAN.rim, toiletBack + CISTERN.d / 2, 0.362, TOILET.h - CISTERN.h - PAN.rim, 0.162, GLAZE), // the 20 mm between the rim (450) and the cistern's base (470)
+  loft(TOILET.h - CISTERN.h, CISTERN.w, CISTERN.h, CISTERN.d, CISTERN_SECTIONS, GLAZE), // cistern 381 × 166 × 387, top at 857
+  { shape: "cylinder", x: 0, y: TOILET.h - 0.003, z: toiletBack + 0.075, w: 0.05, d: 0.05, h: 0.003, color: "#d9dbdc", metalness: 0.6, roughness: 0.3 }, // flush button Ø50, 75 from the wall
+  // SpaLet seat, lid closed: rear housing over the hinge, then seat and lid to the pan's front
+  loft(PAN.rim, 0.36, 0.1, 0.12, [
+    fromWall(0, 0.36, 0.12, 0.03, 0.02),
+    fromWall(0.1, 0.3, 0.1, 0.03, 0.02),
+  ].map((s) => ({ ...s, z: toiletBack + SEAT_FROM_WALL + s.d / 2 })), { ...GLOSS, ...STOPGAP }),
+  loft(PAN.rim, 0.355, 0.055, TOILET.d - SEAT_FROM_WALL - 0.08, [
+    fromWall(0, 0.355, TOILET.d - SEAT_FROM_WALL - 0.08, 0.16),
+    fromWall(0.04, 0.352, TOILET.d - SEAT_FROM_WALL - 0.085, 0.158),
+    fromWall(0.055, 0.33, TOILET.d - SEAT_FROM_WALL - 0.1, 0.15),
+  ].map((s) => ({ ...s, z: TOILET.d / 2 - s.d / 2 - (s.y > 0.05 ? 0.008 : 0) })), { ...GLOSS, ...STOPGAP }),
+  box(-TOILET.w / 2 + 0.015, PAN.rim, toiletBack + SEAT_FROM_WALL + 0.12, 0.03, 0.06, 0.09, { color: "#d9dbdc", roughness: 0.4, ...STOPGAP }), // control panel on the left side
 ];
 /**
  * Fixed screen: Future Glass single fixed panel (GW-F), 900 × 2000 (owner, 5 Oct 2026), 10 mm

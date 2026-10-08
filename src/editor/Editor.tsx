@@ -425,12 +425,18 @@ export function Editor() {
               strokeWidth={editor.selectedRoomId === r.id ? 2.5 : 1}
             />
             <DrainageOverlay room={r} S={S} />
-            {r.heating && <g data-role="heating" pointerEvents="none">
-              {heatingZones(r).map((z,i) => <rect key={`zone-${i}`} x={z.x*S} y={z.y*S} width={z.w*S} height={z.h*S} fill="none" stroke="#aa7700" strokeDasharray="6 4"/>)}
-              {r.heating.keepouts.map((k) => <rect key={k.id} x={k.x*S} y={k.y*S} width={k.w*S} height={k.h*S} fill="#c0392b22" stroke="#c0392b" strokeDasharray="4 2"/>)}
-              <polyline data-role="heating-route" points={r.heating.path.map((p) => `${p.x*S},${p.y*S}`).join(" ")} fill="none" stroke="#c64c19" strokeWidth={2}/>
-              {r.heating.path.map((p,i) => <g key={i}><circle cx={p.x*S} cy={p.y*S} r={3} fill="#c64c19"/><text x={p.x*S+5} y={p.y*S-5} fontSize={9} fill="#c64c19">{i+1}</text></g>)}
-            </g>}
+            {r.heating && (() => {
+              // the cable sits in the screed under the tile: drawn faint and dashed (a hidden line)
+              // until the room is selected or its cable is being drawn, then full strength with
+              // the numbered points the heating editor refers to
+              const editing = editor.selectedRoomId === r.id;
+              return <g data-role="heating" data-editing={editing || undefined} pointerEvents="none" opacity={editing ? 1 : 0.4}>
+                {heatingZones(r).map((z,i) => <rect key={`zone-${i}`} x={z.x*S} y={z.y*S} width={z.w*S} height={z.h*S} fill="none" stroke="#aa7700" strokeDasharray="6 4"/>)}
+                {r.heating.keepouts.map((k) => <rect key={k.id} x={k.x*S} y={k.y*S} width={k.w*S} height={k.h*S} fill="#c0392b22" stroke="#c0392b" strokeDasharray="4 2"/>)}
+                <polyline data-role="heating-route" points={r.heating.path.map((p) => `${p.x*S},${p.y*S}`).join(" ")} fill="none" stroke="#c64c19" strokeWidth={editing ? 2 : 1.25} strokeDasharray={editing ? undefined : "6 3"}/>
+                {editing && r.heating.path.map((p,i) => <g key={i}><circle cx={p.x*S} cy={p.y*S} r={3} fill="#c64c19"/><text x={p.x*S+5} y={p.y*S-5} fontSize={9} fill="#c64c19">{i+1}</text></g>)}
+              </g>;
+            })()}
             <text
               data-role="room-label"
               x={label.x}

@@ -1992,6 +1992,9 @@ export const actions = {
     if (FURNITURE_BUILDERS[kind]) return fail(`"${kind}" is a built-in kind — pick another id or use place_item.`);
     if (!(spec.w > 0 && spec.d > 0 && spec.h > 0)) return fail("w, d and h must all be positive metres.");
     if (spec.elevation !== undefined && !(Number.isFinite(spec.elevation) && spec.elevation >= 0)) return fail("elevation must be a metre height above the finished floor, 0 or more.");
+    const badLoft = spec.parts?.findIndex((p) => p.shape === "loft" && !(
+      (p.sections?.length ?? 0) >= 2 && p.sections!.every((s) => [s.y, s.w, s.d].every(Number.isFinite) && s.w > 0 && s.d > 0)));
+    if (badLoft !== undefined && badLoft >= 0) return fail(`Part ${badLoft + 1} is a loft: it needs at least two sections, each with a height y and a positive w and d.`);
     if (spec.outline !== undefined) {
       const problems = outlineProblems(spec.outline, spec.w, spec.d);
       if (problems.length) return fail(`Outline rejected: ${problems.join("; ")}.`);
