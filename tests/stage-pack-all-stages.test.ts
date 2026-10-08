@@ -70,17 +70,17 @@ describe("heating cable compact spec (stage 05)", () => {
   it("cuts the sample's heating rows from one-per-point to a printable handful, keeping every number tagged", () => {
     const full = specRows(SAMPLE, heating);
     const compact = specRows(SAMPLE, heating, undefined, true);
-    // the sample's recorded route has 56 points; the full view prints each point and each level sample
-    expect(SAMPLE.rooms[0].heating!.path).toHaveLength(56);
+    // the sample's recorded route has 68 points; the full view prints each point and each level sample
+    expect(SAMPLE.rooms[0].heating!.path).toHaveLength(68);
     expect(full.length).toBeGreaterThan(100);
     expect(compact.length).toBeLessThanOrEqual(40);
     const spec = read(slugOf("05"), "spec.html");
     expect(spec.match(/data-element="room:bathroom:heating"/g)!.length).toBe(compact.length);
-    // first recorded point is (0.15, 2.855) m from the plan origin; the first run goes east to 2.01
+    // first recorded point is (0.15, 2.843) m from the plan origin; the first run goes east to 1.335, short of the toilet
     const points = compact.find((r) => r.property.startsWith("route points"))!;
-    expect(points.property).toBe("route points 1–56 x / y (mm)");
-    expect(points.value).toMatch(/^1: 150 \/ 2855 P; 2: 2010 \/ 2855 P; /);
-    expect(points.value.split("; ")).toHaveLength(56);
+    expect(points.property).toBe("route points 1–68 x / y (mm)");
+    expect(points.value).toMatch(/^1: 150 \/ 2843 P; 2: 1335 \/ 2843 P; /);
+    expect(points.value.split("; ")).toHaveLength(68);
     expect(points.datum).toBe("plan origin");
     // every point in the compact value carries a tag
     for (const part of points.value.split("; ")) expect(part).toMatch(/ P$/);
@@ -270,17 +270,17 @@ describe("stage 05 spec fits one printed A4 landscape page (whole sheet)", () =>
 });
 
 describe("compact heating keeps the problem messages (stage 05)", () => {
-  it("prints the coverage warning with its figures, in the spec's Unresolved list and in the index", () => {
-    // independent figure: the room is 2.11 m × 3.02 m less the bath keep-out (1.028 × 1.018 m)
+  it("prints the heating warnings with their figures, in the spec's Unresolved list and in the index", () => {
+    // owner, 8 Oct 2026: bath and toilet keep-outs bring the zone inside the carton's 3.7–5.1 m²
+    // (2.11 × 3.02 m less 1.028 × 1.018 m and 0.675 × 0.381 m = 5.0685 m²), so no coverage warning
     const room = SAMPLE.rooms.find((r) => r.heating)!;
-    const area = Math.round((room.w * room.h - 1.028 * 1.018) * 1e4) / 1e4;
-    expect(area).toBe(5.3257);
+    expect(Math.round((room.w * room.h - 1.028 * 1.018 - 0.675 * 0.381) * 1e4) / 1e4).toBe(5.0685);
     const unresolved = /<h2>Unresolved in this view[\s\S]*$/.exec(read(slugOf("05"), "spec.html"))![0];
-    expect(unresolved).toMatch(/heating_coverage_range: Zone area excluding entered keep-outs 5\.3257 m²/);
-    expect(unresolved).toContain("3.7–5.1 m²");
+    expect(unresolved).not.toContain("heating_coverage_range");
+    expect(unresolved).toMatch(/heating_ip_location: Thermostat printed IP21/);
     const md = readFileSync(join(outDir, "README.md"), "utf8");
     const section = md.slice(md.indexOf(`## ${PHASES.find((p) => p.slug === slugOf("05"))!.label}`), md.indexOf(`## ${PHASES.find((p) => p.slug === slugOf("06"))!.label}`));
-    expect(section).toMatch(/heating_coverage_range: Zone area excluding entered keep-outs 5\.3257 m²/);
+    expect(section).toMatch(/heating_ip_location: Thermostat printed IP21/);
     // every problem code on the compact row has its message listed
     const html = read(slugOf("05"), "spec.html");
     const cell = specCells(html, "room:bathroom:heating", "open item codes (see Unresolved)")![1];

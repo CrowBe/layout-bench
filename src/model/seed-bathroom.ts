@@ -681,7 +681,6 @@ export const stillNeedsCaptainsMeasurement: CaptainMeasurement[] = [
   { fitting: "Basin mixer K1110-31", what: "Deck height above the finished floor (unsourced; drawn stand-in 850 mm lives only on the kind, taken from the vanity's measured overall height 850 mm; not an owner proposal and not a finished-floor tape)", from: "finished floor tiles once they exist, to the vanity deck / mixer flange" },
   { fitting: "OJ MWD5-1999-CBP3 thermostat", what: "Cover-plate width, height and projection of this exact CBP3 cover (unsourced; drawn stand-ins live only on the kind size)", from: "the CBP3 cover itself (brochure lists OxD5 / MxD5 / MxD5-UA sizes without naming CBP3)" },
   { fitting: "OJ MWD5-1999-CBP3 thermostat", what: "Mounting height to the plate", from: "hallway finished floor, next to the light switch (owner: 1000 mm, 7 Oct 2026; not surveyed)" },
-  { fitting: "SCK0765L in-screed heating cable", what: "Keep-out for the toilet (not on the carton; route is unconstrained there)", from: "finished pan footprint, once the installer says whether cable stops short of it" },
   { fitting: "SCK0765L in-screed heating cable", what: "Keep-out for the vanity (not on the carton; route is unconstrained there)", from: "finished vanity footprint, once the installer says whether cable stops short of it" },
   { fitting: "SCK0765L in-screed heating cable", what: "Cable centre height in the screed (not on the carton)", from: "bottom face of the tiler's screed (top of the membrane / subfloor stack), not the underside of the tile unless that is the screed top" },
   { fitting: "SCK0765L in-screed heating cable", what: "Cover over the cable, minimum bend radius, and whether the Coldbuster in-screed manual (July 2023, taken as this cable's: it does not name SCK0765L) applies; the floor sensor's conduit position (manual: about 300 mm into the heated area, between runs)", from: "Coldbuster, for this exact cable; the electrician for the sensor conduit" },
@@ -713,50 +712,66 @@ export const sampleHeatingKeepouts = (): Heating["keepouts"] => [{
   id: "keepout_bath", label: "Bath",
   x: quantize(BATH_CORNER.x - BATH_BOX), y: 0, w: quantize(ROOM.w - (BATH_CORNER.x - BATH_BOX)), h: BATH_BOX,
   source: "Owner, 7 Oct 2026: floor under the bath left unheated so the heated area stays within the 5.1 m² the 42.5 m cable covers",
+}, {
+  // the toilet's drawn plan box (381 × 700 mm, centred 2600 mm along the room, back on the right wall)
+  id: "keepout_toilet", label: "Toilet",
+  x: quantize(ROOM.w - 0.675), y: quantize(2.6 - 0.381 / 2), w: 0.675, h: 0.381,
+  source: "Owner, 8 Oct 2026: no cable under the toilet (its pan is screwed to the floor through brackets); cable stays under the vanity",
 }];
 /**
- * Proposed loop spacings. 105 mm in the dry area, 88 mm in the shower and beside the bath, both
- * inside the derived coverage/length range (3.7–5.1 m² / 42.5 m ≈ 87–120 mm) and the manual's
- * 70–120 mm for bathrooms (p. 7). Modelling choice, picked so the loop uses exactly 42.5 m.
+ * Proposed loop spacing: 89 mm throughout, inside the derived coverage/length range
+ * (3.7–5.1 m² / 42.5 m ≈ 87–120 mm) and the manual's 70–120 mm for bathrooms (p. 7). Modelling
+ * choice: with the toilet kept clear the loop has cable to spare, so it runs closer everywhere.
  */
-export const PROPOSED_CABLE_SPACING_DRY_M = 0.105;
-export const PROPOSED_CABLE_SPACING_WET_M = 0.088;
+export const PROPOSED_CABLE_SPACING_DRY_M = 0.089;
+export const PROPOSED_CABLE_SPACING_WET_M = 0.089;
 export const PROPOSED_CABLE_SPACING_RATIONALE =
-  "105 mm in the dry area and 88 mm in the shower and beside the bath (tighter where the floor is wet), both inside the derived coverage/length range (3.7–5.1 m² / 42.5 m ≈ 87–120 mm) and the Coldbuster manual's 70–120 mm for bathrooms (p. 7); the two spacings make the loop use exactly 42.5 m. Modelling choice, not a manufacturer or code spacing requirement.";
+  "89 mm throughout (owner, 8 Oct 2026: the cable kept clear of the toilet goes into closer runs and round the Kano waste), inside the derived coverage/length range (3.7–5.1 m² / 42.5 m ≈ 87–120 mm) and the Coldbuster manual's 70–120 mm for bathrooms (p. 7); two hooks beside the Kano waste take up the rest so the loop uses exactly 42.5 m. Modelling choice, not a manufacturer or code spacing requirement.";
 
 /**
  * East–west runs from the doorway (south) toward the window wall, thermostat end at the doorway.
- * The runs stay 100 mm off the walls and the bath keep-out (edge clearance), and 150 mm off the
- * left wall so they clear the linear drain (its 100 mm body sits against that wall). Runs either
- * side of the Kano waste are 225 mm apart, about 50 mm clear of its 120 mm grate each side (the
- * manual, p. 10: route round floor wastes, widening the loop). Beside the bath the runs stop
- * 100 mm short of it. The last run ends 1 mm past the line of the others so the plan length is
- * exactly 42.5 m.
+ * The runs stay 100 mm off the walls and the bath and toilet keep-outs (edge clearance), and
+ * 150 mm off the left wall so they clear the linear drain (its 100 mm body sits against that wall).
+ * Runs either side of the Kano waste pass 50 mm clear of its 120 mm grate (the manual, p. 10: route
+ * round floor wastes); the run above it hooks down on the grate's west side and the run below
+ * hooks up on its east side, 50 mm clear of it, into the strip between them, each as deep as half
+ * the rest of the 42.5 m heated length.
  */
 export function proposedSck0765lPath(): { x: number; y: number }[] {
-  const clear = SAMPLE_CABLE_EDGE_CLEARANCE_M;
-  const west = 0.15, east = quantize(ROOM.w - clear), north = clear;
-  const bath = sampleHeatingKeepouts()[0];
-  const bathRunEnd = quantize(bath.x - clear), bathRunFrom = quantize(bath.y + bath.h + clear);
+  const clear = SAMPLE_CABLE_EDGE_CLEARANCE_M, step = PROPOSED_CABLE_SPACING_DRY_M;
+  const west = 0.15, east = quantize(ROOM.w - clear), north = clear, south = quantize(ROOM.h - clear);
+  const [bath, toilet] = sampleHeatingKeepouts();
+  const bathRunFrom = quantize(bath.y + bath.h + clear);
   const kanoClear = 0.05 + KANO_316_INSERT.grateD / 2;
-  const ys: number[] = [];
-  for (let y = 2.855; y >= KANO_AT.y + kanoClear - 1e-9; y -= PROPOSED_CABLE_SPACING_DRY_M) ys.push(quantize(y));
-  for (let y = KANO_AT.y - kanoClear; y >= bathRunFrom - 1e-9; y -= PROPOSED_CABLE_SPACING_DRY_M) ys.push(quantize(y));
-  const wet: number[] = [];
-  for (let y = north; y < ys[ys.length - 1] - PROPOSED_CABLE_SPACING_WET_M / 2; y += PROPOSED_CABLE_SPACING_WET_M) wet.push(quantize(y));
-  ys.push(...wet.reverse());
+  const above: number[] = [];
+  for (let y = KANO_AT.y + kanoClear; y <= south + 1e-9; y += step) above.push(quantize(y));
+  const ys = above.reverse();
+  for (let y = KANO_AT.y - kanoClear; y >= north - 1e-9; y -= step) ys.push(quantize(y));
+  const runEnd = (y: number) =>
+    y < bathRunFrom ? quantize(bath.x - clear)
+    : y > toilet.y - clear && y < toilet.y + toilet.h + clear ? quantize(toilet.x - clear)
+    : east;
   const pts: { x: number; y: number }[] = [];
   let x = west;
-  ys.forEach((y, i) => {
+  for (const y of ys) {
     pts.push({ x, y });
-    x = x === west ? (y >= bathRunFrom ? east : bathRunEnd) : west;
+    x = x === west ? runEnd(y) : west;
     pts.push({ x, y });
-  });
+  }
   let plan = 0;
   for (let i = 1; i < pts.length; i++) plan += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-  // the remainder of the 42.5 m heated length extends the last run in its own direction
-  const last = pts[pts.length - 1], before = pts[pts.length - 2];
-  last.x = quantize(last.x + Math.sign(last.x - before.x) * (SAMPLE_CABLE_HEATED_LENGTH_M - plan));
+  // the rest of the heated length goes into two hooks one spacing wide beside the grate: down
+  // from the run above it on the west side, up from the run below it on the east side. Each hook's
+  // two legs add twice its depth.
+  const depth = quantize((SAMPLE_CABLE_HEATED_LENGTH_M - plan) / 4);
+  const hook = (y: number, x0: number, x1: number, dy: number) => {
+    const at = pts.findIndex((p, i) => p.y === y && pts[i + 1]?.y === y);
+    const [first, second] = pts[at + 1].x > pts[at].x ? [x0, x1] : [x1, x0];
+    pts.splice(at + 1, 0, { x: first, y }, { x: first, y: quantize(y + dy) }, { x: second, y: quantize(y + dy) }, { x: second, y });
+  };
+  const westOf = quantize(KANO_AT.x - kanoClear), eastOf = quantize(KANO_AT.x + kanoClear);
+  hook(quantize(KANO_AT.y + kanoClear), quantize(westOf - step), westOf, -depth);
+  hook(quantize(KANO_AT.y - kanoClear), eastOf, quantize(eastOf + step), depth);
   return pts;
 }
 
@@ -968,7 +983,7 @@ const seedModel = (): PlanModel => ({
       },
       screedLayerId: "floor_screed", zoneIds: ["bathroom"], path: proposedSck0765lPath(), keepouts: sampleHeatingKeepouts(),
       edgeClearance: { value: SAMPLE_CABLE_EDGE_CLEARANCE_M, status: "published", source: `${COLDBUSTER_MANUAL}, p. 6: mark 100–200 mm from the walls; Coldbuster recommends 100 mm. Taken as this cable's manual: it does not name SCK0765L` },
-      requirements: `Owner lays it on the cured membrane, before the tiler's screed, fixed with Ametalin tape (polyurethane membrane; owner holds 100 m) at the run ends and every 1–1.5 m, per the Coldbuster in-screed manual (July 2023, taken as this cable's manual: it does not name SCK0765L). The electrician tests it before and after the screed (the manual's p. 16 record, for the warranty), wires the thermostat on an RCD circuit, and runs the floor sensor's conduit. Owner, 5 Oct 2026: the thermostat end is at the bathroom doorway, where the floor beyond is timber; the 3.0 m cold tail (manual; the manual's cable is Ø6 mm) goes down through it to under the house (on piers). Owner, 7 Oct 2026: the cable runs under the shower (the electrician approved it) but not under the bath, so the heated area stays within the 5.1 m² that 42.5 m covers. Proposed loop: east–west runs, 100 mm off the walls and the bath (manual, p. 6), 150 mm off the left wall to clear the linear drain, widened round the Kano waste (manual, p. 10); ${PROPOSED_CABLE_SPACING_RATIONALE} Plan length is exactly 42.5 m, equal to the published heated length (zero slack): any resolved fall makes the spatial route exceed 42.5 m once screed levels resolve. Not yet decided: keep-outs at the toilet (its pan is screwed to the floor through brackets) and the vanity; the route runs under both.`,
+      requirements: `Owner lays it on the cured membrane, before the tiler's screed, fixed with Ametalin tape (polyurethane membrane; owner holds 100 m) at the run ends and every 1–1.5 m, per the Coldbuster in-screed manual (July 2023, taken as this cable's manual: it does not name SCK0765L). The electrician tests it before and after the screed (the manual's p. 16 record, for the warranty), wires the thermostat on an RCD circuit, and runs the floor sensor's conduit. Owner, 5 Oct 2026: the thermostat end is at the bathroom doorway, where the floor beyond is timber; the 3.0 m cold tail (manual; the manual's cable is Ø6 mm) goes down through it to under the house (on piers). Owner, 7 Oct 2026: the cable runs under the shower (the electrician approved it) but not under the bath, so the heated area stays within the 5.1 m² that 42.5 m covers. Owner, 8 Oct 2026: no cable under the toilet (its pan is screwed to the floor through brackets); the cable does run under the vanity. Proposed loop: east–west runs, 100 mm off the walls, the bath and the toilet (manual, p. 6), 150 mm off the left wall to clear the linear drain, routed round the Kano waste (manual, p. 10); ${PROPOSED_CABLE_SPACING_RATIONALE} Plan length is exactly 42.5 m, equal to the published heated length (zero slack): any resolved fall makes the spatial route exceed 42.5 m once screed levels resolve.`,
     },
   }],
   items: [
@@ -1103,7 +1118,7 @@ export const bathroomNotes = (): Note[] => {
     },
     {
       id: "note-purchased-open", author: "agent", at: at + 4,
-      text: "Open points from the labels and sheets: (1) the bath set's in-wall body: inlet spacing, size and concealed depth are not on the set drawing; the K1130 body depth behind the plate (about 33.5 mm) is derived, not a published rough-in depth. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) Where the shower mixer sits along the shower wall is not chosen (drawn 850 mm from the window wall). (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat (IP21) goes outside the bathroom on the hallway wall, next to the light switch, which is on the right as you look into the bathroom, 1000 mm off the floor (owner, 7 Oct 2026, the bottom of the Coldbuster manual's 1000–1500 mm range for a hardwired thermostat); it is not drawn here; its CBP3 cover size is not on the OJ brochure. The floor sensor is included (owner). (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² from the carton (published); derived spacing 3.7/42.5–5.1/42.5 m. Owner, 7 Oct 2026: no cable under the bath (entered as a keep-out); the 100 mm wall setback is the Coldbuster manual's recommendation (entered as the edge clearance). The proposed loop uses exactly 42.5 m (zero slack); any resolved fall exceeds that once screed levels resolve. The coverage check still warns: its area (5.33 m²) takes out only the bath keep-out, not the 100 mm setback; inside the setback and clear of the bath the heated area is about 4.3 m² (derived). The cable cannot be shortened. Toilet and vanity keep-outs are not decided. (7) Toilet (American Standard sheets, 7 Oct 2026): S-trap waste centre 140–260 mm from the finished wall (or P-trap 190 mm high), cold water 180 mm high and 180 mm left of the pan centreline, SpaLet power point 300 mm high and 330 mm left of centre; whether the seat needs its own outlet or reaches the moved vanity GPO is the electrician's call.",
+      text: "Open points from the labels and sheets: (1) the bath set's in-wall body: inlet spacing, size and concealed depth are not on the set drawing; the K1130 body depth behind the plate (about 33.5 mm) is derived, not a published rough-in depth. (2) K1130 and K1132 labels say max 500 kPa and 80 °C; the shower mixer instruction sheet says 0.05–1 MPa and 0–75 °C. Treat the lower figures as the limit until the supplier confirms. (3) Where the shower mixer sits along the shower wall is not chosen (drawn 850 mm from the window wall). (4) VS900HBN is 12 V; each rail came with its own transformer, and both go up in the ceiling space for access (owner, 5 Oct 2026); each rail's concealed 12 V lead runs up inside the wall to its transformer, and the electrician wires the mains side. (5) The thermostat (IP21) goes outside the bathroom on the hallway wall, next to the light switch, which is on the right as you look into the bathroom, 1000 mm off the floor (owner, 7 Oct 2026, the bottom of the Coldbuster manual's 1000–1500 mm range for a hardwired thermostat); it is not drawn here; its CBP3 cover size is not on the OJ brochure. The floor sensor is included (owner). (6) Heating cable SCK0765L: 765 W at 18 W/m, 42.5 m, 240 V AC 3.2 A, 75.3 Ω, for 3.7–5.1 m² from the carton (published); derived spacing 3.7/42.5–5.1/42.5 m. Owner: no cable under the bath (7 Oct 2026) or the toilet (8 Oct 2026), both entered as keep-outs; the cable runs under the vanity. The 100 mm wall setback is the Coldbuster manual's recommendation (entered as the edge clearance). The proposed loop runs at 89 mm and uses exactly 42.5 m (zero slack); any resolved fall exceeds that once screed levels resolve. The coverage check's area takes out the keep-outs but not the 100 mm setback. The cable cannot be shortened. (7) Toilet (American Standard sheets, 7 Oct 2026): S-trap waste centre 140–260 mm from the finished wall (or P-trap 190 mm high), cold water 180 mm high and 180 mm left of the pan centreline, SpaLet power point 300 mm high and 330 mm left of centre; whether the seat needs its own outlet or reaches the moved vanity GPO is the electrician's call.",
     },
   ];
 };

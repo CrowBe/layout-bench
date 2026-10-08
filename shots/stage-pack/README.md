@@ -197,7 +197,7 @@ The proposed in-screed heating cable route, laid by the owner and tested by the 
 
 Visible: `walls`, `wall-board`, `rooms`, `doors`, `windows`, `floor-substrate`, `floor-waterproofing`, `floor-heating-cable`, `drainage-wastes`
 
-Specification: 81 row(s), 21 unknown. [spec.html](05-heating-cable/spec.html)
+Specification: 82 row(s), 21 unknown. [spec.html](05-heating-cable/spec.html)
 
 Open items:
 
@@ -206,7 +206,6 @@ Open items:
 - Bathroom: proposed heating cable: heating_product_unresolved: sample-mwd5-1999-cbp3 is not an accepted thermostat in this library. Checks use the travelling snapshot only when its productId is that id or in its series.
 - Bathroom: proposed heating cable: heating_metadata_unknown: Unknown cable/product information: manufacturer, minSpacing, depthFromBottom.
 - Bathroom: proposed heating cable: heating_route_length_unknown: Spatial cable length and confirmed product-length balance remain unknown until the whole route has resolved screed levels and cable height; the plan projection is modelled, not cable length.
-- Bathroom: proposed heating cable: heating_coverage_range: Zone area excluding entered keep-outs 5.3257 m² (availableArea, same resolver as evidence; not a laid-cable heat-coverage model) is outside the brief coverage range 3.7–5.1 m² (published, project-snapshot (unresolved), carton label — SCK0765L in-screed heating cable carton: coverage 3.7–5.1 m², minimum).
 - Bathroom: proposed heating cable: heating_ip_location: Thermostat printed IP21 (published, carton label — Photographed MWD5-1999-CBP3 carton label: housing IP21) vs planned location outside a wet room (Hallway wall outside the bathroom, next to the light switch (right as you look into the bathroom), 1000 mm off the floor. Not drawn on this plan.; Owner, 5 Oct 2026; height raised to 1000 mm, 7 Oct 2026). This check does not decide zone suitability; the electrician decides. No compliance approval.
 - Bathroom: proposed heating cable: heating_depth_unknown: Cable section remains unresolved until screed layer, floor levels and cable height (bottom face of the selected screed layer (top of the layer below / subfloor stack); not the underside of the tile unless that face is the screed top) are entered.
 - Bathroom: proposed heating cable: manufacturer unknown; printed as "?" (missing manufacturer).
@@ -214,7 +213,7 @@ Open items:
 - Bathroom: proposed heating cable: depthFromBottom (mm) unknown; printed as "?" (missing depthFromBottom (mm)).
 - Bathroom: proposed heating cable: spatial route length, sampled profile (m) unknown; printed as "?" (missing Sampled cable profile. Modelled; unknown until screed levels and cable height resolve. Not published cable length.).
 - Bathroom: proposed heating cable: remaining confirmed product length (m) unknown; printed as "?" (missing Balance stays unknown until confirmed product length and the whole spatial profile are both numeric.).
-- Bathroom: proposed heating cable: cable level at 169 sampled points along plan route (mm) unknown; printed as "?" (missing plane "Dry area" is unresolved (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level), cable height above screed bottom, Tiler's screed (heating cable inside) thickness, Tiler's adhesive thickness, plane "Beside the shower (under the bath)" is unresolved (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level), plane "Shower" is unresolved (missing Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN level, fall or a control level)).
+- Bathroom: proposed heating cable: cable level at 197 sampled points along plan route (mm) unknown; printed as "?" (missing plane "Dry area" is unresolved (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level), cable height above screed bottom, Tiler's screed (heating cable inside) thickness, Tiler's adhesive thickness, plane "Beside the shower (under the bath)" is unresolved (missing Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet level, fall or a control level), plane "Shower" is unresolved (missing Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN level, fall or a control level)).
 - Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
 

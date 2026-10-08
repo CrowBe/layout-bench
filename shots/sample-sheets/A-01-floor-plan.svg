@@ -124,7 +124,7 @@
 <text x="266" y="116.8" font-size="2.1" >F11.1 Pan waste, S-trap (floor): frame 160–280 · board 154–274 · fin 140–260 · A 2650 · up ? PUB</text>
 <text x="266" y="119.9" font-size="2.1" >F11.2 Cold water point (stop tap): frame 20 · board 14 · fin 0 · A 2470 · up 180 PUB</text>
 <text x="266" y="123" font-size="2" fill="#666">… 2 more: see get_rough_in / check_sheets</text>
-<text x="266" y="128" font-size="2.8" font-weight="bold">Unresolved (21)</text>
+<text x="266" y="128" font-size="2.8" font-weight="bold">Unresolved (20)</text>
 <text x="266" y="132" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Grate outlines come from the linked drain briefs. Confirm clearance, edge joints and cut shape on site.</text>
 <text x="266" y="135.1" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: east cut is 32 mm: narrow piece for tiler review.</text>
 <text x="266" y="138.2" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Tiles cross floor-plane boundaries. Confirm slope-break cuts and movement joints with the tiler.</text>
@@ -145,7 +145,7 @@
 <text x="266" y="184.7" font-size="2.1" fill="#7a3b00">• Proposed route only: manufacturer and licensed electrician must review cable identity, length, output, bend radius, spacing,</text>
 <text x="269" y="187.8" font-size="2.1" fill="#7a3b00">exclusions, cover, sensor, cold tails, waterproofing and electrical installation. No compliance approval. No electrical approval</text>
 <text x="269" y="190.9" font-size="2.1" fill="#7a3b00">is implied.</text>
-<text x="266" y="194" font-size="2" fill="#666">… 11 more: see get_rough_in / check_sheets</text>
+<text x="266" y="194" font-size="2" fill="#666">… 10 more: see get_rough_in / check_sheets</text>
 <rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
 <text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>

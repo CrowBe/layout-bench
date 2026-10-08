@@ -57,7 +57,7 @@ describe("owner's construction spec in the sample", () => {
     expect(m.rooms[0].heating!.length).toBeUndefined();
     expect(m.rooms[0].heating!.ratedOutput).toBeUndefined();
     // owner, 7 Oct 2026: no cable under the bath; 100 mm wall setback from the Coldbuster manual
-    expect(m.rooms[0].heating!.keepouts.map((k) => k.id)).toEqual(["keepout_bath"]);
+    expect(m.rooms[0].heating!.keepouts.map((k) => k.id)).toEqual(["keepout_bath", "keepout_toilet"]);
     expect(m.rooms[0].heating!.keepouts[0].source).toMatch(/Owner, 7 Oct 2026/);
     expect(m.rooms[0].heating!.edgeClearance).toMatchObject({ value: 0.1, status: "published" });
     expect(m.rooms[0].heating!.cableSpecification?.fields.cableLength).toMatchObject({ value: 42.5, status: "published" });
