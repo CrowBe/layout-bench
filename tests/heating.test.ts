@@ -1049,12 +1049,16 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(html).toContain(WALL_SETBACK_DATUM);
   });
 
-  it("records the sample SCK0765L loop at 42.5 m plan length, clear of the bath and 100 mm off the walls", () => {
+  it("records the sample SCK0765L loop at 42.5 m plan length, clear of the bath and toilet and 100 mm off the walls", () => {
     const sample = demoProject().model.rooms[0];
     const path = proposedSck0765lPath();
     expect(sample.heating?.path).toEqual(path);
     // owner, 7 Oct 2026: no cable under the bath; Coldbuster manual p. 6: 100 mm from the walls
-    expect(sample.heating?.keepouts).toEqual([expect.objectContaining({ id: "keepout_bath", x: 1.082, y: 0, w: 1.028, h: 1.018 })]);
+    // owner, 8 Oct 2026: no cable under the toilet either; its drawn plan box out to the right wall
+    expect(sample.heating?.keepouts).toEqual([
+      expect.objectContaining({ id: "keepout_bath", x: 1.082, y: 0, w: 1.028, h: 1.018 }),
+      expect.objectContaining({ id: "keepout_toilet", x: 1.435, y: 2.4095, w: 0.675, h: 0.381 }),
+    ]);
     expect(sample.heating?.edgeClearance).toMatchObject({ value: SAMPLE_CABLE_EDGE_CLEARANCE_M, status: "published" });
     expect(sample.heating?.edgeClearance?.source).toMatch(/Coldbuster/);
     expect(sample.heating?.length).toBeUndefined();
@@ -1082,8 +1086,8 @@ describe("heating-cable brief as the single source of truth (#68)", () => {
     expect(e.problems.map((p) => p.code)).not.toContain("heating_length_exceeded");
     // the route clears the bath keep-out by the 100 mm edge clearance, and the walls
     for (const code of ["heating_keepout", "heating_clearance", "heating_outside_zone", "heating_overlap", "heating_spacing"]) expect(e.problems.map((p) => p.code)).not.toContain(code);
-    expect(e.problems.map((p) => p.code)).toContain("heating_coverage_range");
-    expect(e.problems.find((p) => p.code === "heating_coverage_range")?.message).toMatch(/availableArea/);
+    // the two keep-outs bring the zone area inside the carton's 3.7–5.1 m²
+    expect(e.problems.map((p) => p.code)).not.toContain("heating_coverage_range");
     expect(e.problems.find((p) => p.code === "heating_ip_location")?.message).toMatch(/IP21/);
     expect(e.problems.find((p) => p.code === "heating_ip_location")?.message).toMatch(/outside a wet room/);
     expect(e.minimumNonAdjacentSpacing).toBeCloseTo(Math.min(PROPOSED_CABLE_SPACING_DRY_M, PROPOSED_CABLE_SPACING_WET_M), 6);
