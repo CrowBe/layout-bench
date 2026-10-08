@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" font-family="Helvetica, Arial, sans-serif" data-sheet="stage-view" data-scale="20">
-<metadata id="stage-view">{&quot;label&quot;:&quot;3. Rough-in: frame and drains (stopgap)&quot;,&quot;elements&quot;:[&quot;wall:wall_n&quot;,&quot;wall:wall_e&quot;,&quot;wall:wall_s&quot;,&quot;wall:wall_w&quot;,&quot;wall:wall_n:right:frame&quot;,&quot;wall:wall_e:right:frame&quot;,&quot;wall:wall_s:right:frame&quot;,&quot;wall:wall_w:right:frame&quot;,&quot;opening:window_n&quot;,&quot;opening:door_s&quot;,&quot;room:bathroom&quot;,&quot;room:bathroom:substrate&quot;,&quot;room:bathroom:waste:linear_drain&quot;,&quot;room:bathroom:waste:square_waste&quot;]}</metadata>
+<metadata id="stage-view">{&quot;label&quot;:&quot;3. Rough-in: drains and service points&quot;,&quot;elements&quot;:[&quot;wall:wall_n&quot;,&quot;wall:wall_e&quot;,&quot;wall:wall_s&quot;,&quot;wall:wall_w&quot;,&quot;wall:wall_n:right:frame&quot;,&quot;wall:wall_e:right:frame&quot;,&quot;wall:wall_s:right:frame&quot;,&quot;wall:wall_w:right:frame&quot;,&quot;opening:window_n&quot;,&quot;opening:door_s&quot;,&quot;room:bathroom&quot;,&quot;room:bathroom:substrate&quot;,&quot;room:bathroom:waste:linear_drain&quot;,&quot;room:bathroom:waste:square_waste&quot;,&quot;item:bath_mixer:sp:body&quot;,&quot;item:shower_system:sp:inlet&quot;,&quot;item:shower_mixer:sp:body&quot;,&quot;item:toilet:sp:waste&quot;,&quot;item:toilet:sp:water&quot;,&quot;item:toilet:sp:power&quot;]}</metadata>
 <rect width="420" height="297" fill="#fff"/>
 <rect x="5" y="5" width="410" height="287" fill="none" stroke="#000" stroke-width="0.5"/>
 <rect x="12" y="12" width="248" height="268" fill="none" stroke="#999" stroke-width="0.2"/>
 <text x="136" y="146" font-size="3" text-anchor="middle" fill="#888" data-element="room:bathroom">BATHROOM</text>
-<polygon points="88.25,75.5 88.25,125.5 83.25,125.5 83.25,75.5" fill="#7a5230" fill-opacity="0.35" stroke="#7a5230" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-grate="1" data-element="room:bathroom:waste:linear_drain"/>
+<polygon points="88.25,75.5 88.25,125.5 83.25,125.5 83.25,75.5" fill="#7a5230" fill-opacity="0.35" stroke="#7a5230" stroke-width="0.3" data-grate="1" data-element="room:bathroom:waste:linear_drain"/>
 <text x="85.75" y="103.7" font-size="1.9" text-anchor="middle" fill="#7a5230">Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN FL ?</text>
-<polygon points="133,173 139,173 139,179 133,179" fill="#7a5230" fill-opacity="0.35" stroke="#7a5230" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-grate="1" data-element="room:bathroom:waste:square_waste"/>
+<polygon points="133,173 139,173 139,179 133,179" fill="#7a5230" fill-opacity="0.35" stroke="#7a5230" stroke-width="0.3" data-grate="1" data-element="room:bathroom:waste:square_waste"/>
 <text x="136" y="174.2" font-size="1.5" text-anchor="middle" fill="#7a5230">tile insert</text>
 <text x="136" y="179.2" font-size="1.9" text-anchor="middle" fill="#7a5230">Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet FL ?</text>
 <polygon points="196,68.25 76,68.25 76,63.25 196,63.25" fill="#d9d9d9" stroke="#222" stroke-width="0.35" data-element="wall:wall_n"/>
@@ -39,52 +39,74 @@
 <line x1="65.75" y1="223" x2="67.75" y2="225" stroke="#000" stroke-width="0.3"/>
 <line x1="65.75" y1="67" x2="67.75" y2="69" stroke="#000" stroke-width="0.3"/>
 <text x="64.95" y="146" font-size="2.4" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 64.95 146)" data-dim="wall_w">3120 ENT · w A→B (drawn line)</text>
+<circle cx="190" cy="98.5" r="1.1" fill="#2f78b7" data-element="item:bath_mixer:sp:body"/>
+<text x="191.5" y="97.3" font-size="1.8" fill="#2f78b7">F2.1</text>
+<circle cx="82" cy="100.5" r="1.1" fill="#2f78b7" data-element="item:shower_system:sp:inlet"/>
+<text x="83.5" y="99.3" font-size="1.8" fill="#2f78b7">F5.1</text>
+<circle cx="82" cy="113" r="1.1" fill="#2f78b7" data-element="item:shower_mixer:sp:body"/>
+<text x="83.5" y="111.8" font-size="1.8" fill="#2f78b7">F6.1</text>
+<circle cx="183" cy="200.5" r="1.1" fill="#7a5230" data-element="item:toilet:sp:waste"/>
+<text x="184.5" y="199.3" font-size="1.8" fill="#7a5230">F11.1</text>
+<circle cx="190" cy="191.5" r="1.1" fill="#2f78b7" data-element="item:toilet:sp:water"/>
+<text x="191.5" y="190.3" font-size="1.8" fill="#2f78b7">F11.2</text>
+<circle cx="190" cy="184" r="1.1" fill="#c0392b" data-element="item:toilet:sp:power"/>
+<text x="191.5" y="182.8" font-size="1.8" fill="#c0392b">F11.3</text>
 <rect x="18" y="274" width="25" height="1.5" fill="#000" stroke="#000" stroke-width="0.2"/>
 <rect x="43" y="274" width="25" height="1.5" fill="#fff" stroke="#000" stroke-width="0.2"/>
 <text x="18" y="273" font-size="2" >0</text>
 <text x="68" y="273" font-size="2" >1 m</text>
 <text x="18" y="278.5" font-size="2" >Scale 1:20 at A3. Orientation not recorded. Dimensions in mm.</text>
-<text x="266" y="14" font-size="2.8" font-weight="bold">Stage: 3. Rough-in: frame and drains (stopgap)</text>
-<text x="266" y="18" font-size="2.1" >Shows 14 element(s) of the one project model; everything else is hidden, not removed.</text>
+<text x="266" y="14" font-size="2.8" font-weight="bold">Stage: 3. Rough-in: drains and service points</text>
+<text x="266" y="18" font-size="2.1" >Shows 20 element(s) of the one project model; everything else is hidden, not removed.</text>
 <text x="266" y="21.1" font-size="2.1" >Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ?</text>
 <text x="269" y="24.2" font-size="2.1" >unknown</text>
 <text x="266" y="27.3" font-size="1.9" fill="#666">Not modelled, never drawn: pipe and cable runs between service points.</text>
-<text x="266" y="30.2" font-size="2.8" font-weight="bold">STOPGAP VIEW: not recorded</text>
-<text x="266" y="34.2" font-size="2.1" fill="#b00020">Waste service points: not recorded in the sample, so not drawn or listed.</text>
-<text x="266" y="37.3" font-size="2.1" fill="#b00020">Water service points: not recorded in the sample, so not drawn or listed.</text>
-<text x="266" y="40.4" font-size="2.1" fill="#b00020">Power service points: not recorded in the sample, so not drawn or listed.</text>
-<text x="266" y="43.5" font-size="1.9" fill="#666">Drawn dashed as stand-ins: Floor wastes.</text>
-<text x="266" y="48.4" font-size="2.8" font-weight="bold">Wall faces and layers (mm from drawn line)</text>
-<text x="266" y="52.4" font-size="2.1" data-element="wall:wall_n:right:frame">Wall n right: frame face: frame face position 5 E</text>
-<text x="266" y="55.5" font-size="2.1" data-element="wall:wall_e:right:frame">Wall e right: frame face: frame face position 5 E</text>
-<text x="266" y="58.6" font-size="2.1" data-element="wall:wall_s:right:frame">Wall s right: frame face: frame face position 5 E</text>
-<text x="266" y="61.7" font-size="2.1" data-element="wall:wall_w:right:frame">Wall w right: frame face: frame face position 5 E</text>
-<text x="266" y="66.8" font-size="2.8" font-weight="bold">Floor (mm above datum)</text>
-<text x="266" y="70.8" font-size="2.1" data-element="room:bathroom:substrate">Bathroom floor: substrate: substrate concrete slab, framed in place (house on piers) ENT · substrate top level -120 E · finished</text>
-<text x="269" y="73.9" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the target 108.5 E</text>
-<text x="266" y="79" font-size="2.8" font-weight="bold">Drainage</text>
-<text x="266" y="83" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ? · drain</text>
-<text x="269" y="86.1" font-size="2.1" data-element="room:bathroom:waste:linear_drain">product Lauxes Next Gen 35 Custom 1000, brushed nickel NAM · grate length 1000 M · grate width 100 M · outlet diameter 50 M · body</text>
-<text x="269" y="89.2" font-size="2.1" data-element="room:bathroom:waste:linear_drain">depth below grate 35 M · outlet position ?</text>
-<text x="266" y="92.3" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ? · drain product Kano 316</text>
-<text x="269" y="95.4" font-size="2.1" data-element="room:bathroom:waste:square_waste">Tile Insert Waste 120×120, brushed nickel NAM · grate type tile-insert NAM · grate length 120 M · grate width 120 M · outlet</text>
-<text x="269" y="98.5" font-size="2.1" data-element="room:bathroom:waste:square_waste">diameter 50 M · body depth below grate ? · outlet position ?</text>
-<text x="266" y="103.6" font-size="2.8" font-weight="bold">Unresolved in this view (5)</text>
-<text x="266" y="107.6" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm)</text>
-<text x="269" y="110.7" font-size="2.1" fill="#7a3b00">unknown; printed as &quot;?&quot; (missing finished level at waste (mm)).</text>
-<text x="266" y="113.8" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as</text>
-<text x="269" y="116.9" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).</text>
-<text x="266" y="120" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as</text>
-<text x="269" y="123.1" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing finished level at waste (mm)).</text>
-<text x="266" y="126.2" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as</text>
-<text x="269" y="129.3" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).</text>
-<text x="266" y="132.4" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as &quot;?&quot; (missing</text>
-<text x="269" y="135.5" font-size="2.1" fill="#7a3b00">outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).</text>
+<text x="266" y="32.2" font-size="2.8" font-weight="bold">Wall faces and layers (mm from drawn line)</text>
+<text x="266" y="36.2" font-size="2.1" data-element="wall:wall_n:right:frame">Wall n right: frame face: frame face position 5 E</text>
+<text x="266" y="39.3" font-size="2.1" data-element="wall:wall_e:right:frame">Wall e right: frame face: frame face position 5 E</text>
+<text x="266" y="42.4" font-size="2.1" data-element="wall:wall_s:right:frame">Wall s right: frame face: frame face position 5 E</text>
+<text x="266" y="45.5" font-size="2.1" data-element="wall:wall_w:right:frame">Wall w right: frame face: frame face position 5 E</text>
+<text x="266" y="50.6" font-size="2.8" font-weight="bold">Floor (mm above datum)</text>
+<text x="266" y="54.6" font-size="2.1" data-element="room:bathroom:substrate">Bathroom floor: substrate: substrate concrete slab, framed in place (house on piers) ENT · substrate top level -120 E · finished</text>
+<text x="269" y="57.7" font-size="2.1" data-element="room:bathroom:substrate">level target 0 P · Tiler's screed (heating cable inside) + Tiler's adhesive together, to reach the target 108.5 E</text>
+<text x="266" y="62.8" font-size="2.8" font-weight="bold">Drainage</text>
+<text x="266" y="66.8" font-size="2.1" data-element="room:bathroom:waste:linear_drain">Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste ? · drain</text>
+<text x="269" y="69.9" font-size="2.1" data-element="room:bathroom:waste:linear_drain">product Lauxes Next Gen 35 Custom 1000, brushed nickel NAM · grate length 1000 M · grate width 100 M · outlet diameter 50 M · body</text>
+<text x="269" y="73" font-size="2.1" data-element="room:bathroom:waste:linear_drain">depth below grate 35 M · outlet position ?</text>
+<text x="266" y="76.1" font-size="2.1" data-element="room:bathroom:waste:square_waste">Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste ? · drain product Kano 316</text>
+<text x="269" y="79.2" font-size="2.1" data-element="room:bathroom:waste:square_waste">Tile Insert Waste 120×120, brushed nickel NAM · grate type tile-insert NAM · grate length 120 M · grate width 120 M · outlet</text>
+<text x="269" y="82.3" font-size="2.1" data-element="room:bathroom:waste:square_waste">diameter 50 M · body depth below grate ? · outlet position ?</text>
+<text x="266" y="87.4" font-size="2.8" font-weight="bold">Rough-in (as entered, from the named face)</text>
+<text x="266" y="91.4" font-size="2.1" data-element="item:bath_mixer:sp:body">Bath mixer and spout: Mixer body behind the hub (hot and cold inlets: spacing, size and depth are not on the set drawing): out</text>
+<text x="269" y="94.5" font-size="2.1" data-element="item:bath_mixer:sp:body">from finished face 0 P · across from fixture centreline 60 P · up from finished floor 750 P · along from end A 610 P</text>
+<text x="266" y="97.6" font-size="2.1" data-element="item:shower_system:sp:inlet">Shower system: G1/2 inlet at the upper wall rose (on the rail centreline): out from finished face 0 P · across from fixture</text>
+<text x="269" y="100.7" font-size="2.1" data-element="item:shower_system:sp:inlet">centreline 0 P · up from finished floor 1700 P · along from end A 2470 P</text>
+<text x="266" y="103.8" font-size="2.1" data-element="item:shower_mixer:sp:body">Shower mixer: Mixer body behind the plate (inlet layout and rough-in depth are not on the drawing; about 33.5 mm behind the plate,</text>
+<text x="269" y="106.9" font-size="2.1" data-element="item:shower_mixer:sp:body">derived): out from finished face 0 P · across from fixture centreline 0 P · up from finished floor 1000 P · along from end A 2220</text>
+<text x="269" y="110" font-size="2.1" data-element="item:shower_mixer:sp:body">E</text>
+<text x="266" y="113.1" font-size="2.1" data-element="item:toilet:sp:waste">Toilet: Pan waste, S-trap (floor): out from finished face 140–260 PUB · across from fixture centreline 0 PUB · up from finished</text>
+<text x="269" y="116.2" font-size="2.1" data-element="item:toilet:sp:waste">floor ? · along from end A 2650 P</text>
+<text x="266" y="119.3" font-size="2.1" data-element="item:toilet:sp:water">Toilet: Cold water point (stop tap): out from finished face 0 PUB · across from fixture centreline -180 PUB · up from finished</text>
+<text x="269" y="122.4" font-size="2.1" data-element="item:toilet:sp:water">floor 180 PUB · along from end A 2470 P</text>
+<text x="266" y="125.5" font-size="2.1" data-element="item:toilet:sp:power">Toilet: SpaLet seat power point: out from finished face 0 PUB · across from fixture centreline -330 PUB · up from finished floor</text>
+<text x="269" y="128.6" font-size="2.1" data-element="item:toilet:sp:power">300 PUB · along from end A 2320 P</text>
+<text x="266" y="133.7" font-size="2.8" font-weight="bold">Unresolved in this view (6)</text>
+<text x="266" y="137.7" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: finished level at waste (mm)</text>
+<text x="269" y="140.8" font-size="2.1" fill="#7a3b00">unknown; printed as &quot;?&quot; (missing finished level at waste (mm)).</text>
+<text x="266" y="143.9" font-size="2.1" fill="#7a3b00">• Bathroom: Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed nickel, 50 mm outlet WO50-BN: outlet position unknown; printed as</text>
+<text x="269" y="147" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing outlet position along the channel (entered on the waste), outlet sideways offset (brief)).</text>
+<text x="266" y="150.1" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as</text>
+<text x="269" y="153.2" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing finished level at waste (mm)).</text>
+<text x="266" y="156.3" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as</text>
+<text x="269" y="159.4" font-size="2.1" fill="#7a3b00">&quot;?&quot; (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).</text>
+<text x="266" y="162.5" font-size="2.1" fill="#7a3b00">• Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as &quot;?&quot; (missing</text>
+<text x="269" y="165.6" font-size="2.1" fill="#7a3b00">outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).</text>
+<text x="266" y="168.7" font-size="2.1" fill="#7a3b00">• Toilet: Pan waste, S-trap (floor): up from finished floor (mm) unknown; printed as &quot;?&quot; (missing up height).</text>
 <rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
 <text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>
-<text x="266" y="251.4" font-size="2.4" >Stage diagram: 3. Rough-in: frame and drains (stopgap)</text>
-<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-07 · not a revision of A-01</text>
+<text x="266" y="251.4" font-size="2.4" >Stage diagram: 3. Rough-in: drains and service points</text>
+<text x="266" y="256.6" font-size="2.4" >Scale 1:20 @ A3 · Exported 2026-10-08 · not a revision of A-01</text>
 <text x="266" y="261.8" font-size="2.2" >Prepared by: ? · Plan: Bathroom Concept</text>
 <text x="266" y="267" font-size="2.1" ></text>
 <rect x="264" y="268.8" width="146" height="7" fill="#b00020"/>

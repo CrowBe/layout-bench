@@ -88,15 +88,13 @@ Not modelled (never drawn):
 
 ![Elevation wall_w (right side, from Bathroom)](02-frame-board/elevation-wall_w-right.png)
 
-## 3. Rough-in: frame and drains (stopgap)
+## 3. Rough-in: drains and service points
 
-Stopgap view. Plumbing and electrical rough-in is the stage, but the sample records no waste, water or power service points, so this shows the frame and the two floor drains (dashed) and prints the service points as not recorded. Pipe and cable runs are never drawn.
+Plumbing and electrical rough-in on the frame: the two floor drains and the service points recorded for the fittings, set out from their walls' finished faces. The toilet's waste, cold water and SpaLet power are from the American Standard install sheet; the shower inlet and the two mixer bodies follow the owner's proposed heights. Not recorded yet, so not drawn: the vanity's waste and water (moving about 300 mm right; present positions not measured), the moved GPO, the towel rails' concealed 12 V leads, the bath set's separate hot and cold inlets (not on the set drawing), and the bath waste below the bath. Pipe and cable runs are never drawn.
 
-Visible: `walls`, `wall-frame`, `rooms`, `doors`, `windows`, `floor-substrate`, `drainage-wastes`
+Visible: `walls`, `wall-frame`, `rooms`, `doors`, `windows`, `floor-substrate`, `drainage-wastes`, `services-waste`, `services-water`, `services-power`
 
-Stopgap view, not recorded: Waste service points; Water service points; Power service points. Drawn dashed as stand-ins: drainage-wastes.
-
-Specification: 45 row(s), 18 unknown. [spec.html](03-rough-in/spec.html)
+Specification: 75 row(s), 19 unknown. [spec.html](03-rough-in/spec.html)
 
 Open items:
 
@@ -105,6 +103,7 @@ Open items:
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: finished level at waste (mm) unknown; printed as "?" (missing finished level at waste (mm)).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: body depth below grate (mm) unknown; printed as "?" (missing installation depth not in the Kano 316 Tile Insert Waste 120×120, brushed nickel brief).
 - Bathroom: Kano 316 tile-insert waste 120 × 120, brushed nickel, 50 mm outlet: outlet position unknown; printed as "?" (missing outlet sideways offset, outlet from body back edge, body depth (envelope) (brief)).
+- Toilet: Pan waste, S-trap (floor): up from finished floor (mm) unknown; printed as "?" (missing up height).
 
 Not modelled (never drawn):
 
@@ -420,15 +419,13 @@ Not modelled (never drawn):
 
 ![Elevation wall_w (right side, from Bathroom)](08-tiles/elevation-wall_w-right.png)
 
-## 9. Fit-out: fixtures without services (stopgap)
+## 9. Fit-out: fixtures and their service points
 
-Stopgap view. The reused vanity, bath, toilet, screen, towel rails and the shaving cabinet last, on the tiled room. The sample records no service points for them, so the fixtures (dashed) are shown without services and the points are printed as not recorded.
+The bath, reused vanity and toilet, the screen, the wall fittings and the shaving cabinet last, on the tiled room. Wall fittings are set out from the wall's finished face (centreline along it, bottom above the floor), each with its own status. Not recorded yet, so not drawn: the vanity's waste and water (moving about 300 mm right; present positions not measured), the moved GPO, the towel rails' concealed 12 V leads, the bath set's separate hot and cold inlets (not on the set drawing), and the bath waste below the bath. Pipe and cable runs are never drawn.
 
-Visible: `walls`, `wall-tile`, `rooms`, `doors`, `windows`, `floor-substrate`, `floor-tile`, `drainage-wastes`, `fixtures`
+Visible: `walls`, `wall-tile`, `rooms`, `doors`, `windows`, `floor-substrate`, `floor-tile`, `drainage-wastes`, `fixtures`, `services-waste`, `services-water`, `services-power`
 
-Stopgap view, not recorded: Waste service points; Water service points; Power service points. Drawn dashed as stand-ins: fixtures.
-
-Specification: 290 row(s), 143 unknown. [spec.html](09-fit-out/spec.html)
+Specification: 363 row(s), 150 unknown. [spec.html](09-fit-out/spec.html)
 
 Open items:
 
@@ -444,7 +441,6 @@ Open items:
 - Corner bath (bath): wasteConnectionDiameter unknown; printed as "?" (missing The Enflair drawing names a Ø50 waste hole, not a pipe connection or outlet size. No connection diameter is entered.).
 - Corner bath (bath): surround unknown; printed as "?" (missing Not entered from the cited source.).
 - Corner bath (bath): surroundDetail unknown; printed as "?" (missing Not entered from the cited source.).
-- Bath mixer and spout (bath_mixer): set-out unknown; printed as "?" (missing not set out from a wall face).
 - Bath mixer and spout (bath_mixer): tapHoles unknown; printed as "?" (missing Not entered from the cited source.).
 - Bath mixer and spout (bath_mixer): holeLayout unknown; printed as "?" (missing Not entered from the cited source.).
 - Bath mixer and spout (bath_mixer): fixingLayout unknown; printed as "?" (missing Not entered from the cited source.).
@@ -473,7 +469,6 @@ Open items:
 - Basin mixer (basin_mixer): inletHeight unknown; printed as "?" (missing Not entered from the cited source.).
 - Basin mixer (basin_mixer): concealedDepthMin unknown; printed as "?" (missing Not entered from the cited source.).
 - Basin mixer (basin_mixer): concealedDepthMax unknown; printed as "?" (missing Not entered from the cited source.).
-- Shower system (shower_system): set-out unknown; printed as "?" (missing not set out from a wall face).
 - Shower system (shower_system): pressureMin unknown; printed as "?" (missing Not entered from the cited source.).
 - Shower system (shower_system): pressureMax unknown; printed as "?" (missing Not entered from the cited source.).
 - Shower system (shower_system): temperatureMax unknown; printed as "?" (missing Not entered from the cited source.).
@@ -482,7 +477,6 @@ Open items:
 - Shower system (shower_system): inletOffset unknown; printed as "?" (missing Not entered from the cited source.).
 - Shower system (shower_system): inletDepth unknown; printed as "?" (missing Not entered from the cited source.).
 - Shower system (shower_system): inletHeight unknown; printed as "?" (missing Not entered from the cited source.).
-- Shower mixer (shower_mixer): set-out unknown; printed as "?" (missing not set out from a wall face).
 - Shower mixer (shower_mixer): width unknown; printed as "?" (missing Owner's copy of the Enflair K1130 drawing gives plate Ø65; it has no web link, so it is not entered as a published brief figure (the figures are on the measures).).
 - Shower mixer (shower_mixer): depth unknown; printed as "?" (missing Owner's copy of the Enflair K1130 drawing gives 65.5 mm lever to plate plus the 4 mm plate; no web link, so not entered as a published brief figure.).
 - Shower mixer (shower_mixer): height unknown; printed as "?" (missing Derived from the owner's copy of the Enflair K1130 drawing (Ø65 plate, Ø45 hub, 107 mm lever); no web link, so not entered as a published brief figure.).
@@ -499,21 +493,17 @@ Open items:
 - Shower mixer (shower_mixer): inletHeight unknown; printed as "?" (missing Not entered from the cited source.).
 - Shower mixer (shower_mixer): concealedDepthMin unknown; printed as "?" (missing Not entered from the cited source.).
 - Shower mixer (shower_mixer): concealedDepthMax unknown; printed as "?" (missing Not entered from the cited source.).
-- Towel rail (towel_rail): set-out unknown; printed as "?" (missing not set out from a wall face).
 - Towel rail (towel_rail): fixingCentresWidth unknown; printed as "?" (missing Not entered from the cited source.).
 - Towel rail (towel_rail): powerOffset unknown; printed as "?" (missing Not entered from the cited source.).
 - Towel rail (towel_rail): powerHeight unknown; printed as "?" (missing Not entered from the cited source.).
 - Towel rail (towel_rail): powerDepth unknown; printed as "?" (missing Not entered from the cited source.).
 - Towel rail (towel_rail): waterConnection unknown; printed as "?" (missing Not entered from the cited source.).
-- Towel rail (towel_rail_2): set-out unknown; printed as "?" (missing not set out from a wall face).
 - Towel rail (towel_rail_2): fixingCentresWidth unknown; printed as "?" (missing Not entered from the cited source.).
 - Towel rail (towel_rail_2): powerOffset unknown; printed as "?" (missing Not entered from the cited source.).
 - Towel rail (towel_rail_2): powerHeight unknown; printed as "?" (missing Not entered from the cited source.).
 - Towel rail (towel_rail_2): powerDepth unknown; printed as "?" (missing Not entered from the cited source.).
 - Towel rail (towel_rail_2): waterConnection unknown; printed as "?" (missing Not entered from the cited source.).
-- Vanity (vanity): set-out unknown; printed as "?" (missing not set out from a wall face).
-- Shaving cabinet (shaving_cabinet): set-out unknown; printed as "?" (missing not set out from a wall face).
-- Toilet (toilet): set-out unknown; printed as "?" (missing not set out from a wall face).
+- Toilet: Pan waste, S-trap (floor): up from finished floor (mm) unknown; printed as "?" (missing up height).
 - Fixed glass screen (screen): set-out unknown; printed as "?" (missing not set out from a wall face).
 
 Not modelled (never drawn):

@@ -47,9 +47,12 @@ describe("all nine stages", () => {
     // 05 is the only stage with the heating cable; 08 the only one with wall tiles' set-out in the plan list
     expect(layersIn(slugOf("05")).has("room:bathroom:heating")).toBe(true);
     for (const n of ["01", "02", "03", "04", "06", "07", "08", "09"]) expect(layersIn(slugOf(n)).has("room:bathroom:heating"), n).toBe(false);
-    // fixtures only at fit-out; floor planes only once screed is laid
-    expect([...layersIn(slugOf("09"))].some((e) => e.startsWith("item:"))).toBe(true);
-    for (const n of ["01", "02", "03", "04", "05", "06", "07", "08"]) expect([...layersIn(slugOf(n))].some((e) => e.startsWith("item:")), n).toBe(false);
+    // fixtures only at fit-out, service points at rough-in and fit-out; floor planes only once screed is laid
+    const fixture = (e: string) => e.startsWith("item:") && !e.includes(":sp:");
+    expect([...layersIn(slugOf("09"))].some(fixture)).toBe(true);
+    for (const n of ["01", "02", "03", "04", "05", "06", "07", "08"]) expect([...layersIn(slugOf(n))].some(fixture), n).toBe(false);
+    for (const n of ["03", "09"]) expect([...layersIn(slugOf(n))].some((e) => e.includes(":sp:")), n).toBe(true);
+    for (const n of ["01", "02", "04", "05", "06", "07", "08"]) expect([...layersIn(slugOf(n))].some((e) => e.includes(":sp:")), n).toBe(false);
     expect([...layersIn(slugOf("06"))].some((e) => e.includes(":plane:"))).toBe(true);
     expect([...layersIn(slugOf("04"))].some((e) => e.includes(":plane:"))).toBe(false);
   });
@@ -103,44 +106,31 @@ describe("heating cable compact spec (stage 05)", () => {
 });
 
 describe("stopgap views", () => {
-  const services = ["Waste service points", "Water service points", "Power service points"];
-
-  it("only the three stages whose layers the sample lacks are stopgaps, and each says what is not recorded", () => {
-    expect(PHASES.filter((p) => p.stopgap).map((p) => p.slug.slice(0, 2))).toEqual(["03", "04", "09"]);
-    for (const n of ["03", "09"]) {
-      for (const s of services) {
-        expect(read(slugOf(n), "plan.svg"), n).toContain(`${s}: not recorded in the sample, so not drawn or listed.`);
-        expect(read(slugOf(n), "spec.html"), n).toContain(`${s}: not recorded in the sample, so not drawn or listed.`);
-        expect(read(slugOf(n), "elevation-wall_n-right.svg"), n).toContain(`${s}: not recorded`);
-      }
-    }
+  it("only the wall-membrane stage is a stopgap now the fittings carry service points, and it says what is not recorded", () => {
+    expect(PHASES.filter((p) => p.stopgap).map((p) => p.slug.slice(0, 2))).toEqual(["04"]);
     expect(read(slugOf("04"), "plan.svg")).toContain("Wall waterproofing membrane: not recorded in the sample");
     expect(read(slugOf("04"), "spec.html")).toContain("Wall waterproofing membrane: not recorded in the sample");
     // non-stopgap stages print no such section
-    for (const n of ["01", "02", "05", "06", "07", "08"]) {
+    for (const n of ["01", "02", "03", "05", "06", "07", "08", "09"]) {
       expect(read(slugOf(n), "plan.svg"), n).not.toContain("STOPGAP VIEW");
       expect(read(slugOf(n), "spec.html"), n).not.toContain("stopgap");
     }
   });
 
-  it("the sample really has none of the layers the stopgaps name, and never draws a service point or wall membrane", () => {
+  it("the sample has the service layers but no wall membrane, and 04 never draws a service point or wall membrane", () => {
     const cat = catalogue(SAMPLE);
-    for (const l of ["services-waste", "services-water", "services-power", "wall-waterproofing"]) expect(cat.emptyLayers).toContain(l);
-    expect(cat.layers.map((l) => l.id)).toContain("floor-waterproofing");
-    for (const n of ["03", "04", "09"]) {
-      const els = dataElements(read(slugOf(n), "plan.svg"));
-      expect(els.some((e) => e.includes(":sp:") || e.includes("waterproofing")), n).toBe(false);
-    }
+    expect(cat.emptyLayers).toContain("wall-waterproofing");
+    for (const l of ["services-waste", "services-water", "services-power", "floor-waterproofing"]) expect(cat.layers.map((x) => x.id)).toContain(l);
+    const els = dataElements(read(slugOf("04"), "plan.svg"));
+    expect(els.some((e) => e.includes(":sp:") || e.includes("_waterproofing"))).toBe(false);
   });
 
-  it("03 draws the frame and the drains, the drains dashed", () => {
+  it("03 draws the frame, the drains and the recorded rough-in points, and names what is still not recorded", () => {
     const plan = read(slugOf("03"), "plan.svg");
-    const els = dataElements(plan);
-    expect(els).toEqual(expect.arrayContaining(["wall:wall_n:right:frame", "room:bathroom:waste:linear_drain", "room:bathroom:waste:square_waste"]));
-    for (const id of ["room:bathroom:waste:linear_drain", "room:bathroom:waste:square_waste"]) {
-      const tag = plan.match(new RegExp(`<[^>]*data-element="${id}"[^>]*>`))![0];
-      expect(tag).toContain("stroke-dasharray");
-    }
+    expect(dataElements(plan)).toEqual(expect.arrayContaining(["wall:wall_n:right:frame", "room:bathroom:waste:linear_drain", "room:bathroom:waste:square_waste",
+      "item:toilet:sp:waste", "item:toilet:sp:water", "item:toilet:sp:power", "item:shower_system:sp:inlet", "item:shower_mixer:sp:body", "item:bath_mixer:sp:body"]));
+    const md = readFileSync(join(outDir, "README.md"), "utf8");
+    expect(md).toMatch(/vanity's waste and water \(moving about 300 mm right; present positions not measured\)/);
   });
 
   it("04 shows the floor membrane only, its top from the estimated slab plus the owner's ~1.5 mm, tagged E", () => {
@@ -152,23 +142,23 @@ describe("stopgap views", () => {
     expect(read(slugOf("04"), "spec.html")).toMatch(/Membrane \(Bastion liquid polyurethane\)<\/td>[\s\S]*?<td>top level \(mm\)<\/td><td>-118\.5<\/td><td>E estimated/);
   });
 
-  it("09 draws the fixtures dashed, with no services", () => {
+  it("09 draws every fixture on the plan, and the recorded service points", () => {
     const plan = read(slugOf("09"), "plan.svg");
     const fixtures = [...plan.matchAll(/<polygon[^>]*data-element="item:[^"]*"[^>]*>/g)].map((m) => m[0]);
     expect(fixtures).toHaveLength(SAMPLE.items.length);
-    for (const f of fixtures) expect(f).toContain("stroke-dasharray");
+    expect(dataElements(plan)).toEqual(expect.arrayContaining(["item:toilet:sp:waste", "item:shower_system:sp:inlet"]));
   });
 
   it("is driven by the phase flag, not by note text", () => {
-    const flagged = PHASES.find((p) => p.slug.startsWith("03"))!;
+    const flagged = PHASES.find((p) => p.slug.startsWith("04"))!;
     const model = structuredClone(SAMPLE);
     model.sheetSet = { titleBlock: { project: model.name, site: "Bathroom (no site address recorded)" }, revisions: [] };
-    // the same visible set without the flag renders no not-recorded section, even though the label still says 'stopgap'
+    // the same visible set without the flag renders no not-recorded section
     const unflagged: Phase = { ...flagged, stopgap: undefined };
     const a = composePhase("flag-a", model, unflagged);
     expect(a.composed.resolution.elements.length).toBeGreaterThan(0);
     // a flag naming a layer the model does record is refused instead of printing a false 'not recorded'
-    const stale: Phase = { ...flagged, stopgap: { dashed: [], notRecorded: [{ layer: "floor-waterproofing", label: "Floor membrane" }] } };
+    const stale: Phase = { ...flagged, stopgap: { dashed: [], notRecorded: [{ layer: "services-water", label: "Water service points" }] } };
     expect(() => composePhase("flag-b", model, stale)).toThrow(/recorded in the model now/);
     // dashing a layer the stage does not show is refused
     const stray: Phase = { ...flagged, stopgap: { dashed: ["fixtures"], notRecorded: [] } };
@@ -177,7 +167,7 @@ describe("stopgap views", () => {
 
   it("names the stopgap in the README", () => {
     const md = indexMarkdown(written);
-    expect(md).toContain("Stopgap view, not recorded: Waste service points; Water service points; Power service points.");
+    expect(md).not.toContain("Stopgap view, not recorded: Waste service points");
     expect(md).toContain("Stopgap view, not recorded: Wall waterproofing membrane.");
   });
 });
@@ -318,55 +308,76 @@ describe("plan cable annotation agrees with the spec (stage 05)", () => {
   });
 });
 
-describe("fit-out elevations print no stand-in heights and no unsupported set-out (stage 09)", () => {
-  // sample items whose kind carries a catalogue elevation stand-in and whose record has no elevation
-  const standIns = ["bath_mixer", "bath_waste", "basin_mixer", "shower_system", "shower_mixer", "towel_rail", "towel_rail_2", "shaving_cabinet"];
+describe("fit-out elevations draw the wall fittings at their set-out (stage 09, #89)", () => {
   const svgs = () => ["wall_n", "wall_e", "wall_s", "wall_w"].map((w) => read(slugOf("09"), `elevation-${w}-right.svg`));
+  const mounted = ["bath_mixer", "shower_system", "shower_mixer", "towel_rail", "towel_rail_2", "shaving_cabinet"];
 
-  it("draws none of them, and lists each with '?' for its height", () => {
-    expect(SAMPLE.items.filter((i) => standIns.includes(i.id)).every((i) => !i.productSpecification?.fields.elevation || i.productSpecification.fields.elevation.value === null)).toBe(true);
-    for (const svg of svgs()) for (const id of standIns) expect(svg, id).not.toMatch(new RegExp(`<rect[^>]*data-element="item:${id}"`));
-    const north = flat(read(slugOf("09"), "elevation-wall_n-right.svg"));
-    const east = flat(read(slugOf("09"), "elevation-wall_e-right.svg"));
-    // owner, 7 Oct 2026: the bath set moved to the right wall, so no fitting is on the window wall
-    expect(north).not.toMatch(/Bath mixer/);
-    expect(east).toMatch(/Bath mixer and spout: position along the face \? \(no wall set-out recorded\) · height \? · elevation above the finished floor is not recorded/);
-    for (const label of ["Bath waste"]) expect(north).toMatch(new RegExp(`${label}: position along the face \\? \\(no wall set-out recorded\\) · height \\? · elevation above the finished floor is not recorded`));
-    // the old catalogue stand-ins (mixer 800 plate / 865 envelope, waste 590) are not printed anywhere
-    for (const svg of svgs()) expect(flat(svg)).not.toMatch(/\b(748|865|590–|590 [A-Z?]|1200 [A-Z?] to)/);
-  });
-
-  it("agrees with the spec: no sample fixture has a wall anchor, so none prints a set-out from end A", () => {
-    expect(SAMPLE.items.some((i) => i.anchor)).toBe(false);
-    const spec = read(slugOf("09"), "spec.html");
-    for (const it of SAMPLE.items) expect(specCells(spec, `item:${it.id}`, "set-out")?.[1], it.id).toBe("?");
-    for (const svg of svgs()) {
-      const text = flat(svg);
-      expect(text).not.toMatch(/\d from finished face at A/); // no number "from <face> at A" for an unanchored fixture
-      const rows = text.match(/F\d+ [A-Z][^:]*: position along the face[^·]*/g) ?? [];
-      for (const r of rows) expect(r).toContain("? (no wall set-out recorded)");
+  it("sets each wall fitting out from its wall's finished face, with an installed height above the finished floor", () => {
+    for (const id of mounted) {
+      const it = SAMPLE.items.find((i) => i.id === id)!;
+      expect(it.anchor, id).toMatchObject({ side: "right", face: "finished", gap: 0 });
+      expect(it.installation, id).toMatchObject({ mounting: "wall", floorDatum: "finished-floor", height: { status: "proposed" } });
+      // the record is a project placement, never a product-brief elevation
+      expect(it.productSpecification?.fields.elevation?.value ?? null, id).toBeNull();
     }
-    expect(flat(read(slugOf("09"), "plan.svg"))).not.toMatch(/\d+ \w+ from [A-B] · \d+/);
+    // a place along the wall nobody chose stays an estimate
+    for (const id of ["shower_mixer", "towel_rail", "towel_rail_2"]) expect(SAMPLE.items.find((i) => i.id === id)!.anchor!.status, id).toBe("estimated");
   });
 
-  it("keeps the floor-standing fixtures it can place, with the weakest status of the floor and the envelope", () => {
-    // the vanity stands on the proposed finished floor (tile 0 P) and its measured 850 height: the top is no stronger than P
+  it("draws them at the owner's proposed heights, each tagged, and the unsourced ones still not at all", () => {
     const east = flat(read(slugOf("09"), "elevation-wall_e-right.svg"));
-    expect(east).toMatch(/F9 Vanity: position along the face \? \(no wall set-out recorded\) · 0 P to 850 P above existing floor surface/);
+    const west = flat(read(slugOf("09"), "elevation-wall_w-right.svg"));
+    for (const id of mounted) expect(svgs().some((svg) => new RegExp(`<rect[^>]*data-element="item:${id}"`).test(svg)), id).toBe(true);
+    // bath set: plate centre 750 P less the drawing's 84.5 to the lever end
+    expect(east).toMatch(/F2 Bath mixer and spout: 425 E from finished face at A to 625 E · 665\.5 P to 782\.5 P above/);
+    expect(east).toMatch(/F10 Shaving cabinet: 1350 E from finished face at A to 2100 E · 1200 P to 1820 \? above/);
+    // shower: lower bracket 1200 P less 70.3 to the rail foot; the mixer and rails along the wall are estimates
+    expect(west).toMatch(/F5 Shower system: 2320 E from finished face at A to 2570 E · 1129\.7 P to 2110\.7 P above/);
+    expect(west).toMatch(/F6 Shower mixer: [^·]+ · 915\.5 E to 1032\.5 \? above/);
+    expect(west).toMatch(/F7 Towel rail: 1149 E from finished face at A to 1291 E · 750 E to 1650 E above/);
+    // the set-out callout beside each one
+    expect(west).toMatch(/F5 c\/l 2445 E from A · bottom 1129\.7 P/);
+    // the bath waste and the basin mixer have no recorded height: listed with '?', never drawn
+    for (const svg of svgs()) for (const id of ["bath_waste", "basin_mixer"]) expect(svg, id).not.toMatch(new RegExp(`<rect[^>]*data-element="item:${id}"`));
+    expect(east).toMatch(/Basin mixer: [^·]+ · height \? · elevation above the finished floor is not recorded/);
+    // the old catalogue stand-ins (mixer 800 plate / 865 envelope, waste 590) are not printed anywhere
+    for (const svg of svgs()) expect(flat(svg)).not.toMatch(/\b(748|865|590–|590 [A-Z?])/);
+  });
+
+  it("agrees with the spec: an anchored fixture has a set-out, the rest print '?'", () => {
+    const spec = read(slugOf("09"), "spec.html");
+    for (const it of SAMPLE.items) {
+      const cell = specCells(spec, `item:${it.id}`, "set-out")?.[1];
+      if (it.anchor) expect(cell, it.id).not.toBe("?");
+      else if (!it.fittedTo) expect(cell, it.id).toBe("?");
+    }
+  });
+
+  it("keeps the floor-standing fixtures, with the weakest status of the floor, the envelope and the set-out", () => {
+    // the vanity stands on the proposed finished floor (tile 0 P) and its measured 850 height; its span reads off the estimated face
+    const east = flat(read(slugOf("09"), "elevation-wall_e-right.svg"));
+    expect(east).toMatch(/F9 Vanity: 1270 E from finished face at A to 2180 E · 0 P to 850 P above existing floor surface/);
     expect(SAMPLE.items.find((i) => i.id === "vanity")!.productIdentity).toBeDefined();
+  });
+
+  it("draws the toilet's published rough-in on the right wall at rough-in, read along from the proposed set-out", () => {
+    const east = flat(read(slugOf("03"), "elevation-wall_e-right.svg"));
+    expect(east).toMatch(/F11\.2 water · Cold water point \(stop tap\): \d+(\.\d)? E from frame face at A · 180 PUB above finished floor/);
+    expect(east).toMatch(/F11\.3 power · SpaLet seat power point: \d+(\.\d)? E from frame face at A · 300 PUB above finished floor/);
+    expect(east).toMatch(/F11\.1 waste · Pan waste, S-trap \(floor\): [^·]+ · up \? · 140–260 PUB out from finished face/);
   });
 });
 
 describe("a recorded elevation is drawn with its own status (real elevation path)", () => {
-  it("draws the sample's bath mixer once its record carries a proposed elevation, tagged P, and never from the kind", () => {
+  it("draws the sample's basin mixer once its record carries a proposed elevation, tagged P, and never from the kind", () => {
     const model = structuredClone(SAMPLE);
-    const mixer = model.items.find((i) => i.id === "bath_mixer")!;
+    const mixer = model.items.find((i) => i.id === "basin_mixer")!;
     mixer.productSpecification!.fields.elevation = { value: 0.9, status: "proposed", note: "owner" };
     const els = resolveVisible(model, ["walls", "rooms", "floor-substrate", "floor-tile", "fixtures"]).elements;
     const svg = renderStageElevation(model, els, "wall_e", "right", { label: "t", findings: [] });
-    expect(svg).toMatch(/<rect[^>]*stroke-dasharray="1.2 0.6"[^>]*data-element="item:bath_mixer"/);
-    // floor top P (tile 0) + recorded 900 = 900, no stronger than P; top adds the published envelope height
-    expect(flat(svg)).toMatch(/F2 Bath mixer and spout: position along the face \? \(no wall set-out recorded\) · 900 P to \d+(\.\d)? P above/);
+    expect(svg).toMatch(/<rect[^>]*stroke-dasharray="1.2 0.6"[^>]*data-element="item:basin_mixer"/);
+    // floor top P (tile 0) + recorded 900 = 900, no stronger than P
+    expect(flat(svg)).toMatch(/F4 Basin mixer: [^·]+ · 900 P to \d+(\.\d)? \S+ above/);
   });
 });
 
@@ -390,8 +401,9 @@ describe("every number on the stage-pack plan and elevation labels carries one s
     for (const slug of stages) for (const w of ["wall_n", "wall_e", "wall_s", "wall_w"]) {
       const svg = read(slug, `elevation-${w}-right.svg`);
       const texts = [...svg.matchAll(/<text [^>]*>([^<]*)<\/text>/g)].map((m) => flat(m[1]));
-      for (const t of texts.filter((x) => /^(DOOR|WINDOW) |^sill |^jambs |wall height above|between .* of the return walls| AFF$/.test(x) || /^[^:]+ [+-]?\d+ (SC|M|PUB|P|E|ENT|DER|\?)$/.test(x))) {
-        expect(untagged(t.replace(/^(DOOR|WINDOW) /, "").replace(/^.* (?=[+-]\d+ \S+$)/, "").replace(/^(\d+) between .* \((\S+)\)$/, "$1 $2")), `${slug}/${w}: ${t}`).toEqual([]);
+      for (const t of texts.filter((x) => /^(DOOR|WINDOW) |^sill |^jambs |wall height above|between .* of the return walls| AFF$|^F\d+ c\/l /.test(x) || /^[^:]+ [+-]?\d+ (SC|M|PUB|P|E|ENT|DER|\?)$/.test(x))) {
+        // a fixture or service point number (F5, F11.2) labels the thing, it is not a dimension
+        expect(untagged(t.replace(/^F\d+(\.\d+)? (c\/l )?/, "").replace(/^(DOOR|WINDOW) /, "").replace(/^.* (?=[+-]\d+ \S+$)/, "").replace(/^(\d+) between .* \((\S+)\)$/, "$1 $2")), `${slug}/${w}: ${t}`).toEqual([]);
       }
       // fixture rows in the panel: the 'F<n> <name>: <span> · <heights> · note' text, with the note and its words excluded
       for (const m of flat(svg).matchAll(/F\d+ [A-Z][A-Za-z ]+: ([^·]+) · ([^·]+?) above /g)) {

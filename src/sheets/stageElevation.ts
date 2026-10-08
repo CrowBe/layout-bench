@@ -279,16 +279,33 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
     placed.push({ item: it, no: fixtureNo.get(it.id)!, label: catalogForItem(it)?.label ?? it.kind, s0: Math.min(...ss), s1: Math.max(...ss), depth: -1, ...(spanBasis ? { spanBasis } : {}), ...vertical(model, it, room, flatFinished) });
   }
   placed.sort((a, b) => b.depth - a.depth);
+  const labels: { x: number; y: number; w: number }[] = [];
+  /** Place a label right of (x, y), stepping up past the ones already placed; a leader joins a moved label. */
+  const callout = (x: number, y: number, s: string, colour: string, extra = "") => {
+    const box = { x: x + 1.6, y: y - 1.2, w: s.length * 0.95 };
+    while (labels.some((b) => Math.abs(b.y - box.y) < 2.1 && box.x < b.x + b.w && b.x < box.x + box.w)) box.y -= 2.3;
+    labels.push(box);
+    if (Math.abs(box.y - (y - 1.2)) > 0.1) line(x, y, box.x, box.y + 0.4, `stroke="${colour}" stroke-width="0.12"`);
+    text(box.x, box.y, s, 1.7, `fill="${colour}" ${extra}`);
+  };
   for (const p of placed) {
     if (p.z0 === undefined || p.z1 === undefined) continue; // height unknown: listed, never drawn
     rect(X(p.s0), Y(p.z1), (p.s1 - p.s0) * k * (mirror ? -1 : 1), (p.z1 - p.z0) * k, `fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" ${p.dashed ? `stroke-dasharray="1.2 0.6"` : stopgapDash(opts.stopgap, "fixtures").trim()} ${de(`item:${p.item.id}`)}`);
     const cx = (X(p.s0) + X(p.s1)) / 2;
     text(cx, Y(p.z1) + 2.6, p.no, 2.2, `text-anchor="middle" font-weight="bold"`);
   }
+  // set-out of a fixture anchored to this face (#89): its centreline from the face at A and its
+  // bottom above the datum, each with its own status, beside the fixture
+  for (const p of placed) {
+    if (!p.spanBasis || p.z0 === undefined || p.item.fittedTo) continue;
+    const c = (p.s0 + p.s1) / 2;
+    line(X(c), Y(p.z1!) - 2, X(c), Y(p.z0) + 2, `stroke="#2b6e3f" stroke-width="0.15" stroke-dasharray="2 0.6 0.4 0.6" data-role="set-out-centreline" data-setout="item:${esc(p.item.id)}"`);
+    const centre = limA?.resolved ? `${mm(c - s0)} ${tag(p.spanBasis)} from A` : `${mm(c)} ${tag(p.spanBasis)} from end A`;
+    callout(Math.max(X(p.s0), X(p.s1)), Y(p.z0), `${p.no} c/l ${centre} · bottom ${mm(p.z0)} ${tag(p.basis)}`, "#2b6e3f", `data-role="set-out" data-setout="item:${esc(p.item.id)}"`);
+  }
 
   // ---- service points on fixtures set out from this face ----
   const spRows: { s: string; extra: string }[] = [];
-  const labels: { x: number; y: number; w: number }[] = [];
   for (const it of model.items) {
     if (it.anchor?.wallId !== w.id || it.anchor.side !== side) continue;
     roughIn(model, it).forEach((r, i) => {
@@ -298,19 +315,16 @@ export function renderStageElevation(model: PlanModel, elements: ViewElement[], 
       const floorAt = localFinished(model, room, r.x, r.y, flatFinished);
       const z = r.level ?? (r.up !== undefined && floorAt.level !== undefined ? floorAt.level + r.up : undefined);
       const colour = r.service === "waste" ? "#7a5230" : r.service === "water" ? "#2f78b7" : "#c0392b";
-      const alongText = r.alongFromA !== undefined ? fromA(r.alongFromA, r.status) : "along ?";
+      // along the face a point is no better placed than its fixture's set-out and the face it is read from
+      const alongStatus = r.status === "derived" ? r.status : weakestStatus([r.status, it.anchor!.status, ...(limA?.resolved ? [limA.basis] : [])]);
+      const alongText = r.alongFromA !== undefined ? fromA(r.alongFromA, alongStatus) : "along ?";
       const upText = r.up !== undefined ? `${mm(r.up)} ${tag(r.status)} above finished floor` : "up ?";
       const outText = r.entered.out !== undefined ? ` · ${mm(r.entered.out)}${r.entered.outMax !== undefined ? `–${mm(r.entered.outMax)}` : ""} ${tag(r.status)} out from ${r.entered.face} face` : "";
       spRows.push({ s: `${no} ${r.service} · ${r.label}: ${alongText} · ${upText}${outText}`, extra: `fill="${colour}" ${de(id)}` });
       if (r.alongFromA === undefined || z === undefined) return; // listed with "?"; never placed where it is not known
       const px = X(r.alongFromA), py = Y(z);
       parts.push(`<circle cx="${f1(px)}" cy="${f1(py)}" r="1.1" fill="${colour}" ${de(id)}/>`);
-      const tagText = `${no} ${r.up !== undefined ? `${mm(r.up)} ${tag(r.status)}` : "?"} AFF`;
-      const box = { x: px + 1.6, y: py - 1.2, w: tagText.length * 0.95 };
-      while (labels.some((b) => Math.abs(b.y - box.y) < 2.1 && box.x < b.x + b.w && b.x < box.x + box.w)) box.y -= 2.3;
-      labels.push(box);
-      if (Math.abs(box.y - (py - 1.2)) > 0.1) line(px, py, box.x, box.y + 0.4, `stroke="${colour}" stroke-width="0.12"`);
-      text(box.x, box.y, tagText, 1.7, `fill="${colour}"`);
+      callout(px, py, `${no} ${r.up !== undefined ? `${mm(r.up)} ${tag(r.status)}` : "?"} AFF`, colour);
     });
   }
 
@@ -430,7 +444,7 @@ function vertical(model: PlanModel, it: Item, room: ReturnType<typeof roomBeside
   if (it.installation) {
     const r = installationReading(model, it);
     if (r.bottom === undefined) return { basis: "unknown", heightNote: `installation height unresolved (${r.missing.join(", ")})` };
-    return { z0: r.bottom, z1: r.top ?? r.bottom + cat.h, basis: r.basis, topBasis: r.top !== undefined ? r.topBasis : weakestStatus([r.basis, envelopeStatus(it, ["h"])]), heightNote: "installation height above the named floor datum" };
+    return { z0: r.bottom, z1: r.top ?? r.bottom + cat.h, basis: r.basis, topBasis: r.top !== undefined ? r.topBasis : weakestStatus([r.basis, envelopeStatus(it, ["h"])]), heightNote: `installation height above the named floor datum${cat.elevationNote ? `; bottom is the ${cat.elevationNote}` : ""}${r.limitations.length ? `; ${r.limitations.join(" ")}` : ""}` };
   }
   const floor = localFinished(model, room, it.x, it.y, flat);
   if (floor.level === undefined) return { basis: "unknown", heightNote: "finished floor level unknown here" };

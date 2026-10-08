@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" font-family="Helvetica, Arial, sans-serif" data-sheet="stage-elevation" data-wall="wall_w" data-side="right" data-scale="20">
-<metadata id="stage-view">{&quot;label&quot;:&quot;9. Fit-out: fixtures without services (stopgap)&quot;,&quot;surface&quot;:&quot;wall_w:right&quot;,&quot;elements&quot;:[&quot;wall:wall_n&quot;,&quot;wall:wall_e&quot;,&quot;wall:wall_s&quot;,&quot;wall:wall_w&quot;,&quot;wall:wall_n:right:wall_n_tile&quot;,&quot;wall:wall_e:right:wall_e_tile&quot;,&quot;wall:wall_s:right:wall_s_tile&quot;,&quot;wall:wall_w:right:wall_w_tile&quot;,&quot;opening:window_n&quot;,&quot;opening:door_s&quot;,&quot;room:bathroom&quot;,&quot;room:bathroom:substrate&quot;,&quot;room:bathroom:floor:floor_tile&quot;,&quot;room:bathroom:waste:linear_drain&quot;,&quot;room:bathroom:waste:square_waste&quot;,&quot;item:bath&quot;,&quot;item:bath_mixer&quot;,&quot;item:bath_waste&quot;,&quot;item:basin_mixer&quot;,&quot;item:shower_system&quot;,&quot;item:shower_mixer&quot;,&quot;item:towel_rail&quot;,&quot;item:towel_rail_2&quot;,&quot;item:vanity&quot;,&quot;item:shaving_cabinet&quot;,&quot;item:toilet&quot;,&quot;item:screen&quot;]}</metadata>
+<metadata id="stage-view">{&quot;label&quot;:&quot;9. Fit-out: fixtures and their service points&quot;,&quot;surface&quot;:&quot;wall_w:right&quot;,&quot;elements&quot;:[&quot;wall:wall_n&quot;,&quot;wall:wall_e&quot;,&quot;wall:wall_s&quot;,&quot;wall:wall_w&quot;,&quot;wall:wall_n:right:wall_n_tile&quot;,&quot;wall:wall_e:right:wall_e_tile&quot;,&quot;wall:wall_s:right:wall_s_tile&quot;,&quot;wall:wall_w:right:wall_w_tile&quot;,&quot;opening:window_n&quot;,&quot;opening:door_s&quot;,&quot;room:bathroom&quot;,&quot;room:bathroom:substrate&quot;,&quot;room:bathroom:floor:floor_tile&quot;,&quot;room:bathroom:waste:linear_drain&quot;,&quot;room:bathroom:waste:square_waste&quot;,&quot;item:bath&quot;,&quot;item:bath_mixer&quot;,&quot;item:bath_mixer:sp:body&quot;,&quot;item:bath_waste&quot;,&quot;item:basin_mixer&quot;,&quot;item:shower_system&quot;,&quot;item:shower_system:sp:inlet&quot;,&quot;item:shower_mixer&quot;,&quot;item:shower_mixer:sp:body&quot;,&quot;item:towel_rail&quot;,&quot;item:towel_rail_2&quot;,&quot;item:vanity&quot;,&quot;item:shaving_cabinet&quot;,&quot;item:toilet&quot;,&quot;item:toilet:sp:waste&quot;,&quot;item:toilet:sp:water&quot;,&quot;item:toilet:sp:power&quot;,&quot;item:screen&quot;]}</metadata>
 <rect width="420" height="297" fill="#fff"/>
 <rect x="5" y="5" width="410" height="287" fill="none" stroke="#000" stroke-width="0.5"/>
 <rect x="12" y="12" width="262" height="268" fill="none" stroke="#999" stroke-width="0.2"/>
@@ -38,8 +38,29 @@
 <text x="224.75" y="208.2" font-size="1.7" fill="#7a5230">300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo) +0 P</text>
 <line x1="58.25" y1="207.5" x2="227.75" y2="207.5" stroke="#000" stroke-width="0.25" stroke-dasharray="2 1"/>
 <text x="57.25" y="208.2" font-size="1.7" text-anchor="end" fill="#444">0 = existing floor surface (current tile top)</text>
-<rect x="158.25" y="107.5" width="0.5" height="100" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3" stroke-dasharray="1.2 0.6" data-element="item:screen"/>
+<rect x="158.25" y="107.5" width="0.5" height="100" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3"  data-element="item:screen"/>
 <text x="158.5" y="110.1" font-size="2.2" text-anchor="middle" font-weight="bold">F12</text>
+<rect x="174.38" y="155.88" width="3.25" height="5.85" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3"  data-element="item:shower_mixer"/>
+<text x="176" y="158.48" font-size="2.2" text-anchor="middle" font-weight="bold">F6</text>
+<rect x="182.25" y="101.97" width="12.5" height="49.05" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3"  data-element="item:shower_system"/>
+<text x="188.5" y="104.57" font-size="2.2" text-anchor="middle" font-weight="bold">F5</text>
+<rect x="123.7" y="125" width="7.1" height="45" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3"  data-element="item:towel_rail"/>
+<text x="127.25" y="127.6" font-size="2.2" text-anchor="middle" font-weight="bold">F7</text>
+<rect x="136.2" y="125" width="7.1" height="45" fill="#ffffff" fill-opacity="0.82" stroke="#444" stroke-width="0.3"  data-element="item:towel_rail_2"/>
+<text x="139.75" y="127.6" font-size="2.2" text-anchor="middle" font-weight="bold">F8</text>
+<line x1="176" y1="153.88" x2="176" y2="163.73" stroke="#2b6e3f" stroke-width="0.15" stroke-dasharray="2 0.6 0.4 0.6" data-role="set-out-centreline" data-setout="item:shower_mixer"/>
+<text x="179.23" y="160.53" font-size="1.7" fill="#2b6e3f" data-role="set-out" data-setout="item:shower_mixer">F6 c/l 2195 E from A · bottom 915.5 E</text>
+<line x1="188.5" y1="99.97" x2="188.5" y2="153.01" stroke="#2b6e3f" stroke-width="0.15" stroke-dasharray="2 0.6 0.4 0.6" data-role="set-out-centreline" data-setout="item:shower_system"/>
+<text x="196.35" y="149.82" font-size="1.7" fill="#2b6e3f" data-role="set-out" data-setout="item:shower_system">F5 c/l 2445 E from A · bottom 1129.7 P</text>
+<line x1="127.25" y1="123" x2="127.25" y2="172" stroke="#2b6e3f" stroke-width="0.15" stroke-dasharray="2 0.6 0.4 0.6" data-role="set-out-centreline" data-setout="item:towel_rail"/>
+<text x="132.4" y="168.8" font-size="1.7" fill="#2b6e3f" data-role="set-out" data-setout="item:towel_rail">F7 c/l 1220 E from A · bottom 750 E</text>
+<line x1="139.75" y1="123" x2="139.75" y2="172" stroke="#2b6e3f" stroke-width="0.15" stroke-dasharray="2 0.6 0.4 0.6" data-role="set-out-centreline" data-setout="item:towel_rail_2"/>
+<line x1="143.3" y1="170" x2="144.9" y2="166.9" stroke="#2b6e3f" stroke-width="0.12"/>
+<text x="144.9" y="166.5" font-size="1.7" fill="#2b6e3f" data-role="set-out" data-setout="item:towel_rail_2">F8 c/l 1470 E from A · bottom 750 E</text>
+<circle cx="188.5" cy="122.5" r="1.1" fill="#2f78b7" data-element="item:shower_system:sp:inlet"/>
+<text x="190.1" y="121.3" font-size="1.7" fill="#2f78b7" >F5.1 1700 P AFF</text>
+<circle cx="176" cy="157.5" r="1.1" fill="#2f78b7" data-element="item:shower_mixer:sp:body"/>
+<text x="177.6" y="156.3" font-size="1.7" fill="#2f78b7" >F6.1 1000 P AFF</text>
 <line x1="66.25" y1="219.5" x2="219.75" y2="219.5" stroke="#000" stroke-width="0.2"/>
 <line x1="66.25" y1="218" x2="66.25" y2="221" stroke="#000" stroke-width="0.3"/>
 <line x1="219.75" y1="218" x2="219.75" y2="221" stroke="#000" stroke-width="0.3"/>
@@ -51,7 +72,7 @@
 <text x="18" y="272" font-size="2" >0</text>
 <text x="68" y="272" font-size="2" >1 m</text>
 <text x="18" y="277.5" font-size="2" >Scale 1:20 at A3. Elevation looking at the face from Bathroom; end A on the left. Dimensions in mm.</text>
-<text x="280" y="15" font-size="2.7" font-weight="bold">Stage: 9. Fit-out: fixtures without services (stopgap)</text>
+<text x="280" y="15" font-size="2.7" font-weight="bold">Stage: 9. Fit-out: fixtures and their service points</text>
 <text x="280" y="19.2" font-size="1.95" >Wall w, right side, facing Bathroom. Same visible set as the stage plan; everything else hidden, not removed.</text>
 <text x="280" y="22.05" font-size="1.8" fill="#444">Status: SC site-confirmed · M measured · PUB published · P proposed · E estimated · DER derived · ENT entered · DEF default · ? unknown</text>
 <text x="280" y="26.25" font-size="2.7" font-weight="bold">This face</text>
@@ -62,41 +83,44 @@
 <text x="280" y="41.85" font-size="1.95" >End A: Finished face of wall_s (right side) at 25 E along the drawn line.</text>
 <text x="280" y="44.7" font-size="1.95" >End B: Finished face of wall_n (right side) at 3095 E along the drawn line.</text>
 <text x="280" y="47.55" font-size="1.95" >Proposed tile set-out: 6 columns × 4 courses, 4 cut pieces (see the wall tiling sheet for cuts).</text>
-<text x="280" y="51.9" font-size="2.7" font-weight="bold">STOPGAP VIEW: not recorded</text>
-<text x="280" y="56.1" font-size="1.95" fill="#b00020">Waste service points: not recorded in the sample, so not drawn or listed.</text>
-<text x="280" y="58.95" font-size="1.95" fill="#b00020">Water service points: not recorded in the sample, so not drawn or listed.</text>
-<text x="280" y="61.8" font-size="1.95" fill="#b00020">Power service points: not recorded in the sample, so not drawn or listed.</text>
-<text x="280" y="66.15" font-size="2.7" font-weight="bold">Floor at this wall</text>
-<text x="280" y="70.35" font-size="1.95" >substrate top -120 E above existing floor surface (current tile top) (flat build-up level)</text>
-<text x="280" y="73.2" font-size="1.95" >300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo) top 0 P above existing floor</text>
-<text x="283" y="76.05" font-size="1.95" >surface (current tile top) (flat build-up level)</text>
-<text x="280" y="78.9" font-size="1.95" >Finished floor along this face follows the recorded falls (green); 41 of 41 samples have no plane level.</text>
-<text x="280" y="83.25" font-size="2.7" font-weight="bold">Fixtures against this face</text>
-<text x="280" y="87.45" font-size="1.95" data-element="item:shower_system">F5 Shower system: position along the face ? (no wall set-out recorded) · height ? · elevation above the finished floor is not</text>
-<text x="283" y="90.3" font-size="1.95" data-element="item:shower_system">recorded; the kind's catalogue stand-in is not used, so it is not drawn</text>
-<text x="280" y="93.15" font-size="1.95" data-element="item:shower_mixer">F6 Shower mixer: position along the face ? (no wall set-out recorded) · height ? · elevation above the finished floor is not</text>
-<text x="283" y="96" font-size="1.95" data-element="item:shower_mixer">recorded; the kind's catalogue stand-in is not used, so it is not drawn</text>
-<text x="280" y="98.85" font-size="1.95" data-element="item:screen">F12 Fixed glass screen: position along the face ? (no wall set-out recorded) · 0 P to 2000 P above existing floor surface (current</text>
-<text x="283" y="101.7" font-size="1.95" data-element="item:screen">tile top) · stands on the finished floor; height from the kind's envelope</text>
-<text x="280" y="104.55" font-size="1.95" data-element="item:towel_rail">F7 Towel rail: position along the face ? (no wall set-out recorded) · height ? · elevation above the finished floor is not recorded;</text>
-<text x="283" y="107.4" font-size="1.95" data-element="item:towel_rail">the kind's catalogue stand-in is not used, so it is not drawn</text>
-<text x="280" y="110.25" font-size="1.95" data-element="item:towel_rail_2">F8 Towel rail: position along the face ? (no wall set-out recorded) · height ? · elevation above the finished floor is not recorded;</text>
-<text x="283" y="113.1" font-size="1.95" data-element="item:towel_rail_2">the kind's catalogue stand-in is not used, so it is not drawn</text>
-<text x="280" y="117.45" font-size="2.7" font-weight="bold">Unresolved on this face (39)</text>
-<text x="280" y="121.65" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): set-out unknown; printed as &quot;?&quot; (missing not set out from a wall face).</text>
-<text x="280" y="124.4" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): pressureMin unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="280" y="127.15" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): pressureMax unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="280" y="129.9" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): temperatureMax unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="280" y="132.65" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): adjustmentMin unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="280" y="135.4" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): adjustmentMax unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="280" y="138.15" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): inletOffset unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="280" y="140.9" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): inletDepth unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
-<text x="280" y="143.65" font-size="1.85" fill="#666">… 31 more: see the specification sheet</text>
+<text x="280" y="51.9" font-size="2.7" font-weight="bold">Floor at this wall</text>
+<text x="280" y="56.1" font-size="1.95" >substrate top -120 E above existing floor surface (current tile top) (flat build-up level)</text>
+<text x="280" y="58.95" font-size="1.95" >300 × 600 sandy beige matte (Tile Wizards porcelain, colour 'Beige'; code not legible in the photo) top 0 P above existing floor</text>
+<text x="283" y="61.8" font-size="1.95" >surface (current tile top) (flat build-up level)</text>
+<text x="280" y="64.65" font-size="1.95" >Finished floor along this face follows the recorded falls (green); 41 of 41 samples have no plane level.</text>
+<text x="280" y="69" font-size="2.7" font-weight="bold">Fixtures against this face</text>
+<text x="280" y="73.2" font-size="1.95" data-element="item:screen">F12 Fixed glass screen: position along the face ? (no wall set-out recorded) · 0 P to 2000 P above existing floor surface (current</text>
+<text x="283" y="76.05" font-size="1.95" data-element="item:screen">tile top) · stands on the finished floor; height from the kind's envelope</text>
+<text x="280" y="78.9" font-size="1.95" data-element="item:shower_mixer">F6 Shower mixer: 2162.5 E from finished face at A to 2227.5 E · 915.5 E to 1032.5 ? above existing floor surface (current tile top)</text>
+<text x="283" y="81.75" font-size="1.95" data-element="item:shower_mixer">· installation height above the named floor datum; bottom is the lever end (envelope bottom); plate centre is the owner's proposed</text>
+<text x="283" y="84.6" font-size="1.95" data-element="item:shower_mixer">1000 mm; Falls unresolved at this point: height read from the flat finished-floor target.</text>
+<text x="280" y="87.45" font-size="1.95" data-element="item:shower_system">F5 Shower system: 2320 E from finished face at A to 2570 E · 1129.7 P to 2110.7 P above existing floor surface (current tile top) ·</text>
+<text x="283" y="90.3" font-size="1.95" data-element="item:shower_system">installation height above the named floor datum; bottom is the rail foot, 70.3 mm below the lower bracket (derived); lower bracket</text>
+<text x="283" y="93.15" font-size="1.95" data-element="item:shower_system">is the owner's proposed 1200 mm; Falls unresolved at this point: height read from the flat finished-floor target.</text>
+<text x="280" y="96" font-size="1.95" data-element="item:towel_rail">F7 Towel rail: 1149 E from finished face at A to 1291 E · 750 E to 1650 E above existing floor surface (current tile top) ·</text>
+<text x="283" y="98.85" font-size="1.95" data-element="item:towel_rail">installation height above the named floor datum; Falls unresolved at this point: height read from the flat finished-floor target.</text>
+<text x="280" y="101.7" font-size="1.95" data-element="item:towel_rail_2">F8 Towel rail: 1399 E from finished face at A to 1541 E · 750 E to 1650 E above existing floor surface (current tile top) ·</text>
+<text x="283" y="104.55" font-size="1.95" data-element="item:towel_rail_2">installation height above the named floor datum; Falls unresolved at this point: height read from the flat finished-floor target.</text>
+<text x="280" y="108.9" font-size="2.7" font-weight="bold">Service points (AFF = above finished floor)</text>
+<text x="280" y="113.1" font-size="1.95" fill="#2f78b7" data-element="item:shower_system:sp:inlet">F5.1 water · G1/2 inlet at the upper wall rose (on the rail centreline): 2445 E from finished face at A · 1700 P above finished</text>
+<text x="283" y="115.95" font-size="1.95" fill="#2f78b7" data-element="item:shower_system:sp:inlet">floor · 0 P out from finished face</text>
+<text x="280" y="118.8" font-size="1.95" fill="#2f78b7" data-element="item:shower_mixer:sp:body">F6.1 water · Mixer body behind the plate (inlet layout and rough-in depth are not on the drawing; about 33.5 mm behind the plate,</text>
+<text x="283" y="121.65" font-size="1.95" fill="#2f78b7" data-element="item:shower_mixer:sp:body">derived): 2195 E from finished face at A · 1000 P above finished floor · 0 P out from finished face</text>
+<text x="280" y="126" font-size="2.7" font-weight="bold">Unresolved on this face (35)</text>
+<text x="280" y="130.2" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): pressureMin unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="132.95" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): pressureMax unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="135.7" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): temperatureMax unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="138.45" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): adjustmentMin unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="141.2" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): adjustmentMax unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="143.95" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): inletOffset unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="146.7" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): inletDepth unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="149.45" font-size="1.85" fill="#7a3b00">• Shower system (shower_system): inletHeight unknown; printed as &quot;?&quot; (missing Not entered from the cited source.).</text>
+<text x="280" y="152.2" font-size="1.85" fill="#666">… 27 more: see the specification sheet</text>
 <rect x="278" y="238" width="132" height="51" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="280" y="243" font-size="2.5" font-weight="bold">Project: Bathroom Concept</text>
 <text x="280" y="248" font-size="2.2" >Site / room: Bathroom (no site address recorded)</text>
-<text x="280" y="253" font-size="2.2" >Stage elevation: 9. Fit-out: fixtures without services (stopgap) · wall wall_w, right side</text>
-<text x="280" y="258" font-size="2.2" >Scale 1:20 @ A3 · Exported 2026-10-07 · not a revision of A-01</text>
+<text x="280" y="253" font-size="2.2" >Stage elevation: 9. Fit-out: fixtures and their service points · wall wall_w, right side</text>
+<text x="280" y="258" font-size="2.2" >Scale 1:20 @ A3 · Exported 2026-10-08 · not a revision of A-01</text>
 <text x="280" y="263" font-size="2.1" >Prepared by: ? · Plan: Bathroom Concept</text>
 <text x="280" y="268" font-size="2" ></text>
 <rect x="278" y="269.6" width="132" height="7" fill="#b00020"/>
