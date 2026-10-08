@@ -411,14 +411,18 @@ export function floorTileLayout(model: PlanModel, room: Room): FloorTileLayout {
     warn("floor_tiling_unresolved", `Review fields: ${l.missing.join("; ")}.`);
   return l;
 }
+/** The layout's own problems. Its drainage problems are left out: the checker reports them once per room. */
 export function floorTilingProblems(model: PlanModel) {
   return model.rooms
     .filter((r) => r.floorTiling)
-    .flatMap((r) =>
-      floorTileLayout(model, r).problems.map((p) => ({
-        ...p,
-        message: `${r.label} floor tiling: ${p.message}`,
-        refs: [r.id],
-      })),
-    );
+    .flatMap((r) => {
+      const drainage = new Set(drainageProblems(r).map((p) => `${p.code}\n${p.message}`));
+      return floorTileLayout(model, r)
+        .problems.filter((p) => !drainage.has(`${p.code}\n${p.message}`))
+        .map((p) => ({
+          ...p,
+          message: `${r.label} floor tiling: ${p.message}`,
+          refs: [r.id],
+        }));
+    });
 }

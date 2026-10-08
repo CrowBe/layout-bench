@@ -124,27 +124,28 @@
 <text x="266" y="116.8" font-size="2.1" >F11.1 Pan waste, S-trap (floor): frame 160–280 · board 154–274 · fin 140–260 · A 2650 · up ? PUB</text>
 <text x="266" y="119.9" font-size="2.1" >F11.2 Cold water point (stop tap): frame 20 · board 14 · fin 0 · A 2470 · up 180 PUB</text>
 <text x="266" y="123" font-size="2" fill="#666">… 2 more: see get_rough_in / check_sheets</text>
-<text x="266" y="128" font-size="2.8" font-weight="bold">Unresolved (29)</text>
-<text x="266" y="132" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Plane &quot;Shower&quot; has no derived heights: unknown Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed</text>
-<text x="269" y="135.1" font-size="2.1" fill="#7a3b00">nickel, 50 mm outlet WO50-BN level, fall or a control level.</text>
-<text x="266" y="138.2" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Plane &quot;Beside the shower (under the bath)&quot; has no derived heights: unknown Kano 316 tile-insert waste 120</text>
-<text x="269" y="141.3" font-size="2.1" fill="#7a3b00">× 120, brushed nickel, 50 mm outlet level, fall or a control level.</text>
-<text x="266" y="144.4" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Plane &quot;Dry area&quot; has no derived heights: unknown Kano 316 tile-insert waste 120 × 120, brushed nickel, 50</text>
-<text x="269" y="147.5" font-size="2.1" fill="#7a3b00">mm outlet level, fall or a control level.</text>
-<text x="266" y="150.6" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Grate outlines come from the linked drain briefs. Confirm clearance, edge joints and cut shape on site.</text>
-<text x="266" y="153.7" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: east cut is 32 mm: narrow piece for tiler review.</text>
-<text x="266" y="156.8" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Tiles cross floor-plane boundaries. Confirm slope-break cuts and movement joints with the tiler.</text>
-<text x="266" y="159.9" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Review fields: door door_s transition: finished face or real clear width unresolved; fall plane Shower:</text>
-<text x="269" y="163" font-size="2.1" fill="#7a3b00">slope/levels unresolved; fall plane Beside the shower (under the bath): slope/levels unresolved; fall plane Dry area: slope/levels</text>
-<text x="269" y="166.1" font-size="2.1" fill="#7a3b00">unresolved.</text>
-<text x="266" y="169.2" font-size="2.1" fill="#7a3b00">• Room &quot;Bathroom&quot; floor: Unknown: Tiler's screed (heating cable inside) thickness. Read down from the finished-level target, only</text>
-<text x="269" y="172.3" font-size="2.1" fill="#7a3b00">tiler's screed (heating cable inside) top stay unresolved; Tiler's screed (heating cable inside) + Tiler's adhesive fill 108.5 mm</text>
-<text x="269" y="175.4" font-size="2.1" fill="#7a3b00">together.</text>
-<text x="266" y="178.5" font-size="2.1" fill="#7a3b00">• Room &quot;Bathroom&quot; drainage: Plane &quot;Shower&quot; has no derived heights: unknown Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed</text>
-<text x="269" y="181.6" font-size="2.1" fill="#7a3b00">nickel, 50 mm outlet WO50-BN level, fall or a control level.</text>
-<text x="266" y="184.7" font-size="2.1" fill="#7a3b00">• Room &quot;Bathroom&quot; drainage: Plane &quot;Beside the shower (under the bath)&quot; has no derived heights: unknown Kano 316 tile-insert waste</text>
-<text x="269" y="187.8" font-size="2.1" fill="#7a3b00">120 × 120, brushed nickel, 50 mm outlet level, fall or a control level.</text>
-<text x="266" y="190.9" font-size="2" fill="#666">… 19 more: see get_rough_in / check_sheets</text>
+<text x="266" y="128" font-size="2.8" font-weight="bold">Unresolved (21)</text>
+<text x="266" y="132" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Grate outlines come from the linked drain briefs. Confirm clearance, edge joints and cut shape on site.</text>
+<text x="266" y="135.1" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: east cut is 32 mm: narrow piece for tiler review.</text>
+<text x="266" y="138.2" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Tiles cross floor-plane boundaries. Confirm slope-break cuts and movement joints with the tiler.</text>
+<text x="266" y="141.3" font-size="2.1" fill="#7a3b00">• Bathroom floor tiling: Review fields: door door_s transition: finished face or real clear width unresolved; fall plane Shower:</text>
+<text x="269" y="144.4" font-size="2.1" fill="#7a3b00">slope/levels unresolved; fall plane Beside the shower (under the bath): slope/levels unresolved; fall plane Dry area: slope/levels</text>
+<text x="269" y="147.5" font-size="2.1" fill="#7a3b00">unresolved.</text>
+<text x="266" y="150.6" font-size="2.1" fill="#7a3b00">• Room &quot;Bathroom&quot; floor: Unknown: Tiler's screed (heating cable inside) thickness. Read down from the finished-level target, only</text>
+<text x="269" y="153.7" font-size="2.1" fill="#7a3b00">tiler's screed (heating cable inside) top stay unresolved; Tiler's screed (heating cable inside) + Tiler's adhesive fill 108.5 mm</text>
+<text x="269" y="156.8" font-size="2.1" fill="#7a3b00">together.</text>
+<text x="266" y="159.9" font-size="2.1" fill="#7a3b00">• Room &quot;Bathroom&quot; drainage: Plane &quot;Shower&quot; has no derived heights: unknown Lauxes Next Gen 35 channel 1000 × 100 × 35, brushed</text>
+<text x="269" y="163" font-size="2.1" fill="#7a3b00">nickel, 50 mm outlet WO50-BN level, fall or a control level.</text>
+<text x="266" y="166.1" font-size="2.1" fill="#7a3b00">• Room &quot;Bathroom&quot; drainage: Plane &quot;Beside the shower (under the bath)&quot; has no derived heights: unknown Kano 316 tile-insert waste</text>
+<text x="269" y="169.2" font-size="2.1" fill="#7a3b00">120 × 120, brushed nickel, 50 mm outlet level, fall or a control level.</text>
+<text x="266" y="172.3" font-size="2.1" fill="#7a3b00">• Room &quot;Bathroom&quot; drainage: Plane &quot;Dry area&quot; has no derived heights: unknown Kano 316 tile-insert waste 120 × 120, brushed nickel,</text>
+<text x="269" y="175.4" font-size="2.1" fill="#7a3b00">50 mm outlet level, fall or a control level.</text>
+<text x="266" y="178.5" font-size="2.1" fill="#7a3b00">• bath_mixer, shower_system, shower_mixer, towel_rail, towel_rail_2, shaving_cabinet: Falls unresolved at this point: height read</text>
+<text x="269" y="181.6" font-size="2.1" fill="#7a3b00">from the flat finished-floor target.</text>
+<text x="266" y="184.7" font-size="2.1" fill="#7a3b00">• Proposed route only: manufacturer and licensed electrician must review cable identity, length, output, bend radius, spacing,</text>
+<text x="269" y="187.8" font-size="2.1" fill="#7a3b00">exclusions, cover, sensor, cold tails, waterproofing and electrical installation. No compliance approval. No electrical approval</text>
+<text x="269" y="190.9" font-size="2.1" fill="#7a3b00">is implied.</text>
+<text x="266" y="194" font-size="2" fill="#666">… 11 more: see get_rough_in / check_sheets</text>
 <rect x="264" y="236" width="146" height="53" fill="none" stroke="#000" stroke-width="0.35"/>
 <text x="266" y="241" font-size="2.6" font-weight="bold">Project: Bathroom Concept</text>
 <text x="266" y="246.2" font-size="2.4" >Site / room: Bathroom (no site address recorded)</text>

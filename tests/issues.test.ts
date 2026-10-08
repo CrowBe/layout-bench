@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { checkModel, clampOpeningT } from "../src/model/issues";
 import { emptyModel, type PlanModel } from "../src/model/types";
 import { seedLoft } from "../src/model/seed";
+import { demoProject } from "../src/model/projects";
+import { registerCatalogEntry, resetRuntimeCatalog } from "../src/model/catalog";
 
 const base = (): PlanModel => emptyModel();
 
@@ -145,5 +147,30 @@ describe("furniture rules", () => {
       { id: "i2", kind: "armchair", x: 2.2, y: 2, rotation: 0 },
     );
     expect(checkModel(m).some((i) => i.code === "items_overlap")).toBe(true);
+  });
+});
+
+describe("Bathroom Concept sample", () => {
+  const sampleIssues = () => {
+    const p = demoProject();
+    resetRuntimeCatalog();
+    for (const k of p.kinds ?? []) registerCatalogEntry(structuredClone(k.entry));
+    return checkModel(p.model);
+  };
+
+  it("reports each unresolved fall plane once, from the room's drainage", () => {
+    const falls = sampleIssues().filter((i) => i.code === "floor_fall_unresolved");
+    expect(falls.length).toBe(new Set(falls.map((i) => i.message)).size);
+    expect(falls.every((i) => i.message.startsWith('Room "Bathroom" drainage:'))).toBe(true);
+  });
+
+  it("names every fixture a mounting limitation applies to in one warning", () => {
+    const limits = sampleIssues().filter((i) => i.code === "fixture_mounting_limitation");
+    expect(limits).toHaveLength(1);
+    expect(limits[0].refs).toEqual(expect.arrayContaining(["shower_system", "towel_rail", "towel_rail_2"]));
+  });
+
+  it("has no errors", () => {
+    expect(sampleIssues().filter((i) => i.severity === "error")).toEqual([]);
   });
 });
