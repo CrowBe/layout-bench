@@ -125,7 +125,7 @@ failure or unreadable version must refuse and offer a backup, never overwrite.
 - Without a WebMCP runtime the app must work unchanged; agent-only panels stay hidden.
 
 **Adding or changing a tool:** add it to `TOOLS` in the right section, add a unit test and,
-where it has UI, cover it in an e2e suite. Update [docs/TOOLS.md](docs/TOOLS.md) in the same PR.
+where it has UI, cover it in an e2e suite. Update [docs/TOOLS.md](docs/TOOLS.md) in the same PR (the docs test fails until you do).
 If a skill in `plugins/reno-layouts/skills/` names the tool, update the skill too.
 
 ## The sample and its saved outputs
@@ -149,6 +149,9 @@ outputs match.
 - README: for people using the app. AGENTS.md: this file. docs/TOOLS.md: the tool list.
 - No new top-level docs without the user's agreement. Generated indexes under `shots/` are
   written by their scripts; edit the script, not the file.
+- [`tests/docs.test.ts`](tests/docs.test.ts) fails when docs/TOOLS.md and the declared tools
+  disagree, or when a doc names a tool, links a file, names a repo path or runs an npm script
+  that does not exist. Run `npm test` after any docs change.
 - Docs describe current behaviour only. Delete text when the behaviour changes; no changelog
   sections or issue-numbered history (git log and PRs hold that).
 
