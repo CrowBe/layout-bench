@@ -212,12 +212,19 @@ describe("purchased fittings in the sample project", () => {
     expect(bath.productSpecification?.fields.frontWidth.sources?.[0]?.locator).toMatch(/^derived:/);
   });
 
-  it("does not give wall fittings #60 installation: no wall anchor and no surveyed finished face", () => {
+  it("sets the wall fittings out on their wall's finished face (#89), keeping the kinds' envelope bottoms", () => {
     const { model, kinds } = demoProject();
+    const wallMounted = ["bath_mixer", "shower_system", "shower_mixer", "towel_rail", "towel_rail_2"];
     for (const it of model.items.filter((i) => i.selectionStatus === "purchased")) {
-      expect(it.anchor).toBeUndefined();
-      expect(it.installation).toBeUndefined();
+      if (!wallMounted.includes(it.id)) { expect(it.installation, it.id).toBeUndefined(); continue; }
+      expect(it.anchor, it.id).toMatchObject({ face: "finished", gap: 0 });
+      // installed bottom is the kind's own envelope bottom, with the owner's proposal behind it
+      const kind = kinds.find((k) => k.entry.kind === it.kind)!.entry;
+      expect(it.installation!.height!.value, it.id).toBeCloseTo(kind.elevation!, 6);
+      expect(it.installation!.height!.status, it.id).toBe("proposed");
     }
+    // the plate stays where the owner put it: 500 mm along the right wall from the window wall's existing surface
+    expect(model.items.find((i) => i.id === "bath_mixer")!.y).toBeCloseTo(0.5, 6);
     expect(kinds.find((k) => k.entry.kind === "bath_set_k1132_150_kdpp32")!.entry.elevation).toBeCloseTo(0.6655, 6);
     expect(kinds.find((k) => k.entry.kind === "bath_set_k1132_150_kdpp32")!.entry.elevationNote).toMatch(/lever end/);
     expect(kinds.find((k) => k.entry.kind === "shower_y1173_31_11_250")!.entry.elevation).toBe(1.1297);

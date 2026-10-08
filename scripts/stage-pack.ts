@@ -43,12 +43,10 @@ export interface Phase {
   compact?: boolean;
 }
 
-/** Every service layer: the sample records no waste, water or power points. */
-const SERVICES_NOT_RECORDED: Stopgap["notRecorded"] = [
-  { layer: "services-waste", label: "Waste service points" },
-  { layer: "services-water", label: "Water service points" },
-  { layer: "services-power", label: "Power service points" },
-];
+/** Service points the sample records only for some fittings; the rest are named in the summaries. */
+const SERVICES = ["services-waste", "services-water", "services-power"] as const;
+const SERVICES_STILL_OPEN =
+  "Not recorded yet, so not drawn: the vanity's waste and water (moving about 300 mm right; present positions not measured), the moved GPO, the towel rails' concealed 12 V leads, the bath set's separate hot and cold inlets (not on the set drawing), and the bath waste below the bath. Pipe and cable runs are never drawn.";
 
 /**
  * The phases, in the sample's construction order (see its "Construction order" note). Add the next
@@ -71,11 +69,10 @@ export const PHASES: Phase[] = [
   },
   {
     slug: "03-rough-in",
-    label: "3. Rough-in: frame and drains (stopgap)",
+    label: "3. Rough-in: drains and service points",
     summary:
-      "Stopgap view. Plumbing and electrical rough-in is the stage, but the sample records no waste, water or power service points, so this shows the frame and the two floor drains (dashed) and prints the service points as not recorded. Pipe and cable runs are never drawn.",
-    visible: ["walls", "wall-frame", "rooms", "doors", "windows", "floor-substrate", "drainage-wastes"],
-    stopgap: { dashed: ["drainage-wastes"], notRecorded: SERVICES_NOT_RECORDED },
+      `Plumbing and electrical rough-in on the frame: the two floor drains and the service points recorded for the fittings, set out from their walls' finished faces. The toilet's waste, cold water and SpaLet power are from the American Standard install sheet; the shower inlet and the two mixer bodies follow the owner's proposed heights. ${SERVICES_STILL_OPEN}`,
+    visible: ["walls", "wall-frame", "rooms", "doors", "windows", "floor-substrate", "drainage-wastes", ...SERVICES],
   },
   {
     slug: "04-waterproofing",
@@ -114,11 +111,10 @@ export const PHASES: Phase[] = [
   },
   {
     slug: "09-fit-out",
-    label: "9. Fit-out: fixtures without services (stopgap)",
+    label: "9. Fit-out: fixtures and their service points",
     summary:
-      "Stopgap view. The reused vanity, bath, toilet, screen, towel rails and the shaving cabinet last, on the tiled room. The sample records no service points for them, so the fixtures (dashed) are shown without services and the points are printed as not recorded.",
-    visible: ["walls", "wall-tile", "rooms", "doors", "windows", "floor-substrate", "floor-tile", "drainage-wastes", "fixtures"],
-    stopgap: { dashed: ["fixtures"], notRecorded: SERVICES_NOT_RECORDED },
+      `The bath, reused vanity and toilet, the screen, the wall fittings and the shaving cabinet last, on the tiled room. Wall fittings are set out from the wall's finished face (centreline along it, bottom above the floor), each with its own status. ${SERVICES_STILL_OPEN}`,
+    visible: ["walls", "wall-tile", "rooms", "doors", "windows", "floor-substrate", "floor-tile", "drainage-wastes", "fixtures", ...SERVICES],
   },
 ];
 

@@ -6,7 +6,10 @@ import type { ExactProduct, ProductComponent } from "./productIdentity";
 import { unknownMeasurementFields, CARTON_LABEL_SOURCE, type MeasurementRecord, type ProductSpecification } from "./productMeasurements";
 import type { PartSpec } from "../three/furniture";
 import type { ProjectKind } from "./projects";
-import type { Heating, Item, Note, PlanModel, Quantity, ValueStatus, Wall, WallSide, WallTiling } from "./types";
+import type { FixtureAnchor, Heating, Item, ServicePoint, Note, PlanModel, Quantity, ValueStatus, Wall, WallSide, WallTiling } from "./types";
+import type { FixtureInstallation } from "./installation";
+import { catalogByKind } from "./catalog";
+import { applyAnchors } from "./fixtures";
 import { cornerBisectorToHostFrame } from "./fittedWaste";
 import { KANO_316_INSERT, KANO_LABEL, LAUXES_LABEL, LAUXES_NEXT_GEN_35, kano316Insert, lauxesNextGen35 } from "./sampleWasteBodies";
 
@@ -17,13 +20,31 @@ import { KANO_316_INSERT, KANO_LABEL, LAUXES_LABEL, LAUXES_NEXT_GEN_35, kano316I
  * towel-rail foot (750 mm), thermostat (1000 mm), bath set plate centre (750 mm), shower lower
  * bracket (1200 mm) and shower mixer plate centre (1000 mm) have an owner proposal behind them;
  * the basin-mixer deck 850 mm stays an unsourced placeholder (value null on the measure; the
- * drawn stand-in lives only on the kind's size and elevation). The room
- * has no wall anchors and no surveyed finished faces, so #60 installation placement is not
- * used and the catalogue `elevation` stopgap remains. A value with no manufacturer sheet
- * stays a labelled placeholder.
+ * drawn stand-in lives only on the kind's size and elevation). The wall-mounted fittings, the
+ * vanity and the toilet are set out from their wall's finished face (#89): a wall anchor and,
+ * for a hung fitting, an installed height above the finished floor, each with its own status.
+ * The finished faces are estimated, not surveyed, so no set-out reads stronger than that. A
+ * value with no manufacturer sheet stays a labelled placeholder.
  */
 
-type Item_ = Pick<Item, "id" | "kind" | "x" | "y" | "rotation"> & Partial<Pick<Item, "fittedTo">>;
+type Item_ = Pick<Item, "id" | "kind" | "x" | "y" | "rotation"> & Partial<Pick<Item, "fittedTo" | "anchor" | "installation" | "servicePoints">>;
+
+// ---- Wall set-out (#89) ----------------------------------------------------------------------
+// Fittings that hang on or stand back to a wall are set out from that wall's finished (tile)
+// face: back on the face, centreline a distance along the wall from a named drawn end. The
+// finished face is estimated from the frame and the proposed layers, so every position read
+// off it is no stronger than that. Plan x, y and rotation are derived from the anchor when
+// the sample loads (seedBathroom), never typed twice.
+const onWall = (wallId: string, from: "a" | "b", distance: number, status: ValueStatus, source: string): FixtureAnchor =>
+  ({ wallId, side: "right", face: "finished", gap: 0, from, distance: quantize(distance), status, source });
+/** Envelope bottom above the room's finished floor: the owner's proposal less the drawing's own offsets. */
+const mountedAt = (bottom: number, source: string): FixtureInstallation =>
+  ({ mounting: "wall", roomId: "bathroom", floorDatum: "finished-floor", height: { value: quantize(bottom), status: "proposed", source }, mirror: false, orientation: 0 });
+/** A wall point on the finished face (out 0): across the fitting's centreline facing it, left negative; up above the finished floor. */
+const wallPoint = (id: string, label: string, service: ServicePoint["service"], across: number, up: number, status: ValueStatus, source: string): ServicePoint =>
+  ({ id, label, service, face: "finished", out: 0, across: quantize(across), up: quantize(up), status, source });
+/** Drawn wall ends: wall_e and wall_w both meet the window wall's drawn line at y = −0.05. */
+const FROM_WINDOW_END = 0.05;
 
 const NICKEL = { color: "#b9bbbb", metalness: 0.85, roughness: 0.3 } as const;
 
@@ -167,7 +188,7 @@ const BATH_CORNER = { x: 2.1, y: 0 };
 // face is not on this drawing; it is from the K1150-##-0-150 drawing of the held spout.
 // Facing the wall the spout is on the left (toward the window wall), the lever on the right.
 // Plate centre 750 mm above the finished floor and 500 mm from the window wall: owner, 7 Oct
-// 2026, proposed, not surveyed (no wall anchor, so #60 installation is not used).
+// 2026, proposed, not surveyed. Set out on the right wall's finished face with an installed height (#89).
 const SET_EL = 0.75; // plate centre, proposed
 const SET_FROM_WINDOW = 0.5; // plate centre along the right wall from the window wall, proposed
 const SET_PLATE_W = 0.2;
@@ -438,7 +459,7 @@ export const purchasedFittings: PurchasedFitting[] = [
       published("reach", SPOUT_REACH, sheet(ENFLAIR_KDPP32, "K1132-##-150+KDPP32 drawing: 150 mm from the plate's wall-side face to the outlet"), "finished-wall", "To the outlet-face centre; the outer lip is beyond this and is not dimensioned. Also printed 150 mm on the K1150 carton"),
       published("tubeDiameter", SPOUT_TUBE, sheet(ENFLAIR_KDPP32, "K1132-##-150+KDPP32 drawing: spout Ø24"), "other"),
       published("outletDrop", SPOUT_DROP, sheet(ENFLAIR_K1150, "K1150-##-0-150 drawing: 45 mm from the tube axis (plate centre) to the outlet-face centre, 15°"), "other", "Not on the set drawing; from the held spout's own K1150 drawing"),
-      proposedDim("elevation", SET_EL, "Owner, 7 Oct 2026: plate centre 750 mm above the finished floor tiles. Proposed, not surveyed; no wall anchor, so #60 installation is not used. Kind elevation is the lever end (665.5 mm).", "finished-floor"),
+      proposedDim("elevation", SET_EL, "Owner, 7 Oct 2026: plate centre 750 mm above the finished floor tiles. Proposed, not surveyed. Set out from the wall's estimated finished face as a wall anchor and installed height (#89). Kind elevation is the lever end (665.5 mm).", "finished-floor"),
       proposedDim("fromWindowWall", SET_FROM_WINDOW, "Owner, 7 Oct 2026: plate centred about 500 mm from the window wall along the right wall, halfway along the bath's 1000 mm side. Proposed; measured to the window wall's existing surface, not a surveyed finished face.", "other"),
     ],
     specFields: {
@@ -451,7 +472,10 @@ export const purchasedFittings: PurchasedFitting[] = [
       temperatureMax: measuredQty(80, "°C", "Photographed K1132-31 label: max hot water 80°"),
     },
     // back to the right wall's existing surface (x 2110), plate centre 500 mm from the window wall; spout toward the window
-    parts: bathSet, placement: { id: "bath_mixer", kind: "bath_set_k1132_150_kdpp32", x: quantize(2.11 - SPOUT_D / 2), y: SET_FROM_WINDOW, rotation: 270 },
+    parts: bathSet, placement: { id: "bath_mixer", kind: "bath_set_k1132_150_kdpp32", x: 0, y: 0, rotation: 270,
+      anchor: onWall("wall_e", "a", FROM_WINDOW_END + SET_FROM_WINDOW, "proposed", "Owner, 7 Oct 2026: plate centre 500 mm from the window wall, held from the window wall's existing surface as drawn; which face the 500 is measured to is to confirm"),
+      installation: mountedAt(SET_HANDLE_BOTTOM, "Owner, 7 Oct 2026: plate centre 750 mm above the finished floor tiles (proposed); envelope bottom is the lever end, 84.5 mm below the plate centre (hub radius 22.5 less the 107 mm lever, set drawing)"),
+      servicePoints: [wallPoint("body", "Mixer body behind the hub (hot and cold inlets: spacing, size and depth are not on the set drawing)", "water", SET_HUB_X, SET_EL, "proposed", "Hub centre 60 mm right of the plate centre facing the wall (set drawing, derived) at the owner's proposed 750 mm plate centre")] },
   },
   {
     kind: "waste_sdp40bn", label: "Bath waste", specCategory: "waste",
@@ -502,7 +526,7 @@ export const purchasedFittings: PurchasedFitting[] = [
       pressureMax: measuredQty(500, "kPa", "Photographed K1110-31 label: max static inlet pressure 500 kPa"),
       temperatureMax: measuredQty(80, "°C", "Photographed K1110-31 label: max hot water 80°"),
     },
-    parts: basinMixer, placement: { id: "basin_mixer", kind: "mixer_k1110_31", x: 2.02, y: 1.7, rotation: 270 },
+    parts: basinMixer, placement: { id: "basin_mixer", kind: "mixer_k1110_31", x: 0, y: 0, rotation: 270, fittedTo: { hostId: "vanity", across: 0, out: 0.0625 } }, // on the vanity's tap hole: centred, 62.5 mm in from its back (drawn stand-in, not measured)
   },
   {
     kind: "shower_y1173_31_11_250", label: "Shower system", specCategory: "shower-fittings",
@@ -522,7 +546,7 @@ export const purchasedFittings: PurchasedFitting[] = [
       published("handpieceDepth", HANDPIECE_T, sheet(ENFLAIR_Y1173, "Y1173 drawing B: 45.4 mm deep"), "other"),
       published("holderProjection", HOLDER_PROJ, sheet(ENFLAIR_Y1173, "Y1173 drawing: 106.4 mm horizontal projection of the handpiece holder from the wall/mounting face"), "fixture-side", "Horizontal from the wall/mounting face, not a height. The 3D holder's height on the rail is illustrative."),
       published("lowerBracket", LOWER_BRACKET, sheet(ENFLAIR_Y1173, "Y1173 drawing: lower bracket 66 mm from the wall/mounting face to the clamp front, plate 10 mm, rose Ø55"), "fixture-side", "From the same wall/mounting face as 427, to the lower clamp's front face"),
-      proposedDim("elevation", SHOWER_LOWER_BRACKET_EL, "Owner, 7 Oct 2026: lower bracket (rose) centre 1200 mm above the finished floor tiles. Proposed, not surveyed; no wall anchor, so #60 installation is not used. Rail foot 1129.7 mm and rail top 2110.7 mm follow from the drawing (derived). The G1/2 inlet is at the upper rose, 500 mm higher: 1700 mm.", "finished-floor"),
+      proposedDim("elevation", SHOWER_LOWER_BRACKET_EL, "Owner, 7 Oct 2026: lower bracket (rose) centre 1200 mm above the finished floor tiles. Proposed, not surveyed. Set out from the wall's estimated finished face as a wall anchor and installed height (#89). Rail foot 1129.7 mm and rail top 2110.7 mm follow from the drawing (derived). The G1/2 inlet is at the upper rose, 500 mm higher: 1700 mm.", "finished-floor"),
       proposedDim("inletHeight", SHOWER_INLET_EL, "Derived from the owner's proposed 1200 mm lower bracket plus the drawing's 500 mm bracket centres: G1/2 water point at the upper rose, 1700 mm above the finished floor tiles. Proposed, as its weakest input.", "finished-floor"),
     ],
     specFields: {
@@ -539,7 +563,10 @@ export const purchasedFittings: PurchasedFitting[] = [
       waterConnection: pubVal("G1/2 at the upper wall rose only; rain head and 3F handpiece", sheet(ENFLAIR_Y1173, "Y1173 drawing: G1/2 at the upper rose, 500 mm above the lower one")),
       fixingLayout: pubVal("Two wall roses Ø55 with 10 mm plates; 500 mm between bracket centres; upper rose 410.7 mm below the rail top; 49 mm from the wall/mounting face to the riser centreline", sheet(ENFLAIR_Y1173, "Y1173 drawing: 500 mm bracket centres, 410.7 mm from the top, roses Ø55, plates 10 mm, 49 mm to the riser")),
     },
-    parts: shower, placement: { id: "shower_system", kind: "shower_y1173_31_11_250", x: SHOWER_ENVELOPE_D / 2, y: 0.6, rotation: 90 },
+    parts: shower, placement: { id: "shower_system", kind: "shower_y1173_31_11_250", x: 0, y: 0, rotation: 90,
+      anchor: onWall("wall_w", "b", FROM_WINDOW_END + 0.6, "proposed", "Centred on the 1200 mm shower (owner: the channel is beneath the shower head, centred on the shower), so 600 mm from the window wall's existing surface as drawn; which face the screen's 1200 is measured to is open"),
+      installation: mountedAt(SHOWER_FOOT, "Owner, 7 Oct 2026: lower bracket (rose) centre 1200 mm above the finished floor tiles (proposed, open); envelope bottom is the rail foot, 70.3 mm below it (Y1173 drawing, derived)"),
+      servicePoints: [wallPoint("inlet", "G1/2 inlet at the upper wall rose (on the rail centreline)", "water", 0, SHOWER_INLET_EL, "proposed", "Y1173 drawing: G1/2 at the upper rose, 500 mm above the lower bracket; lower bracket at the owner's proposed 1200 mm (open), so 1700 mm")] },
   },
   {
     kind: "mixer_k1130_31", label: "Shower mixer", specCategory: "tapware",
@@ -553,7 +580,7 @@ export const purchasedFittings: PurchasedFitting[] = [
       publishedLabel("handleDrop", K1130_HANDLE, "Enflair K1130 drawing, owner's copy (7 Oct 2026): 107 mm from the top of the Ø45 hub to the lever end, Ø10", "other", "From the top of the hub, not from the plate centre (hub radius 22.5 mm)"),
       publishedLabel("projection", K1130_FRONT, "Enflair K1130 drawing, owner's copy (7 Oct 2026): 65.5 mm from the lever's room face to the plate's room face", "other", "Add the 4 mm plate for 69.5 mm from the wall face"),
       publishedLabel("overallDepth", K1130_OVERALL, "Enflair K1130 drawing, owner's copy (7 Oct 2026): 103 mm overall", "other", "Lever's room face to the back of the body; about 33.5 mm of it sits behind the plate (derived)"),
-      proposedDim("elevation", SHOWER_MIXER_EL, "Owner, 7 Oct 2026: plate centre 1000 mm above the finished floor tiles. Proposed, not surveyed; no wall anchor, so #60 installation is not used.", "finished-floor"),
+      proposedDim("elevation", SHOWER_MIXER_EL, "Owner, 7 Oct 2026: plate centre 1000 mm above the finished floor tiles. Proposed, not surveyed. Set out from the wall's estimated finished face as a wall anchor and installed height (#89).", "finished-floor"),
       unsourced("fromWindowWall", "Where the mixer sits along the shower wall is not chosen. Drawn stand-in 850 mm from the window wall lives only on the placement.", "other"),
     ],
     specFields: {
@@ -564,7 +591,10 @@ export const purchasedFittings: PurchasedFitting[] = [
       temperatureMax: measuredQty(80, "°C", "Photographed K1130 inner-part label: max hot water 80°"),
     },
     // left wall, back to its existing surface; 850 mm from the window wall is a stand-in
-    parts: showerMixer, placement: { id: "shower_mixer", kind: "mixer_k1130_31", x: K1130_D / 2, y: 0.85, rotation: 90 },
+    parts: showerMixer, placement: { id: "shower_mixer", kind: "mixer_k1130_31", x: 0, y: 0, rotation: 90,
+      anchor: onWall("wall_w", "b", FROM_WINDOW_END + 0.85, "estimated", "Drawn stand-in: where the mixer sits along the shower wall is not chosen (drawn 850 mm from the window wall's existing surface)"),
+      installation: mountedAt(K1130_HANDLE_BOTTOM, "Owner, 7 Oct 2026: plate centre 1000 mm above the finished floor tiles (proposed); envelope bottom is the lever end, 84.5 mm below the plate centre (K1130 drawing)"),
+      servicePoints: [wallPoint("body", "Mixer body behind the plate (inlet layout and rough-in depth are not on the drawing; about 33.5 mm behind the plate, derived)", "water", 0, SHOWER_MIXER_EL, "proposed", "Plate centre at the owner's proposed 1000 mm; along the wall it is the drawn stand-in")] },
   },
   {
     kind: "towel_rail_vs900hbn", label: "Towel rail", specCategory: "towel-rail",
@@ -585,7 +615,7 @@ export const purchasedFittings: PurchasedFitting[] = [
       unsourced("stemLength", "Stem length is not on the sheet (25 mm is the section). Drawn spanning from the thin rose to the tube back inside D100.", "fixture-side"),
       unsourced("roseThickness", "Rose thickness is not on the sheet (32 mm is the diameter). Drawn as a thin disc at the wall.", "fixture-side"),
       unsourced("capHeight", "Cap height is not on the sheet (42 mm is the side-view depth). Drawn as a square on that 42 mm depth so the side view reads; the upright is the remainder of H900.", "fixture-bottom"),
-      proposedDim("elevation", RAIL_FOOT, "Owner: foot 750 mm above the finished floor tiles. Proposed, not surveyed; no wall anchor, so #60 installation is not used.", "finished-floor"),
+      proposedDim("elevation", RAIL_FOOT, "Owner: foot 750 mm above the finished floor tiles. Proposed, not surveyed. Set out from the wall's estimated finished face as a wall anchor and installed height (#89).", "finished-floor"),
     ],
     specFields: {
       width: pubLen(0.142, sheet(THERMO_VS900, "VS900HBN specification sheet: Size W142 × H900 × D100"), "fixture-end"),
@@ -599,9 +629,13 @@ export const purchasedFittings: PurchasedFitting[] = [
       powerConnection: pubVal("low-voltage", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V")),
       powerRequirements: pubVal("12 V, 24 W; concealed wiring; a transformer is supplied with each rail (owner: both transformers in the ceiling space).", sheet(THERMO_VS900, "VS900HBN specification sheet: 12 V, 24 W")),
     },
-    parts: rail, placement: { id: "towel_rail", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.825, rotation: 90 },
+    parts: rail, placement: { id: "towel_rail", kind: "towel_rail_vs900hbn", x: 0, y: 0, rotation: 90,
+      anchor: onWall("wall_w", "b", FROM_WINDOW_END + 1.825, "estimated", "Drawn stand-in: the rails' places along the left wall are not chosen (drawn 1825 mm from the window wall's existing surface)"),
+      installation: mountedAt(RAIL_FOOT, "Owner: foot 750 mm above the finished floor tiles (proposed)") },
     // the owner bought two; the second hangs beside the first on the left wall, its foot also at 750
-    extra: [{ id: "towel_rail_2", kind: "towel_rail_vs900hbn", x: 0.05, y: 1.575, rotation: 90 }],
+    extra: [{ id: "towel_rail_2", kind: "towel_rail_vs900hbn", x: 0, y: 0, rotation: 90,
+      anchor: onWall("wall_w", "b", FROM_WINDOW_END + 1.575, "estimated", "Drawn stand-in: the rails' places along the left wall are not chosen (drawn 1575 mm from the window wall's existing surface)"),
+      installation: mountedAt(RAIL_FOOT, "Owner: foot 750 mm above the finished floor tiles (proposed)") }],
   },
   {
     kind: "thermostat_mwd5_1999_cbp3", label: "Thermostat", specCategory: "thermostat",
@@ -655,7 +689,7 @@ export const stillNeedsCaptainsMeasurement: CaptainMeasurement[] = [
   { fitting: "Toilet Cygnet Over-height with SpaLet", what: "S-trap set-out for the new waste (sheet: 140–260 mm, 260 nominal) and the cold water (180 mm high, 180 mm left of centre) and SpaLet power (300 mm high, 330 mm left of centre) points at the moved position", from: "the finished wall behind the pan and the pan centreline, facing the toilet; finished floor for heights" },
   { fitting: "Shower screen (Future Glass fixed panel)", what: "Which face the 1200 mm from the window wall is measured to", from: "the window wall's finished (tile) face or its frame, to the panel's centreline" },
   { fitting: "Bath SB184-1000GW", what: "Check the delivered bath: 1000 mm wall sides, 1090 mm corner-to-front, 630 mm height, waste 520 mm from the corner", from: "the two wall sides and the right-angle corner (sheet notes slight variations)" },
-  { fitting: "Room walls", what: "Survey finished wall faces (or confirm the frame after strip-out) so #60 installation can replace the catalogue elevation stopgap", from: "each room-facing wall: existing surface is measured; finished face is still estimated from the frame plus proposed layers" },
+  { fitting: "Room walls", what: "Survey finished wall faces (or confirm the frame after strip-out) so the wall fittings' set-out and installed heights read off measured faces, not estimated ones", from: "each room-facing wall: existing surface is measured; finished face is still estimated from the frame plus proposed layers" },
 ];
 
 const captainsListText = (): string =>
@@ -858,7 +892,12 @@ const reusedCabinet: ExactProduct = {
   },
 };
 
-export const seedBathroom = (): PlanModel => ({
+/** The sample's own kinds first, so a set-out is derived from the envelope the sample draws. */
+const sampleKind = (kind: string): CatalogEntry | undefined => bathroomKinds.find((k) => k.entry.kind === kind)?.entry ?? catalogByKind(kind);
+/** Plan positions of the set-out fittings come from their anchors (and hosts), never typed twice. */
+export const seedBathroom = (): PlanModel => applyAnchors(seedModel(), sampleKind);
+
+const seedModel = (): PlanModel => ({
   name: "Bathroom Concept",
   walls: [
     wall("wall_n", -0.05, -0.05, 2.16, -0.05, "beige"), // window wall
@@ -937,10 +976,20 @@ export const seedBathroom = (): PlanModel => ({
       ...p, productIdentity: structuredClone(f.product), productSpecification: specOf(f), selectionStatus: "purchased",
     }))),
     // back to the right wall's finished face, centred 1700 mm from the window wall (proposed)
-    { id: "vanity", kind: "vanity_recorded", x: 1.85, y: 1.7, rotation: 270, productIdentity: structuredClone(reusedVanity), selectionStatus: "reused" },
+    { id: "vanity", kind: "vanity_recorded", x: 0, y: 0, rotation: 270, productIdentity: structuredClone(reusedVanity), selectionStatus: "reused",
+      anchor: onWall("wall_e", "a", FROM_WINDOW_END + 1.7, "proposed", "Owner: vanity centred 1700 mm from the window wall (existing surface, as drawn), back to the right wall's finished face; not yet checked against the old position plus 300 mm") },
     // centred over the vanity, back to the same face; screwed up last, after the tiles
-    { id: "shaving_cabinet", kind: "shaving_cabinet_recorded", x: 2.0, y: 1.7, rotation: 270, productIdentity: structuredClone(reusedCabinet), selectionStatus: "reused" },
-    { id: "toilet", kind: "toilet_proxy", x: 1.7, y: 2.6, rotation: 270, productIdentity: structuredClone(toiletSuite), selectionStatus: "reused" },
+    { id: "shaving_cabinet", kind: "shaving_cabinet_recorded", x: 0, y: 0, rotation: 270, productIdentity: structuredClone(reusedCabinet), selectionStatus: "reused",
+      anchor: onWall("wall_e", "a", FROM_WINDOW_END + 1.7, "proposed", "Owner: centred over the vanity, back to the right wall's finished face"),
+      installation: mountedAt(CABINET.elevation, "Owner, 5 Oct 2026: bottom edge 1200 mm, as now, to clear the tap (proposed)") },
+    { id: "toilet", kind: "toilet_proxy", x: 0, y: 0, rotation: 270, productIdentity: structuredClone(toiletSuite), selectionStatus: "reused",
+      anchor: onWall("wall_e", "a", FROM_WINDOW_END + 2.6, "proposed", "Owner, 7 Oct 2026: the suite moves to the plan position, 2600 mm from the window wall's existing surface to its centreline; back-to-wall, so its back is on the right wall's finished face"),
+      // American Standard install sheet (M33158 Rev.03, owner's copy): the new waste is cut at this position
+      servicePoints: [
+        { id: "waste", label: "Pan waste, S-trap (floor)", service: "waste", face: "finished", out: 0.14, outMax: 0.26, across: 0, status: "published", source: "American Standard M33158 Rev.03 install sheet: S-trap set-out 140–260 mm from the finished wall to the waste centre (260 nominal), on the pan centreline. A P-trap is 190 mm high instead" },
+        wallPoint("water", "Cold water point (stop tap)", "water", -0.18, 0.18, "published", "American Standard M33158 Rev.03 install sheet: cold water point 180 mm high, 180 mm left of the pan centreline facing it"),
+        wallPoint("power", "SpaLet seat power point", "power", -0.33, 0.3, "published", "American Standard M33158 Rev.03 install sheet: SpaLet power point 300 mm high, 330 mm left of centre. Whether the seat gets its own outlet or reaches the moved vanity GPO is the electrician's call"),
+      ] },
     { id: "screen", kind: "screen_proposed", x: 0.45, y: 1.2, rotation: 0 },
   ],
   underlay: null,
@@ -1017,7 +1066,7 @@ export const bathroomNotes = (): Note[] => {
     { id: "note-limits", author: "human", text: "This sample is not measured set-out or a trade drawing. Drainage, services and falls are not represented; construction layers are recorded with their unknown thicknesses left unknown.", at: at + 2 },
     {
       id: "note-purchased", author: "agent", at: at + 3,
-      text: "Purchased fittings, from photographed labels and the manufacturer's own specification drawing or sheet for the exact model: bath SB184-1000GW (Enflair drawing: 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste 520 mm from the corner); bath set K1132-##-150+KDPP32 on the right wall (set drawing: one rectangular plate 200 × 65 × 4 mm, spout and Ø45 hub 120 mm apart and 60 mm either side of the plate centre (derived), Ø10 lever 107 mm from the hub top, body 61 mm and spout 150 mm from the plate's wall-side face, Ø24; 45 mm drop to the outlet from the K1150 drawing; envelope 117 mm high and 162 mm deep), made up of the K1132-31 trim with its K1132 inner part and the K1150-31-0-150 spout; Enflair K1110-31 basin mixer (drawing: 148 mm high, flange Ø48 × 5.5, overall 145 mm from the flange back, body centreline 24 mm from that back, top lever 120 mm, spout 112 mm from the body centreline, Ø20, 62 mm clearance; held label 6 L/min WELS 2054 vs current sheet 4.5 L/min); Enflair K1130-31 shower mixer (owner's copy of the drawing: round plate Ø65 × 4, hub Ø45, lever 107 mm from the hub top, 69.5 mm off the wall face, 103 mm overall) with its inner part; Y1173-31-11-250 shower (drawing: rail 981 mm Ø22, head Ø250, 427 mm from the mounting/wall face to the head connector centreline, plan depth 552 mm to the far edge of the head, bracket centres 500 mm with the G1/2 inlet at the upper rose only, drawing B handpiece 246.3 × Ø105 × 45.4 mm); Ahrok SDP-40BN 40 mm bath waste (photographed carton prints a 40 mm nominal connection; no manufacturer sheet, so that figure is not entered as a published product-brief field; ordered with the bath); two Thermorail VS900HBN 142 × 900 × 100 mm, tube Ø38, 780 mm centres, Ø32 roses, Ø25 stem section, 42 mm cap depth, 24 W (Thermogroup sheet); OJ MWD5-1999-CBP3 thermostat (brochure does not name the CBP3 cover; plate size stays unsourced). Owner proposals (not surveyed): bath set plate centre 750 mm and 500 mm from the window wall, shower lower bracket 1200 mm (inlet 1700 mm), shower mixer plate centre 1000 mm, towel-rail feet 750 mm, thermostat 1000 mm. The basin-mixer deck 850 mm stays unsourced (value null; drawn stand-in on the kind). The room has no wall anchors and no surveyed finished faces, so #60 installation is not used and the catalogue elevation stopgap remains.",
+      text: "Purchased fittings, from photographed labels and the manufacturer's own specification drawing or sheet for the exact model: bath SB184-1000GW (Enflair drawing: 1000 mm sides, curved front 1090 mm from the corner, 630 mm high, waste 520 mm from the corner); bath set K1132-##-150+KDPP32 on the right wall (set drawing: one rectangular plate 200 × 65 × 4 mm, spout and Ø45 hub 120 mm apart and 60 mm either side of the plate centre (derived), Ø10 lever 107 mm from the hub top, body 61 mm and spout 150 mm from the plate's wall-side face, Ø24; 45 mm drop to the outlet from the K1150 drawing; envelope 117 mm high and 162 mm deep), made up of the K1132-31 trim with its K1132 inner part and the K1150-31-0-150 spout; Enflair K1110-31 basin mixer (drawing: 148 mm high, flange Ø48 × 5.5, overall 145 mm from the flange back, body centreline 24 mm from that back, top lever 120 mm, spout 112 mm from the body centreline, Ø20, 62 mm clearance; held label 6 L/min WELS 2054 vs current sheet 4.5 L/min); Enflair K1130-31 shower mixer (owner's copy of the drawing: round plate Ø65 × 4, hub Ø45, lever 107 mm from the hub top, 69.5 mm off the wall face, 103 mm overall) with its inner part; Y1173-31-11-250 shower (drawing: rail 981 mm Ø22, head Ø250, 427 mm from the mounting/wall face to the head connector centreline, plan depth 552 mm to the far edge of the head, bracket centres 500 mm with the G1/2 inlet at the upper rose only, drawing B handpiece 246.3 × Ø105 × 45.4 mm); Ahrok SDP-40BN 40 mm bath waste (photographed carton prints a 40 mm nominal connection; no manufacturer sheet, so that figure is not entered as a published product-brief field; ordered with the bath); two Thermorail VS900HBN 142 × 900 × 100 mm, tube Ø38, 780 mm centres, Ø32 roses, Ø25 stem section, 42 mm cap depth, 24 W (Thermogroup sheet); OJ MWD5-1999-CBP3 thermostat (brochure does not name the CBP3 cover; plate size stays unsourced). Owner proposals (not surveyed): bath set plate centre 750 mm and 500 mm from the window wall, shower lower bracket 1200 mm (inlet 1700 mm), shower mixer plate centre 1000 mm, towel-rail feet 750 mm, thermostat 1000 mm. The basin-mixer deck 850 mm stays unsourced (value null; drawn stand-in on the kind). The wall fittings, vanity and toilet are set out from each wall's finished face, which is estimated (no surveyed faces yet), so their positions print no stronger than that.",
     },
     { id: "note-captain", author: "agent", at: at + 13, text: captainsListText() },
     {

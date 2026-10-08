@@ -107,7 +107,11 @@ export function installationReading(model: PlanModel, item: Item, lookup: Catalo
   let floor = room ? p.floorDatum === "substrate-top" ? floorLevels(room.floorBuildUp)[0] : finishedLevel(room.floorBuildUp) : undefined;
   if (room?.drainage?.planes.length && p.floorDatum === "finished-floor") {
     const lv=heightAt(room.drainage,item.x,item.y);
-    floor={level:"finished",label:"Local finished floor",kind:"tile",resolved:lv.level!==undefined,top:lv.level,basis:lv.basis,missing:lv.level===undefined?[lv.reason??"local floor level"]:[],inputs:[]};
+    // Falls recorded but not resolved here: read from the flat finished-floor target, as the
+    // stage elevations do, and say so. With no flat target either, the height stays unknown.
+    if(lv.level!==undefined)floor={level:"finished",label:"Local finished floor",kind:"tile",resolved:true,top:lv.level,basis:lv.basis,missing:[],inputs:[]};
+    else if(floor?.resolved)limitations.push("Falls unresolved at this point: height read from the flat finished-floor target.");
+    else floor={level:"finished",label:"Local finished floor",kind:"tile",resolved:false,top:undefined,basis:"unknown",missing:[lv.reason??"local floor level"],inputs:[]};
   }
   if (!floor?.resolved) missing.push(...floor?.missing ?? ["floor level"]);
   if (!cat) missing.push("product envelope");
@@ -125,7 +129,7 @@ export function installationReading(model: PlanModel, item: Item, lookup: Catalo
   const bottomSource=[...new Set([item.anchor?.source,p.height?.source,room?.floorBuildUp?.substrateTop?.source,...room?.floorBuildUp?.layers.map(l=>l.thickness.source)??[],side?.existing?.source,side?.frame?.source,...side?.layers.map(l=>l.thickness.source)??[]].filter(Boolean))].join("; ");
   const topSource=[bottomSource,evidenceText(heightEvidence)].filter(Boolean).join("; ");
   let finishedFloorLevel=room ? finishedLevel(room.floorBuildUp).top : undefined;
-  if(room?.drainage?.planes.length)finishedFloorLevel=heightAt(room.drainage,item.x,item.y).level;
+  if(room?.drainage?.planes.length)finishedFloorLevel=heightAt(room.drainage,item.x,item.y).level ?? finishedFloorLevel;
   return {resolved,limitations,topBasis,heightEvidence,bottomSource,topSource,...(bottom!==undefined?{bottom,top:quantize(bottom+cat!.h)}:{}),basis,missing:[...new Set(missing)],datum:`${room?.label??"unknown room"}: ${p.floorDatum}; ${room?.floorBuildUp?.datum??"unknown floor datum"}`,floorLevel:floor?.resolved?floor.top:undefined,finishedFloorLevel};
 }
 export function localPointReading(model: PlanModel,item:Item,p:LocalPoint, lookup: CatalogLookup = catalogByKind) {

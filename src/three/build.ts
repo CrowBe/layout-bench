@@ -1,6 +1,6 @@
 import { installationReading, localPointReading, clearanceRegions } from "../model/installation";
 import { anchorPose } from "../model/fixtures";
-import { buildFurniture, applyStopgapVisual } from "./furniture";
+import { buildFurniture, applyStopgapVisual, hasCustomKind } from "./furniture";
 /**
  * 3D builder — extrudes the plan into a dollhouse-style model:
  * walls with REAL openings (lintels + sills, no CSG), resolved corner joints,
@@ -220,14 +220,17 @@ export function buildFixture(model: PlanModel,it: Item): THREE.Group | null {
   if(it.installation && (!lv.resolved || !anchorPose(model,it).resolved))return null;
   const cat=catalogForItem(it);if(!cat)return null;
   // An installed fitting without a sourced outline is exactly its envelope, without
-  // decorative legs/top offsets that would change its documented height or footprint.
-  const fg=it.installation && !cat.outline ? new THREE.Group() : buildFurniture(it.kind,it.productGeometry);if(!fg)return null;
-  if(it.installation && !cat.outline){const mesh=new THREE.Mesh(new THREE.BoxGeometry(cat.w,cat.h,cat.d),new THREE.MeshStandardMaterial({color:cat.color,roughness:.75}));mesh.position.y=cat.h/2;fg.add(mesh);}
-  fg.position.set(it.x,lv.bottom ?? .04,it.y);fg.rotation.y=it.rotation*Math.PI/180;
+  // decorative legs/top offsets that would change its documented height or footprint. A
+  // project kind modelled part by part inside its envelope keeps those parts: they are drawn
+  // above the kind's own elevation, so they shift down by it onto the installed bottom.
+  const parts=it.installation && !cat.outline && !it.productGeometry && hasCustomKind(it.kind);
+  const fg=it.installation && !cat.outline && !parts ? new THREE.Group() : buildFurniture(it.kind,it.productGeometry);if(!fg)return null;
+  if(it.installation && !cat.outline && !parts){const mesh=new THREE.Mesh(new THREE.BoxGeometry(cat.w,cat.h,cat.d),new THREE.MeshStandardMaterial({color:cat.color,roughness:.75}));mesh.position.y=cat.h/2;fg.add(mesh);}
+  fg.position.set(it.x,lv.bottom!==undefined ? lv.bottom-(parts ? cat.elevation ?? 0 : 0) : .04,it.y);fg.rotation.y=it.rotation*Math.PI/180;
   if(it.installation?.mirror)fg.scale.x=-1;
   fg.userData={fixtureId:it.id,installation:lv};nameMeshes(fg,it.id);
   for(const p of it.installationGeometry?.fixings??[]){const r=localPointReading(model,it,p);if(r.x===undefined || r.y===undefined || r.level===undefined)continue;
-    const marker=new THREE.Mesh(new THREE.SphereGeometry(.007,8,6),frameMaterial);marker.position.set(p.x! ,p.z!,p.y!-catalogForItem(it)!.d/2);marker.name=`${it.id}:fixing:${p.id}`;fg.add(marker);}
+    const marker=new THREE.Mesh(new THREE.SphereGeometry(.007,8,6),frameMaterial);marker.position.set(p.x! ,p.z!+(parts ? cat.elevation ?? 0 : 0),p.y!-catalogForItem(it)!.d/2);marker.name=`${it.id}:fixing:${p.id}`;fg.add(marker);}
   // tagged last, so the fixing markers hide and show with their fixture
   fg.traverse((o)=>{if(((o as THREE.Mesh).isMesh || (o as THREE.LineSegments).isLineSegments) && !o.userData.stage)o.userData.stage=`item:${it.id}`;});
   return fg;
