@@ -1,20 +1,24 @@
 /**
- * The shipped sample's printable trade set: every drawing and sheet the stage pack and the sample
- * sheets already export, bound into PDFs with a cover, a who-needs-what index, a fixture schedule
- * read from the model, the open decisions and the 3D renders. Nothing is redrawn here: each page is
- * the saved SVG or HTML, printed by Chromium. Run the generators first.
+ * The shipped sample's printable packs: every drawing and sheet the stage pack and the sample sheets
+ * already export, bound into one PDF per construction stage plus an overview pack (cover, who needs
+ * what, open decisions, the fixture schedule read from the model, A-01 and the 3D renders). Nothing
+ * is redrawn here: each page is the saved SVG or HTML, printed by Chromium. Run the generators first.
  *
  *   npm run stage-pack && npm run sample-sheets && npm run printables
  *
+ * A stage pack leaves out a wall elevation that shows nothing new at that stage (no fitting,
+ * service point, opening or the wall itself appears on it for the first time): its plan and
+ * specification still carry the stage. Stage 8 uses the wall tiling sheets in place of its own
+ * tiled elevations.
+ *
  * A3 landscape prints each sheet as it is. A4 splits each A3 drawing sheet in two at its panel edge
- * and prints both halves at actual size: the drawing (still at its stated scale, with its own scale
+ * and prints both halves at actual size: the drawing (still at its stated scale, with a true scale
  * bar) and then its notes and title block. HTML sheets reflow onto A4 landscape.
  *
- * Output: shots/printables/bathroom-trade-set-A3.pdf and -A4.pdf (everything, specs included),
- * bathroom-wall-set-A3.pdf and -A4.pdf (drawings only, to pin up) and their README.md.
+ * Output: shots/printables/A4/*.pdf and shots/printables/A3/*.pdf, and their README.md.
  */
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -55,30 +59,54 @@ if (!opened.ok) throw new Error(`Could not open the sample: ${opened.summary}`);
 const model: PlanModel = store.getState().model;
 const DATE = process.env.PRINT_DATE ?? localDate();
 
-// ---- what goes in, in binding order ------------------------------------------------------------
-type Kind = "svg" | "html" | "page";
-interface Part { title: string; section: string; kind: Kind; path?: string; html?: string; wall: boolean }
+// ---- what goes in, pack by pack ------------------------------------------------------------------
+type Kind = "svg" | "html";
+interface Part { title: string; kind: Kind; path: string }
+interface Pack { slug: string; title: string; summary: string; parts: Part[] }
 
 const need = (p: string) => { if (!existsSync(p)) throw new Error(`Missing ${p}: run npm run stage-pack and npm run sample-sheets first.`); return p; };
 const WALL_NAMES: Record<string, string> = { wall_n: "window wall (north)", wall_e: "right wall (east)", wall_s: "door wall (south)", wall_w: "left wall (west)" };
+const elementsOf = (svg: string) => new Set([...svg.matchAll(/data-element="([^"]+)"/g)].map((m) => m[1]));
+const viewElements = (svg: string) => new Set<string>(JSON.parse((/<metadata id="stage-view">([^<]*)</.exec(svg)?.[1] ?? "{}").replace(/&quot;/g, '"').replace(/&amp;/g, "&")).elements ?? []);
+/** A fitting, service point, opening or the bare wall: what an elevation is for. Layers and floor build-up read from the plan. */
+const setOutOnWall = (id: string) => /^(item|opening):/.test(id) || /^wall:[^:]+$/.test(id);
 
-const parts: Part[] = [];
-parts.push({ title: "A-01 floor plan", section: "Overview", kind: "svg", path: need(join(SHEETS, "A-01-floor-plan.svg")), wall: true });
+const tilingSheets = readdirSync(SHEETS).filter((n) => /^wall-tiling-.*\.svg$/.test(n)).sort((a, b) => wallOrder(a) - wallOrder(b));
+const tiledWalls = new Set(tilingSheets.map((f) => /wall-tiling-(wall_\w)-/.exec(f)?.[1]));
+
+// the tiling sheets and the heating review go in the first stage that shows tiles or the cable
+const firstShowing = (layer: string) => PHASES.find((p) => p.visible.includes(layer))?.slug;
+const TILE_STAGE = firstShowing("wall-tile"), HEATING_STAGE = firstShowing("floor-heating-cable");
+
+const packs: Pack[] = [{
+  slug: "00-overview", title: "Overview",
+  summary: "Start here: who needs which pack, the owner decisions still open, what to measure first, the fixture schedule, the A-01 floor plan and the room in 3D.",
+  parts: [{ title: "A-01 floor plan", kind: "svg", path: need(join(SHEETS, "A-01-floor-plan.svg")) }],
+}];
+const dropped = new Map<string, string[]>(); // stage label -> walls left out
+let seen = new Set<string>();
 for (const phase of PHASES) {
   const dir = join(STAGES, phase.slug);
-  parts.push({ title: `${phase.label}: plan`, section: phase.label, kind: "svg", path: need(join(dir, "plan.svg")), wall: true });
+  const plan = readFileSync(need(join(dir, "plan.svg")), "utf8");
+  const shown = viewElements(plan);
+  const fresh = new Set([...shown].filter((id) => !seen.has(id)));
+  seen = new Set([...seen, ...shown]);
+  const parts: Part[] = [{ title: "Plan", kind: "svg", path: join(dir, "plan.svg") }];
   for (const f of readdirSync(dir).filter((n) => /^elevation-.*\.svg$/.test(n)).sort((a, b) => wallOrder(a) - wallOrder(b))) {
     const wall = /elevation-(wall_\w)-/.exec(f)?.[1] ?? "";
-    parts.push({ title: `${phase.label}: elevation, ${WALL_NAMES[wall] ?? wall}`, section: phase.label, kind: "svg", path: join(dir, f), wall: true });
+    const title = `Elevation, ${WALL_NAMES[wall] ?? wall}`;
+    const tiled = phase.slug === TILE_STAGE && tiledWalls.has(wall);
+    if (tiled || ![...elementsOf(readFileSync(join(dir, f), "utf8"))].some((id) => fresh.has(id) && setOutOnWall(id))) { dropped.set(phase.label, [...(dropped.get(phase.label) ?? []), WALL_NAMES[wall] ?? wall]); continue; }
+    parts.push({ title, kind: "svg", path: join(dir, f) });
   }
-  parts.push({ title: `${phase.label}: specification`, section: phase.label, kind: "html", path: need(join(dir, "spec.html")), wall: false });
+  parts.push({ title: "Specification", kind: "html", path: need(join(dir, "spec.html")) });
+  if (phase.slug === HEATING_STAGE) for (const f of readdirSync(SHEETS).filter((n) => /^heating-.*\.html$/.test(n))) parts.push({ title: "Heating review", kind: "html", path: join(SHEETS, f) });
+  if (phase.slug === TILE_STAGE) {
+    for (const f of readdirSync(SHEETS).filter((n) => /^floor-tiling-.*\.svg$/.test(n))) parts.push({ title: "Floor tiling", kind: "svg", path: join(SHEETS, f) });
+    for (const f of tilingSheets) parts.push({ title: `Wall tiling, ${WALL_NAMES[/wall-tiling-(wall_\w)-/.exec(f)![1]]}`, kind: "svg", path: join(SHEETS, f) });
+  }
+  packs.push({ slug: phase.slug, title: phase.label, summary: phase.summary, parts });
 }
-for (const f of readdirSync(SHEETS).filter((n) => n.endsWith(".svg") && !n.startsWith("A-01")).sort((a, b) => (a.startsWith("floor") ? -1 : b.startsWith("floor") ? 1 : wallOrder(a) - wallOrder(b)))) {
-  const wall = /wall-tiling-(wall_\w)-/.exec(f)?.[1];
-  parts.push({ title: wall ? `Wall tiling: ${WALL_NAMES[wall]}` : "Floor tiling", section: "Tiling", kind: "svg", path: join(SHEETS, f), wall: true });
-}
-// the heating review runs to many pages of route tables: the folder copy only; the wall set has the stage 5 plan
-for (const f of readdirSync(SHEETS).filter((n) => /^heating-.*\.html$/.test(n))) parts.push({ title: "Heating review", section: "Heating", kind: "html", path: join(SHEETS, f), wall: false });
 
 function wallOrder(name: string) { return ["wall_n", "wall_e", "wall_s", "wall_w"].findIndex((w) => name.includes(w)); }
 
@@ -89,7 +117,7 @@ const SHEET_CSS: Record<Paper, string> = {
   A3: `@page{size:420mm 297mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font:10.5pt Helvetica,Arial,sans-serif;color:#111}
 .sheet{width:420mm;height:297mm;padding:12mm 14mm 10mm;position:relative;overflow:hidden;page-break-after:always;border:0}`,
   A4: `@page{size:297mm 210mm;margin:9mm 11mm 10mm}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font:9.5pt Helvetica,Arial,sans-serif;color:#111}
-.sheet{width:100%;border:0}.frame{display:none}.sheet>.cols{height:auto!important}.sheet .small{font-size:8pt}.sheet .tiny{font-size:7pt}.hero{max-height:105mm;object-fit:contain}`,
+.sheet{width:100%;border:0}.frame{display:none}.sheet>.cols{height:auto!important}.sheet .small{font-size:8pt}.sheet .tiny{font-size:7pt}.hero{max-height:80mm;object-fit:contain}`,
 };
 const PAGE_CSS = (paper: Paper) => `${SHEET_CSS[paper]}
 .frame{position:absolute;inset:5mm;border:0.5mm solid #000}
@@ -121,15 +149,16 @@ const MEASURE_FIRST = [
   "Once the frame is confirmed, the finished faces follow; every set-out on these sheets is read off those faces.",
 ];
 
-/** Which pages each trade needs, by section title. */
+/** Which packs each trade needs, by slug prefix. */
 const TRADES: [string, string[]][] = [
-  ["Demolition / builder", ["1. Post-demolition", "2. Frame prep", "A-01"]],
-  ["Plumber", ["3. Rough-in", "6. Screed and falls", "9. Fit-out", "Fixture schedule"]],
-  ["Electrician", ["3. Rough-in", "5. Heating cable", "Heating review", "Fixture schedule"]],
-  ["Waterproofer", ["4. Waterproofing", "6. Screed and falls"]],
-  ["Tiler", ["6. Screed and falls", "7. Tile adhesive", "8. Tiles laid", "Floor tiling", "Wall tiling"]],
-  ["Glazier / fit-out", ["9. Fit-out", "Fixture schedule"]],
+  ["Demolition / builder", ["00", "01", "02"]],
+  ["Plumber", ["00", "03", "06", "09"]],
+  ["Electrician", ["00", "03", "05"]],
+  ["Waterproofer", ["04", "06"]],
+  ["Tiler", ["06", "07", "08"]],
+  ["Glazier / fit-out", ["00", "09"]],
 ];
+const packName = (prefix: string) => { const p = packs.find((k) => k.slug.startsWith(prefix))!; return `${p.slug}.pdf`; };
 
 function scheduleRows(): string {
   const fixtureNo = new Map(model.items.map((it, i) => [it.id, `F${i + 1}`]));
@@ -157,46 +186,41 @@ function scheduleRows(): string {
   }).join("");
 }
 
-function coverPage(toc: { title: string; first: number; count: number }[], set: string, total: number, paper: Paper): string {
-  const sections = [...new Map(toc.map((t) => [t.title.split(":")[0], t])).values()];
-  const hero = existsSync(join(RENDERS, "stage-6-fit-out.png")) ? `<img class="hero" src="${dataUri(join(RENDERS, "stage-6-fit-out.png"))}" style="width:100%;border:0.2mm solid #999">` : "";
-  // one row per section: its sheets in order and the pages they cover
-  const groups: { section: string; sheets: string[]; first: number; last: number }[] = [];
-  for (const t of toc) {
-    const [section, sheet] = t.title.includes(": ") ? [t.title.slice(0, t.title.lastIndexOf(": ")), t.title.slice(t.title.lastIndexOf(": ") + 2)] : [t.title, ""];
-    const g = groups[groups.length - 1];
-    if (g && g.section === section) { if (sheet) g.sheets.push(sheet); g.last = t.first + t.count - 1; }
-    else groups.push({ section, sheets: sheet ? [sheet] : [], first: t.first, last: t.first + t.count - 1 });
-  }
-  const contents = groups.map((g) => `<tr><td><b>${esc(g.section)}</b>${g.sheets.length ? `<br><span class="muted">${esc(g.sheets.join(" · "))}</span>` : ""}</td><td style="text-align:right;white-space:nowrap">${g.first === g.last ? g.first : `${g.first}–${g.last}`}</td></tr>`).join("");
+type Toc = { title: string; first: number; count: number }[];
+
+function coverPage(pack: Pack, toc: Toc, total: number, paper: Paper): string {
+  const overview = pack.slug.startsWith("00");
+  const hero = overview && existsSync(join(RENDERS, "stage-6-fit-out.png")) ? `<img class="hero" src="${dataUri(join(RENDERS, "stage-6-fit-out.png"))}" style="width:100%;border:0.2mm solid #999">` : "";
+  const prefix = pack.slug.slice(0, 2);
+  const trades = TRADES.filter(([, keys]) => keys.includes(prefix)).map(([t]) => t);
+  const contents = toc.map((t) => `<tr><td>${esc(t.title)}</td><td style="text-align:right;white-space:nowrap">${t.count === 1 ? t.first : `${t.first}–${t.first + t.count - 1}`}</td></tr>`).join("");
   return page(`<div class="cols c2" style="grid-template-columns:1.05fr 1fr;height:100%">
-<div><h1>${esc(model.name)}: ${set}</h1>
-<div class="muted">Bathroom renovation · ${esc(model.sheetSet?.titleBlock.site ?? "")} · printed ${DATE} · ${total} ${paper} pages</div>
+<div><h1>${esc(model.name)}: ${esc(pack.title)}</h1>
+<div class="muted">Bathroom renovation · ${esc(model.sheetSet?.titleBlock.site ?? "")} · pack ${prefix} of ${packs.length - 1} · printed ${DATE} · ${total} ${paper} pages</div>
 <p><span class="banner">PROPOSED · FOR TRADE REVIEW · NOT AS-BUILT · NOT A COMPLIANCE CERTIFICATE</span></p>
+<p>${esc(pack.summary)}</p>
+${trades.length ? `<p class="small"><b>For:</b> ${esc(trades.join(", "))}.</p>` : ""}
 ${hero}
 <h2>How to read these sheets</h2>
 <ul class="small"><li>Dimensions in millimetres. Every figure carries its status: ${LEGEND}. Treat anything not SC or M as a figure to check on site.</li>
 <li>Elevations look at a wall from inside the room; end A is on the left. Wall fittings are set out from the wall's finished (tile) face: centreline along from the return wall's face at A, bottom above the finished floor.</li>
-<li>F1, F2… are the fixtures (see the fixture schedule); F11.2 is service point 2 of fixture 11. "?" means not known yet and never drawn.</li>
+<li>F1, F2… are the fixtures (fixture schedule in ${packName("00")}); F11.2 is service point 2 of fixture 11. "?" means not known yet and never drawn.</li>
 ${paper === "A3"
     ? `<li>Scale 1:20 at A3 on the plans and elevations. Print at 100% ("actual size"), never "fit to page".</li>`
-    : `<li>Each A3 drawing sheet is split onto two A4 pages: the drawing at its stated scale (1:20 on the plans and elevations), then its notes and title block. Print at 100% ("actual size"), never "fit to page"; the 1 m scale bar at the top of each drawing page then measures 50 mm.</li>`}</ul>
-<p class="tiny muted">${sections.length} sections. Generated from the project model by npm run printables; the drawings are the same exports saved in the repository (shots/stage-pack, shots/sample-sheets).</p></div>
-<div><h2>Contents</h2><table class="tiny"><tr><th>Sheet</th><th style="text-align:right">Page</th></tr>${contents}</table></div></div>`);
+    : `<li>Each drawing is two A4 pages: the drawing at its stated scale (1:20 on the plans and elevations), then its notes and title block. Print at 100% ("actual size"), never "fit to page"; the 1 m scale bar at the top of each drawing page then measures 50 mm.</li>`}
+${overview ? "" : `<li>A wall elevation is left out when nothing new is set out on that wall at this stage; the plan and specification still cover the stage. Open decisions and what is still to measure: ${packName("00")}.</li>`}</ul>
+<p class="tiny muted">Generated from the project model by npm run printables; the drawings are the same exports saved in the repository (shots/stage-pack, shots/sample-sheets).</p></div>
+<div><h2>In this pack</h2><table class="small"><tr><th>Sheet</th><th style="text-align:right">Page</th></tr>${contents}</table></div></div>`);
 }
 
-function indexPage(toc: { title: string; first: number; count: number }[]): string {
-  const pagesFor = (keys: string[]) => keys.map((k) => {
-    const hits = toc.filter((t) => t.title.includes(k));
-    if (!hits.length) return "";
-    const first = hits[0].first, last = hits[hits.length - 1].first + hits[hits.length - 1].count - 1;
-    return `${esc(k.replace(/^\d\. /, ""))} (p. ${first === last ? first : `${first}–${last}`})`;
-  }).filter(Boolean).join("; ");
-  const trades = TRADES.map(([t, keys]) => `<tr><td><b>${t}</b></td><td>${pagesFor(keys)}</td></tr>`).join("");
+function indexPage(): string {
+  const trades = TRADES.map(([t, keys]) => `<tr><td><b>${t}</b></td><td>${keys.map((k) => esc(packName(k))).join(", ")}</td></tr>`).join("");
+  const list = packs.map((p) => `<tr><td>${esc(p.slug)}.pdf</td><td>${esc(p.title)}</td></tr>`).join("");
   const measure = stillNeedsCaptainsMeasurement.map((m) => `<li><b>${esc(m.fitting)}</b>: ${esc(m.what)}. <span class="muted">From: ${esc(m.from)}.</span></li>`).join("");
   return page(`<h1>Who needs what, and what is still open</h1>
 <div class="cols c2"><div>
-<h2>Sheets by trade</h2><table class="small"><tr><th>Trade</th><th>Sheets</th></tr>${trades}</table>
+<h2>The packs</h2><table class="small"><tr><th>File</th><th>Stage</th></tr>${list}</table>
+<h2>Packs by trade</h2><table class="small"><tr><th>Trade</th><th>Packs</th></tr>${trades}</table>
 <h2>Open owner decisions</h2><ol class="small">${OPEN_DECISIONS.map((d) => `<li>${esc(d)}</li>`).join("")}</ol>
 <h2>Measure first</h2><ol class="small">${MEASURE_FIRST.map((d) => `<li>${esc(d)}</li>`).join("")}</ol>
 </div><div><h2>Still to measure or confirm (${stillNeedsCaptainsMeasurement.length})</h2><ol class="tiny">${measure}</ol></div></div>`);
@@ -296,7 +320,7 @@ function scaleBar(n: number): string {
 }
 
 /** The A4 pages for one A3 drawing sheet: its drawing at actual size (over more than one page only when it must), then its panel. */
-async function printSheetA4(p: Part, src: string): Promise<Uint8Array[]> {
+async function printSheetA4(p: Part, src: string, heading: string): Promise<Uint8Array[]> {
   const kind = /data-sheet="([^"]+)"/.exec(src)?.[1] ?? "";
   const edge = PANEL_EDGE[kind];
   if (edge === undefined) throw new Error(`${p.path}: no A4 split for sheet type "${kind}"`);
@@ -324,7 +348,7 @@ async function printSheetA4(p: Part, src: string): Promise<Uint8Array[]> {
     const scale = Number.isFinite(n)
       ? `${caption || `Scale 1:${n} at A4.`}${part} Print at 100% (actual size), never "fit to page". Notes and title block on the next page.`
       : `${caption || "Diagram, not to scale: use the written dimensions."}${part} Notes on the next page.`;
-    out.push(await printHtml(pageHtml(f.pw, f.ph, `<div style="position:absolute;left:${MARGIN.side}mm;top:6mm;right:${MARGIN.side + (Number.isFinite(n) ? 64 : 0)}mm"><b style="font-size:10pt">${esc(p.title)}</b><br>${esc(scale)}</div>
+    out.push(await printHtml(pageHtml(f.pw, f.ph, `<div style="position:absolute;left:${MARGIN.side}mm;top:6mm;right:${MARGIN.side + (Number.isFinite(n) ? 64 : 0)}mm"><b style="font-size:10pt">${esc(heading)}</b><br>${esc(scale)}</div>
 ${Number.isFinite(n) ? `<div style="position:absolute;right:${MARGIN.side}mm;top:5mm">${scaleBar(n)}</div>` : ""}
 <div style="position:absolute;left:${MARGIN.side + (f.aw - w) / 2}mm;top:${MARGIN.top + (f.ah - h) / 2}mm">${svg}</div>`)));
   }
@@ -337,16 +361,17 @@ ${Number.isFinite(n) ? `<div style="position:absolute;right:${MARGIN.side}mm;top
   return out;
 }
 
-async function printPart(p: Part, paper: Paper): Promise<Uint8Array[]> {
-  const src = readFileSync(p.path!, "utf8");
+async function printPart(p: Part, paper: Paper, heading: string): Promise<Uint8Array[]> {
+  const src = readFileSync(p.path, "utf8");
   if (p.kind === "svg") {
     const svg = src.replace(/^<\?xml[^>]*>\s*/, "");
-    if (paper === "A4") return printSheetA4(p, svg);
+    if (paper === "A4") return printSheetA4(p, svg, heading);
     return [await printHtml(`<!doctype html><meta charset="utf-8"><style>@page{size:420mm 297mm;margin:0}html,body{margin:0}</style>${svg.replace(/<svg /, '<svg style="display:block;width:420mm;height:297mm" ')}`)];
   }
   // an HTML sheet keeps its own styles; only the paper changes to landscape, with room for the page stamp
   const size = paper === "A3" ? "420mm 297mm;margin:10mm 12mm 12mm" : "297mm 210mm;margin:9mm 10mm 11mm";
-  const css = `<style>@page{size:${size}}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{max-width:none}</style>`;
+  // tables print a little tighter than on screen: the same rows, fewer pages
+  const css = `<style>@page{size:${size}}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{max-width:none;margin:0;font-size:10px}td,th{padding:1.5px 4px}</style>`;
   return [await printHtml(src.includes("</head>") ? src.replace("</head>", `${css}</head>`) : css + src)];
 }
 
@@ -356,66 +381,72 @@ async function merge(pdfs: Uint8Array[]): Promise<PDFDocument> {
   return doc;
 }
 
-async function bind(set: string, file: string, chosen: Part[], paper: Paper): Promise<number> {
+async function bindPack(pack: Pack, paper: Paper): Promise<number> {
   const printed: { part: Part; pdf: PDFDocument }[] = [];
-  for (const part of chosen) printed.push({ part, pdf: await merge(await printPart(part, paper)) });
+  for (const part of pack.parts) printed.push({ part, pdf: await merge(await printPart(part, paper, pack.slug.startsWith("00") ? part.title : `${pack.title}: ${part.title}`)) });
   const css = `<!doctype html><meta charset="utf-8"><style>${PAGE_CSS(paper)}</style>`;
-  const tail = await PDFDocument.load(await printHtml(`${css}${rendersPage()}`));
+  const overview = pack.slug.startsWith("00");
+  const tail = overview ? [await PDFDocument.load(await printHtml(`${css}${rendersPage()}`))] : [];
+  const tailPages = tail.reduce((n, d) => n + d.getPageCount(), 0);
   // the front matter's page numbers depend on its own length; on A4 a table may run on, so settle it
-  let counts = [1, 1, 1]; // cover, index, schedule
-  let head: PDFDocument[] = [];
-  let toc: { title: string; first: number; count: number }[] = [];
+  const fixed = overview ? [indexPage(), schedulePage()] : [];
+  const fixedDocs: PDFDocument[] = [];
+  for (const html of fixed) fixedDocs.push(await PDFDocument.load(await printHtml(css + html))); // one tab: one print at a time
+  const fixedTitles = ["Who needs what, open decisions, still to measure", "Fixture schedule"];
+  let coverPages = 1;
+  let cover: PDFDocument;
   let total = 0;
   for (let pass = 0; ; pass++) {
-    const front = counts.reduce((a, b) => a + b, 0);
-    let at = front + 1;
-    toc = printed.map(({ part, pdf }) => { const t = { title: part.title, first: at, count: pdf.getPageCount() }; at += t.count; return t; });
-    toc.unshift({ title: "Who needs what, open decisions, still to measure", first: counts[0] + 1, count: counts[1] }, { title: "Fixture schedule", first: counts[0] + counts[1] + 1, count: counts[2] });
-    toc.push({ title: "3D renders", first: at, count: tail.getPageCount() });
-    total = at - 1 + tail.getPageCount();
-    head = [];
-    for (const html of [coverPage(toc, set, total, paper), indexPage(toc), schedulePage()]) head.push(await PDFDocument.load(await printHtml(css + html)));
-    const got = head.map((d) => d.getPageCount());
-    if (got.every((c, i) => c === counts[i])) break;
-    if (paper === "A3") throw new Error(`Front matter ran to ${got.join("+")} pages, expected one each: shorten it.`);
-    if (pass === 3) throw new Error(`Front matter page count did not settle (${got.join("+")}).`);
-    counts = got;
+    let at = coverPages + 1;
+    const toc: Toc = [];
+    for (const [i, d] of fixedDocs.entries()) { toc.push({ title: fixedTitles[i], first: at, count: d.getPageCount() }); at += d.getPageCount(); }
+    for (const { part, pdf } of printed) { toc.push({ title: part.title, first: at, count: pdf.getPageCount() }); at += pdf.getPageCount(); }
+    if (overview) toc.push({ title: "3D renders", first: at, count: tailPages });
+    total = at - 1 + tailPages;
+    cover = await PDFDocument.load(await printHtml(css + coverPage(pack, toc, total, paper)));
+    if (cover.getPageCount() === coverPages) break;
+    if (paper === "A3" || pass === 2) throw new Error(`${pack.slug}: the cover ran to ${cover.getPageCount()} pages: shorten it.`);
+    coverPages = cover.getPageCount();
   }
-  if (tail.getPageCount() !== 1 && paper === "A3") throw new Error("The renders page ran over one A3 page.");
+  if (paper === "A3" && [...fixedDocs, ...tail].some((d) => d.getPageCount() !== 1)) throw new Error(`${pack.slug}: an A3 front or back page ran over one page.`);
 
   const out = await PDFDocument.create();
-  out.setTitle(`${model.name}: ${set} (${paper})`);
+  out.setTitle(`${model.name}: ${pack.title} (${paper})`);
   out.setSubject("Proposed, for trade review. Not as-built, not a compliance certificate.");
   out.setCreator("Reno Layouts (npm run printables)");
-  for (const doc of [...head, ...printed.map((p) => p.pdf), tail]) for (const pg of await out.copyPages(doc, doc.getPageIndices())) out.addPage(pg);
+  for (const doc of [cover!, ...fixedDocs, ...printed.map((p) => p.pdf), ...tail]) for (const pg of await out.copyPages(doc, doc.getPageIndices())) out.addPage(pg);
   // page stamp in the bottom margin, outside every sheet's own border
   const font = await out.embedFont(StandardFonts.Helvetica);
   const pages = out.getPages();
   pages.forEach((pg, i) => {
-    const label = `${model.name} · ${set} · ${DATE} · page ${i + 1} of ${pages.length}`;
+    const label = `${model.name} · ${pack.title} · ${DATE} · page ${i + 1} of ${pages.length}`;
     pg.drawText(label, { x: pg.getWidth() - 14 - font.widthOfTextAtSize(label, 6.5), y: 5.5, size: 6.5, font, color: rgb(0.35, 0.35, 0.35) });
   });
-  if (pages.length !== total) throw new Error(`Bound ${pages.length} pages, contents says ${total}.`);
-  writeFileSync(join(OUT, file), await out.save());
-  console.log(`${file}: ${pages.length} ${paper} page(s)`);
+  if (pages.length !== total) throw new Error(`${pack.slug}: bound ${pages.length} pages, contents says ${total}.`);
+  writeFileSync(join(OUT, paper, `${pack.slug}.pdf`), await out.save());
+  console.log(`${paper}/${pack.slug}.pdf: ${pages.length} page(s)`);
   return pages.length;
 }
 
-mkdirSync(OUT, { recursive: true });
 try {
-  const n: Record<string, number> = {};
-  for (const paper of ["A3", "A4"] as const) {
-    n[`full${paper}`] = await bind("trade set", `bathroom-trade-set-${paper}.pdf`, parts, paper);
-    n[`wall${paper}`] = await bind("wall set (drawings)", `bathroom-wall-set-${paper}.pdf`, parts.filter((p) => p.wall), paper);
+  const n: Record<Paper, number[]> = { A3: [], A4: [] };
+  for (const paper of ["A4", "A3"] as const) {
+    rmSync(join(OUT, paper), { recursive: true, force: true });
+    mkdirSync(join(OUT, paper), { recursive: true });
+    for (const pack of packs) n[paper].push(await bindPack(pack, paper));
   }
+  const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   writeFileSync(join(OUT, "README.md"), [
-    `# Printable trade set: ${model.name}`, "",
-    "Generated by `npm run printables` (after `npm run stage-pack` and `npm run sample-sheets`). Print at 100 % (actual size), never \"fit to page\", so the 1:20 drawings scale.", "",
-    "Two sets, each on two papers:", "",
-    `- Wall set: the drawings to pin up: cover and contents, who needs what, the fixture schedule, A-01, every stage plan and wall elevation, the tiling sheets and the 3D renders (the heating route is on the stage 5 plan). [A3 landscape](bathroom-wall-set-A3.pdf), ${n.wallA3} pages; [A4](bathroom-wall-set-A4.pdf), ${n.wallA4} pages.`,
-    `- Trade set: the same plus every stage's full specification table and the heating review, for the folder. [A3 landscape](bathroom-trade-set-A3.pdf), ${n.fullA3} pages; [A4](bathroom-trade-set-A4.pdf), ${n.fullA4} pages.`, "",
+    `# Printable packs: ${model.name}`, "",
+    "Generated by `npm run printables` (after `npm run stage-pack` and `npm run sample-sheets`). One pack per construction stage, plus an overview to start from. Print at 100 % (actual size), never \"fit to page\", so the 1:20 drawings scale.", "",
+    "| Pack | A4 | A3 landscape |", "| --- | --- | --- |",
+    ...packs.map((p, i) => `| ${p.title} | [${n.A4[i]} pages](A4/${p.slug}.pdf) | [${n.A3[i]} pages](A3/${p.slug}.pdf) |`),
+    `| All packs | ${sum(n.A4)} pages | ${sum(n.A3)} pages |`, "",
+    "Each stage pack is a cover (what the stage is, who it is for, contents), the stage plan, the wall elevations that show something new at that stage, and the stage's specification. Stage 5 adds the heating review; stage 8 adds the floor and wall tiling sheets. The overview holds who needs which pack, the open owner decisions, what is still to measure, the fixture schedule, A-01 and the 3D renders.", "",
+    "Wall elevations left out because nothing new is set out on that wall at that stage, or (stage 8) its wall tiling sheet covers it:", "",
+    ...[...dropped].map(([stage, walls]) => `- ${stage}: ${walls.length === 4 ? "all four walls" : walls.join(", ")}`), "",
     "On A4 each A3 drawing sheet becomes two pages: the drawing at the same scale, with a 1 m scale bar at the top to check the print against (50 mm at 1:20), then its notes and title block. A drawing too big for one A4 page runs over several, overlapping by 10 mm. Specifications, the heating review and the front pages reflow onto A4 landscape.", "",
-    "Every drawing is the saved export it names. On A4 the sheet's own scale bar, caption and status line move into the page header, and \"at A3\" reads \"at A4\"; the cover, index, schedule and renders pages are built from the same model. Proposed, for trade review: not as-built and not a compliance certificate.", "",
+    "Every drawing is the saved export it names. On A4 the sheet's own scale bar, caption and status line move into the page header, and \"at A3\" reads \"at A4\"; the covers, index, schedule and renders pages are built from the same model. Proposed, for trade review: not as-built and not a compliance certificate.", "",
   ].join("\n"));
 } finally {
   await browser.close();

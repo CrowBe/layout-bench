@@ -111,7 +111,7 @@ unconfirmed. Every output is saved in the repository:
 | Plan, wall elevations and specification for all 9 construction stages | [`shots/stage-pack/`](shots/stage-pack/README.md) | `npm run stage-pack` |
 | A-01 floor plan, floor and wall tiling sheets, heating review | [`shots/sample-sheets/`](shots/sample-sheets/README.md) | `npm run sample-sheets` |
 | 3D renders of the finished room and each build stage | [`shots/renovation-3d/`](shots/renovation-3d/) | `node stage-shots.mjs` (with `npm run dev` running) |
-| Printable PDF sets on A3, or split onto A4 at the same scale: wall set to pin up, full trade set for the folder | [`shots/printables/`](shots/printables/README.md) | `npm run printables` (after the two above) |
+| Printable PDF packs, one per construction stage plus an overview, on A3 or split onto A4 at the same scale | [`shots/printables/`](shots/printables/README.md) | `npm run printables` (after the two above) |
 | 1:20 3D print of the finished room (3MF for Bambu Studio, STL) | [`shots/print-3d/`](shots/print-3d/README.md) | `npm run print-3d` |
 
 ## Contributing
