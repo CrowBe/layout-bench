@@ -1,13 +1,17 @@
 /**
  * The shipped sample's printable trade set: every drawing and sheet the stage pack and the sample
- * sheets already export, bound into A3 landscape PDFs with a cover, a who-needs-what index, a
- * fixture schedule read from the model, the open decisions and the 3D renders. Nothing is redrawn
- * here: each page is the saved SVG or HTML, printed by Chromium as it is. Run the generators first.
+ * sheets already export, bound into PDFs with a cover, a who-needs-what index, a fixture schedule
+ * read from the model, the open decisions and the 3D renders. Nothing is redrawn here: each page is
+ * the saved SVG or HTML, printed by Chromium. Run the generators first.
  *
  *   npm run stage-pack && npm run sample-sheets && npm run printables
  *
- * Output: shots/printables/bathroom-trade-set-A3.pdf (everything, specs included),
- * shots/printables/bathroom-wall-set-A3.pdf (drawings only, to pin up) and their README.md.
+ * A3 landscape prints each sheet as it is. A4 splits each A3 drawing sheet in two at its panel edge
+ * and prints both halves at actual size: the drawing (still at its stated scale, with its own scale
+ * bar) and then its notes and title block. HTML sheets reflow onto A4 landscape.
+ *
+ * Output: shots/printables/bathroom-trade-set-A3.pdf and -A4.pdf (everything, specs included),
+ * bathroom-wall-set-A3.pdf and -A4.pdf (drawings only, to pin up) and their README.md.
  */
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -79,8 +83,15 @@ for (const f of readdirSync(SHEETS).filter((n) => /^heating-.*\.html$/.test(n)))
 function wallOrder(name: string) { return ["wall_n", "wall_e", "wall_s", "wall_w"].findIndex((w) => name.includes(w)); }
 
 // ---- pages generated here: cover, schedule, renders ----------------------------------------------
-const PAGE_CSS = `@page{size:420mm 297mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font:10.5pt Helvetica,Arial,sans-serif;color:#111}
-.sheet{width:420mm;height:297mm;padding:12mm 14mm 10mm;position:relative;overflow:hidden;page-break-after:always;border:0}
+type Paper = "A3" | "A4";
+// A3 pages are fixed sheets with a frame. A4 pages flow: a table longer than one page runs on.
+const SHEET_CSS: Record<Paper, string> = {
+  A3: `@page{size:420mm 297mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font:10.5pt Helvetica,Arial,sans-serif;color:#111}
+.sheet{width:420mm;height:297mm;padding:12mm 14mm 10mm;position:relative;overflow:hidden;page-break-after:always;border:0}`,
+  A4: `@page{size:297mm 210mm;margin:9mm 11mm 10mm}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font:9.5pt Helvetica,Arial,sans-serif;color:#111}
+.sheet{width:100%;border:0}.frame{display:none}.sheet>.cols{height:auto!important}.sheet .small{font-size:8pt}.sheet .tiny{font-size:7pt}.hero{max-height:105mm;object-fit:contain}`,
+};
+const PAGE_CSS = (paper: Paper) => `${SHEET_CSS[paper]}
 .frame{position:absolute;inset:5mm;border:0.5mm solid #000}
 h1{font-size:22pt;margin:0 0 2mm}h2{font-size:12.5pt;margin:4mm 0 1.5mm;border-bottom:0.3mm solid #999;padding-bottom:0.8mm}h3{font-size:10.5pt;margin:2.5mm 0 1mm}
 .banner{background:#b00020;color:#fff;font-weight:bold;padding:1.5mm 3mm;display:inline-block;font-size:9.5pt;letter-spacing:0.02em}
@@ -146,9 +157,9 @@ function scheduleRows(): string {
   }).join("");
 }
 
-function coverPage(toc: { title: string; first: number; count: number }[], set: string, total: number): string {
+function coverPage(toc: { title: string; first: number; count: number }[], set: string, total: number, paper: Paper): string {
   const sections = [...new Map(toc.map((t) => [t.title.split(":")[0], t])).values()];
-  const hero = existsSync(join(RENDERS, "stage-6-fit-out.png")) ? `<img src="${dataUri(join(RENDERS, "stage-6-fit-out.png"))}" style="width:100%;border:0.2mm solid #999">` : "";
+  const hero = existsSync(join(RENDERS, "stage-6-fit-out.png")) ? `<img class="hero" src="${dataUri(join(RENDERS, "stage-6-fit-out.png"))}" style="width:100%;border:0.2mm solid #999">` : "";
   // one row per section: its sheets in order and the pages they cover
   const groups: { section: string; sheets: string[]; first: number; last: number }[] = [];
   for (const t of toc) {
@@ -160,14 +171,16 @@ function coverPage(toc: { title: string; first: number; count: number }[], set: 
   const contents = groups.map((g) => `<tr><td><b>${esc(g.section)}</b>${g.sheets.length ? `<br><span class="muted">${esc(g.sheets.join(" · "))}</span>` : ""}</td><td style="text-align:right;white-space:nowrap">${g.first === g.last ? g.first : `${g.first}–${g.last}`}</td></tr>`).join("");
   return page(`<div class="cols c2" style="grid-template-columns:1.05fr 1fr;height:100%">
 <div><h1>${esc(model.name)}: ${set}</h1>
-<div class="muted">Bathroom renovation · ${esc(model.sheetSet?.titleBlock.site ?? "")} · printed ${DATE} · ${total} A3 pages</div>
+<div class="muted">Bathroom renovation · ${esc(model.sheetSet?.titleBlock.site ?? "")} · printed ${DATE} · ${total} ${paper} pages</div>
 <p><span class="banner">PROPOSED · FOR TRADE REVIEW · NOT AS-BUILT · NOT A COMPLIANCE CERTIFICATE</span></p>
 ${hero}
 <h2>How to read these sheets</h2>
 <ul class="small"><li>Dimensions in millimetres. Every figure carries its status: ${LEGEND}. Treat anything not SC or M as a figure to check on site.</li>
 <li>Elevations look at a wall from inside the room; end A is on the left. Wall fittings are set out from the wall's finished (tile) face: centreline along from the return wall's face at A, bottom above the finished floor.</li>
 <li>F1, F2… are the fixtures (see the fixture schedule); F11.2 is service point 2 of fixture 11. "?" means not known yet and never drawn.</li>
-<li>Scale 1:20 at A3 on the plans and elevations. Print at 100% ("actual size"), never "fit to page".</li></ul>
+${paper === "A3"
+    ? `<li>Scale 1:20 at A3 on the plans and elevations. Print at 100% ("actual size"), never "fit to page".</li>`
+    : `<li>Each A3 drawing sheet is split onto two A4 pages: the drawing at its stated scale (1:20 on the plans and elevations), then its notes and title block. Print at 100% ("actual size"), never "fit to page"; the 1 m scale bar at the top of each drawing page then measures 50 mm.</li>`}</ul>
 <p class="tiny muted">${sections.length} sections. Generated from the project model by npm run printables; the drawings are the same exports saved in the repository (shots/stage-pack, shots/sample-sheets).</p></div>
 <div><h2>Contents</h2><table class="tiny"><tr><th>Sheet</th><th style="text-align:right">Page</th></tr>${contents}</table></div></div>`);
 }
@@ -215,36 +228,166 @@ async function printHtml(html: string): Promise<Uint8Array> {
   await tab.setContent(html, { waitUntil: "load" });
   return tab.pdf({ preferCSSPageSize: true, printBackground: true });
 }
-async function printPart(p: Part): Promise<Uint8Array> {
-  const src = readFileSync(p.path!, "utf8");
-  if (p.kind === "svg") {
-    const svg = src.replace(/^<\?xml[^>]*>\s*/, "").replace(/<svg /, '<svg style="display:block;width:420mm;height:297mm" ');
-    return printHtml(`<!doctype html><meta charset="utf-8"><style>@page{size:420mm 297mm;margin:0}html,body{margin:0}</style>${svg}`);
-  }
-  // an HTML sheet keeps its own styles; only the paper changes to A3 landscape, with room for the page stamp
-  const a3 = `<style>@page{size:420mm 297mm;margin:10mm 12mm 12mm}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{max-width:none}</style>`;
-  return printHtml(src.includes("</head>") ? src.replace("</head>", `${a3}</head>`) : a3 + src);
+
+/** Where each sheet type's drawing area ends and its notes panel begins, in paper mm (src/sheets). */
+const PANEL_EDGE: Record<string, number> = { "floor-plan": 263, "stage-view": 263, "stage-elevation": 277, "wall-tiling": 277, "floor-tiling": 224 };
+const FOOT = 264; // paper y below which a sheet's drawing area holds only its scale bar and caption
+const HEAD = 22; // paper y above which it holds only a status line
+const A4 = { w: 210, h: 297 };
+const MARGIN = { side: 6, top: 20, bottom: 9 }; // the top strip holds the header and scale bar; the bottom the page stamp
+const OVERLAP = 10; // mm a drawing repeats across a page join, when it needs more than one page
+
+interface Half { svg: string; x: number; y: number; w: number; h: number }
+
+/**
+ * Split one A3 sheet at its panel edge, in the browser so text and rotated labels measure as
+ * drawn. Each top-level element goes to the side its centre is on; the sheet frame and the
+ * drawing-area border go to neither. Coordinates stay in paper mm, so the drawing half keeps the
+ * sheet's scale exactly.
+ */
+async function splitSheet(svgSrc: string, edge: number): Promise<{ drawing: Half; panel: Half; caption: string }> {
+  await tab.setContent(`<!doctype html><meta charset="utf-8"><style>html,body{margin:0}svg{display:block}</style>${svgSrc}`, { waitUntil: "load" });
+  return tab.evaluate(({ edge, foot, head }: { edge: number; foot: number; head: number }) => {
+    const root = document.querySelector("svg")!;
+    const vb = root.viewBox.baseVal;
+    const r0 = root.getBoundingClientRect();
+    const k = r0.width / vb.width;
+    const caption: string[] = [];
+    const side = new Map<Element, "drawing" | "panel" | "none">();
+    const box = { drawing: [Infinity, Infinity, -Infinity, -Infinity], panel: [Infinity, Infinity, -Infinity, -Infinity] };
+    for (const el of Array.from(root.children)) {
+      if (["metadata", "defs", "style"].includes(el.tagName)) continue;
+      const r = el.getBoundingClientRect();
+      const x0 = vb.x + (r.left - r0.left) / k, y0 = vb.y + (r.top - r0.top) / k, x1 = x0 + r.width / k, y1 = y0 + r.height / k;
+      // the background, the sheet frame and the drawing-area border: frames, not content
+      if (el.tagName === "rect" && x1 - x0 > 200 && y1 - y0 > 200) { side.set(el, "none"); continue; }
+      if (!r.width && !r.height) { side.set(el, "none"); continue; }
+      // the sheet's own scale bar and its caption sit in the drawing area's bottom strip, and a status
+      // line may sit in its top corner, well clear of the drawing: the A4 page draws its own bar and
+      // prints those lines in its header instead
+      if ((x0 + x1) / 2 < edge && (y0 > foot || y1 < head)) { side.set(el, "none"); if (el.tagName === "text") caption.push(el.textContent ?? ""); continue; }
+      const s = (x0 + x1) / 2 < edge ? "drawing" : "panel";
+      side.set(el, s);
+      const b = box[s];
+      b[0] = Math.min(b[0], x0); b[1] = Math.min(b[1], y0); b[2] = Math.max(b[2], x1); b[3] = Math.max(b[3], y1);
+    }
+    const half = (s: "drawing" | "panel") => {
+      const pad = 2;
+      const [x0, y0, x1, y1] = box[s];
+      const x = x0 - pad, y = y0 - pad, w = x1 - x0 + 2 * pad, h = y1 - y0 + 2 * pad;
+      const copy = root.cloneNode(false) as SVGSVGElement;
+      for (const el of Array.from(root.children)) if (!side.has(el) || side.get(el) === s) copy.appendChild(el.cloneNode(true));
+      copy.removeAttribute("width"); copy.removeAttribute("height"); copy.removeAttribute("style");
+      copy.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+      return { svg: copy.outerHTML, x, y, w, h };
+    };
+    return { drawing: half("drawing"), panel: half("panel"), caption: caption.filter((t) => /[a-z]{3}/i.test(t)).join(" ") };
+  }, { edge, foot: FOOT, head: HEAD });
 }
 
-async function bind(set: string, file: string, chosen: Part[]): Promise<number> {
+const pageHtml = (w: number, h: number, body: string) =>
+  `<!doctype html><meta charset="utf-8"><style>@page{size:${w}mm ${h}mm;margin:0}html,body{margin:0}body{font:8pt Helvetica,Arial,sans-serif;color:#111;width:${w}mm;height:${h}mm;position:relative;overflow:hidden}svg{display:block}</style>${body}`;
+
+/** A true scale bar for 1:N: 1 m in 0.5 m halves, so a printed page can be checked with a rule. */
+function scaleBar(n: number): string {
+  const len = 1000 / n; // paper mm per metre
+  return `<svg width="${len + 12}mm" height="9mm" viewBox="-2 0 ${len + 12} 9"><rect x="0" y="4" width="${len / 2}" height="1.6" fill="#000"/><rect x="${len / 2}" y="4" width="${len / 2}" height="1.6" fill="#fff" stroke="#000" stroke-width="0.25"/><rect x="0" y="4" width="${len}" height="1.6" fill="none" stroke="#000" stroke-width="0.25"/>
+<text x="0" y="3" font-size="2.4" text-anchor="middle">0</text><text x="${len / 2}" y="3" font-size="2.4" text-anchor="middle">0.5</text><text x="${len}" y="3" font-size="2.4" text-anchor="middle">1 m</text><text x="0" y="8.6" font-size="2.1">1 m = ${len.toFixed(0)} mm at 1:${n}</text></svg>`;
+}
+
+/** The A4 pages for one A3 drawing sheet: its drawing at actual size (over more than one page only when it must), then its panel. */
+async function printSheetA4(p: Part, src: string): Promise<Uint8Array[]> {
+  const kind = /data-sheet="([^"]+)"/.exec(src)?.[1] ?? "";
+  const edge = PANEL_EDGE[kind];
+  if (edge === undefined) throw new Error(`${p.path}: no A4 split for sheet type "${kind}"`);
+  // the halves still say which paper their scale is for
+  const { drawing, panel, caption } = await splitSheet(src.replace(/(\bat|@) A3\b/g, "$1 A4"), edge);
+  const n = Number(/data-scale="(\d+)"/.exec(src)?.[1] ?? /Scale 1:(\d+)/.exec(src)?.[1] ?? NaN);
+  const out: Uint8Array[] = [];
+
+  // portrait unless only landscape takes the drawing whole; else as few pages as either way needs
+  const fit = (pw: number, ph: number) => {
+    const aw = pw - 2 * MARGIN.side, ah = ph - MARGIN.top - MARGIN.bottom;
+    const cols = drawing.w <= aw ? 1 : Math.ceil((drawing.w - OVERLAP) / (aw - OVERLAP));
+    const rows = drawing.h <= ah ? 1 : Math.ceil((drawing.h - OVERLAP) / (ah - OVERLAP));
+    return { pw, ph, aw, ah, cols, rows };
+  };
+  const options = [fit(A4.w, A4.h), fit(A4.h, A4.w)];
+  const f = options.reduce((a, b) => (b.cols * b.rows < a.cols * a.rows ? b : a));
+  const tiles = f.cols * f.rows;
+  for (let r = 0; r < f.rows; r++) for (let c = 0; c < f.cols; c++) {
+    const w = f.cols === 1 ? drawing.w : Math.min(f.aw, drawing.w - c * (f.aw - OVERLAP));
+    const h = f.rows === 1 ? drawing.h : Math.min(f.ah, drawing.h - r * (f.ah - OVERLAP));
+    const x = drawing.x + c * (f.aw - OVERLAP), y = drawing.y + r * (f.ah - OVERLAP);
+    const svg = drawing.svg.replace(/viewBox="[^"]*"/, `viewBox="${x} ${y} ${w} ${h}" width="${w}mm" height="${h}mm"`);
+    const part = tiles > 1 ? ` Part ${r * f.cols + c + 1} of ${tiles}, overlapping the next by ${OVERLAP} mm.` : "";
+    const scale = Number.isFinite(n)
+      ? `${caption || `Scale 1:${n} at A4.`}${part} Print at 100% (actual size), never "fit to page". Notes and title block on the next page.`
+      : `${caption || "Diagram, not to scale: use the written dimensions."}${part} Notes on the next page.`;
+    out.push(await printHtml(pageHtml(f.pw, f.ph, `<div style="position:absolute;left:${MARGIN.side}mm;top:6mm;right:${MARGIN.side + (Number.isFinite(n) ? 64 : 0)}mm"><b style="font-size:10pt">${esc(p.title)}</b><br>${esc(scale)}</div>
+${Number.isFinite(n) ? `<div style="position:absolute;right:${MARGIN.side}mm;top:5mm">${scaleBar(n)}</div>` : ""}
+<div style="position:absolute;left:${MARGIN.side + (f.aw - w) / 2}mm;top:${MARGIN.top + (f.ah - h) / 2}mm">${svg}</div>`)));
+  }
+
+  // the notes and title block: text, not a drawing, so it may shrink a little to fit
+  const aw = A4.w - 2 * MARGIN.side, ah = A4.h - 6 - MARGIN.bottom;
+  const s = Math.min(1, aw / panel.w, ah / panel.h);
+  const svg = panel.svg.replace(/viewBox="[^"]*"/, `viewBox="${panel.x} ${panel.y} ${panel.w} ${panel.h}" width="${panel.w * s}mm" height="${panel.h * s}mm"`);
+  out.push(await printHtml(pageHtml(A4.w, A4.h, `<div style="position:absolute;left:${(A4.w - panel.w * s) / 2}mm;top:6mm">${svg}</div>`)));
+  return out;
+}
+
+async function printPart(p: Part, paper: Paper): Promise<Uint8Array[]> {
+  const src = readFileSync(p.path!, "utf8");
+  if (p.kind === "svg") {
+    const svg = src.replace(/^<\?xml[^>]*>\s*/, "");
+    if (paper === "A4") return printSheetA4(p, svg);
+    return [await printHtml(`<!doctype html><meta charset="utf-8"><style>@page{size:420mm 297mm;margin:0}html,body{margin:0}</style>${svg.replace(/<svg /, '<svg style="display:block;width:420mm;height:297mm" ')}`)];
+  }
+  // an HTML sheet keeps its own styles; only the paper changes to landscape, with room for the page stamp
+  const size = paper === "A3" ? "420mm 297mm;margin:10mm 12mm 12mm" : "297mm 210mm;margin:9mm 10mm 11mm";
+  const css = `<style>@page{size:${size}}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{max-width:none}</style>`;
+  return [await printHtml(src.includes("</head>") ? src.replace("</head>", `${css}</head>`) : css + src)];
+}
+
+async function merge(pdfs: Uint8Array[]): Promise<PDFDocument> {
+  const doc = await PDFDocument.create();
+  for (const bytes of pdfs) { const src = await PDFDocument.load(bytes); for (const pg of await doc.copyPages(src, src.getPageIndices())) doc.addPage(pg); }
+  return doc;
+}
+
+async function bind(set: string, file: string, chosen: Part[], paper: Paper): Promise<number> {
   const printed: { part: Part; pdf: PDFDocument }[] = [];
-  for (const part of chosen) printed.push({ part, pdf: await PDFDocument.load(await printPart(part)) });
-  const front = 3; // cover, index, schedule
-  const extra = 1; // renders page at the end
-  let at = front + 1;
-  const toc = printed.map(({ part, pdf }) => { const t = { title: part.title, first: at, count: pdf.getPageCount() }; at += t.count; return t; });
-  toc.unshift({ title: "Who needs what, open decisions, still to measure", first: 2, count: 1 }, { title: "Fixture schedule", first: 3, count: 1 });
-  toc.push({ title: "3D renders", first: at, count: 1 });
-  const total = at - 1 + extra;
-  const head = await PDFDocument.load(await printHtml(`<!doctype html><meta charset="utf-8"><style>${PAGE_CSS}</style>${coverPage(toc, set, total)}${indexPage(toc)}${schedulePage()}`));
-  const tail = await PDFDocument.load(await printHtml(`<!doctype html><meta charset="utf-8"><style>${PAGE_CSS}</style>${rendersPage()}`));
-  if (head.getPageCount() !== front) throw new Error(`Front matter ran to ${head.getPageCount()} pages, expected ${front}: shorten it.`);
+  for (const part of chosen) printed.push({ part, pdf: await merge(await printPart(part, paper)) });
+  const css = `<!doctype html><meta charset="utf-8"><style>${PAGE_CSS(paper)}</style>`;
+  const tail = await PDFDocument.load(await printHtml(`${css}${rendersPage()}`));
+  // the front matter's page numbers depend on its own length; on A4 a table may run on, so settle it
+  let counts = [1, 1, 1]; // cover, index, schedule
+  let head: PDFDocument[] = [];
+  let toc: { title: string; first: number; count: number }[] = [];
+  let total = 0;
+  for (let pass = 0; ; pass++) {
+    const front = counts.reduce((a, b) => a + b, 0);
+    let at = front + 1;
+    toc = printed.map(({ part, pdf }) => { const t = { title: part.title, first: at, count: pdf.getPageCount() }; at += t.count; return t; });
+    toc.unshift({ title: "Who needs what, open decisions, still to measure", first: counts[0] + 1, count: counts[1] }, { title: "Fixture schedule", first: counts[0] + counts[1] + 1, count: counts[2] });
+    toc.push({ title: "3D renders", first: at, count: tail.getPageCount() });
+    total = at - 1 + tail.getPageCount();
+    head = [];
+    for (const html of [coverPage(toc, set, total, paper), indexPage(toc), schedulePage()]) head.push(await PDFDocument.load(await printHtml(css + html)));
+    const got = head.map((d) => d.getPageCount());
+    if (got.every((c, i) => c === counts[i])) break;
+    if (paper === "A3") throw new Error(`Front matter ran to ${got.join("+")} pages, expected one each: shorten it.`);
+    if (pass === 3) throw new Error(`Front matter page count did not settle (${got.join("+")}).`);
+    counts = got;
+  }
+  if (tail.getPageCount() !== 1 && paper === "A3") throw new Error("The renders page ran over one A3 page.");
 
   const out = await PDFDocument.create();
-  out.setTitle(`${model.name}: ${set}`);
+  out.setTitle(`${model.name}: ${set} (${paper})`);
   out.setSubject("Proposed, for trade review. Not as-built, not a compliance certificate.");
   out.setCreator("Reno Layouts (npm run printables)");
-  for (const doc of [head, ...printed.map((p) => p.pdf), tail]) for (const pg of await out.copyPages(doc, doc.getPageIndices())) out.addPage(pg);
+  for (const doc of [...head, ...printed.map((p) => p.pdf), tail]) for (const pg of await out.copyPages(doc, doc.getPageIndices())) out.addPage(pg);
   // page stamp in the bottom margin, outside every sheet's own border
   const font = await out.embedFont(StandardFonts.Helvetica);
   const pages = out.getPages();
@@ -254,20 +397,25 @@ async function bind(set: string, file: string, chosen: Part[]): Promise<number> 
   });
   if (pages.length !== total) throw new Error(`Bound ${pages.length} pages, contents says ${total}.`);
   writeFileSync(join(OUT, file), await out.save());
-  console.log(`${file}: ${pages.length} A3 page(s)`);
+  console.log(`${file}: ${pages.length} ${paper} page(s)`);
   return pages.length;
 }
 
 mkdirSync(OUT, { recursive: true });
 try {
-  const full = await bind("trade set", "bathroom-trade-set-A3.pdf", parts);
-  const wall = await bind("wall set (drawings)", "bathroom-wall-set-A3.pdf", parts.filter((p) => p.wall));
+  const n: Record<string, number> = {};
+  for (const paper of ["A3", "A4"] as const) {
+    n[`full${paper}`] = await bind("trade set", `bathroom-trade-set-${paper}.pdf`, parts, paper);
+    n[`wall${paper}`] = await bind("wall set (drawings)", `bathroom-wall-set-${paper}.pdf`, parts.filter((p) => p.wall), paper);
+  }
   writeFileSync(join(OUT, "README.md"), [
     `# Printable trade set: ${model.name}`, "",
-    "Generated by `npm run printables` (after `npm run stage-pack` and `npm run sample-sheets`). A3 landscape; print at 100 % (actual size) so the 1:20 drawings scale.", "",
-    `- [bathroom-wall-set-A3.pdf](bathroom-wall-set-A3.pdf): ${wall} pages. The drawings to pin up: cover and contents, who needs what, the fixture schedule, A-01, every stage plan and wall elevation, the tiling sheets and the 3D renders (the heating route is on the stage 5 plan).`,
-    `- [bathroom-trade-set-A3.pdf](bathroom-trade-set-A3.pdf): ${full} pages. The same plus every stage's full specification table, for the folder.`, "",
-    "Every page is the saved export it names, unchanged; the cover, index, schedule and renders pages are built from the same model. Proposed, for trade review: not as-built and not a compliance certificate.", "",
+    "Generated by `npm run printables` (after `npm run stage-pack` and `npm run sample-sheets`). Print at 100 % (actual size), never \"fit to page\", so the 1:20 drawings scale.", "",
+    "Two sets, each on two papers:", "",
+    `- Wall set: the drawings to pin up: cover and contents, who needs what, the fixture schedule, A-01, every stage plan and wall elevation, the tiling sheets and the 3D renders (the heating route is on the stage 5 plan). [A3 landscape](bathroom-wall-set-A3.pdf), ${n.wallA3} pages; [A4](bathroom-wall-set-A4.pdf), ${n.wallA4} pages.`,
+    `- Trade set: the same plus every stage's full specification table and the heating review, for the folder. [A3 landscape](bathroom-trade-set-A3.pdf), ${n.fullA3} pages; [A4](bathroom-trade-set-A4.pdf), ${n.fullA4} pages.`, "",
+    "On A4 each A3 drawing sheet becomes two pages: the drawing at the same scale, with a 1 m scale bar at the top to check the print against (50 mm at 1:20), then its notes and title block. A drawing too big for one A4 page runs over several, overlapping by 10 mm. Specifications, the heating review and the front pages reflow onto A4 landscape.", "",
+    "Every drawing is the saved export it names. On A4 the sheet's own scale bar, caption and status line move into the page header, and \"at A3\" reads \"at A4\"; the cover, index, schedule and renders pages are built from the same model. Proposed, for trade review: not as-built and not a compliance certificate.", "",
   ].join("\n"));
 } finally {
   await browser.close();
