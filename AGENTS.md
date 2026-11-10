@@ -72,8 +72,9 @@ finer than 0.1 mm is rounded and the result says so. Pointer snap is a drawing a
 `published`, `proposed`, `estimated`, `derived`, `modelled`) and, for a length, the face or datum
 it is measured from. Never substitute a default for a missing input: leave it null, mark it
 unresolved and name what is missing. A placeholder the app does create (a door height nobody
-gave) is flagged as defaulted and warned on by `get_issues`. Outputs print unknowns as "?" and
-keep every status tag. A surveyed surface is never converted into a frame position.
+gave) is flagged as defaulted and warned on by `get_issues`. Decision D-ENG-071: a value whose status is unknown
+prints its number with the `?` tag (e.g. `1810 ?`); a value that is missing (null, no number) prints `?` alone;
+every printed number keeps exactly one status tag. A surveyed surface is never converted into a frame position.
 
 **Faces and datums.** Each wall side records its existing surface, frame face and proposed
 build-up ([`faces.ts`](src/model/faces.ts)). Fixtures and service points are set out from a named
